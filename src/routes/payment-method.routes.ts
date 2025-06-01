@@ -2,6 +2,7 @@ import { Request, Response, Router } from 'express';
 import { sealDBModel } from '../databases/local';
 import { PAYMENT_METHODS_DB } from '../databases/local/tables';
 import { v4 as uuidv4 } from 'uuid';
+import { PaymentMethod } from '@/types';
 
 const router = Router();
 

@@ -3,6 +3,7 @@ import validator from 'validator';
 import { v4 as uuidv4 } from 'uuid';
 import { CUSTOMER_DB } from '../databases/local/tables';
 import { sealDBModel } from '../databases/local';
+import { Customer } from '@/types';
 
 const router = Router();
 

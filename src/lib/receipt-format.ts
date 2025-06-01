@@ -1,3 +1,4 @@
+import { CartItem, Setting, Transaction } from '@/types';
 import { base64Logo } from './base64-logo';
 
 export function generateTransactionHtml(

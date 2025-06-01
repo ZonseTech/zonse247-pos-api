@@ -2,6 +2,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { ORDERS_DB } from '../databases/local/tables';
 import { sealDBModel } from '../databases/local';
 import { Router } from 'express';
+import { CartItem, OrderItem } from '@/types';
 
 const router = Router();
 

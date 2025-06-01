@@ -29,10 +29,7 @@
     "eslint-plugin-import": "^2.31.0",
     "nodemon": "^3.1.10",
     "path": "^0.12.7",
-    "ts-node": "^10.9.2",
-    "ts-node-dev": "^2.0.0",
-    "typescript": "^5.8.3",
-    "vite": "^5.4.18"
+    "typescript": "^5.8.3"
   },
   "dependencies": {
     "async": "^3.2.6",
@@ -49,6 +46,8 @@
     "mysql2-promise": "^0.1.4",
     "papaparse": "^5.5.3",
     "sanitize-filename": "^1.6.3",
+    "ts-node": "^10.9.2",
+    "ts-node-dev": "^2.0.0",
     "tsx": "^4.19.4",
     "typescript-nedb-orm": "^1.7.0",
     "uuid": "^11.1.0",

@@ -2,6 +2,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { Request, Response, Router } from 'express';
 import { sealDBModel } from '../databases/local';
 import { CATEGORY_DB } from '../databases/local/tables';
+import { Category } from '@/types';
 
 const router = Router();
 

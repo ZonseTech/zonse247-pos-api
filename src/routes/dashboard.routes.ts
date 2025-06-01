@@ -9,6 +9,14 @@ import {
 } from '../databases/local/tables';
 import { sealDBModel } from '../databases/local';
 import { formatCurrency } from '../utils';
+import {
+	Category,
+	DashboardCounts,
+	MonthlySales,
+	Product,
+	TopProduct,
+	Transaction,
+} from '@/types';
 
 const router = Router();
 

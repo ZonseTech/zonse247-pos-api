@@ -1,6 +1,6 @@
 import os from 'os';
 import { exec } from 'child_process';
-import { /* BrowserWindow, */ PrinterInfo } from 'electron';
+import { Printer, PrinterInfo } from '@/types';
 
 export function getAllPrinters(): Promise<Printer[]> {
 	return new Promise((resolve) => {

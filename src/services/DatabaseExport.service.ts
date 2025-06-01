@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { ExportDBModel } from '../databases/local/exports.db';
+import { ExportOptions, ExportResult } from '@/types';
 
 export class DatabaseExportService {
 	private exportDBModel: ExportDBModel;

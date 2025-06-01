@@ -9,6 +9,7 @@ import { SETTINGS_DB } from '../databases/local/tables';
 import { sealDBModel } from '../databases/local';
 import { v4 as uuidv4 } from 'uuid';
 import { filterFile } from '../utils';
+import { Setting } from '@/types';
 
 const router = Router();
 

@@ -11,6 +11,7 @@ import {
 	INVENTORY_DB,
 } from '../databases/local/tables';
 import { sealDBModel } from '../databases/local';
+import { Transaction } from '@/types';
 
 const router = Router();
 

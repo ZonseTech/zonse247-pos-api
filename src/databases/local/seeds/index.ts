@@ -10,6 +10,7 @@ import {
 import bcrypt from 'bcryptjs';
 import { sealDBModel } from '..';
 import { v4 as uuidv4 } from 'uuid';
+import type { Category, Customer, PaymentMethodData, User } from '@/types';
 
 const tables = [
 	{
@@ -112,7 +113,7 @@ async function checkAndCreateDefaultCategory(): Promise<void> {
 }
 
 async function checkOrCreateDefaultPaymentMethods(): Promise<void> {
-	const DEFAULT_PAYMENT_METHODS: Array<PaymentMethod> = [
+	const DEFAULT_PAYMENT_METHODS: Array<PaymentMethodData> = [
 		{
 			name: 'Cash',
 			uuid: '1',

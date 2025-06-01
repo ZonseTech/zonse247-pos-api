@@ -2,10 +2,10 @@ import os from 'os';
 import fs from 'fs';
 import path from 'path';
 import { exec } from 'child_process';
-import { PrinterInfo } from 'electron';
 import { Request, Response, Router } from 'express';
 import { generateTransactionHtml } from '../lib/receipt-format';
 import { printDirectly, getAllPrinters } from '../lib/printer-manager';
+import { Printer, PrinterInfo } from '@/types';
 
 const router = Router();
 const appName = process.env.APPNAME || '';

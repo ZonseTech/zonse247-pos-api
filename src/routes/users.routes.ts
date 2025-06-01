@@ -4,6 +4,7 @@ import validator from 'validator';
 import { USERS_DB } from '../databases/local/tables';
 import { sealDBModel } from '../databases/local';
 import { v4 as uuidv4 } from 'uuid';
+import { LoginResponse, User, UserInput } from '@/types';
 
 const router = Router();
 const saltRounds = 10;

@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { eachSeries } from 'async';
 import { INVENTORY_DB, CATEGORY_DB } from '../databases/local/tables';
 import { sealDBModel } from '../databases/local';
+import { CartItem, Category, Product } from '@/types';
 
 const router = Router();
 

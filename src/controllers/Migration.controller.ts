@@ -4,6 +4,7 @@ import Papa from 'papaparse';
 import { mysqlPool } from '../config/db';
 import { Request, Response } from 'express';
 import { sealDBModel } from '../databases/local';
+import { MigrationProgress, MigrationStats } from '@/types';
 
 export class MigrationController {
 	private migrationProgress: MigrationProgress[] = [];
