@@ -127,7 +127,7 @@ class Server {
 	}
 
 	public async start() {
-		this.server.listen(this.port, async () => {
+		this.server.listen(this.port, '0.0.0.0', async () => {
 			console.log(`Server running on port ${this.port}`);
 			console.log(`Environment: ${process.env.NODE_ENV}`);
 
