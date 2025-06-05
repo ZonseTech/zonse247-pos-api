@@ -1,5 +1,6 @@
 import os from 'os';
 import { exec } from 'child_process';
+import { BrowserWindow } from 'electron';
 import { Printer, PrinterInfo } from '@/types';
 
 export function getAllPrinters(): Promise<Printer[]> {
@@ -133,93 +134,95 @@ export function printDirectly(
 ): Promise<boolean> {
 	return new Promise<boolean>((resolve) => {
 		try {
+			if (!process.versions.electron) return;
+
 			console.log('Creating browser window for printing');
-			// const win = new BrowserWindow({
-			// 	width: 800,
-			// 	height: 600,
-			// 	show: false,
-			// 	webPreferences: {
-			// 		nodeIntegration: false,
-			// 		contextIsolation: true,
-			// 	},
-			// });
+			const win = new BrowserWindow({
+				width: 800,
+				height: 600,
+				show: false,
+				webPreferences: {
+					nodeIntegration: false,
+					contextIsolation: true,
+				},
+			});
 
-			// const timeoutId = setTimeout(() => {
-			// 	console.warn('Print window timed out');
-			// 	try {
-			// 		if (!win.isDestroyed()) win.close();
-			// 	} catch (e) {
-			// 		//
-			// 	}
-			// 	resolve(false);
-			// }, 25000);
+			const timeoutId = setTimeout(() => {
+				console.warn('Print window timed out');
+				try {
+					if (!win.isDestroyed()) win.close();
+				} catch (e) {
+					//
+				}
+				resolve(false);
+			}, 25000);
 
-			// win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+			win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
 
-			// win.webContents.on('did-finish-load', () => {
-			// 	console.log('Print window loaded, sending print job');
+			win.webContents.on('did-finish-load', () => {
+				console.log('Print window loaded, sending print job');
 
-			// 	try {
-			// 		win.webContents.print(
-			// 			{
-			// 				silent: true,
-			// 				printBackground: true,
-			// 				deviceName: printerOptions.name,
-			// 				margins: {
-			// 					marginType: 'none',
-			// 				},
-			// 				pageSize: 'A5',
-			// 				landscape: false,
-			// 				copies: 1,
-			// 				scaleFactor: 100,
-			// 				dpi: {
-			// 					horizontal: 300,
-			// 					vertical: 300,
-			// 				},
-			// 			},
-			// 			(success, errorType) => {
-			// 				clearTimeout(timeoutId);
+				try {
+					win.webContents.print(
+						{
+							silent: true,
+							printBackground: true,
+							deviceName: printerOptions?.name,
+							margins: {
+								marginType: 'none',
+							},
+							pageSize: 'A5',
+							landscape: false,
+							copies: 1,
+							scaleFactor: 100,
+							dpi: {
+								horizontal: 300,
+								vertical: 300,
+							},
+						},
+						(success, errorType) => {
+							clearTimeout(timeoutId);
 
-			// 				if (!success) {
-			// 					console.error('Print failed with error type:', errorType);
-			// 				} else {
-			// 					console.log('Print job successful');
-			// 				}
+							if (!success) {
+								console.error('Print failed with error type:', errorType);
+							} else {
+								console.log('Print job successful');
+							}
 
-			// 				try {
-			// 					if (!win.isDestroyed()) win.close();
-			// 				} catch (e) {
-			// 					console.error('Error closing window:', e);
-			// 				}
+							try {
+								if (!win.isDestroyed()) win.close();
+							} catch (e) {
+								console.error('Error closing window:', e);
+							}
 
-			// 				resolve(success);
-			// 			}
-			// 		);
-			// 	} catch (err) {
-			// 		clearTimeout(timeoutId);
-			// 		console.error('Error during print operation:', err);
-			// 		try {
-			// 			if (!win.isDestroyed()) win.close();
-			// 		} catch (e) {
-			// 			//
-			// 		}
-			// 		resolve(false);
-			// 	}
-			// });
+							resolve(success);
+						}
+					);
+				} catch (err) {
+					clearTimeout(timeoutId);
+					console.error('Error during print operation:', err);
+					try {
+						if (!win.isDestroyed()) win.close();
+					} catch (e) {
+						//
+					}
+					resolve(false);
+				}
+			});
 
-			// win.webContents.on(
-			// 	'did-fail-load',
-			// 	(event, errorCode, errorDescription) => {
-			// 		clearTimeout(timeoutId);
-			// 		console.error('Failed to load HTML for printing:', errorDescription);
-			// 		try {
-			// 			if (!win.isDestroyed()) win.close();
-			// 		} catch (e) {
-			// 			//
-			// 		}
-			// 		resolve(false);
-			// 	}
-			// );
+			win.webContents.on(
+				'did-fail-load',
+				(event, errorCode, errorDescription) => {
+					clearTimeout(timeoutId);
+					console.error('Failed to load HTML for printing:', errorDescription);
+					try {
+						if (!win.isDestroyed()) win.close();
+					} catch (e) {
+						//
+					}
+					resolve(false);
+				}
+			);
 		} catch (error) {
 			console.error('Error creating print window:', error);
 			resolve(false);

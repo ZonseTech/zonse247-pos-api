@@ -1,6 +1,6 @@
 import multer from 'multer';
 import { Router } from 'express';
-import { MigrationController } from '../controllers/Migration.controller';
+import { MigrationController } from '../controllers/migration.controller';
 
 const router = Router();
 const migrationController = new MigrationController();

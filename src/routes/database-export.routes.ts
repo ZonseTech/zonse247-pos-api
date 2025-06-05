@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { DatabaseExportController } from '../controllers/DatabaseExport.controller';
+import { DatabaseExportController } from '../controllers/database-export.controller';
 
 const router = Router();
 const exportController = new DatabaseExportController();

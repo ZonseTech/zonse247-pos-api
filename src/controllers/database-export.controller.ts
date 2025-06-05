@@ -1,8 +1,8 @@
 import fs from 'fs';
 import path from 'path';
 import { Request, Response } from 'express';
-import { DatabaseExportService } from '../services/DatabaseExport.service';
-import type { ExportOptions } from '@/types';
+import { DatabaseExportService } from '../services/database-export.service';
+import { ExportOptions, ExportResult } from '@/types';
 
 export class DatabaseExportController {
 	public getTables = async (req: Request, res: Response): Promise<void> => {
@@ -92,7 +92,7 @@ export class DatabaseExportController {
 				...options,
 			};
 
-			let results;
+			let results: ExportResult | Array<ExportResult>;
 			const exportService = new DatabaseExportService();
 			if (tableNames.length === 1) {
 				results = await exportService.exportTable(tableNames[0], exportOptions);
