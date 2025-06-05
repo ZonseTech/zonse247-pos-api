@@ -202,6 +202,7 @@ export interface User {
 	id?: string;
 	uuid: string;
 	username: string;
+	email?: string;
 	password: string;
 	repeatPassword?: string;
 	fullname: string;

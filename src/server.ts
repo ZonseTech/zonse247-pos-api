@@ -1,8 +1,13 @@
 import 'dotenv/config';
+import cors from 'cors';
 import { app } from 'electron';
+import compression from 'compression';
 import { createServer, Server as HttpServer } from 'http';
-import express, { Request, Response, NextFunction, Application } from 'express';
-import { rateLimit } from 'express-rate-limit';
+import express, { Request, Response, Application } from 'express';
+import chalk from 'chalk'; // ✅ Chalk imported
+
+import config from './config';
+import { corsOptions } from './config/cors';
 
 import Sync from './routes/sync.routes';
 import Users from './routes/users.routes';
@@ -16,14 +21,26 @@ import Export from './routes/database-export.routes';
 import PaymentMethods from './routes/payment-method.routes';
 import holdOrders from './routes/hold-orders.routes';
 import Transactions from './routes/transactions.routes';
+import migrationRoutes from './routes/migration.routes';
+
 import syncService from './services/sync.service';
 import { initDatabase } from './databases/remote/migrations';
 import { seedDatabase } from './databases/local/seeds';
-import migrationRoutes from './routes/migration.routes';
+import { timeoutHandler } from './middlewares/error.middleware';
+import {
+	apiAnalytics,
+	developmentLogger,
+	productionLogger,
+	requestTracker,
+	securityLogger,
+} from './middlewares/logging.middleware';
+import {
+	helmetConfig,
+	limitRequestSize,
+} from './middlewares/security.middleware';
 
 class Server {
 	private server: HttpServer;
-	private port: number;
 	private app: Application;
 
 	constructor() {
@@ -33,7 +50,6 @@ class Server {
 			process.env.APPDATA = app.getPath('appData');
 		}
 
-		this.port = parseInt(process.env.PORT || '3000');
 		this.server = createServer(this.app);
 
 		this.setupMiddleware();
@@ -42,42 +58,40 @@ class Server {
 	}
 
 	private setupMiddleware() {
-		const limiter = rateLimit({
-			windowMs: 15 * 60 * 1000,
-			max: 1000,
-		});
+		this.app.set('trust proxy', config.server.trustProxy);
+		this.app.use(timeoutHandler(config.server.timeout));
+		this.app.use(requestTracker);
+		this.app.use(apiAnalytics);
 
-		this.app.use(limiter);
+		if (config.server.environment === 'production') {
+			this.app.use(productionLogger);
+		} else {
+			this.app.use(developmentLogger);
+		}
 
-		this.app.use(express.json());
-		this.app.use(express.urlencoded({ extended: false }));
+		this.app.use(helmetConfig);
+		this.app.use(cors(corsOptions));
+		this.app.use(compression());
+		this.app.use(limitRequestSize(config.security.requestSizeLimit));
+		this.app.use(securityLogger);
+
+		this.app.use(express.json({ limit: config.security.requestSizeLimit }));
+		this.app.use(
+			express.urlencoded({
+				extended: true,
+				limit: config.security.requestSizeLimit,
+			})
+		);
 	}
 
 	private setupRoutes() {
-		this.app.use((req: Request, res: Response, next: NextFunction) => {
-			res.header('Access-Control-Allow-Origin', '*');
-			res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS');
-			res.header(
-				'Access-Control-Allow-Headers',
-				'Content-type,Accept,X-Access-Token,X-Key'
-			);
-			if (req.method === 'OPTIONS') {
-				res.status(200).end();
-			} else {
-				next();
-			}
-		});
-
-		this.app.get('/', (req: Request, res: Response) => {
-			res.send('POS Server Online.');
-		});
-
 		this.app.get('/api/health', (req: Request, res: Response) => {
 			res.json({
 				success: true,
 				message: 'Server is running',
 				timestamp: new Date().toISOString(),
-				environment: process.env.NODE_ENV,
+				environment: config.server.environment,
+				version: process.env.npm_package_version || '1.0.0',
 			});
 		});
 
@@ -107,56 +121,39 @@ class Server {
 
 	private setupErrorHandling() {
 		this.app.use((err: Error, req: Request, res: Response) => {
-			console.error('Error:', err);
+			console.error(chalk.red('❌ Error:'), err);
 			res.status(500).json({
 				success: false,
 				message: 'Internal server error',
-				error: process.env.NODE_ENV === 'development' ? err.message : undefined,
+				error:
+					config.server.environment === 'development' ? err.message : undefined,
 			});
 		});
 
 		process.on('uncaughtException', (error) => {
-			console.error('Uncaught Exception:', error);
+			console.error(chalk.bgRed.white.bold('🔥 Uncaught Exception:'), error);
 			process.exit(1);
 		});
 
 		process.on('unhandledRejection', (reason, promise) => {
-			console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+			console.error(
+				chalk.bgRed.white.bold('⚠️  Unhandled Rejection at:'),
+				promise,
+				'reason:',
+				reason
+			);
 			process.exit(1);
 		});
 	}
 
 	public async start() {
-		this.server.listen(this.port, '0.0.0.0', async () => {
-			console.log(`Server running on port ${this.port}`);
-			console.log(`Environment: ${process.env.NODE_ENV}`);
+		this.server.listen(config.server.port, '0.0.0.0', async () => {
+			console.log(
+				chalk.greenBright(`🚀 Server running on port ${config.server.port}`)
+			);
+			console.log(chalk.cyan(`📊 Environment: ${config.server.environment}`));
 
-			this.testDatabaseConnections();
-
-			if (process.env.AUTO_SYNC_ENABLED === 'true') {
-				const interval = parseInt(process.env.SYNC_INTERVAL || '300000');
-				syncService.startAutoSync(interval);
-			}
-
-			if (process.env.MYSQL_DB_MIGRATE === 'true') {
-				await initDatabase()
-					.then(() => {
-						console.log('Database migrations completed successfully');
-					})
-					.catch((err) => {
-						console.error('Error running migrations:', err);
-					});
-			}
-
-			if (process.env.DB_SEED === 'true') {
-				await seedDatabase()
-					.then(() => {
-						console.log('Database seeding completed successfully');
-					})
-					.catch((err) => {
-						console.error('Error running seeds:', err);
-					});
-			}
+			await this.initializeServices();
 		});
 	}
 
@@ -165,18 +162,52 @@ class Server {
 		this.server.close();
 	}
 
+	private async initializeServices() {
+		await this.testDatabaseConnections();
+
+		if (config.sync.enabled) {
+			syncService.startAutoSync(config.sync.interval);
+			console.log(
+				chalk.yellow(
+					`🔄 Auto sync enabled (interval: ${config.sync.interval}ms)`
+				)
+			);
+		}
+
+		if (config.database.migrate) {
+			try {
+				await initDatabase();
+				console.log(
+					chalk.green('✅ Database migrations completed successfully')
+				);
+			} catch (err) {
+				console.error(chalk.red('❌ Error running migrations:'), err);
+			}
+		}
+
+		if (config.database.seed) {
+			try {
+				await seedDatabase();
+				console.log(chalk.green('✅ Database seeding completed successfully'));
+			} catch (err) {
+				console.error(chalk.red('❌ Error running seeds:'), err);
+			}
+		}
+	}
+
 	private async testDatabaseConnections() {
 		try {
 			const connections = await syncService.testConnections();
-			console.log('Database connections:', connections);
+			console.log(chalk.magenta('🔗 Database connections:'), connections);
+
 			if (!connections.mysql) {
-				console.warn('Warning: MySQL connection failed');
+				console.warn(chalk.yellow('⚠️  Warning: MySQL connection failed'));
 			}
 			if (!connections.sealdb) {
-				console.error('Error: SealDB connection failed');
+				console.error(chalk.red('❌ Error: SealDB connection failed'));
 			}
 		} catch (error) {
-			console.error('Error testing database connections:', error);
+			console.error(chalk.red('❌ Error testing database connections:'), error);
 		}
 	}
 }
