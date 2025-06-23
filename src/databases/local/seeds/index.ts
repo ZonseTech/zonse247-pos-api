@@ -510,7 +510,7 @@ async function checkOrCreateDefaultPaymentMethods(): Promise<void> {
 	];
 
 	try {
-		const paymentMethod = await sealDBModel.findById(PAYMENT_METHODS_DB, '-1');
+		const paymentMethod = await sealDBModel.findById(PAYMENT_METHODS_DB, '1');
 
 		if (paymentMethod) return;
 
