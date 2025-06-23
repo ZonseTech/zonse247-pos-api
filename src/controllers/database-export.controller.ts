@@ -2,7 +2,6 @@ import fs from 'fs';
 import path from 'path';
 import { Request, Response } from 'express';
 import { DatabaseExportService } from '../services/database-export.service';
-import { ExportOptions, ExportResult } from '@/types';
 
 export class DatabaseExportController {
 	public getTables = async (req: Request, res: Response): Promise<void> => {

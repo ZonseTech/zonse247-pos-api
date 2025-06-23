@@ -17,51 +17,23 @@ export const userValidationSchemas = {
 		password: Joi.string()
 			.min(8)
 			.max(128)
-			.pattern(
-				new RegExp(
-					'^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]'
-				)
-			)
 			.required()
 			.messages({
 				'string.min': 'Password must be at least 8 characters long',
 				'string.max': 'Password must not exceed 128 characters',
-				'string.pattern.base':
-					'Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character',
 				'any.required': 'Password is required',
 			}),
-
-		repeatPassword: Joi.string()
-			.valid(Joi.ref('password'))
-			.required()
-			.messages({
-				'any.only': 'Passwords do not match',
-				'any.required': 'Password confirmation is required',
-			}),
-
-		firstName: Joi.string()
+		fullname: Joi.string()
 			.min(2)
 			.max(50)
 			.pattern(/^[a-zA-Z\s]+$/)
 			.required()
 			.messages({
-				'string.min': 'First name must be at least 2 characters long',
-				'string.max': 'First name must not exceed 50 characters',
+				'string.min': 'Full name must be at least 2 characters long',
+				'string.max': 'Full name must not exceed 50 characters',
 				'string.pattern.base':
-					'First name must only contain letters and spaces',
-				'any.required': 'First name is required',
-			}),
-
-		lastName: Joi.string()
-			.min(2)
-			.max(50)
-			.pattern(/^[a-zA-Z\s]+$/)
-			.required()
-			.messages({
-				'string.min': 'Last name must be at least 2 characters long',
-				'string.max': 'Last name must not exceed 50 characters',
-				'string.pattern.base': 'Last name must only contain letters and spaces',
-				'any.required': 'Last name is required',
+					'Full name must only contain letters and spaces',
+				'any.required': 'Full name is required',
 			}),
 
 		phone: Joi.string()
@@ -101,30 +73,14 @@ export const userValidationSchemas = {
 		password: Joi.string()
 			.min(8)
 			.max(128)
-			.pattern(
-				new RegExp(
-					'^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]'
-				)
-			)
 			.optional()
+			.allow('')
 			.messages({
 				'string.min': 'Password must be at least 8 characters long',
 				'string.max': 'Password must not exceed 128 characters',
-				'string.pattern.base':
-					'Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character',
 			}),
 
-		repeatPassword: Joi.when('password', {
-			is: Joi.exist(),
-			then: Joi.string().valid(Joi.ref('password')).required().messages({
-				'any.only': 'Passwords do not match',
-				'any.required':
-					'Password confirmation is required when updating password',
-			}),
-			otherwise: Joi.optional(),
-		}),
-
-		firstName: Joi.string()
+		fullname: Joi.string()
 			.min(2)
 			.max(50)
 			.pattern(/^[a-zA-Z\s]+$/)
@@ -134,17 +90,6 @@ export const userValidationSchemas = {
 				'string.max': 'First name must not exceed 50 characters',
 				'string.pattern.base':
 					'First name must only contain letters and spaces',
-			}),
-
-		lastName: Joi.string()
-			.min(2)
-			.max(50)
-			.pattern(/^[a-zA-Z\s]+$/)
-			.optional()
-			.messages({
-				'string.min': 'Last name must be at least 2 characters long',
-				'string.max': 'Last name must not exceed 50 characters',
-				'string.pattern.base': 'Last name must only contain letters and spaces',
 			}),
 
 		phone: Joi.string()
@@ -167,10 +112,57 @@ export const userValidationSchemas = {
 			}),
 	}),
 
-	userId: Joi.object({
-		userId: Joi.string().uuid().required().messages({
-			'string.uuid': 'Please provide a valid user ID',
+	id: Joi.object({
+		id: Joi.string().required().messages({
 			'any.required': 'User ID is required',
 		}),
 	}),
+
+	userId: Joi.object({
+		userId: Joi.string().required().messages({
+			'any.required': 'User ID is required',
+		}),
+	}),
+
+	refreshToken: Joi.object({
+		token: Joi.string().required().messages({
+			'string.empty': 'Refresh token is required',
+			'any.required': 'Refresh token is required'
+		})
+	}),
+
+	changePassword: Joi.object({
+		currentPassword: Joi.string().required().messages({
+			'string.empty': 'Current password is required',
+			'any.required': 'Current password is required'
+		}),
+		newPassword: Joi.string().min(8).required().messages({
+			'string.empty': 'New password is required',
+			'string.min': 'New password must be at least 8 characters long',
+			'any.required': 'New password is required'
+		})
+	}),
+
+	updateUserStatus: Joi.object({
+		status: Joi.string().valid('active', 'inactive', 'suspended').required().messages({
+			'string.empty': 'Status is required',
+			'any.only': 'Status must be one of: active, inactive, suspended',
+			'any.required': 'Status is required'
+		})
+	}),
+
+	roleId: Joi.object({
+		roleId: Joi.string().required().messages({
+			'string.empty': 'Role ID is required',
+			'any.required': 'Role ID is required'
+		})
+	}),
+
+	shopUuid: Joi.object({
+		shopUuid: Joi.string().required().messages({
+			'string.empty': 'Shop ID is required',
+			'any.required': 'Shop ID is required'
+		})
+	})
+
 };

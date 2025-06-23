@@ -1,21 +1,17 @@
 import jwt from 'jsonwebtoken';
+import config, { Config } from '../config';
 import { Request, Response, NextFunction } from 'express';
 
 declare module 'express' {
 	interface Request {
-		user?: any;
+		auth: User;
 	}
 }
 
-export interface AuthConfig {
-	jwtSecret: string;
-	jwtExpiresIn: string;
-}
-
 export class AuthMiddleware {
-	private config: AuthConfig;
+	private config: Config;
 
-	constructor(config: AuthConfig) {
+	constructor() {
 		this.config = config;
 	}
 
@@ -33,21 +29,31 @@ export class AuthMiddleware {
 		}
 
 		try {
-			const decoded = jwt.verify(token, this.config.jwtSecret);
-			req.user = decoded;
+			const decoded = jwt.verify(token, this.config.jwt.secret);
+			req.auth = decoded as User;
 			next();
 		} catch (error) {
+			let message = 'Invalid or expired token';
+
+			if (error instanceof jwt.TokenExpiredError) {
+				message = 'Token has expired';
+			} else if (error instanceof jwt.JsonWebTokenError) {
+				message = 'Invalid token format';
+			}
+
 			res.status(401).json({
 				error: 'Authentication Error',
-				message: 'Invalid or expired token',
+				message: message,
 			});
 		}
 	};
 
 	verifyOwnership = (req: Request, res: Response, next: NextFunction): void => {
+		const user = this.extractUserFromToken(req)
+
 		const userId = req.params.userId;
-		const requestingUserId = req.user?.uuid;
-		const userRole = req.user?.role;
+		const requestingUserId = user?.uuid;
+		const userRole = user?.roleUuid;
 
 		if (!requestingUserId) {
 			res.status(401).json({
@@ -57,7 +63,7 @@ export class AuthMiddleware {
 			return;
 		}
 
-		if (userRole === 'admin' || requestingUserId === userId) {
+		if (userRole === 'admin' || userRole === 'super-admin' || requestingUserId === userId) {
 			next();
 			return;
 		}
@@ -69,29 +75,17 @@ export class AuthMiddleware {
 	};
 
 	requireAdmin = (req: Request, res: Response, next: NextFunction): void => {
-		const userRole = req.user?.role;
+		const user = this.extractUserFromToken(req)
+		const userRole = user?.roleUuid;
 
-		if (userRole !== 'admin') {
-			res.status(403).json({
-				error: 'Authorization Error',
-				message: 'Admin access required',
-			});
+		if (userRole === 'admin' || userRole === 'super-admin') {
+			next();
 			return;
 		}
 
-		next();
-	};
-
-	generateToken = (user: any): string => {
-		const payload = {
-			uuid: user.uuid,
-			username: user.username,
-			email: user.email,
-			role: user.role || 'user',
-		};
-
-		return (jwt as any).sign(payload, this.config.jwtSecret, {
-			expiresIn: this.config.jwtExpiresIn,
+		res.status(403).json({
+			error: 'Authorization Error',
+			message: 'Admin access required',
 		});
 	};
 
@@ -143,5 +137,19 @@ export class AuthMiddleware {
 		}
 
 		next();
+	};
+
+	extractUserFromToken = (req: Request): any | null => {
+		const token =
+			req.headers.authorization?.replace('Bearer ', '') ||
+			(req.headers['x-access-token'] as string);
+
+		if (!token) return null;
+
+		try {
+			return jwt.verify(token, this.config.jwt.secret);
+		} catch (error) {
+			return null;
+		}
 	};
 }

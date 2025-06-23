@@ -1,4 +1,3 @@
-import { SyncResult } from '@/types';
 import { mysqlPool } from '../config/db';
 import { sealDBModel } from '../databases/local';
 import tables from '../databases/local/tables';

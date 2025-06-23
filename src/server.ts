@@ -4,24 +4,9 @@ import { app } from 'electron';
 import compression from 'compression';
 import { createServer, Server as HttpServer } from 'http';
 import express, { Request, Response, Application } from 'express';
-import chalk from 'chalk'; // ✅ Chalk imported
 
 import config from './config';
 import { corsOptions } from './config/cors';
-
-import Sync from './routes/sync.routes';
-import Users from './routes/users.routes';
-import Printers from './routes/printer.routes';
-import Settings from './routes/settings.routes';
-import Inventory from './routes/inventory.routes';
-import Dashboard from './routes/dashboard.routes';
-import Customers from './routes/customers.routes';
-import Categories from './routes/categories.routes';
-import Export from './routes/database-export.routes';
-import PaymentMethods from './routes/payment-method.routes';
-import holdOrders from './routes/hold-orders.routes';
-import Transactions from './routes/transactions.routes';
-import migrationRoutes from './routes/migration.routes';
 
 import syncService from './services/sync.service';
 import { initDatabase } from './databases/remote/migrations';
@@ -38,6 +23,7 @@ import {
 	helmetConfig,
 	limitRequestSize,
 } from './middlewares/security.middleware';
+import ApiRoutes from './routes';
 
 class Server {
 	private server: HttpServer;
@@ -85,7 +71,7 @@ class Server {
 	}
 
 	private setupRoutes() {
-		this.app.get('/api/health', (req: Request, res: Response) => {
+		this.app.get('/api/v1/health', (req: Request, res: Response) => {
 			res.json({
 				success: true,
 				message: 'Server is running',
@@ -95,19 +81,7 @@ class Server {
 			});
 		});
 
-		this.app.use('/api/sync', Sync);
-		this.app.use('/api/export', Export);
-		this.app.use('/api/users', Users);
-		this.app.use('/api/dashboard', Dashboard);
-		this.app.use('/api/printers', Printers);
-		this.app.use('/api/settings', Settings);
-		this.app.use('/api/inventory', Inventory);
-		this.app.use('/api/customers', Customers);
-		this.app.use('/api/categories', Categories);
-		this.app.use('/api/payment-methods', PaymentMethods);
-		this.app.use('/api/migration', migrationRoutes);
-		this.app.use('/api/transactions', Transactions);
-		this.app.use('/api/hold-orders', holdOrders);
+		this.app.use('/api/v1', ApiRoutes);
 
 		this.app.use((req: Request, res: Response) => {
 			res.status(404).json({
@@ -121,7 +95,7 @@ class Server {
 
 	private setupErrorHandling() {
 		this.app.use((err: Error, req: Request, res: Response) => {
-			console.error(chalk.red('❌ Error:'), err);
+			console.error('Error:', err);
 			res.status(500).json({
 				success: false,
 				message: 'Internal server error',
@@ -131,27 +105,20 @@ class Server {
 		});
 
 		process.on('uncaughtException', (error) => {
-			console.error(chalk.bgRed.white.bold('🔥 Uncaught Exception:'), error);
+			console.error('Uncaught Exception:', error);
 			process.exit(1);
 		});
 
 		process.on('unhandledRejection', (reason, promise) => {
-			console.error(
-				chalk.bgRed.white.bold('⚠️  Unhandled Rejection at:'),
-				promise,
-				'reason:',
-				reason
-			);
+			console.error('Unhandled Rejection at:', promise, 'reason:', reason);
 			process.exit(1);
 		});
 	}
 
 	public async start() {
 		this.server.listen(config.server.port, '0.0.0.0', async () => {
-			console.log(
-				chalk.greenBright(`🚀 Server running on port ${config.server.port}`)
-			);
-			console.log(chalk.cyan(`📊 Environment: ${config.server.environment}`));
+			console.log(`🚀 Server running on port ${config.server.port}`);
+			console.log(`📊 Environment: ${config.server.environment}`);
 
 			await this.initializeServices();
 		});
@@ -167,30 +134,24 @@ class Server {
 
 		if (config.sync.enabled) {
 			syncService.startAutoSync(config.sync.interval);
-			console.log(
-				chalk.yellow(
-					`🔄 Auto sync enabled (interval: ${config.sync.interval}ms)`
-				)
-			);
+			console.log(`🔄 Auto sync enabled (interval: ${config.sync.interval}ms)`);
 		}
 
 		if (config.database.migrate) {
 			try {
 				await initDatabase();
-				console.log(
-					chalk.green('✅ Database migrations completed successfully')
-				);
+				console.log('✅ Database migrations completed successfully');
 			} catch (err) {
-				console.error(chalk.red('❌ Error running migrations:'), err);
+				console.error('❌ Error running migrations:', err);
 			}
 		}
 
 		if (config.database.seed) {
 			try {
 				await seedDatabase();
-				console.log(chalk.green('✅ Database seeding completed successfully'));
+				console.log('✅ Database seeding completed successfully');
 			} catch (err) {
-				console.error(chalk.red('❌ Error running seeds:'), err);
+				console.error('❌ Error running seeds:', err);
 			}
 		}
 	}
@@ -198,16 +159,16 @@ class Server {
 	private async testDatabaseConnections() {
 		try {
 			const connections = await syncService.testConnections();
-			console.log(chalk.magenta('🔗 Database connections:'), connections);
+			console.log('🔗 Database connections:', connections);
 
 			if (!connections.mysql) {
-				console.warn(chalk.yellow('⚠️  Warning: MySQL connection failed'));
+				console.warn('⚠️  Warning: MySQL connection failed');
 			}
 			if (!connections.sealdb) {
-				console.error(chalk.red('❌ Error: SealDB connection failed'));
+				console.error('❌ Error: SealDB connection failed');
 			}
 		} catch (error) {
-			console.error(chalk.red('❌ Error testing database connections:'), error);
+			console.error('❌ Error testing database connections.');
 		}
 	}
 }

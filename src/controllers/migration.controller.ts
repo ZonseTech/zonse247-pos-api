@@ -4,7 +4,6 @@ import Papa from 'papaparse';
 import { mysqlPool } from '../config/db';
 import { Request, Response } from 'express';
 import { sealDBModel } from '../databases/local';
-import { MigrationProgress, MigrationStats } from '@/types';
 
 export class MigrationController {
 	private migrationProgress: MigrationProgress[] = [];
@@ -183,7 +182,7 @@ export class MigrationController {
 				this.migrationStats.progress = Math.round(
 					((this.migrationStats.completed + this.migrationStats.errors) /
 						this.migrationStats.total) *
-						100
+					100
 				);
 			}
 
@@ -306,7 +305,7 @@ export class MigrationController {
 							const record = JSON.parse(line);
 							data.push(record);
 						} catch (error) {
-							console.warn('Failed to parse line:', line);
+							console.warn('Failed to parse line:', line, error);
 						}
 					}
 				}
@@ -318,7 +317,7 @@ export class MigrationController {
 						const record = JSON.parse(buffer);
 						data.push(record);
 					} catch (error) {
-						console.warn('Failed to parse final line:', buffer);
+						console.warn('Failed to parse final line:', buffer, error);
 					}
 				}
 				resolve(data);

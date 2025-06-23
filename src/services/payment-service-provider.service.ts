@@ -1,0 +1,272 @@
+import { PaymentServiceProviderModel } from "../models/payment-service-provider.model";
+
+export class PaymentServiceProviderService {
+    static async getAllPaymentServiceProviders(filters: PaymentServiceProviderFilters): Promise<PaymentServiceProvider[]> {
+        try {
+            return await PaymentServiceProviderModel.findByClientUuidAndShopUuid(filters.clientUuid, filters.shopUuid);
+        } catch (error) {
+            console.error('Error fetching payment service providers:', error);
+            throw new Error('Failed to fetch payment service providers');
+        }
+    }
+
+    static async createPaymentServiceProvider(
+        pspData: { name: string; logoUrl: string },
+        user: AuthenticatedUser
+    ): Promise<PaymentServiceProvider> {
+        try {
+            const createRequest: CreatePaymentServiceProviderRequest = {
+                name: pspData.name,
+                logoUrl: pspData.logoUrl,
+                clientUuid: user.clientUuid,
+                shopUuid: user.shopUuid,
+                userUuid: user.userUuid,
+            };
+
+            const validationErrors = PaymentServiceProviderModel.validateCreateRequest(createRequest);
+            if (validationErrors.length > 0) {
+                throw new Error(`Validation failed: ${validationErrors.join(', ')}`);
+            }
+
+            const existingPSPs = await PaymentServiceProviderModel.findByClientUuidAndName(
+                user.clientUuid,
+                pspData.name.trim()
+            );
+
+            const duplicateInShop = existingPSPs.find(psp => psp.shopUuid === user.shopUuid);
+            if (duplicateInShop) {
+                throw new Error('Payment service provider with this name already exists in the shop');
+            }
+
+            const newPSP = PaymentServiceProviderModel.buildPaymentServiceProviderData(createRequest);
+            return await PaymentServiceProviderModel.create(newPSP);
+        } catch (error) {
+            console.error('Error creating payment service provider:', error);
+            throw error;
+        }
+    }
+
+    static async updatePaymentServiceProvider(
+        pspId: string,
+        updateData: UpdatePaymentServiceProviderDto,
+        user: AuthenticatedUser
+    ): Promise<void> {
+        try {
+            const validationErrors = PaymentServiceProviderModel.validateUpdateRequest(updateData);
+            if (validationErrors.length > 0) {
+                throw new Error(`Validation failed: ${validationErrors.join(', ')}`);
+            }
+
+            const existingPSP = await this.getPaymentServiceProviderById(pspId, {
+                clientUuid: user.clientUuid,
+                shopUuid: user.shopUuid
+            });
+
+            if (!existingPSP) {
+                throw new Error('Payment service provider not found or access denied');
+            }
+
+            if (updateData.name && updateData.name.trim() !== existingPSP.name) {
+                const existingPSPs = await PaymentServiceProviderModel.findByClientUuidAndName(
+                    user.clientUuid,
+                    updateData.name.trim()
+                );
+
+                const duplicateInShop = existingPSPs.find(
+                    psp => psp.shopUuid === user.shopUuid && psp.uuid !== pspId
+                );
+                if (duplicateInShop) {
+                    throw new Error('Payment service provider with this name already exists in the shop');
+                }
+            }
+
+            const updatedCount = await PaymentServiceProviderModel.update(pspId, updateData as any);
+            if (updatedCount === 0) {
+                throw new Error('Failed to update payment service provider - no rows affected');
+            }
+        } catch (error) {
+            console.error('Error updating payment service provider:', error);
+            throw error;
+        }
+    }
+
+    static async deletePaymentServiceProvider(
+        pspId: string,
+        user: AuthenticatedUser
+    ): Promise<void> {
+        try {
+            const existingPSP = await this.getPaymentServiceProviderById(pspId, {
+                clientUuid: user.clientUuid,
+                shopUuid: user.shopUuid
+            });
+
+            if (!existingPSP) {
+                throw new Error('Payment service provider not found or access denied');
+            }
+
+            // TODO: Add check for related entities (transactions, etc.)
+            // const relatedTransactions = await TransactionModel.findByPSPId(pspId);
+            // if (relatedTransactions.length > 0) {
+            //     throw new Error('Cannot delete payment service provider with associated transactions');
+            // }
+
+            const deletedCount = await PaymentServiceProviderModel.delete(pspId);
+            if (deletedCount === 0) {
+                throw new Error('Failed to delete payment service provider - no rows affected');
+            }
+        } catch (error) {
+            console.error('Error deleting payment service provider:', error);
+            throw error;
+        }
+    }
+
+    static async getPaymentServiceProviderById(
+        pspId: string,
+        filters: PaymentServiceProviderFilters
+    ): Promise<PaymentServiceProvider | null> {
+        try {
+            const psp = await PaymentServiceProviderModel.findById(pspId);
+
+            if (!psp ||
+                psp.clientUuid !== filters.clientUuid ||
+                psp.shopUuid !== filters.shopUuid) {
+                return null;
+            }
+
+            return psp;
+        } catch (error) {
+            console.error('Error fetching payment service provider by ID:', error);
+            throw new Error('Failed to fetch payment service provider');
+        }
+    }
+
+    static async getPaymentServiceProvidersByClient(clientUuid: string): Promise<PaymentServiceProvider[]> {
+        try {
+            return await PaymentServiceProviderModel.findByClientUuid(clientUuid);
+        } catch (error) {
+            console.error('Error fetching payment service providers by client:', error);
+            throw new Error('Failed to fetch payment service providers by client');
+        }
+    }
+
+    static async getPaymentServiceProvidersByShop(shopUuid: string): Promise<PaymentServiceProvider[]> {
+        try {
+            return await PaymentServiceProviderModel.findByShopUuid(shopUuid);
+        } catch (error) {
+            console.error('Error fetching payment service providers by shop:', error);
+            throw new Error('Failed to fetch payment service providers by shop');
+        }
+    }
+
+    static async searchPaymentServiceProvidersByName(
+        name: string,
+        filters: PaymentServiceProviderFilters
+    ): Promise<PaymentServiceProvider[]> {
+        try {
+            const allPSPs = await PaymentServiceProviderModel.findByClientUuidAndShopUuid(
+                filters.clientUuid,
+                filters.shopUuid
+            );
+
+            return allPSPs.filter(psp =>
+                psp.name.toLowerCase().includes(name.toLowerCase())
+            );
+        } catch (error) {
+            console.error('Error searching payment service providers by name:', error);
+            throw new Error('Failed to search payment service providers');
+        }
+    }
+
+    static async getUnsyncedPaymentServiceProviders(clientUuid: string): Promise<PaymentServiceProvider[]> {
+        try {
+            return await PaymentServiceProviderModel.findUnsyncedByClient(clientUuid);
+        } catch (error) {
+            console.error('Error fetching unsynced payment service providers:', error);
+            throw new Error('Failed to fetch unsynced payment service providers');
+        }
+    }
+
+    static async markPaymentServiceProviderAsSynced(pspId: string, user: AuthenticatedUser): Promise<void> {
+        try {
+            const psp = await this.getPaymentServiceProviderById(pspId, {
+                clientUuid: user.clientUuid,
+                shopUuid: user.shopUuid
+            });
+
+            if (!psp) {
+                throw new Error('Payment service provider not found or access denied');
+            }
+
+            const updatedCount = await PaymentServiceProviderModel.markAsSynced(pspId);
+            if (updatedCount === 0) {
+                throw new Error('Failed to mark payment service provider as synced');
+            }
+        } catch (error) {
+            console.error('Error marking payment service provider as synced:', error);
+            throw error;
+        }
+    }
+
+    static async markPaymentServiceProviderAsUnsynced(pspId: string, user: AuthenticatedUser): Promise<void> {
+        try {
+            const psp = await this.getPaymentServiceProviderById(pspId, {
+                clientUuid: user.clientUuid,
+                shopUuid: user.shopUuid
+            });
+
+            if (!psp) {
+                throw new Error('Payment service provider not found or access denied');
+            }
+
+            const updatedCount = await PaymentServiceProviderModel.markAsUnsynced(pspId);
+            if (updatedCount === 0) {
+                throw new Error('Failed to mark payment service provider as unsynced');
+            }
+        } catch (error) {
+            console.error('Error marking payment service provider as unsynced:', error);
+            throw error;
+        }
+    }
+
+    static async getPaymentServiceProviderCount(filters?: Partial<PaymentServiceProviderFilters>): Promise<number> {
+        try {
+            const conditions = filters ? { ...filters } : {};
+            return await PaymentServiceProviderModel.count(conditions);
+        } catch (error) {
+            console.error('Error getting payment service provider count:', error);
+            throw new Error('Failed to get payment service provider count');
+        }
+    }
+
+    static async bulkMarkAsSynced(pspIds: string[], user: AuthenticatedUser): Promise<void> {
+        try {
+            const results = await Promise.allSettled(
+                pspIds.map(id => this.markPaymentServiceProviderAsSynced(id, user))
+            );
+
+            const failures = results.filter(result => result.status === 'rejected');
+            if (failures.length > 0) {
+                console.warn(`Failed to sync ${failures.length} out of ${pspIds.length} payment service providers`);
+            }
+        } catch (error) {
+            console.error('Error in bulk sync operation:', error);
+            throw new Error('Failed to complete bulk sync operation');
+        }
+    }
+
+    static async validatePaymentServiceProviderAccess(
+        pspId: string,
+        user: AuthenticatedUser
+    ): Promise<boolean> {
+        try {
+            const psp = await this.getPaymentServiceProviderById(pspId, {
+                clientUuid: user.clientUuid,
+                shopUuid: user.shopUuid
+            });
+            return psp !== null;
+        } catch (error) {
+            console.error('Error validating payment service provider access:', error);
+            return false;
+        }
+    }
+}

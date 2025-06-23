@@ -29,7 +29,7 @@ export class CustomError extends Error implements AppError {
 	}
 }
 
-export const asyncHandler = (fn: Function) => {
+export const asyncHandler = (fn) => {
 	return (req: Request, res: Response, next: NextFunction) => {
 		Promise.resolve(fn(req, res, next)).catch(next);
 	};
@@ -88,10 +88,7 @@ export const globalErrorHandler = (
 		statusCode = 400;
 		code = 'INVALID_ID';
 		message = 'Invalid resource identifier';
-	} else if (
-		error.name === 'MongoError' &&
-		parseInt(error.code || '') === 11000
-	) {
+	} else if (error.name === 'MongoError' && parseInt(error.code) === 11000) {
 		statusCode = 409;
 		code = 'DUPLICATE_RESOURCE';
 		message = 'Resource already exists';

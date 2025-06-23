@@ -1,79 +1,32 @@
-import { Request, Response, Router } from 'express';
-import { sealDBModel } from '../databases/local';
-import { PAYMENT_METHODS_DB } from '../databases/local/tables';
-import { v4 as uuidv4 } from 'uuid';
-import { PaymentMethod } from '@/types';
+import { Router } from 'express';
+import { PaymentMethodController } from '../controllers/payment-method.controller';
 
 const router = Router();
 
-router.get('/', function (req: Request, res: Response): void {
-	res.send('Payment Methods API');
+router.get('/', (req, res) => {
+	res.json({
+		success: true,
+		message: 'Payment Methods API',
+		endpoints: {
+			'GET /all': 'Get all payment methods',
+			'GET /count': 'Get payment methods count',
+			'GET /unsynced': 'Get unsynced payment methods',
+			'GET /:paymentMethodId': 'Get payment method by ID',
+			'POST /': 'Create new payment method',
+			'PUT /:paymentMethodId': 'Update payment method',
+			'DELETE /:paymentMethodId': 'Delete payment method',
+			'PATCH /:paymentMethodId/sync': 'Mark payment method as synced'
+		}
+	});
 });
 
-router.get('/all', async function (req: Request, res: Response): Promise<void> {
-	try {
-		const docs = await sealDBModel.findAll(PAYMENT_METHODS_DB);
-		res.send(docs);
-	} catch (err) {
-		console.error(err);
-		res.status(500).json({
-			error: 'Internal Server Error',
-			message: 'An unexpected error occurred.',
-		});
-	}
-});
-
-router.post(
-	'/payment-method',
-	async function (req: Request, res: Response): Promise<void> {
-		try {
-			const newPaymentMethod: PaymentMethod = req.body;
-			newPaymentMethod.uuid = uuidv4();
-
-			await sealDBModel.insert(PAYMENT_METHODS_DB, newPaymentMethod);
-			res.sendStatus(200);
-		} catch (err) {
-			console.error(err);
-			res.status(500).json({
-				error: 'Internal Server Error',
-				message: 'An unexpected error occurred.',
-			});
-		}
-	}
-);
-
-router.delete(
-	'/payment-method/:paymentMethodId',
-	async function (req: Request, res: Response): Promise<void> {
-		try {
-			const paymentMethodId = req.params.paymentMethodId;
-			await sealDBModel.delete(PAYMENT_METHODS_DB, paymentMethodId);
-			res.sendStatus(200);
-		} catch (err) {
-			console.error(err);
-			res.status(500).json({
-				error: 'Internal Server Error',
-				message: 'An unexpected error occurred.',
-			});
-		}
-	}
-);
-
-router.put(
-	'/payment-method/:paymentMethodId',
-	async function (req: Request, res: Response): Promise<void> {
-		try {
-			const paymentMethodId = req.params.paymentMethodId;
-			await sealDBModel.update(PAYMENT_METHODS_DB, paymentMethodId, req.body);
-			res.sendStatus(200);
-		} catch (err) {
-			console.error(err);
-			res.status(500).json({
-				error: 'Internal Server Error',
-				message: 'An unexpected error occurred.',
-			});
-		}
-	}
-);
+router.get('/all', PaymentMethodController.list);
+router.post('/', PaymentMethodController.create);
+router.get('/count', PaymentMethodController.getCount);
+router.get('/unsynced', PaymentMethodController.getUnsynced);
+router.get('/:paymentMethodId', PaymentMethodController.getById);
+router.put('/:paymentMethodId', PaymentMethodController.update);
+router.delete('/:paymentMethodId', PaymentMethodController.delete);
+router.patch('/:paymentMethodId/sync', PaymentMethodController.markAsSynced);
 
 export default router;

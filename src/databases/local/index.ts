@@ -1,12 +1,17 @@
 import fs from 'fs';
 import path from 'path';
 import tables, {
-	CATEGORY_DB,
+	CATEGORIES_DB,
 	INVENTORY_DB,
 	ORDERS_DB,
+	PERMISSIONS_DB,
+	ROLE_PERMISSIONS_DB,
+	ROLES_DB,
+	SHOP_SETTINGS_DB,
 	SYNC_STATUS_TABLE,
 	TRANSACTIONS_DB,
 	USERS_DB,
+	WORKSTATIONS_DB,
 } from './tables';
 import Datastore from '@seald-io/nedb';
 
@@ -131,11 +136,11 @@ export class SealDBModel {
 		return this.syncStatusDB;
 	}
 
-	public find(table: string, conditions: any = {}): Promise<any[]> {
+	public find<T = any>(table: string, conditions: any = {}): Promise<T> {
 		return new Promise((resolve, reject) => {
 			try {
 				const db = this.getDB(table);
-				db.find(conditions, (err: Error | null, docs: any[]) => {
+				db.find(conditions, (err: Error | null, docs: any) => {
 					if (err) reject(err);
 					else resolve(docs);
 				});
@@ -145,17 +150,15 @@ export class SealDBModel {
 		});
 	}
 
-	public findById(table: string, id: string): Promise<any | null> {
+	public async findById<T = any>(table: string, conditions: string | Record<string, any>): Promise<T | null> {
 		return new Promise((resolve, reject) => {
-			try {
-				const db = this.getDB(table);
-				db.findOne({ uuid: id }, (err: Error | null, doc: any) => {
-					if (err) reject(err);
-					else resolve(doc);
-				});
-			} catch (error) {
-				reject(error);
-			}
+			const db = this.getDB(table);
+			const query = typeof conditions === 'string' ? { uuid: conditions } : conditions;
+
+			db.findOne(query, (err, doc) => {
+				if (err) return reject(err);
+				resolve(doc);
+			});
 		});
 	}
 
@@ -362,7 +365,7 @@ export class SealDBModel {
 					case USERS_DB:
 						db.ensureIndex({ fieldName: 'username', unique: true });
 						break;
-					case CATEGORY_DB:
+					case CATEGORIES_DB:
 						db.ensureIndex({ fieldName: 'name', unique: true });
 						break;
 					case INVENTORY_DB:
@@ -376,6 +379,36 @@ export class SealDBModel {
 					case ORDERS_DB:
 						db.ensureIndex({ fieldName: 'refNumber' });
 						db.ensureIndex({ fieldName: 'productId' });
+						break;
+					case WORKSTATIONS_DB:
+						db.ensureIndex({ fieldName: 'clientUuid' });
+						db.ensureIndex({ fieldName: 'shopUuid' });
+						db.ensureIndex({ fieldName: 'tillNumber' });
+						db.ensureIndex({ fieldName: 'deviceId' });
+						db.ensureIndex({ fieldName: 'status' });
+						db.ensureIndex({ fieldName: 'isPrimary' });
+						break;
+					case ROLES_DB:
+						db.ensureIndex({ fieldName: 'clientUuid' });
+						db.ensureIndex({ fieldName: 'shopUuid' });
+						db.ensureIndex({ fieldName: 'name' });
+						db.ensureIndex({ fieldName: 'isSystemRole' });
+						db.ensureIndex({ fieldName: 'isActive' });
+						break;
+					case PERMISSIONS_DB:
+						db.ensureIndex({ fieldName: 'name', unique: true });
+						db.ensureIndex({ fieldName: 'category' });
+						db.ensureIndex({ fieldName: 'scope' });
+						db.ensureIndex({ fieldName: 'isSystemPermission' });
+						break;
+					case ROLE_PERMISSIONS_DB:
+						db.ensureIndex({ fieldName: 'roleUuid' });
+						db.ensureIndex({ fieldName: 'permissionUuid' });
+						break;
+					case SHOP_SETTINGS_DB:
+						db.ensureIndex({ fieldName: 'clientUuid' });
+						db.ensureIndex({ fieldName: 'shopUuid' });
+						db.ensureIndex({ fieldName: 'workstationUuid' });
 						break;
 				}
 				console.log(`Ensured indexes for table: ${tableName}`);
@@ -395,6 +428,194 @@ export class SealDBModel {
 		});
 
 		return paths;
+	}
+
+	/**
+	 * Bulk update multiple records in a single table
+	 * @param table - Table name
+	 * @param updates - Array of update operations
+	 * @returns Promise with results of all operations
+	 */
+	public async bulkUpdate(
+		table: string,
+		updates: Array<{
+			uuid: string;
+			data: any;
+		}>
+	): Promise<{ successful: number; failed: Array<{ uuid: string; error: Error }> }> {
+		const results = await Promise.allSettled(
+			updates.map(async (update) => {
+				try {
+					const numReplaced = await this.update(table, update.uuid, update.data);
+					return { success: true, uuid: update.uuid, numReplaced };
+				} catch (error) {
+					return { success: false, uuid: update.uuid, error: error as Error };
+				}
+			})
+		);
+
+		const successful = results.filter(r =>
+			r.status === 'fulfilled' && r.value.success
+		).length;
+
+		const failed = results
+			.filter(r => r.status === 'fulfilled' && !r.value.success)
+			.map(r => ({
+				uuid: (r as PromiseFulfilledResult<any>).value.uuid,
+				error: (r as PromiseFulfilledResult<any>).value.error
+			}));
+
+		// Add rejected promises to failed array
+		results
+			.filter(r => r.status === 'rejected')
+			.forEach((r, index) => {
+				failed.push({
+					uuid: updates[index].uuid,
+					error: new Error((r as PromiseRejectedResult).reason)
+				});
+			});
+
+		return { successful, failed };
+	}
+
+	/**
+	 * Bulk find multiple records by UUIDs
+	 * @param table - Table name
+	 * @param conditions - Array of query conditions
+	 * @returns Promise with all found records
+	 */
+	public async bulkFind<T = any>(
+		table: string,
+		conditions: Array<Record<string, any>>
+	): Promise<Array<T | null>> {
+		const results = await Promise.allSettled(
+			conditions.map(condition => this.findById<T>(table, condition))
+		);
+
+		return results.map(result =>
+			result.status === 'fulfilled' ? result.value : null
+		);
+	}
+
+	/**
+	 * Optimized method to find multiple products by their UUIDs and auth conditions
+	 * @param table - Table name
+	 * @param productUuids - Array of product UUIDs
+	 * @param auth - Authentication object with clientUuid and shopUuid
+	 * @returns Promise with found products
+	 */
+	public async findProductsByUuids<T = any>(
+		table: string,
+		productUuids: string[],
+		auth: { clientUuid: string; shopUuid: string }
+	): Promise<Array<T | null>> {
+		// Create a single query to find all products at once
+		return new Promise((resolve, reject) => {
+			try {
+				const db = this.getDB(table);
+
+				// Query for all products in one go
+				db.find({
+					uuid: { $in: productUuids },
+					clientUuid: auth.clientUuid,
+					shopUuid: auth.shopUuid
+				}, (err: Error | null, docs: any[]) => {
+					if (err) {
+						reject(err);
+						return;
+					}
+
+					// Create a map for quick lookup
+					const productMap = new Map<string, any>();
+					docs.forEach(doc => {
+						productMap.set(doc.uuid, doc);
+					});
+
+					// Return products in the same order as requested UUIDs
+					const results = productUuids.map(uuid => productMap.get(uuid) || null);
+					resolve(results);
+				});
+			} catch (error) {
+				reject(error);
+			}
+		});
+	}
+
+	/**
+	 * Atomic inventory decrement operation using optimized queries
+	 * @param table - Table name
+	 * @param inventoryUpdates - Array of inventory update operations
+	 * @returns Promise with operation results
+	 */
+	public async bulkInventoryUpdate(
+		table: string,
+		inventoryUpdates: Array<{
+			productUuid: string;
+			quantityToDecrement: number;
+			userId: string;
+		}>,
+		auth: { clientUuid: string; shopUuid: string }
+	): Promise<{
+		successful: number;
+		failed: Array<{ productUuid: string; error: string }>;
+		skipped: Array<{ productUuid: string; reason: string }>;
+	}> {
+		try {
+			// Step 1: Fetch all products in one optimized query
+			const productUuids = inventoryUpdates.map(update => update.productUuid);
+			const products = await this.findProductsByUuids(table, productUuids, auth);
+
+			// Step 2: Prepare valid updates
+			const validUpdates: Array<{ uuid: string; data: any }> = [];
+			const skipped: Array<{ productUuid: string; reason: string }> = [];
+
+			for (let i = 0; i < inventoryUpdates.length; i++) {
+				const update = inventoryUpdates[i];
+				const product = products[i];
+
+				if (!product) {
+					skipped.push({
+						productUuid: update.productUuid,
+						reason: 'Product not found'
+					});
+					continue;
+				}
+
+				if (!product.quantity) {
+					skipped.push({
+						productUuid: update.productUuid,
+						reason: 'No quantity available'
+					});
+					continue;
+				}
+
+				const currentQuantity = parseInt(product.quantity.toString());
+				const newQuantity = currentQuantity - parseInt(update.quantityToDecrement.toString());
+
+				validUpdates.push({
+					uuid: product.uuid,
+					data: {
+						quantity: newQuantity,
+						userId: update.userId
+					}
+				});
+			}
+
+			// Step 3: Execute bulk update
+			const bulkResult = await this.bulkUpdate(table, validUpdates);
+
+			return {
+				successful: bulkResult.successful,
+				failed: bulkResult.failed.map(f => ({
+					productUuid: f.uuid,
+					error: f.error.message
+				})),
+				skipped
+			};
+
+		} catch (error) {
+			throw new Error(`Bulk inventory update failed: ${error}`);
+		}
 	}
 }
 

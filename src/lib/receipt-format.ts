@@ -1,9 +1,8 @@
-import { CartItem, Setting, Transaction } from '@/types';
 import { base64Logo } from './base64-logo';
 
 export function generateTransactionHtml(
 	transaction: Transaction,
-	settings: Setting
+	settings: WorkstatSettings
 ): string {
 	return `
 		<!DOCTYPE html>
@@ -72,10 +71,10 @@ export function generateTransactionHtml(
 						${settings.store}
 					</div>
 					<div className="text-gray-500">
-						${settings.addressOne}
+						${settings.addressLine1}
 					</div>
 					<div className="text-gray-500">
-						${settings.addressTwo}
+						${settings.addressLine2}
 					</div>
 					<div className="text-gray-500">
 						Tel: ${settings.contact}
@@ -87,7 +86,7 @@ export function generateTransactionHtml(
 
 				<table class="details">
 					<tr>
-						<td>Ref No:</td><td>${transaction.refNumber || '-'}</td>
+						<td>Ref No:</td><td>${transaction?.refNumber || '-'}</td>
 					</tr>
 					<tr>
 						<td>Customer:</td><td>${transaction?.customer?.name || 'Walk in customer'}</td>
@@ -99,7 +98,7 @@ export function generateTransactionHtml(
 						<td>Date:</td><td>${transaction.date || new Date().toLocaleDateString()}</td>
 					</tr>
 					<tr>
-						<td>Till:</td><td>${transaction.till || 'till 1'}</td>
+						<td>Till:</td><td>${transaction?.workstation?.tillName || 'till 1'}</td>
 					</tr>
 				</table>
 
@@ -115,16 +114,16 @@ export function generateTransactionHtml(
 					</thead>
 					<tbody>
 						${(transaction.items || [])
-							.map(
-								(item: CartItem) => `
+			.map(
+				(item: CartItem) => `
 							<tr>
 								<td>${item.name}</td>
 								<td>${item.quantity}</td>
 								<td>MK${(item.sellPrice * item.quantity).toFixed(2)}</td>
 							</tr>
 						`
-							)
-							.join('')}
+			)
+			.join('')}
 					</tbody>
 				</table>
 

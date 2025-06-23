@@ -29,7 +29,7 @@ export const authLimiter = rateLimit({
 
 export const createAccountLimiter = rateLimit({
 	windowMs: 60 * 60 * 1000,
-	max: 3,
+	max: 7,
 	message: {
 		error: 'Rate Limit Exceeded',
 		message: 'Too many accounts created from this IP, please try again later.',
@@ -68,7 +68,7 @@ export const createUserSpecificLimiter = (
 		standardHeaders: true,
 		legacyHeaders: false,
 		keyGenerator: (req: Request) => {
-			return req.user?.uuid || req.ip;
+			return req.auth?.uuid || req.ip;
 		},
 	});
 };

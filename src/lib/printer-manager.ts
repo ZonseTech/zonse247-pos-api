@@ -1,7 +1,6 @@
 import os from 'os';
 import { exec } from 'child_process';
 import { BrowserWindow } from 'electron';
-import { Printer, PrinterInfo } from '@/types';
 
 export function getAllPrinters(): Promise<Printer[]> {
 	return new Promise((resolve) => {
@@ -167,7 +166,7 @@ export function printDirectly(
 						{
 							silent: true,
 							printBackground: true,
-							deviceName: printerOptions?.name,
+							deviceName: printerOptions.name,
 							margins: {
 								marginType: 'none',
 							},

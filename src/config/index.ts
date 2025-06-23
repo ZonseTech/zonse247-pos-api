@@ -6,6 +6,14 @@ const envFile =
 dotenv.config({ path: path.resolve(process.cwd(), envFile) });
 
 export interface Config {
+	app: {
+		name: string;
+		version: string;
+		description: string;
+		users: string;
+		contact: string;
+		license: string;
+	},
 	server: {
 		port: number;
 		host: string;
@@ -83,6 +91,14 @@ const parseInteger = (
 };
 
 const config: Config = {
+	app: {
+		name: process.env.APP_NAME || 'Zonse247 POS API',
+		version: process.env.APP_VERSION || '1.0.0',
+		description: process.env.APP_DESCRIPTION || 'API for  Zonse247 POS',
+		users: process.env.APP_USERS || 'users',
+		license: process.env.APP_LICENSE || 'MIT',
+		contact: process.env.APP_CONTACT || 'zonse247@gmail.com',
+	},
 	server: {
 		port: parseInteger(process.env.PORT, 3000),
 		host: process.env.HOST || 'localhost',

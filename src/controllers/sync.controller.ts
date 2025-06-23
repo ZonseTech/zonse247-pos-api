@@ -34,15 +34,17 @@ export class SyncController {
 		}
 	};
 
-	pullData = async (req: Request, res: Response) => {
+	async pullData(req: Request, res: Response): Promise<void> {
 		try {
 			const { tableName } = req.body;
 
 			if (!tableName) {
-				return res.status(400).json({
+				res.status(400).json({
 					success: false,
 					message: 'Table name is required',
 				});
+
+				return;
 			}
 
 			const result = await syncService.pullDataFromMySQL(tableName);
@@ -64,9 +66,9 @@ export class SyncController {
 				error: error.message,
 			});
 		}
-	};
+	}
 
-	pushData = async (req: Request, res: Response) => {
+	pushData = async (req: Request, res: Response): Promise<any> => {
 		try {
 			const { tableName } = req.body;
 
@@ -98,7 +100,7 @@ export class SyncController {
 		}
 	};
 
-	getSyncStatus = async (req: Request, res: Response) => {
+	getSyncStatus = async (req: Request, res: Response): Promise<any> => {
 		try {
 			const { tableName } = req.params;
 			const status = await syncService.getSyncStatus(tableName);
@@ -127,7 +129,7 @@ export class SyncController {
 		}
 	};
 
-	bulkSync = async (req: Request, res: Response) => {
+	bulkSync = async (req: Request, res: Response): Promise<any> => {
 		try {
 			const { tableNames, direction = 'bidirectional' } = req.body;
 
@@ -212,7 +214,7 @@ export class SyncController {
 		}
 	};
 
-	getTableStats = async (req: Request, res: Response) => {
+	getTableStats = async (req: Request, res: Response): Promise<any> => {
 		try {
 			const { tableName } = req.params;
 
@@ -240,7 +242,7 @@ export class SyncController {
 		}
 	};
 
-	getAllRecords = async (req: Request, res: Response) => {
+	getAllRecords = async (req: Request, res: Response): Promise<any> => {
 		try {
 			const { tableName } = req.params;
 			const { limit = 100, offset = 0 } = req.query;

@@ -2,12 +2,6 @@ import { Router } from 'express';
 import { UserController } from '../controllers/user.controller';
 import { AuthMiddleware } from '../middlewares/auth.middleware';
 import {
-	preventSQLInjection,
-	preventXSS,
-	sanitizeInput,
-} from '../middlewares/security.middleware';
-import {
-	authLimiter,
 	createAccountLimiter,
 	createUserSpecificLimiter,
 	generalLimiter,
@@ -20,53 +14,21 @@ import { userValidationSchemas } from '../validations/user.schemas';
 import { asyncHandler } from '../middlewares/error.middleware';
 
 const router = Router();
-const userController = new UserController();
+const authMiddleware = new AuthMiddleware();
 
-const authMiddleware = new AuthMiddleware({
-	jwtSecret: process.env.JWT_SECRET || 'your-secret-key',
-	jwtExpiresIn: process.env.JWT_EXPIRES_IN || '24h',
-});
-
-router.use(sanitizeInput);
-router.use(preventSQLInjection);
-router.use(preventXSS);
-
-router.get('/', userController.getHealthCheck);
-
-router.post(
-	'/login',
-	authLimiter,
-	validateBody(userValidationSchemas.loginUser),
-	asyncHandler(userController.loginUser)
-);
-
-router.post(
-	'/post',
-	createAccountLimiter,
-	validateBody(userValidationSchemas.createUser),
-	authMiddleware.verifyPasswordStrength,
-	asyncHandler(userController.createUser)
-);
-
-router.use(authMiddleware.verifyToken);
 router.use(generalLimiter);
 
-router.get(
-	'/user/:userId',
-	validateParams(userValidationSchemas.userId),
-	authMiddleware.verifyOwnership,
-	asyncHandler(userController.getUserById)
-);
+router.get('/', asyncHandler(UserController.healthCheck));
 
 router.get(
-	'/logout/:userId',
+	'/profile/:id',
 	validateParams(userValidationSchemas.userId),
 	authMiddleware.verifyOwnership,
-	asyncHandler(userController.logoutUser)
+	asyncHandler(UserController.show)
 );
 
 router.put(
-	'/update/:userId',
+	'/profile/:id',
 	validateParams(userValidationSchemas.userId),
 	validateBody(userValidationSchemas.updateUser),
 	authMiddleware.verifyOwnership,
@@ -76,11 +38,11 @@ router.put(
 		10,
 		'Too many profile updates, please try again later'
 	),
-	asyncHandler(userController.updateUser)
+	asyncHandler(UserController.update)
 );
 
 router.delete(
-	'/user/:userId',
+	'/profile/:id',
 	validateParams(userValidationSchemas.userId),
 	authMiddleware.verifyOwnership,
 	createUserSpecificLimiter(
@@ -88,10 +50,77 @@ router.delete(
 		3,
 		'Too many deletion attempts, please try again later'
 	),
-	asyncHandler(userController.deleteUser)
+	asyncHandler(UserController.delete)
 );
 
+router.put(
+	'/change-password/:id',
+	validateParams(userValidationSchemas.id),
+	validateBody(userValidationSchemas.changePassword),
+	authMiddleware.verifyOwnership,
+	createUserSpecificLimiter(
+		60 * 60 * 1000,
+		5,
+		'Too many password change attempts, please try again later'
+	),
+	asyncHandler(UserController.changePassword)
+);
+
+router.get('/list', asyncHandler(UserController.list));
+
 router.use(authMiddleware.requireAdmin);
-router.get('/all', asyncHandler(userController.getAllUsers));
+
+router.post(
+	'/',
+	createAccountLimiter,
+	validateBody(userValidationSchemas.createUser),
+	authMiddleware.verifyPasswordStrength,
+	asyncHandler(UserController.store)
+);
+
+router.get(
+	'/:id',
+	validateParams(userValidationSchemas.userId),
+	asyncHandler(UserController.show)
+);
+
+router.put(
+	'/:id',
+	validateParams(userValidationSchemas.id),
+	validateBody(userValidationSchemas.updateUser),
+	authMiddleware.verifyPasswordStrength,
+	asyncHandler(UserController.update)
+);
+
+router.delete(
+	'/:id',
+	validateParams(userValidationSchemas.userId),
+	asyncHandler(UserController.delete)
+);
+
+router.post(
+	'/reset-password/:id',
+	validateParams(userValidationSchemas.userId),
+	asyncHandler(UserController.resetPassword)
+);
+
+router.put(
+	'/status/:id',
+	validateParams(userValidationSchemas.userId),
+	validateBody(userValidationSchemas.updateUserStatus),
+	asyncHandler(UserController.updateUserStatus)
+);
+
+router.get(
+	'/role/:roleId',
+	validateParams(userValidationSchemas.roleId),
+	asyncHandler(UserController.getUsersByRole)
+);
+
+router.get(
+	'/shop/:shopUuid',
+	validateParams(userValidationSchemas.shopUuid),
+	asyncHandler(UserController.getUsersByShop)
+);
 
 export default router;

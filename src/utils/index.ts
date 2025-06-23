@@ -115,7 +115,7 @@ export const generateReferenceNumber = () => {
 	for (let i = 0; i < 7; i++) {
 		const value: string | number =
 			ALPHA_NUMERIC_POOL[
-				Math.floor(Math.random() * ALPHA_NUMERIC_POOL.length + 0)
+			Math.floor(Math.random() * ALPHA_NUMERIC_POOL.length + 0)
 			];
 		generateString.push(value);
 	}

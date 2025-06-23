@@ -1,7 +1,6 @@
 import { Request, Response, Router } from 'express';
 import { HOLD_ORDERS_DB } from '../databases/local/tables';
 import { sealDBModel } from '../databases/local';
-import { HoldOrder } from '@/types';
 
 const router = Router();
 

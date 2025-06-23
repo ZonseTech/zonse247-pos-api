@@ -8,7 +8,7 @@ declare module 'express' {
 }
 
 morgan.token('user', (req: Request) => {
-	return req.user ? `User:${req.user.username}(${req.user.uuid})` : 'Anonymous';
+	return req.auth ? `User:${req.auth?.username}(${req?.auth?.uuid})` : 'Anonymous';
 });
 
 morgan.token('request-id', (req: Request) => {
@@ -16,7 +16,7 @@ morgan.token('request-id', (req: Request) => {
 });
 
 morgan.token('response-time-formatted', (req: Request, res: Response) => {
-	const responseTime = (morgan as any)['response-time'](req, res);
+	const responseTime = morgan['response-time'](req, res);
 	return responseTime ? `${parseFloat(responseTime).toFixed(2)}ms` : 'N/A';
 });
 
@@ -48,7 +48,7 @@ export const securityLogger = (
 				userAgent: req.get('User-Agent'),
 				url: req.originalUrl,
 				method: req.method,
-				user: req.user?.username || 'Anonymous',
+				user: req.auth?.username || 'Anonymous',
 				headers: {
 					authorization: req.headers.authorization ? '[REDACTED]' : 'None',
 					'x-forwarded-for': req.headers['x-forwarded-for'],
@@ -92,7 +92,7 @@ export const requestTracker = (
 	}
 
 	res.on('finish', () => {
-		const duration = Date.now() - req.requestStartTime!;
+		const duration = Date.now() - req.requestStartTime;
 
 		if (process.env.NODE_ENV === 'development') {
 			console.log(
@@ -107,7 +107,7 @@ export const requestTracker = (
 				url: req.url,
 				duration: `${duration}ms`,
 				statusCode: res.statusCode,
-				user: req.user?.username || 'Anonymous',
+				user: req.auth?.username || 'Anonymous',
 			});
 		}
 	});
@@ -128,11 +128,11 @@ export const apiAnalytics = (
 			endpoint: req.route?.path || req.url,
 			method: req.method,
 			statusCode: res.statusCode,
-			userId: req.user?.uuid || null,
+			userId: req.auth?.uuid || null,
 			userAgent: req.get('User-Agent'),
 			ip: req.ip,
 			responseSize: JSON.stringify(data).length,
-			duration: Date.now() - req.requestStartTime!,
+			duration: Date.now() - req.requestStartTime,
 		};
 
 		if (process.env.ENABLE_ANALYTICS === 'true') {
@@ -164,7 +164,7 @@ export const errorLogger = (
 			url: req.originalUrl,
 			ip: req.ip,
 			userAgent: req.get('User-Agent'),
-			user: req.user?.username || 'Anonymous',
+			user: req.auth?.username || 'Anonymous',
 		},
 	};
 
