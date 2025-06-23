@@ -49,6 +49,7 @@ interface Client {
     trialEndsAt: string;
     authKey: string;
     status: string;
+    emailSent?: boolean;
     registeredAt: string;
     activatedAt?: string;
     createdAt?: string;

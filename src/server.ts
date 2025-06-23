@@ -24,6 +24,7 @@ import {
 	limitRequestSize,
 } from './middlewares/security.middleware';
 import ApiRoutes from './routes';
+import { initializeEmailService } from './config/email.config';
 
 class Server {
 	private server: HttpServer;
@@ -121,6 +122,13 @@ class Server {
 			console.log(`📊 Environment: ${config.server.environment}`);
 
 			await this.initializeServices();
+			await initializeEmailService()
+				.then(() => {
+					console.log('✅ Email service ready');
+				})
+				.catch((error) => {
+					console.error('❌ Email service initialization failed:', error);
+				});
 		});
 	}
 

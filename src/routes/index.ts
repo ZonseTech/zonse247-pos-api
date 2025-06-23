@@ -17,6 +17,7 @@ import SubscriptionsRoutes from './subscription.routes'
 import ShopsRoutes from './shop.routes'
 import WorkStationRoutes from './workstations.routes'
 import RoleRoutes from './role.routes'
+import MailingRoutes from './email.routes'
 import AuthRoutes from './auth.routes'
 import PermissionRoutes from './permission.routes'
 import RolePermissionRoutes from './role-permission.routes'
@@ -75,6 +76,7 @@ router.post(
 router.use('/auth', authLimiter, AuthRoutes);
 router.use('/settings', authLimiter, SettingsRoutes);
 
+router.use('/mailing', authMiddleware.verifyToken, MailingRoutes);
 router.use('/export', authMiddleware.verifyToken, DatabaseExportRoutes);
 router.use('/sync', authMiddleware.verifyToken, SyncRoutes);
 router.use('/payment-service-providers', authMiddleware.verifyToken, PaymentServiceProviderRoutes);

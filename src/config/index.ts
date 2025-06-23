@@ -65,6 +65,8 @@ export interface Config {
 		port: number;
 		user: string;
 		password: string;
+		secure: string;
+		from: string;
 	};
 	redis: {
 		host: string;
@@ -152,6 +154,8 @@ const config: Config = {
 		port: parseInteger(process.env.SMTP_PORT, 587),
 		user: process.env.SMTP_USER || '',
 		password: process.env.SMTP_PASS || '',
+		from: process.env.SMTP_FROM || '',
+		secure: process.env.SMTP_PASS || '',
 	},
 	redis: {
 		host: process.env.REDIS_HOST || 'localhost',
