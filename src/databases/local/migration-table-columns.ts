@@ -8,11 +8,11 @@ export default {
         },
         {
             dbColumn: 'shop_uuid',
-            recordColumn: '-1',
+            recordColumn: '01f91317-425c-46a2-aea3-9405bf549e30',
         },
         {
             dbColumn: 'client_uuid',
-            recordColumn: '-1',
+            recordColumn: 'acdc88c0-8dbd-49e5-baa4-64946ea19d21',
         },
         {
             dbColumn: 'user_uuid',
@@ -62,11 +62,11 @@ export default {
         },
         {
             dbColumn: 'client_uuid',
-            recordColumn: '-1',
+            recordColumn: 'acdc88c0-8dbd-49e5-baa4-64946ea19d21',
         },
         {
             dbColumn: 'shop_uuid',
-            recordColumn: '',
+            recordColumn: '01f91317-425c-46a2-aea3-9405bf549e30',
         },
         {
             dbColumn: 'user_uuid',
@@ -96,11 +96,11 @@ export default {
         },
         {
             dbColumn: 'shop_uuid',
-            recordColumn: '-1',
+            recordColumn: '01f91317-425c-46a2-aea3-9405bf549e30',
         },
         {
             dbColumn: 'client_uuid',
-            recordColumn: '-1',
+            recordColumn: 'acdc88c0-8dbd-49e5-baa4-64946ea19d21',
         },
         {
             dbColumn: 'user_uuid',
@@ -360,11 +360,11 @@ export default {
         },
         {
             dbColumn: 'client_uuid',
-            recordColumn: '-1',
+            recordColumn: 'acdc88c0-8dbd-49e5-baa4-64946ea19d21',
         },
         {
             dbColumn: 'shop_uuid',
-            recordColumn: '-1',
+            recordColumn: '01f91317-425c-46a2-aea3-9405bf549e30',
         },
         {
             dbColumn: 'status',
@@ -390,11 +390,11 @@ export default {
         },
         {
             dbColumn: 'client_uuid',
-            recordColumn: '-1'
+            recordColumn: 'acdc88c0-8dbd-49e5-baa4-64946ea19d21'
         },
         {
             dbColumn: 'shop_uuid',
-            recordColumn: '-1'
+            recordColumn: '01f91317-425c-46a2-aea3-9405bf549e30'
         },
         {
             dbColumn: 'username',
@@ -446,7 +446,7 @@ export default {
         },
         {
             dbColumn: 'current_shop_uuid',
-            recordColumn: '-1'
+            recordColumn: '01f91317-425c-46a2-aea3-9405bf549e30'
         },
         {
             dbColumn: 'last_login',
