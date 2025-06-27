@@ -13,7 +13,7 @@ interface WorkstatSettings {
     footer: string;
     img?: string | null;
     tillName?: string;
-    isActive: "active" | "inactive" | "suspended",
+    status: "active" | "inactive" | "suspended",
     synced?: 1 | 0;
     clientUuid: string;
     shopUuid: string;

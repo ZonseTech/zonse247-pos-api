@@ -13,7 +13,9 @@ import tables, {
 	USERS_DB,
 	WORKSTATIONS_DB,
 } from './tables';
+import config from '../../config';
 import Datastore from '@seald-io/nedb';
+import dayjs from 'dayjs';
 
 export class SealDBModel {
 	private syncStatusDB: any;
@@ -36,15 +38,7 @@ export class SealDBModel {
 	}
 
 	private getAppDataPath(): string {
-		const appData = process.env.APPDATA || '';
-		const appName = process.env.APPNAME || 'z-pharmacy';
-
-		if (!appData) {
-			throw new Error('APPDATA environment variable not found');
-		}
-
-		return path.join(appData, appName, 'databases');
-		// return path.join(appData, appName, 'src', 'api', 'databases');
+		return path.join(config.database.dataPath);
 	}
 
 	private initializeDatabases() {
@@ -107,8 +101,8 @@ export class SealDBModel {
 					syncCount: 0,
 					status: 'pending',
 					errorMessage: null,
-					createdAt: new Date().toISOString(),
-					updatedAt: new Date().toISOString(),
+					createdAt: dayjs().format('YYYY-MM-DD HH:mm:ss'),
+					updatedAt: dayjs().format('YYYY-MM-DD HH:mm:ss'),
 				};
 
 				this.syncStatusDB.insert(syncStatus, (insertErr: Error | null) => {
@@ -168,8 +162,8 @@ export class SealDBModel {
 				const db = this.getDB(table);
 				const insertData = {
 					...data,
-					createdAt: new Date().toISOString(),
-					updatedAt: new Date().toISOString(),
+					createdAt: dayjs().format('YYYY-MM-DD HH:mm:ss'),
+					updatedAt: dayjs().format('YYYY-MM-DD HH:mm:ss'),
 					synced: data.synced || 0,
 				};
 
@@ -189,7 +183,7 @@ export class SealDBModel {
 				const db = this.getDB(table);
 				const updateData = {
 					...data,
-					updatedAt: new Date().toISOString(),
+					updatedAt: dayjs().format('YYYY-MM-DD HH:mm:ss'),
 				};
 
 				db.update(
@@ -230,8 +224,8 @@ export class SealDBModel {
 			try {
 				const updateData: any = {
 					status,
-					lastSync: new Date().toISOString(),
-					updatedAt: new Date().toISOString(),
+					lastSync: dayjs().format('YYYY-MM-DD HH:mm:ss'),
+					updatedAt: dayjs().format('YYYY-MM-DD HH:mm:ss'),
 				};
 
 				if (errorMessage !== undefined) {

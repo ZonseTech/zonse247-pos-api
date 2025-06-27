@@ -1,48 +1,45 @@
 import fs from 'fs';
 import path from 'path';
-import { ExportDBModel } from '../databases/local/exports.db';
+import config from '../config';
+import { ExportDBModel } from '../models/exports.model';
 
 export class DatabaseExportService {
 	private exportDBModel: ExportDBModel;
 	private readonly databasePath: string;
 
-	constructor() {
-		const appData = process.env.APPDATA || '';
-		const appName = process.env.APPNAME || 'z-pharmacy';
-		this.databasePath = path.join(appData, appName, 'src', 'api', 'databases');
-		this.exportDBModel = new ExportDBModel(this.loadTables());
-	}
+	constructor(tableName?: string) {
+		this.databasePath = path.join(config.upload.migrationsPath);
 
-	private loadTables() {
-		if (!fs.existsSync(this.databasePath)) {
-			throw new Error(
-				`Database directory does not exist: ${this.databasePath}`
-			);
-		}
-
-		const files = fs.readdirSync(this.databasePath);
-
-		const tableNames: string[] = [];
-
-		for (const file of files) {
-			const filePath = path.join(this.databasePath, file);
-			const fileStat = fs.statSync(filePath);
-
-			if (fileStat.isFile()) {
-				const tableName = path.parse(file).name;
-
-				if (!file.startsWith('.') && !file.startsWith('_')) {
-					tableNames.push(tableName);
-				}
-			}
-		}
-
-		return tableNames.sort();
+		if (tableName)
+			this.exportDBModel = new ExportDBModel(tableName);
 	}
 
 	public async getAvailableTables(): Promise<string[]> {
 		try {
-			return this.loadTables();
+			if (!fs.existsSync(this.databasePath)) {
+				throw new Error(
+					`Database directory does not exist: ${this.databasePath}`
+				);
+			}
+
+			const files = fs.readdirSync(this.databasePath);
+
+			const tableNames: string[] = [];
+
+			for (const file of files) {
+				const filePath = path.join(this.databasePath, file);
+				const fileStat = fs.statSync(filePath);
+
+				if (fileStat.isFile()) {
+					const tableName = path.parse(file).name;
+
+					if (!file.startsWith('.') && !file.startsWith('_')) {
+						tableNames.push(tableName);
+					}
+				}
+			}
+
+			return tableNames.sort();
 		} catch (error) {
 			throw new Error(`Failed to get available tables: ${error}`);
 		}
@@ -54,6 +51,7 @@ export class DatabaseExportService {
 	): Promise<ExportResult> {
 		try {
 			const availableTables = await this.getAvailableTables();
+
 			if (!availableTables.includes(tableName)) {
 				throw new Error(`Table '${tableName}' is not supported`);
 			}
@@ -66,7 +64,11 @@ export class DatabaseExportService {
 				};
 			}
 
-			let records = await this.exportDBModel.find(tableName, query);
+			let records = await this.exportDBModel.find(query);
+
+			console.log('====================================');
+			console.log(records);
+			console.log('====================================');
 
 			if (options.offset) {
 				records = records.slice(options.offset);
@@ -127,14 +129,14 @@ export class DatabaseExportService {
 			}
 
 			const totalRecords = await this.exportDBModel.count(tableName);
-			const syncedRecords = await this.exportDBModel.count(tableName, {
+			const syncedRecords = await this.exportDBModel.count({
 				synced: 1,
 			});
-			const unsyncedRecords = await this.exportDBModel.count(tableName, {
+			const unsyncedRecords = await this.exportDBModel.count({
 				synced: { $ne: 1 },
 			});
 
-			const recentRecords = await this.exportDBModel.find(tableName, {});
+			const recentRecords = await this.exportDBModel.find({});
 
 			const lastUpdated =
 				recentRecords.length > 0 ? recentRecords[0].updatedAt : undefined;

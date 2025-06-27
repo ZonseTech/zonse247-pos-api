@@ -124,7 +124,6 @@ export class CategoryModel {
             userUuid: data.userUuid,
             createdAt: now,
             updatedAt: now,
-            itemCount: 0,
             synced: 0
         };
     }

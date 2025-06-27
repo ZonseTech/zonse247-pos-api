@@ -6,6 +6,8 @@ type Transaction = {
     tax: number;
     date: string;
     tillUuid: string;
+    clientUuid?: string;
+    shopUuid?: string;
     customerUuid?: string;
     paymentServiceProviderUuid?: string;
     transactionId?: string;

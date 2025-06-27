@@ -59,7 +59,7 @@ export class TransactionService {
         }
 
         const transactionUuid = uuidv4();
-        const transactionData = this.buildTransactionData(data, transactionUuid);
+        const transactionData = this.buildTransactionData({ ...data, ...auth }, transactionUuid);
 
         const transaction = await TransactionModel.create(transactionData);
 
@@ -199,15 +199,15 @@ export class TransactionService {
             promises.push(Promise.resolve({ user: null }));
         }
 
+
         if (includeItems && transaction.uuid) {
             promises.push(
-                OrderModel.findByRefNumber(transaction.refNumber)
+                OrderModel.findByTransactionUuid(transaction.uuid)
                     .then(async (orderItems) => {
                         const itemsWithProducts = await Promise.all(
                             orderItems.map(async (item) => {
                                 try {
                                     const product = await InventoryModel.findByUuid(item.productUuid);
-
                                     return {
                                         ...item,
                                         productDetails: product,
@@ -277,6 +277,8 @@ export class TransactionService {
             changeAmount: data.changeAmount || 0,
             tillUuid: data.tillUuid || null,
             userUuid: data.userUuid || null,
+            clientUuid: data.clientUuid || null,
+            shopUuid: data.shopUuid || null,
             status: data.status || 'completed',
         };
     }

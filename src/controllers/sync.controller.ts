@@ -1,13 +1,25 @@
 import { Request, Response } from 'express';
 import syncService from '../services/sync.service';
-import { tables } from '../databases/local/seeds';
+import { hasAnyPermission, hasRole } from '../utils';
+import tables from '../databases/local/seeds/sync-tables';
 
 export class SyncController {
 	getTables = async (req: Request, res: Response) => {
 		try {
 			const syncStatuses = await syncService.getSyncStatus();
 
-			const tablesWithStatus = tables.map((table) => {
+			const user = req.auth
+
+			const dataTables = tables.filter(table => {
+
+				if (user.roleName === 'super_admin') return true;
+
+				if (table.permissions) return hasAnyPermission(user, table.permissions)
+
+				return hasRole(user, table.role)
+			})
+
+			const tablesWithStatus = dataTables.map((table) => {
 				const syncStatus = Array.isArray(syncStatuses)
 					? syncStatuses.find((s: any) => s.tableName === table.id)
 					: syncStatuses;

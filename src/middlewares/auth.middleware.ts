@@ -4,7 +4,7 @@ import { Request, Response, NextFunction } from 'express';
 
 declare module 'express' {
 	interface Request {
-		auth: User;
+		auth?: User;
 	}
 }
 

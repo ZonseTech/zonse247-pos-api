@@ -33,9 +33,11 @@ import { shopValidationSchemas } from '../validations/shopValidationSchemas';
 import { OnboardingController } from '../controllers/onboarding.controller';
 import { SettingsController } from '../controllers/settings.controller'
 import PaymentServiceProviderRoutes from './payment-service-provider.routes'
+import { DatabaseExportController } from '../controllers/export.controller'
 
 const router = Router();
 const authMiddleware = new AuthMiddleware();
+const exportController = new DatabaseExportController()
 
 router.use(sanitizeInput);
 router.use(preventSQLInjection);
@@ -44,6 +46,11 @@ router.use(preventXSS);
 router.use((req, res, next) => {
     next();
 });
+
+router.get(
+    '/export/download/:filename',
+    asyncHandler(exportController.downloadFile)
+);
 
 router.get(
     '/setup',

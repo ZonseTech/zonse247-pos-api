@@ -24,6 +24,7 @@ interface MigrationUploadResponse {
 	recordCount: number;
 	tableName: string;
 	message: string;
+	columns?: any
 }
 
 interface MigrationProgressItem {
@@ -39,6 +40,7 @@ interface MigrationStats {
 	total: number;
 	completed: number;
 	errors: number;
+	progress?: number;
 }
 
 interface MigrationProgressResponse {
@@ -50,4 +52,60 @@ interface MigrationProgressResponse {
 interface MigrationStartRequest {
 	fileName: string;
 	tableName: string;
+}
+
+
+
+interface UploadedFile {
+	path: string;
+	originalname: string;
+	size: number;
+	mimetype: string;
+}
+
+interface TColumnMapping {
+	dbColumn: string;
+	recordColumn: string;
+}
+
+interface MigrationRecord {
+	uuid?: string;
+	_id?: string;
+	synced?: number;
+	createdAt?: any;
+	updatedAt?: any;
+	created_at?: string;
+	updated_at?: string;
+	[key: string]: any;
+}
+
+interface MappingConfig {
+	columnMappings: ColumnMapping[];
+	outputFileName?: string;
+	format?: "json" | "csv"
+}
+
+interface MappingConfigRequest {
+	columnMappings: Array<{
+		sourceColumn: string;
+		targetColumn: string;
+	}>;
+	outputFileName?: string;
+	format?: 'json' | 'csv';
+}
+
+interface MappingResult {
+	data?: any;
+	success?: boolean;
+	message?: string;
+	outputFile?: string;
+	recordCount?: number;
+	columnMappings?: any;
+	outputFileName?: any;
+	format?: any;
+}
+
+interface ColumnMapping {
+	sourceColumn: string;
+	targetColumn: string;
 }

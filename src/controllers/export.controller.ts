@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { Request, Response } from 'express';
-import { DatabaseExportService } from '../services/database-export.service';
+import { DatabaseExportService } from '../services/export.service';
 
 export class DatabaseExportController {
 	public getTables = async (req: Request, res: Response): Promise<void> => {
@@ -26,7 +26,7 @@ export class DatabaseExportController {
 	public getTableStats = async (req: Request, res: Response): Promise<void> => {
 		try {
 			const { tableName } = req.params;
-			const exportService = new DatabaseExportService();
+			const exportService = new DatabaseExportService(tableName);
 			const stats = await exportService.getTableStats(tableName);
 
 			res.json({
@@ -54,7 +54,7 @@ export class DatabaseExportController {
 				format: 'json',
 			};
 
-			const exportService = new DatabaseExportService();
+			const exportService = new DatabaseExportService(tableName);
 			const result = await exportService.exportTable(tableName, previewOptions);
 
 			res.json({
@@ -139,7 +139,7 @@ export class DatabaseExportController {
 				...options,
 			};
 
-			const exportService = new DatabaseExportService();
+			const exportService = new DatabaseExportService(tableName);
 			const downloadInfo = await exportService.createDownloadableExport(
 				tableName,
 				exportOptions

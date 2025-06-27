@@ -21,78 +21,9 @@ import {
 } from '../tables';
 import bcrypt from 'bcryptjs';
 import { sealDBModel } from '..';
-import { v4 as uuidv4 } from 'uuid';
 import { DEFAULT_PERMISSIONS } from './permission.seed';
 import { DEFAULT_ROLE_PERMISSIONS } from './role-permissions.seed';
 import config from '../../../config';
-
-const tables = [
-	{
-		id: CUSTOMERS_DB,
-		name: 'Customers',
-		description: 'User accounts and profiles',
-	},
-	{
-		id: CATEGORIES_DB,
-		name: 'Categories',
-		description: 'Product categories',
-	},
-	{
-		id: PAYMENT_METHODS_DB,
-		name: 'Payment Methods',
-		description: 'Payment methods',
-	},
-	{
-		id: USERS_DB,
-		name: 'Users',
-		description: 'Sales transactions',
-	},
-	{
-		id: ROLES_DB,
-		name: 'Roles',
-		description: 'Sales transactions',
-	},
-	{
-		id: PERMISSIONS_DB,
-		name: 'Permissions',
-		description: 'Sales transactions',
-	},
-	{
-		id: ROLE_PERMISSIONS_DB,
-		name: 'Role Permissions',
-		description: 'Sales transactions',
-	},
-	{
-		id: USER_PERMISSIONS_DB,
-		name: 'User Permissions',
-		description: 'Sales transactions',
-	},
-	{
-		id: SHOP_SETTINGS_DB,
-		name: 'Shop Settings',
-		description: 'Sales transactions',
-	},
-	{
-		id: SUBSCRIPTION_PLANS_DB,
-		name: 'Subscription Plans',
-		description: 'Sales transactions',
-	},
-	{
-		id: INVENTORY_DB,
-		name: 'Products Inventory',
-		description: 'User accounts and profiles',
-	},
-	{
-		id: TRANSACTIONS_DB,
-		name: 'Transactions',
-		description: 'Product inventory',
-	},
-	{
-		id: ORDERS_DB,
-		name: 'Transaction Items',
-		description: 'User accounts and profiles',
-	},
-];
 
 const checkOrCreateDefaultRoles = async () => {
 	try {
@@ -462,7 +393,7 @@ async function checkOrCreateDefaultSettings(): Promise<void> {
 			tax: '0.00',
 			symbol: 'MK',
 			footer: 'Footer',
-			isActive: "active"
+			status: "active"
 		};
 
 		await sealDBModel.insert(SHOP_SETTINGS_DB, defaultSettings);
@@ -603,4 +534,4 @@ const seedDatabase = async () => {
 	}
 };
 
-export { tables, seedDatabase };
+export { seedDatabase };

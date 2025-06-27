@@ -8,6 +8,20 @@ interface File {
 	mimetype: string;
 }
 
+export const hasPermission = (user: User, permField: string): boolean => {
+	if (!user) return false;
+	return user?.permissions?.includes(permField);
+};
+
+export const hasRole = (user: User, role: string): boolean => {
+	if (!user) return false;
+	return user?.roleName === role;
+};
+
+export const hasAnyPermission = (user: User, permissions: Array<string>) => {
+	return permissions.some(permission => hasPermission(user, permission));
+};
+
 export const formatCurrency = (amount: number) => {
 	return new Intl.NumberFormat('en-US', {
 		style: 'decimal',

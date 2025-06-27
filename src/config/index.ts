@@ -24,11 +24,15 @@ export interface Config {
 	database: {
 		host: string;
 		port: number;
-		name: string;
+		database: string;
 		user: string;
+		dataPath: string;
 		password: string;
 		migrate: boolean;
 		seed: boolean;
+		waitForConnections: boolean;
+		connectionLimit: number;
+		queueLimit: number;
 	};
 	jwt: {
 		secret: string;
@@ -59,6 +63,7 @@ export interface Config {
 	upload: {
 		maxFileSize: string;
 		uploadPath: string;
+		migrationsPath: string;
 	};
 	email: {
 		host: string;
@@ -110,12 +115,16 @@ const config: Config = {
 	},
 	database: {
 		host: process.env.DB_HOST || 'localhost',
+		dataPath: process.env.APP_DATA_PATH || 'zonse247',
 		port: parseInteger(process.env.DB_PORT, 5432),
-		name: process.env.DB_NAME || 'user_management',
-		user: process.env.DB_USER || 'mysql',
+		database: process.env.DB_NAME || 'zonse247_pos',
+		user: process.env.DB_USER || 'root',
 		password: process.env.DB_PASSWORD || '',
 		migrate: parseBoolean(process.env.DB_MIGRATE),
 		seed: parseBoolean(process.env.DB_SEED),
+		waitForConnections: true,
+		connectionLimit: 10,
+		queueLimit: 0,
 	},
 	jwt: {
 		secret: process.env.JWT_SECRET || '',
@@ -148,6 +157,7 @@ const config: Config = {
 	upload: {
 		maxFileSize: process.env.MAX_FILE_SIZE || '10mb',
 		uploadPath: process.env.UPLOAD_PATH || './uploads',
+		migrationsPath: process.env.MIGRATIONS_PATH || './migrations',
 	},
 	email: {
 		host: process.env.SMTP_HOST || 'smtp.gmail.com',

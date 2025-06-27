@@ -1,6 +1,7 @@
 import { mysqlPool } from '../config/db';
 import { sealDBModel } from '../databases/local';
 import tables from '../databases/local/tables';
+import { transformValue } from '../utils/data-sync-transfomer';
 
 export class SyncService {
 	private syncInterval: NodeJS.Timeout | null = null;
@@ -54,8 +55,7 @@ export class SyncService {
 						successCount++;
 					} catch (error: any) {
 						result.errors.push(
-							`Error inserting record ${record.id || record.uuid}: ${
-								error.message || 'Unknown error'
+							`Error inserting record ${record.id || record.uuid}: ${error.message || 'Unknown error'
 							}`
 						);
 					}
@@ -124,7 +124,7 @@ export class SyncService {
 
 							const updateValues = Object.keys(recordData)
 								.filter((key) => key !== 'uuid')
-								.map((key) => recordData[key]);
+								.map((key) => transformValue(key, recordData[key]));
 
 							await connection.execute(
 								`UPDATE ${tableName} SET ${updateFields} WHERE uuid = ?`,
@@ -137,7 +137,8 @@ export class SyncService {
 							const insertPlaceholders = Object.keys(recordData)
 								.map(() => '?')
 								.join(', ');
-							const insertValues = Object.values(recordData);
+							const insertValues = Object.keys(recordData)
+								.map((key) => transformValue(key, recordData[key]));
 
 							await connection.execute(
 								`INSERT INTO ${tableName} (${insertFields}) VALUES (${insertPlaceholders})`,

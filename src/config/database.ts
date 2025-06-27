@@ -4,7 +4,7 @@ export const databaseConfig = {
 	development: {
 		host: config.database.host,
 		port: config.database.port,
-		database: config.database.name,
+		database: config.database.database,
 		username: config.database.user,
 		password: config.database.password,
 		dialect: 'postgres' as const,
@@ -13,7 +13,7 @@ export const databaseConfig = {
 	test: {
 		host: config.database.host,
 		port: config.database.port,
-		database: `${config.database.name}_test`,
+		database: `${config.database.database}_test`,
 		username: config.database.user,
 		password: config.database.password,
 		dialect: 'postgres' as const,
@@ -22,7 +22,7 @@ export const databaseConfig = {
 	production: {
 		host: config.database.host,
 		port: config.database.port,
-		database: config.database.name,
+		database: config.database.database,
 		username: config.database.user,
 		password: config.database.password,
 		dialect: 'postgres' as const,

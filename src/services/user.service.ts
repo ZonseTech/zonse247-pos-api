@@ -64,7 +64,7 @@ export class UserService {
 
 	private static async getRoleWithPermissions(
 		roleUuid: string
-	): Promise<{ name: string; permissions: string[] } | null> {
+	): Promise<{ roleName: string; permissions: string[] } | null> {
 		try {
 			const role = await sealDBModel.findById<Role>(ROLES_DB, roleUuid);
 			if (!role) return null;
@@ -85,7 +85,7 @@ export class UserService {
 				.map(p => p.name);
 
 			return {
-				name: role.name,
+				roleName: role.name,
 				permissions,
 			};
 		} catch (error) {

@@ -51,5 +51,9 @@ interface PrinterInfo {
 	isDefault: boolean;
 	name: string;
 	options: any;
-	status: number;
+	status: string;
+	type: string;
+	model: string;
+	location: string;
+	status: string;
 }

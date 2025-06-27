@@ -9,7 +9,7 @@ export class SettingsModel {
                 clientUuid,
                 shopUuid,
                 workstationUuid,
-                isActive: true
+                status: 'active'
             };
 
             return await sealDBModel.find<Setting[]>(SHOP_SETTINGS_DB, conditions);
@@ -31,7 +31,7 @@ export class SettingsModel {
                 shopUuid,
                 workstationUuid,
                 key,
-                isActive: true
+                status: 'active'
             };
 
             return await sealDBModel.findById<Setting>(SHOP_SETTINGS_DB, conditions);
@@ -86,7 +86,7 @@ export class SettingsModel {
                 footer: shop.receiptFooter,
                 img: shop.logoUrl,
                 tillName: workstation.tillName,
-                isActive: shop.status,
+                status: shop.status,
                 createdAt: now,
                 updatedAt: now
             };
@@ -158,7 +158,7 @@ export class SettingsModel {
                 shopUuid,
                 workstationUuid,
                 category,
-                isActive: true
+                status: 'active'
             };
 
             return await sealDBModel.find<Setting[]>(SHOP_SETTINGS_DB, conditions);
