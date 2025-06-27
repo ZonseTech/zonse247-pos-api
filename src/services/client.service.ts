@@ -37,28 +37,28 @@ export class ClientService {
         const clientData = ClientModel.buildClientData(data);
         const client = await ClientModel.create(clientData);
 
-        if (client) {
-            try {
-                await EmailService.sendWelcomeEmail({
-                    companyName: client.companyName,
-                    ownerName: client.ownerName,
-                    email: client.email,
-                    clientUuid: client.uuid,
-                    authKey: client.authKey,
-                });
+        // if (client) {
+        //     try {
+        //         await EmailService.sendWelcomeEmail({
+        //             companyName: client.companyName,
+        //             ownerName: client.ownerName,
+        //             email: client.email,
+        //             clientUuid: client.uuid,
+        //             authKey: client.authKey,
+        //         });
 
-                console.log(`Welcome email sent successfully to ${client.email} for company: ${client.companyName}`);
+        //         console.log(`Welcome email sent successfully to ${client.email} for company: ${client.companyName}`);
 
-            } catch (emailError) {
-                console.error('Failed to send welcome email:', {
-                    clientUuid: client.uuid,
-                    email: client.email,
-                    error: emailError instanceof Error ? emailError.message : 'Unknown error'
-                });
+        //     } catch (emailError) {
+        //         console.error('Failed to send welcome email:', {
+        //             clientUuid: client.uuid,
+        //             email: client.email,
+        //             error: emailError instanceof Error ? emailError.message : 'Unknown error'
+        //         });
 
-                await ClientModel.update(client.uuid, { emailSent: false });
-            }
-        }
+        //         await ClientModel.update(client.uuid, { emailSent: false });
+        //     }
+        // }
 
         return client;
     }
