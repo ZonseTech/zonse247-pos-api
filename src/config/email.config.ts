@@ -14,11 +14,6 @@ export const emailConfig: EmailConfig = {
 
 export const initializeEmailService = async (): Promise<void> => {
     try {
-
-        console.log('====================================');
-        console.log(emailConfig);
-        console.log('====================================');
-
         EmailService.initialize(emailConfig);
 
         const isConnected = await EmailService.verifyConnection();
