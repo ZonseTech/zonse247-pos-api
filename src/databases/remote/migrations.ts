@@ -266,7 +266,6 @@ const initDatabase = async () => {
 
                 UNIQUE KEY unique_client_username (client_uuid, username),
                 INDEX idx_client_uuid (client_uuid),
-                INDEX idx_shop_code (shop_code),
                 INDEX idx_username (username),
                 INDEX idx_role_uuid (role_uuid)
             )
