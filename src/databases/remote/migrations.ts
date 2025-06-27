@@ -219,7 +219,6 @@ const initDatabase = async () => {
                 uuid VARCHAR(100) NOT NULL UNIQUE,
                 role_uuid VARCHAR(100) NOT NULL,
                 permission_uuid VARCHAR(100) NOT NULL,
-                created_at TIMESTAMP(3) NULL DEFAULT CURRENT_TIMESTAMP(3),
                 synced TINYINT DEFAULT 0,
                 created_at TIMESTAMP(3) NULL DEFAULT CURRENT_TIMESTAMP(3),
                 updated_at TIMESTAMP(3) NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
