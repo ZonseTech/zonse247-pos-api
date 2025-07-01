@@ -21,6 +21,7 @@ interface User {
     lastLogout?: Date | null;
     passwordChangedAt?: Date;
     forcePasswordChange?: boolean;
+    synced?: 0 | 1,
     createdAt?: Date;
     updatedAt?: Date;
 }

@@ -36,6 +36,7 @@ interface ClientSubscription {
     nextPaymentDate?: string;
     createdAt?: string;
     updatedAt?: string;
+    synced?: 0 | 1,
 }
 
 interface CreateSubscriptionRequest {

@@ -43,4 +43,5 @@ interface CartItem {
     variancePrice?: number;
     quantity: number;
     categoryDetails?: Category;
+    productDetails?: Product;
 }

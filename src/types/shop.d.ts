@@ -33,6 +33,7 @@ interface IShop {
 	chargeTax: boolean;
 	receiptFooter?: string;
 	logoUrl?: string;
+	synced?: 1 | 0,
 	status: 'active' | 'inactive' | 'suspended';
 	createdAt?: Date;
 	updatedAt?: Date;
