@@ -37,7 +37,7 @@ const tables = [
     {
         id: INVENTORY_DB,
         name: 'Inventory',
-        permissions: ['products.create'],
+        permissions: ['inventory.adjust'],
         description: 'Manages product stock levels, variants, and inventory movements',
     },
     {
@@ -49,7 +49,7 @@ const tables = [
     {
         id: CUSTOMERS_DB,
         name: 'Customers',
-        permissions: ['sales.create'],
+        permissions: ['customers.create'],
         description: 'Stores customer profiles, contact info, and purchase history',
     },
     {

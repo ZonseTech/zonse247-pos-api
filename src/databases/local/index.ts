@@ -424,12 +424,6 @@ export class SealDBModel {
 		return paths;
 	}
 
-	/**
-	 * Bulk update multiple records in a single table
-	 * @param table - Table name
-	 * @param updates - Array of update operations
-	 * @returns Promise with results of all operations
-	 */
 	public async bulkUpdate(
 		table: string,
 		updates: Array<{
@@ -472,12 +466,6 @@ export class SealDBModel {
 		return { successful, failed };
 	}
 
-	/**
-	 * Bulk find multiple records by UUIDs
-	 * @param table - Table name
-	 * @param conditions - Array of query conditions
-	 * @returns Promise with all found records
-	 */
 	public async bulkFind<T = any>(
 		table: string,
 		conditions: Array<Record<string, any>>
@@ -491,24 +479,15 @@ export class SealDBModel {
 		);
 	}
 
-	/**
-	 * Optimized method to find multiple products by their UUIDs and auth conditions
-	 * @param table - Table name
-	 * @param productUuids - Array of product UUIDs
-	 * @param auth - Authentication object with clientUuid and shopUuid
-	 * @returns Promise with found products
-	 */
 	public async findProductsByUuids<T = any>(
 		table: string,
 		productUuids: string[],
 		auth: { clientUuid: string; shopUuid: string }
 	): Promise<Array<T | null>> {
-		// Create a single query to find all products at once
 		return new Promise((resolve, reject) => {
 			try {
 				const db = this.getDB(table);
 
-				// Query for all products in one go
 				db.find({
 					uuid: { $in: productUuids },
 					clientUuid: auth.clientUuid,
@@ -535,12 +514,6 @@ export class SealDBModel {
 		});
 	}
 
-	/**
-	 * Atomic inventory decrement operation using optimized queries
-	 * @param table - Table name
-	 * @param inventoryUpdates - Array of inventory update operations
-	 * @returns Promise with operation results
-	 */
 	public async bulkInventoryUpdate(
 		table: string,
 		inventoryUpdates: Array<{

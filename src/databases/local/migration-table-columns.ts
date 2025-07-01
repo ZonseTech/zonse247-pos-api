@@ -1,5 +1,5 @@
 import { CATEGORIES_DB, CUSTOMERS_DB, INVENTORY_DB, ORDERS_DB, TRANSACTIONS_DB, USERS_DB } from "./tables";
-
+// VITALIRVH
 export default {
     [CATEGORIES_DB]: [
         {
@@ -8,15 +8,15 @@ export default {
         },
         {
             dbColumn: 'shop_uuid',
-            recordColumn: '01f91317-425c-46a2-aea3-9405bf549e30',
+            recordColumn: 'f9816061-7941-4a94-b555-8d9567e4b346',
         },
         {
             dbColumn: 'client_uuid',
-            recordColumn: 'acdc88c0-8dbd-49e5-baa4-64946ea19d21',
+            recordColumn: '07d80a7c-8df6-460f-a8aa-d965bde36418',
         },
         {
             dbColumn: 'user_uuid',
-            recordColumn: '-1',
+            recordColumn: '1746011936',
         },
         {
             dbColumn: 'name',
@@ -62,15 +62,15 @@ export default {
         },
         {
             dbColumn: 'client_uuid',
-            recordColumn: 'acdc88c0-8dbd-49e5-baa4-64946ea19d21',
+            recordColumn: '07d80a7c-8df6-460f-a8aa-d965bde36418',
         },
         {
             dbColumn: 'shop_uuid',
-            recordColumn: '01f91317-425c-46a2-aea3-9405bf549e30',
+            recordColumn: 'f9816061-7941-4a94-b555-8d9567e4b346',
         },
         {
             dbColumn: 'user_uuid',
-            recordColumn: '',
+            recordColumn: '1746011936',
         },
         {
             dbColumn: 'name',
@@ -96,15 +96,15 @@ export default {
         },
         {
             dbColumn: 'shop_uuid',
-            recordColumn: '01f91317-425c-46a2-aea3-9405bf549e30',
+            recordColumn: 'f9816061-7941-4a94-b555-8d9567e4b346',
         },
         {
             dbColumn: 'client_uuid',
-            recordColumn: 'acdc88c0-8dbd-49e5-baa4-64946ea19d21',
+            recordColumn: '07d80a7c-8df6-460f-a8aa-d965bde36418',
         },
         {
             dbColumn: 'user_uuid',
-            recordColumn: '-1',
+            recordColumn: '1746011936',
         },
         {
             dbColumn: 'category_uuid',
@@ -356,15 +356,15 @@ export default {
         },
         {
             dbColumn: 'user_uuid',
-            recordColumn: 'user_id',
+            recordColumn: '1746011936',
         },
         {
             dbColumn: 'client_uuid',
-            recordColumn: 'acdc88c0-8dbd-49e5-baa4-64946ea19d21',
+            recordColumn: '07d80a7c-8df6-460f-a8aa-d965bde36418',
         },
         {
             dbColumn: 'shop_uuid',
-            recordColumn: '01f91317-425c-46a2-aea3-9405bf549e30',
+            recordColumn: 'f9816061-7941-4a94-b555-8d9567e4b346',
         },
         {
             dbColumn: 'status',
@@ -390,11 +390,11 @@ export default {
         },
         {
             dbColumn: 'client_uuid',
-            recordColumn: 'acdc88c0-8dbd-49e5-baa4-64946ea19d21'
+            recordColumn: '07d80a7c-8df6-460f-a8aa-d965bde36418'
         },
         {
             dbColumn: 'shop_uuid',
-            recordColumn: '01f91317-425c-46a2-aea3-9405bf549e30'
+            recordColumn: 'f9816061-7941-4a94-b555-8d9567e4b346'
         },
         {
             dbColumn: 'username',
@@ -446,7 +446,7 @@ export default {
         },
         {
             dbColumn: 'current_shop_uuid',
-            recordColumn: '01f91317-425c-46a2-aea3-9405bf549e30'
+            recordColumn: 'f9816061-7941-4a94-b555-8d9567e4b346'
         },
         {
             dbColumn: 'last_login',

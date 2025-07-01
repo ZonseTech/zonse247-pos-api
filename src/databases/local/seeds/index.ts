@@ -4,8 +4,6 @@ import {
 	CLIENT_SUBSCRIPTIONS_DB,
 	CLIENTS_DB,
 	CUSTOMERS_DB,
-	INVENTORY_DB,
-	ORDERS_DB,
 	PAYMENT_METHODS_DB,
 	PAYMENT_SERVICE_PROVIDERS_DB,
 	PERMISSIONS_DB,
@@ -14,8 +12,6 @@ import {
 	SHOP_SETTINGS_DB,
 	SHOPS_DB,
 	SUBSCRIPTION_PLANS_DB,
-	TRANSACTIONS_DB,
-	USER_PERMISSIONS_DB,
 	USERS_DB,
 	WORKSTATIONS_DB,
 } from '../tables';
@@ -155,6 +151,7 @@ const checkOrCreateDefaultShop = async () => {
 			taxRate: 0.00,
 			chargeTax: false,
 			status: 'active',
+			synced: 0,
 			createdAt: new Date(),
 			updatedAt: new Date()
 		};
@@ -188,7 +185,7 @@ const checkOrCreateDefaultClient = async () => {
 			activatedAt: new Date().toISOString(),
 			createdAt: new Date().toISOString(),
 			updatedAt: new Date().toISOString(),
-			synced: 1
+			synced: 0
 		};
 
 		await sealDBModel.insert(CLIENTS_DB, defaultClient);
@@ -218,7 +215,7 @@ const checkOrCreateDefaultWorkStation = async () => {
 			lastSync: new Date().toISOString(),
 			createdAt: new Date().toISOString(),
 			updatedAt: new Date().toISOString(),
-			synced: 1
+			synced: 0
 		};
 
 		await sealDBModel.insert(WORKSTATIONS_DB, defaultWorkStation);
@@ -291,6 +288,7 @@ const checkOrCreateDefaultClientSubscriptions = async () => {
 			endsAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
 			autoRenew: true,
 			paymentMethod: 'trial',
+			synced: 0,
 			lastPaymentDate: new Date().toISOString(),
 			nextPaymentDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
 			createdAt: new Date().toISOString(),
@@ -324,6 +322,7 @@ const checkOrCreateDefaultUser = async () => {
 			allowedWorkstations: ["*"],
 			email: 'zonse247@gmail.com',
 			status: 'active',
+			synced: 0,
 		};
 
 		await sealDBModel.insert(USERS_DB, adminUser);
