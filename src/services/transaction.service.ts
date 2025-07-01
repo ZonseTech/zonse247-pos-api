@@ -8,6 +8,7 @@ import { OrderModel } from '../models/order.model';
 import { OrderService } from './order.service';
 import { PaymentServiceProviderModel } from '../models/payment-service-provider.model';
 import { WorkstationModel } from '../models/work-station.model';
+import { CategoryModel } from '../models/category.model';
 
 export class TransactionService {
 
@@ -202,12 +203,15 @@ export class TransactionService {
 
         if (includeItems && transaction.uuid) {
             promises.push(
-                OrderModel.findByTransactionUuid(transaction.uuid)
+                OrderModel.findByTransactionRefNumber(transaction.refNumber)
                     .then(async (orderItems) => {
                         const itemsWithProducts = await Promise.all(
                             orderItems.map(async (item) => {
                                 try {
                                     const product = await InventoryModel.findByUuid(item.productUuid);
+
+                                    product.categoryDetails = await CategoryModel.findById(product.categoryUuid)
+
                                     return {
                                         ...item,
                                         productDetails: product,
