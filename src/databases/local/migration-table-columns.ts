@@ -1,5 +1,5 @@
 import { CATEGORIES_DB, CUSTOMERS_DB, INVENTORY_DB, ORDERS_DB, TRANSACTIONS_DB, USERS_DB } from "./tables";
-// VITALIRVH
+
 export default {
     [CATEGORIES_DB]: [
         {
@@ -8,11 +8,11 @@ export default {
         },
         {
             dbColumn: 'shop_uuid',
-            recordColumn: 'f9816061-7941-4a94-b555-8d9567e4b346',
+            recordColumn: '33c29db5-0bcc-4f8f-8b3f-1d68c9819d45',
         },
         {
             dbColumn: 'client_uuid',
-            recordColumn: '07d80a7c-8df6-460f-a8aa-d965bde36418',
+            recordColumn: '08505618-da27-4d52-9a23-ff711f593a48',
         },
         {
             dbColumn: 'user_uuid',
@@ -62,11 +62,11 @@ export default {
         },
         {
             dbColumn: 'client_uuid',
-            recordColumn: '07d80a7c-8df6-460f-a8aa-d965bde36418',
+            recordColumn: '08505618-da27-4d52-9a23-ff711f593a48',
         },
         {
             dbColumn: 'shop_uuid',
-            recordColumn: 'f9816061-7941-4a94-b555-8d9567e4b346',
+            recordColumn: '33c29db5-0bcc-4f8f-8b3f-1d68c9819d45',
         },
         {
             dbColumn: 'user_uuid',
@@ -96,11 +96,11 @@ export default {
         },
         {
             dbColumn: 'shop_uuid',
-            recordColumn: 'f9816061-7941-4a94-b555-8d9567e4b346',
+            recordColumn: '33c29db5-0bcc-4f8f-8b3f-1d68c9819d45',
         },
         {
             dbColumn: 'client_uuid',
-            recordColumn: '07d80a7c-8df6-460f-a8aa-d965bde36418',
+            recordColumn: '08505618-da27-4d52-9a23-ff711f593a48',
         },
         {
             dbColumn: 'user_uuid',
@@ -168,7 +168,7 @@ export default {
         },
         {
             dbColumn: 'original_quantity',
-            recordColumn: '',
+            recordColumn: 'original_quantity',
         },
         {
             dbColumn: 'max_stock',
@@ -216,7 +216,7 @@ export default {
         },
         {
             dbColumn: 'expiration_date',
-            recordColumn: '',
+            recordColumn: 'expiration_date',
         },
         {
             dbColumn: 'manufacture_date',
@@ -236,7 +236,7 @@ export default {
         },
         {
             dbColumn: 'created_by',
-            recordColumn: '-1',
+            recordColumn: '1746011936',
         },
         {
             dbColumn: 'synced',
@@ -286,7 +286,7 @@ export default {
         },
         {
             dbColumn: 'created_at',
-            recordColumn: 'createdAt',
+            recordColumn: 'created_at',
         },
         {
             dbColumn: 'updated_at',
@@ -308,7 +308,7 @@ export default {
         },
         {
             dbColumn: 'customer_uuid',
-            recordColumn: 'customer',
+            recordColumn: '-1',
         },
         {
             dbColumn: 'subtotal',
@@ -352,7 +352,7 @@ export default {
         },
         {
             dbColumn: 'till_uuid',
-            recordColumn: '-1',
+            recordColumn: '5c272d3e-ea87-494a-81d0-ea7b3f1fbea9',
         },
         {
             dbColumn: 'user_uuid',
@@ -360,11 +360,11 @@ export default {
         },
         {
             dbColumn: 'client_uuid',
-            recordColumn: '07d80a7c-8df6-460f-a8aa-d965bde36418',
+            recordColumn: '08505618-da27-4d52-9a23-ff711f593a48',
         },
         {
             dbColumn: 'shop_uuid',
-            recordColumn: 'f9816061-7941-4a94-b555-8d9567e4b346',
+            recordColumn: '33c29db5-0bcc-4f8f-8b3f-1d68c9819d45',
         },
         {
             dbColumn: 'status',
@@ -390,11 +390,11 @@ export default {
         },
         {
             dbColumn: 'client_uuid',
-            recordColumn: '07d80a7c-8df6-460f-a8aa-d965bde36418'
+            recordColumn: '08505618-da27-4d52-9a23-ff711f593a48'
         },
         {
             dbColumn: 'shop_uuid',
-            recordColumn: 'f9816061-7941-4a94-b555-8d9567e4b346'
+            recordColumn: '33c29db5-0bcc-4f8f-8b3f-1d68c9819d45'
         },
         {
             dbColumn: 'username',
@@ -418,7 +418,7 @@ export default {
         },
         {
             dbColumn: 'role_uuid',
-            recordColumn: 'super-admin'
+            recordColumn: 'admin'
         },
         {
             dbColumn: 'status',
@@ -446,7 +446,7 @@ export default {
         },
         {
             dbColumn: 'current_shop_uuid',
-            recordColumn: 'f9816061-7941-4a94-b555-8d9567e4b346'
+            recordColumn: '33c29db5-0bcc-4f8f-8b3f-1d68c9819d45'
         },
         {
             dbColumn: 'last_login',
