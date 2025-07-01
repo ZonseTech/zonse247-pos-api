@@ -125,7 +125,6 @@ export class ClientController extends BaseController {
 
             if (!clientUuid || !authKey) {
                 return BaseController.sendResponse(res, 400, false, 'Client ID and auth key are required');
-                return;
             }
 
             const safeClientData = await ClientService.verifyClient(clientUuid, authKey);

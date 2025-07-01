@@ -113,11 +113,11 @@ export class ClientService {
 
         const updatedClient = { ...client, status: 'active' };
 
-        try {
-            await this.sendAccountActivationEmail(updatedClient);
-        } catch (emailError) {
-            console.error('Failed to send activation confirmation email:', emailError);
-        }
+        // try {
+        //     await this.sendAccountActivationEmail(updatedClient);
+        // } catch (emailError) {
+        //     console.error('Failed to send activation confirmation email:', emailError);
+        // }
 
         return ClientModel.sanitizeClient(updatedClient);
     }

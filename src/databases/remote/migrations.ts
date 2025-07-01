@@ -424,7 +424,7 @@ const initDatabase = async () => {
                 quantity VARCHAR(100) DEFAULT 0,
                 reserved_quantity INT DEFAULT 0,
                 min_stock INT DEFAULT 0,
-                original_quantity INT DEFAULT 0,
+                original_quantity VARCHAR(20) DEFAULT 0,
                 max_stock INT,
                 stock INT,
                 reorder_level INT,
