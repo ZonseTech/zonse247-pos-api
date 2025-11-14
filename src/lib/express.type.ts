@@ -7,7 +7,6 @@ interface AuthRequestBase {
         terminalId: string;
         verificationKey: string;
     };
-    // ip: number;
 }
 
 export type AuthRequest = AuthRequestBase;
