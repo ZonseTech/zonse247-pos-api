@@ -11,7 +11,7 @@ import tables, {
 	SYNC_STATUS_TABLE,
 	TRANSACTIONS_DB,
 	USERS_DB,
-	WORKSTATIONS_DB,
+	TERMINALS_TABLE,
 } from './tables';
 import config from '../../config';
 import Datastore from '@seald-io/nedb';
@@ -64,10 +64,10 @@ export class SealDBModel {
 						autoload: true,
 					});
 
-					this.databases[tableName].ensureIndex({
-						fieldName: 'uuid',
-						unique: true,
-					});
+					// this.databases[tableName].ensureIndex({
+					// 	fieldName: 'uuid',
+					// 	unique: true,
+					// });
 					this.initializeSyncStatus(tableName);
 
 					console.log(`Initialized database for table: ${tableName}`);
@@ -134,7 +134,7 @@ export class SealDBModel {
 		return new Promise((resolve, reject) => {
 			try {
 				const db = this.getDB(table);
-				db.find(conditions, (err: Error | null, docs: any) => {
+				db.find(conditions, (err: Error | null, docs: T) => {
 					if (err) reject(err);
 					else resolve(docs);
 				});
@@ -144,10 +144,52 @@ export class SealDBModel {
 		});
 	}
 
-	public async findById<T = any>(table: string, conditions: string | Record<string, any>): Promise<T | null> {
+	public findWithPagination<T = any>(
+		table: string,
+		conditions: any = {},
+		skip: number = 0,
+		limit: number = 10
+	): Promise<T[]> {
+		return new Promise((resolve, reject) => {
+			try {
+				const db = this.getDB(table);
+				db.find(conditions)
+					.skip(skip)
+					.limit(limit)
+					.exec((err: Error | null, docs: T[]) => {
+						if (err) reject(err);
+						else resolve(docs);
+					});
+			} catch (error) {
+				reject(error);
+			}
+		});
+	}
+
+	public async findById<T = any>(
+		table: string,
+		conditions: string | Record<string, any>
+	): Promise<T | null> {
 		return new Promise((resolve, reject) => {
 			const db = this.getDB(table);
-			const query = typeof conditions === 'string' ? { uuid: conditions } : conditions;
+			const query =
+				typeof conditions === 'string' ? { uuid: conditions } : conditions;
+
+			db.findOne(query, (err, doc) => {
+				if (err) return reject(err);
+				resolve(doc);
+			});
+		});
+	}
+
+	public async findOne<T = any>(
+		table: string,
+		conditions: string | Record<string, any>
+	): Promise<T | null> {
+		return new Promise((resolve, reject) => {
+			const db = this.getDB(table);
+			const query =
+				typeof conditions === 'string' ? { uuid: conditions } : conditions;
 
 			db.findOne(query, (err, doc) => {
 				if (err) return reject(err);
@@ -177,7 +219,7 @@ export class SealDBModel {
 		});
 	}
 
-	public update(table: string, id: string, data: any): Promise<number> {
+	public update(table: string, conditions: string | Record<string, any>, data: any): Promise<number> {
 		return new Promise((resolve, reject) => {
 			try {
 				const db = this.getDB(table);
@@ -186,8 +228,11 @@ export class SealDBModel {
 					updatedAt: dayjs().format('YYYY-MM-DD HH:mm:ss'),
 				};
 
+				const query =
+					typeof conditions === 'string' ? { uuid: conditions } : conditions;
+
 				db.update(
-					{ uuid: id },
+					query,
 					{ $set: updateData },
 					{},
 					(err: Error | null, numReplaced: number) => {
@@ -201,11 +246,14 @@ export class SealDBModel {
 		});
 	}
 
-	public delete(table: string, id: string): Promise<number> {
+	public delete(table: string, conditions: string | Record<string, any>): Promise<number> {
 		return new Promise((resolve, reject) => {
 			try {
 				const db = this.getDB(table);
-				db.remove({ uuid: id }, {}, (err: Error | null, numRemoved: number) => {
+				const query =
+					typeof conditions === 'string' ? { uuid: conditions } : conditions;
+
+				db.remove(query, {}, (err: Error | null, numRemoved: number) => {
 					if (err) reject(err);
 					else resolve(numRemoved);
 				});
@@ -353,7 +401,7 @@ export class SealDBModel {
 		Object.keys(this.databases).forEach((tableName) => {
 			try {
 				const db = this.databases[tableName];
-				db.ensureIndex({ fieldName: 'uuid', unique: true });
+				// db.ensureIndex({ fieldName: 'uuid', unique: true });
 
 				switch (tableName) {
 					case USERS_DB:
@@ -374,17 +422,17 @@ export class SealDBModel {
 						db.ensureIndex({ fieldName: 'refNumber' });
 						db.ensureIndex({ fieldName: 'productId' });
 						break;
-					case WORKSTATIONS_DB:
-						db.ensureIndex({ fieldName: 'clientUuid' });
-						db.ensureIndex({ fieldName: 'shopUuid' });
+					case TERMINALS_TABLE:
+						db.ensureIndex({ fieldName: 'tenantId' });
+						db.ensureIndex({ fieldName: 'branchId' });
 						db.ensureIndex({ fieldName: 'tillNumber' });
 						db.ensureIndex({ fieldName: 'deviceId' });
 						db.ensureIndex({ fieldName: 'status' });
 						db.ensureIndex({ fieldName: 'isPrimary' });
 						break;
 					case ROLES_DB:
-						db.ensureIndex({ fieldName: 'clientUuid' });
-						db.ensureIndex({ fieldName: 'shopUuid' });
+						db.ensureIndex({ fieldName: 'tenantId' });
+						db.ensureIndex({ fieldName: 'branchId' });
 						db.ensureIndex({ fieldName: 'name' });
 						db.ensureIndex({ fieldName: 'isSystemRole' });
 						db.ensureIndex({ fieldName: 'isActive' });
@@ -396,13 +444,13 @@ export class SealDBModel {
 						db.ensureIndex({ fieldName: 'isSystemPermission' });
 						break;
 					case ROLE_PERMISSIONS_DB:
-						db.ensureIndex({ fieldName: 'roleUuid' });
-						db.ensureIndex({ fieldName: 'permissionUuid' });
+						db.ensureIndex({ fieldName: 'roleId' });
+						db.ensureIndex({ fieldName: 'permissionId' });
 						break;
 					case SHOP_SETTINGS_DB:
-						db.ensureIndex({ fieldName: 'clientUuid' });
-						db.ensureIndex({ fieldName: 'shopUuid' });
-						db.ensureIndex({ fieldName: 'workstationUuid' });
+						db.ensureIndex({ fieldName: 'tenantId' });
+						db.ensureIndex({ fieldName: 'branchId' });
+						db.ensureIndex({ fieldName: 'terminalId' });
 						break;
 				}
 				console.log(`Ensured indexes for table: ${tableName}`);
@@ -430,11 +478,18 @@ export class SealDBModel {
 			uuid: string;
 			data: any;
 		}>
-	): Promise<{ successful: number; failed: Array<{ uuid: string; error: Error }> }> {
+	): Promise<{
+		successful: number;
+		failed: Array<{ uuid: string; error: Error }>;
+	}> {
 		const results = await Promise.allSettled(
 			updates.map(async (update) => {
 				try {
-					const numReplaced = await this.update(table, update.uuid, update.data);
+					const numReplaced = await this.update(
+						table,
+						update.uuid,
+						update.data
+					);
 					return { success: true, uuid: update.uuid, numReplaced };
 				} catch (error) {
 					return { success: false, uuid: update.uuid, error: error as Error };
@@ -442,24 +497,23 @@ export class SealDBModel {
 			})
 		);
 
-		const successful = results.filter(r =>
-			r.status === 'fulfilled' && r.value.success
+		const successful = results.filter(
+			(r) => r.status === 'fulfilled' && r.value.success
 		).length;
 
 		const failed = results
-			.filter(r => r.status === 'fulfilled' && !r.value.success)
-			.map(r => ({
+			.filter((r) => r.status === 'fulfilled' && !r.value.success)
+			.map((r) => ({
 				uuid: (r as PromiseFulfilledResult<any>).value.uuid,
-				error: (r as PromiseFulfilledResult<any>).value.error
+				error: (r as PromiseFulfilledResult<any>).value.error,
 			}));
 
-		// Add rejected promises to failed array
 		results
-			.filter(r => r.status === 'rejected')
+			.filter((r) => r.status === 'rejected')
 			.forEach((r, index) => {
 				failed.push({
 					uuid: updates[index].uuid,
-					error: new Error((r as PromiseRejectedResult).reason)
+					error: new Error((r as PromiseRejectedResult).reason),
 				});
 			});
 
@@ -471,43 +525,46 @@ export class SealDBModel {
 		conditions: Array<Record<string, any>>
 	): Promise<Array<T | null>> {
 		const results = await Promise.allSettled(
-			conditions.map(condition => this.findById<T>(table, condition))
+			conditions.map((condition) => this.findById<T>(table, condition))
 		);
 
-		return results.map(result =>
+		return results.map((result) =>
 			result.status === 'fulfilled' ? result.value : null
 		);
 	}
 
 	public async findProductsByUuids<T = any>(
 		table: string,
-		productUuids: string[],
-		auth: { clientUuid: string; shopUuid: string }
+		productIds: string[],
+		auth: { tenantId: string; branchId: string }
 	): Promise<Array<T | null>> {
 		return new Promise((resolve, reject) => {
 			try {
 				const db = this.getDB(table);
 
-				db.find({
-					uuid: { $in: productUuids },
-					clientUuid: auth.clientUuid,
-					shopUuid: auth.shopUuid
-				}, (err: Error | null, docs: any[]) => {
-					if (err) {
-						reject(err);
-						return;
+				db.find(
+					{
+						uuid: { $in: productIds },
+						tenantId: auth.tenantId,
+						branchId: auth.branchId,
+					},
+					(err: Error | null, docs: any[]) => {
+						if (err) {
+							reject(err);
+							return;
+						}
+
+						const productMap = new Map<string, any>();
+						docs.forEach((doc) => {
+							productMap.set(doc.uuid, doc);
+						});
+
+						const results = productIds.map(
+							(uuid) => productMap.get(uuid) || null
+						);
+						resolve(results);
 					}
-
-					// Create a map for quick lookup
-					const productMap = new Map<string, any>();
-					docs.forEach(doc => {
-						productMap.set(doc.uuid, doc);
-					});
-
-					// Return products in the same order as requested UUIDs
-					const results = productUuids.map(uuid => productMap.get(uuid) || null);
-					resolve(results);
-				});
+				);
 			} catch (error) {
 				reject(error);
 			}
@@ -517,24 +574,26 @@ export class SealDBModel {
 	public async bulkInventoryUpdate(
 		table: string,
 		inventoryUpdates: Array<{
-			productUuid: string;
+			productId: string;
 			quantityToDecrement: number;
 			userId: string;
 		}>,
-		auth: { clientUuid: string; shopUuid: string }
+		auth: { tenantId: string; branchId: string }
 	): Promise<{
 		successful: number;
-		failed: Array<{ productUuid: string; error: string }>;
-		skipped: Array<{ productUuid: string; reason: string }>;
+		failed: Array<{ productId: string; error: string }>;
+		skipped: Array<{ productId: string; reason: string }>;
 	}> {
 		try {
-			// Step 1: Fetch all products in one optimized query
-			const productUuids = inventoryUpdates.map(update => update.productUuid);
-			const products = await this.findProductsByUuids(table, productUuids, auth);
+			const productIds = inventoryUpdates.map((update) => update.productId);
+			const products = await this.findProductsByUuids(
+				table,
+				productIds,
+				auth
+			);
 
-			// Step 2: Prepare valid updates
 			const validUpdates: Array<{ uuid: string; data: any }> = [];
-			const skipped: Array<{ productUuid: string; reason: string }> = [];
+			const skipped: Array<{ productId: string; reason: string }> = [];
 
 			for (let i = 0; i < inventoryUpdates.length; i++) {
 				const update = inventoryUpdates[i];
@@ -542,44 +601,43 @@ export class SealDBModel {
 
 				if (!product) {
 					skipped.push({
-						productUuid: update.productUuid,
-						reason: 'Product not found'
+						productId: update.productId,
+						reason: 'Product not found',
 					});
 					continue;
 				}
 
 				if (!product.quantity) {
 					skipped.push({
-						productUuid: update.productUuid,
-						reason: 'No quantity available'
+						productId: update.productId,
+						reason: 'No quantity available',
 					});
 					continue;
 				}
 
 				const currentQuantity = parseInt(product.quantity.toString());
-				const newQuantity = currentQuantity - parseInt(update.quantityToDecrement.toString());
+				const newQuantity =
+					currentQuantity - parseInt(update.quantityToDecrement.toString());
 
 				validUpdates.push({
 					uuid: product.uuid,
 					data: {
 						quantity: newQuantity,
-						userId: update.userId
-					}
+						userId: update.userId,
+					},
 				});
 			}
 
-			// Step 3: Execute bulk update
 			const bulkResult = await this.bulkUpdate(table, validUpdates);
 
 			return {
 				successful: bulkResult.successful,
-				failed: bulkResult.failed.map(f => ({
-					productUuid: f.uuid,
-					error: f.error.message
+				failed: bulkResult.failed.map((f) => ({
+					productId: f.uuid,
+					error: f.error.message,
 				})),
-				skipped
+				skipped,
 			};
-
 		} catch (error) {
 			throw new Error(`Bulk inventory update failed: ${error}`);
 		}

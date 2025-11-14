@@ -1,205 +1,205 @@
 import { v4 as uuidv4 } from 'uuid';
 
-export const DEFAULT_ROLE_PERMISSIONS = [
+export const DEFAULT_ROLE_PERMISSIONS: Array<RolePermission> = [
     // ===== SUPER ADMIN - Full system access =====
-    { uuid: uuidv4(), roleUuid: 'super-admin', permissionUuid: 'system.admin' },
-    { uuid: uuidv4(), roleUuid: 'super-admin', permissionUuid: 'system.backup' },
-    { uuid: uuidv4(), roleUuid: 'super-admin', permissionUuid: 'system.logs.view' },
+    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'system.admin' },
+    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'system.backup' },
+    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'system.logs.view' },
 
     // Sales permissions
-    { uuid: uuidv4(), roleUuid: 'super-admin', permissionUuid: 'sales.create' },
-    { uuid: uuidv4(), roleUuid: 'super-admin', permissionUuid: 'sales.view' },
-    { uuid: uuidv4(), roleUuid: 'super-admin', permissionUuid: 'sales.edit' },
-    { uuid: uuidv4(), roleUuid: 'super-admin', permissionUuid: 'sales.void' },
+    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'sales.create' },
+    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'sales.view' },
+    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'sales.edit' },
+    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'sales.void' },
 
     // Product permissions
-    { uuid: uuidv4(), roleUuid: 'super-admin', permissionUuid: 'products.create' },
-    { uuid: uuidv4(), roleUuid: 'super-admin', permissionUuid: 'products.view' },
-    { uuid: uuidv4(), roleUuid: 'super-admin', permissionUuid: 'products.edit' },
-    { uuid: uuidv4(), roleUuid: 'super-admin', permissionUuid: 'products.delete' },
-    { uuid: uuidv4(), roleUuid: 'super-admin', permissionUuid: 'products.pricing' },
+    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'products.create' },
+    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'products.view' },
+    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'products.edit' },
+    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'products.delete' },
+    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'products.pricing' },
 
     // Inventory permissions
-    { uuid: uuidv4(), roleUuid: 'super-admin', permissionUuid: 'inventory.view' },
-    { uuid: uuidv4(), roleUuid: 'super-admin', permissionUuid: 'inventory.adjust' },
-    { uuid: uuidv4(), roleUuid: 'super-admin', permissionUuid: 'inventory.transfer' },
-    { uuid: uuidv4(), roleUuid: 'super-admin', permissionUuid: 'inventory.receive' },
+    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'inventory.view' },
+    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'inventory.adjust' },
+    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'inventory.transfer' },
+    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'inventory.receive' },
 
     // Customer permissions
-    { uuid: uuidv4(), roleUuid: 'super-admin', permissionUuid: 'customers.create' },
-    { uuid: uuidv4(), roleUuid: 'super-admin', permissionUuid: 'customers.view' },
-    { uuid: uuidv4(), roleUuid: 'super-admin', permissionUuid: 'customers.edit' },
-    { uuid: uuidv4(), roleUuid: 'super-admin', permissionUuid: 'customers.delete' },
+    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'customers.create' },
+    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'customers.view' },
+    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'customers.edit' },
+    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'customers.delete' },
 
     // Payment & Refund permissions
-    { uuid: uuidv4(), roleUuid: 'super-admin', permissionUuid: 'payments.process' },
-    { uuid: uuidv4(), roleUuid: 'super-admin', permissionUuid: 'payments.view' },
-    { uuid: uuidv4(), roleUuid: 'super-admin', permissionUuid: 'payments.partial' },
-    { uuid: uuidv4(), roleUuid: 'super-admin', permissionUuid: 'refunds.process' },
-    { uuid: uuidv4(), roleUuid: 'super-admin', permissionUuid: 'refunds.view' },
-    { uuid: uuidv4(), roleUuid: 'super-admin', permissionUuid: 'refunds.approve' },
+    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'payments.process' },
+    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'payments.view' },
+    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'payments.partial' },
+    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'refunds.process' },
+    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'refunds.view' },
+    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'refunds.approve' },
 
     // Discount permissions
-    { uuid: uuidv4(), roleUuid: 'super-admin', permissionUuid: 'discounts.apply' },
-    { uuid: uuidv4(), roleUuid: 'super-admin', permissionUuid: 'discounts.create' },
-    { uuid: uuidv4(), roleUuid: 'super-admin', permissionUuid: 'discounts.override' },
+    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'discounts.apply' },
+    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'discounts.create' },
+    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'discounts.override' },
 
     // Cash management
-    { uuid: uuidv4(), roleUuid: 'super-admin', permissionUuid: 'cash.drawer.open' },
-    { uuid: uuidv4(), roleUuid: 'super-admin', permissionUuid: 'cash.count' },
-    { uuid: uuidv4(), roleUuid: 'super-admin', permissionUuid: 'cash.deposit' },
+    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'cash.drawer.open' },
+    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'cash.count' },
+    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'cash.deposit' },
 
     // Reports
-    { uuid: uuidv4(), roleUuid: 'super-admin', permissionUuid: 'reports.sales.daily' },
-    { uuid: uuidv4(), roleUuid: 'super-admin', permissionUuid: 'reports.sales.detailed' },
-    { uuid: uuidv4(), roleUuid: 'super-admin', permissionUuid: 'reports.inventory' },
-    { uuid: uuidv4(), roleUuid: 'super-admin', permissionUuid: 'reports.financial' },
+    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'reports.sales.daily' },
+    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'reports.sales.detailed' },
+    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'reports.inventory' },
+    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'reports.financial' },
 
     // User management
-    { uuid: uuidv4(), roleUuid: 'super-admin', permissionUuid: 'users.create' },
-    { uuid: uuidv4(), roleUuid: 'super-admin', permissionUuid: 'users.view' },
-    { uuid: uuidv4(), roleUuid: 'super-admin', permissionUuid: 'users.edit' },
-    { uuid: uuidv4(), roleUuid: 'super-admin', permissionUuid: 'users.delete' },
-    { uuid: uuidv4(), roleUuid: 'super-admin', permissionUuid: 'users.roles.assign' },
+    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'users.create' },
+    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'users.view' },
+    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'users.edit' },
+    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'users.delete' },
+    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'users.roles.assign' },
 
     // Settings
-    { uuid: uuidv4(), roleUuid: 'super-admin', permissionUuid: 'settings.shop.manage' },
-    { uuid: uuidv4(), roleUuid: 'super-admin', permissionUuid: 'settings.tax.manage' },
-    { uuid: uuidv4(), roleUuid: 'super-admin', permissionUuid: 'settings.payment.manage' },
+    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'settings.shop.manage' },
+    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'settings.tax.manage' },
+    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'settings.payment.manage' },
 
     // ===== ADMIN - Shop level administration =====
     // Sales permissions
-    { uuid: uuidv4(), roleUuid: 'admin', permissionUuid: 'sales.create' },
-    { uuid: uuidv4(), roleUuid: 'admin', permissionUuid: 'sales.view' },
-    { uuid: uuidv4(), roleUuid: 'admin', permissionUuid: 'sales.edit' },
-    { uuid: uuidv4(), roleUuid: 'admin', permissionUuid: 'sales.void' },
+    { rolePermissionId: uuidv4(), roleId: 'admin', permissionId: 'sales.create' },
+    { rolePermissionId: uuidv4(), roleId: 'admin', permissionId: 'sales.view' },
+    { rolePermissionId: uuidv4(), roleId: 'admin', permissionId: 'sales.edit' },
+    { rolePermissionId: uuidv4(), roleId: 'admin', permissionId: 'sales.void' },
 
     // Product permissions
-    { uuid: uuidv4(), roleUuid: 'admin', permissionUuid: 'products.create' },
-    { uuid: uuidv4(), roleUuid: 'admin', permissionUuid: 'products.view' },
-    { uuid: uuidv4(), roleUuid: 'admin', permissionUuid: 'products.edit' },
-    { uuid: uuidv4(), roleUuid: 'admin', permissionUuid: 'products.delete' },
-    { uuid: uuidv4(), roleUuid: 'admin', permissionUuid: 'products.pricing' },
+    { rolePermissionId: uuidv4(), roleId: 'admin', permissionId: 'products.create' },
+    { rolePermissionId: uuidv4(), roleId: 'admin', permissionId: 'products.view' },
+    { rolePermissionId: uuidv4(), roleId: 'admin', permissionId: 'products.edit' },
+    { rolePermissionId: uuidv4(), roleId: 'admin', permissionId: 'products.delete' },
+    { rolePermissionId: uuidv4(), roleId: 'admin', permissionId: 'products.pricing' },
 
     // Inventory permissions
-    { uuid: uuidv4(), roleUuid: 'admin', permissionUuid: 'inventory.view' },
-    { uuid: uuidv4(), roleUuid: 'admin', permissionUuid: 'inventory.adjust' },
-    { uuid: uuidv4(), roleUuid: 'admin', permissionUuid: 'inventory.transfer' },
-    { uuid: uuidv4(), roleUuid: 'admin', permissionUuid: 'inventory.receive' },
+    { rolePermissionId: uuidv4(), roleId: 'admin', permissionId: 'inventory.view' },
+    { rolePermissionId: uuidv4(), roleId: 'admin', permissionId: 'inventory.adjust' },
+    { rolePermissionId: uuidv4(), roleId: 'admin', permissionId: 'inventory.transfer' },
+    { rolePermissionId: uuidv4(), roleId: 'admin', permissionId: 'inventory.receive' },
 
     // Customer permissions
-    { uuid: uuidv4(), roleUuid: 'admin', permissionUuid: 'customers.create' },
-    { uuid: uuidv4(), roleUuid: 'admin', permissionUuid: 'customers.view' },
-    { uuid: uuidv4(), roleUuid: 'admin', permissionUuid: 'customers.edit' },
-    { uuid: uuidv4(), roleUuid: 'admin', permissionUuid: 'customers.delete' },
+    { rolePermissionId: uuidv4(), roleId: 'admin', permissionId: 'customers.create' },
+    { rolePermissionId: uuidv4(), roleId: 'admin', permissionId: 'customers.view' },
+    { rolePermissionId: uuidv4(), roleId: 'admin', permissionId: 'customers.edit' },
+    { rolePermissionId: uuidv4(), roleId: 'admin', permissionId: 'customers.delete' },
 
     // Payment & Refund permissions
-    { uuid: uuidv4(), roleUuid: 'admin', permissionUuid: 'payments.process' },
-    { uuid: uuidv4(), roleUuid: 'admin', permissionUuid: 'payments.view' },
-    { uuid: uuidv4(), roleUuid: 'admin', permissionUuid: 'payments.partial' },
-    { uuid: uuidv4(), roleUuid: 'admin', permissionUuid: 'refunds.process' },
-    { uuid: uuidv4(), roleUuid: 'admin', permissionUuid: 'refunds.view' },
-    { uuid: uuidv4(), roleUuid: 'admin', permissionUuid: 'refunds.approve' },
+    { rolePermissionId: uuidv4(), roleId: 'admin', permissionId: 'payments.process' },
+    { rolePermissionId: uuidv4(), roleId: 'admin', permissionId: 'payments.view' },
+    { rolePermissionId: uuidv4(), roleId: 'admin', permissionId: 'payments.partial' },
+    { rolePermissionId: uuidv4(), roleId: 'admin', permissionId: 'refunds.process' },
+    { rolePermissionId: uuidv4(), roleId: 'admin', permissionId: 'refunds.view' },
+    { rolePermissionId: uuidv4(), roleId: 'admin', permissionId: 'refunds.approve' },
 
     // Discount permissions
-    { uuid: uuidv4(), roleUuid: 'admin', permissionUuid: 'discounts.apply' },
-    { uuid: uuidv4(), roleUuid: 'admin', permissionUuid: 'discounts.create' },
-    { uuid: uuidv4(), roleUuid: 'admin', permissionUuid: 'discounts.override' },
+    { rolePermissionId: uuidv4(), roleId: 'admin', permissionId: 'discounts.apply' },
+    { rolePermissionId: uuidv4(), roleId: 'admin', permissionId: 'discounts.create' },
+    { rolePermissionId: uuidv4(), roleId: 'admin', permissionId: 'discounts.override' },
 
     // Cash management
-    { uuid: uuidv4(), roleUuid: 'admin', permissionUuid: 'cash.drawer.open' },
-    { uuid: uuidv4(), roleUuid: 'admin', permissionUuid: 'cash.count' },
-    { uuid: uuidv4(), roleUuid: 'admin', permissionUuid: 'cash.deposit' },
+    { rolePermissionId: uuidv4(), roleId: 'admin', permissionId: 'cash.drawer.open' },
+    { rolePermissionId: uuidv4(), roleId: 'admin', permissionId: 'cash.count' },
+    { rolePermissionId: uuidv4(), roleId: 'admin', permissionId: 'cash.deposit' },
 
     // Reports
-    { uuid: uuidv4(), roleUuid: 'admin', permissionUuid: 'reports.sales.daily' },
-    { uuid: uuidv4(), roleUuid: 'admin', permissionUuid: 'reports.sales.detailed' },
-    { uuid: uuidv4(), roleUuid: 'admin', permissionUuid: 'reports.inventory' },
-    { uuid: uuidv4(), roleUuid: 'admin', permissionUuid: 'reports.financial' },
+    { rolePermissionId: uuidv4(), roleId: 'admin', permissionId: 'reports.sales.daily' },
+    { rolePermissionId: uuidv4(), roleId: 'admin', permissionId: 'reports.sales.detailed' },
+    { rolePermissionId: uuidv4(), roleId: 'admin', permissionId: 'reports.inventory' },
+    { rolePermissionId: uuidv4(), roleId: 'admin', permissionId: 'reports.financial' },
 
     // User management
-    { uuid: uuidv4(), roleUuid: 'admin', permissionUuid: 'users.create' },
-    { uuid: uuidv4(), roleUuid: 'admin', permissionUuid: 'users.view' },
-    { uuid: uuidv4(), roleUuid: 'admin', permissionUuid: 'users.edit' },
-    { uuid: uuidv4(), roleUuid: 'admin', permissionUuid: 'users.delete' },
-    { uuid: uuidv4(), roleUuid: 'admin', permissionUuid: 'users.roles.assign' },
+    { rolePermissionId: uuidv4(), roleId: 'admin', permissionId: 'users.create' },
+    { rolePermissionId: uuidv4(), roleId: 'admin', permissionId: 'users.view' },
+    { rolePermissionId: uuidv4(), roleId: 'admin', permissionId: 'users.edit' },
+    { rolePermissionId: uuidv4(), roleId: 'admin', permissionId: 'users.delete' },
+    { rolePermissionId: uuidv4(), roleId: 'admin', permissionId: 'users.roles.assign' },
 
     // Settings
-    { uuid: uuidv4(), roleUuid: 'admin', permissionUuid: 'settings.shop.manage' },
-    { uuid: uuidv4(), roleUuid: 'admin', permissionUuid: 'settings.tax.manage' },
-    { uuid: uuidv4(), roleUuid: 'admin', permissionUuid: 'settings.payment.manage' },
+    { rolePermissionId: uuidv4(), roleId: 'admin', permissionId: 'settings.shop.manage' },
+    { rolePermissionId: uuidv4(), roleId: 'admin', permissionId: 'settings.tax.manage' },
+    { rolePermissionId: uuidv4(), roleId: 'admin', permissionId: 'settings.payment.manage' },
 
     // ===== MANAGER - Operational management =====
     // Sales permissions
-    { uuid: uuidv4(), roleUuid: 'manager', permissionUuid: 'sales.create' },
-    { uuid: uuidv4(), roleUuid: 'manager', permissionUuid: 'sales.view' },
-    { uuid: uuidv4(), roleUuid: 'manager', permissionUuid: 'sales.edit' },
-    { uuid: uuidv4(), roleUuid: 'manager', permissionUuid: 'sales.void' },
+    { rolePermissionId: uuidv4(), roleId: 'manager', permissionId: 'sales.create' },
+    { rolePermissionId: uuidv4(), roleId: 'manager', permissionId: 'sales.view' },
+    { rolePermissionId: uuidv4(), roleId: 'manager', permissionId: 'sales.edit' },
+    { rolePermissionId: uuidv4(), roleId: 'manager', permissionId: 'sales.void' },
 
     // Product permissions
-    { uuid: uuidv4(), roleUuid: 'manager', permissionUuid: 'products.create' },
-    { uuid: uuidv4(), roleUuid: 'manager', permissionUuid: 'products.view' },
-    { uuid: uuidv4(), roleUuid: 'manager', permissionUuid: 'products.edit' },
-    { uuid: uuidv4(), roleUuid: 'manager', permissionUuid: 'products.pricing' },
+    { rolePermissionId: uuidv4(), roleId: 'manager', permissionId: 'products.create' },
+    { rolePermissionId: uuidv4(), roleId: 'manager', permissionId: 'products.view' },
+    { rolePermissionId: uuidv4(), roleId: 'manager', permissionId: 'products.edit' },
+    { rolePermissionId: uuidv4(), roleId: 'manager', permissionId: 'products.pricing' },
 
     // Inventory permissions
-    { uuid: uuidv4(), roleUuid: 'manager', permissionUuid: 'inventory.view' },
-    { uuid: uuidv4(), roleUuid: 'manager', permissionUuid: 'inventory.adjust' },
-    { uuid: uuidv4(), roleUuid: 'manager', permissionUuid: 'inventory.receive' },
+    { rolePermissionId: uuidv4(), roleId: 'manager', permissionId: 'inventory.view' },
+    { rolePermissionId: uuidv4(), roleId: 'manager', permissionId: 'inventory.adjust' },
+    { rolePermissionId: uuidv4(), roleId: 'manager', permissionId: 'inventory.receive' },
 
     // Customer permissions
-    { uuid: uuidv4(), roleUuid: 'manager', permissionUuid: 'customers.create' },
-    { uuid: uuidv4(), roleUuid: 'manager', permissionUuid: 'customers.view' },
-    { uuid: uuidv4(), roleUuid: 'manager', permissionUuid: 'customers.edit' },
+    { rolePermissionId: uuidv4(), roleId: 'manager', permissionId: 'customers.create' },
+    { rolePermissionId: uuidv4(), roleId: 'manager', permissionId: 'customers.view' },
+    { rolePermissionId: uuidv4(), roleId: 'manager', permissionId: 'customers.edit' },
 
     // Payment & Refund permissions
-    { uuid: uuidv4(), roleUuid: 'manager', permissionUuid: 'payments.process' },
-    { uuid: uuidv4(), roleUuid: 'manager', permissionUuid: 'payments.view' },
-    { uuid: uuidv4(), roleUuid: 'manager', permissionUuid: 'payments.partial' },
-    { uuid: uuidv4(), roleUuid: 'manager', permissionUuid: 'refunds.process' },
-    { uuid: uuidv4(), roleUuid: 'manager', permissionUuid: 'refunds.view' },
-    { uuid: uuidv4(), roleUuid: 'manager', permissionUuid: 'refunds.approve' },
+    { rolePermissionId: uuidv4(), roleId: 'manager', permissionId: 'payments.process' },
+    { rolePermissionId: uuidv4(), roleId: 'manager', permissionId: 'payments.view' },
+    { rolePermissionId: uuidv4(), roleId: 'manager', permissionId: 'payments.partial' },
+    { rolePermissionId: uuidv4(), roleId: 'manager', permissionId: 'refunds.process' },
+    { rolePermissionId: uuidv4(), roleId: 'manager', permissionId: 'refunds.view' },
+    { rolePermissionId: uuidv4(), roleId: 'manager', permissionId: 'refunds.approve' },
 
     // Discount permissions
-    { uuid: uuidv4(), roleUuid: 'manager', permissionUuid: 'discounts.apply' },
-    { uuid: uuidv4(), roleUuid: 'manager', permissionUuid: 'discounts.create' },
-    { uuid: uuidv4(), roleUuid: 'manager', permissionUuid: 'discounts.override' },
+    { rolePermissionId: uuidv4(), roleId: 'manager', permissionId: 'discounts.apply' },
+    { rolePermissionId: uuidv4(), roleId: 'manager', permissionId: 'discounts.create' },
+    { rolePermissionId: uuidv4(), roleId: 'manager', permissionId: 'discounts.override' },
 
     // Cash management
-    { uuid: uuidv4(), roleUuid: 'manager', permissionUuid: 'cash.drawer.open' },
-    { uuid: uuidv4(), roleUuid: 'manager', permissionUuid: 'cash.count' },
-    { uuid: uuidv4(), roleUuid: 'manager', permissionUuid: 'cash.deposit' },
+    { rolePermissionId: uuidv4(), roleId: 'manager', permissionId: 'cash.drawer.open' },
+    { rolePermissionId: uuidv4(), roleId: 'manager', permissionId: 'cash.count' },
+    { rolePermissionId: uuidv4(), roleId: 'manager', permissionId: 'cash.deposit' },
 
     // Reports
-    { uuid: uuidv4(), roleUuid: 'manager', permissionUuid: 'reports.sales.daily' },
-    { uuid: uuidv4(), roleUuid: 'manager', permissionUuid: 'reports.sales.detailed' },
-    { uuid: uuidv4(), roleUuid: 'manager', permissionUuid: 'reports.inventory' },
+    { rolePermissionId: uuidv4(), roleId: 'manager', permissionId: 'reports.sales.daily' },
+    { rolePermissionId: uuidv4(), roleId: 'manager', permissionId: 'reports.sales.detailed' },
+    { rolePermissionId: uuidv4(), roleId: 'manager', permissionId: 'reports.inventory' },
 
     // ===== CASHIER - Point of sale operations =====
     // Sales permissions
-    { uuid: uuidv4(), roleUuid: 'cashier', permissionUuid: 'sales.create' },
-    { uuid: uuidv4(), roleUuid: 'cashier', permissionUuid: 'sales.view.own' }, // Can only view own sales
+    { rolePermissionId: uuidv4(), roleId: 'cashier', permissionId: 'sales.create' },
+    { rolePermissionId: uuidv4(), roleId: 'cashier', permissionId: 'sales.view.own' }, // Can only view own sales
 
     // Product permissions (view only)
-    { uuid: uuidv4(), roleUuid: 'cashier', permissionUuid: 'products.view' },
+    { rolePermissionId: uuidv4(), roleId: 'cashier', permissionId: 'products.view' },
 
     // Inventory permissions (view only)
-    { uuid: uuidv4(), roleUuid: 'cashier', permissionUuid: 'inventory.view' },
+    { rolePermissionId: uuidv4(), roleId: 'cashier', permissionId: 'inventory.view' },
 
     // Customer permissions
-    { uuid: uuidv4(), roleUuid: 'cashier', permissionUuid: 'customers.create' },
-    { uuid: uuidv4(), roleUuid: 'cashier', permissionUuid: 'customers.view' },
-    { uuid: uuidv4(), roleUuid: 'cashier', permissionUuid: 'customers.edit' },
+    { rolePermissionId: uuidv4(), roleId: 'cashier', permissionId: 'customers.create' },
+    { rolePermissionId: uuidv4(), roleId: 'cashier', permissionId: 'customers.view' },
+    { rolePermissionId: uuidv4(), roleId: 'cashier', permissionId: 'customers.edit' },
 
     // Payment permissions
-    { uuid: uuidv4(), roleUuid: 'cashier', permissionUuid: 'payments.process' },
-    { uuid: uuidv4(), roleUuid: 'cashier', permissionUuid: 'payments.view' },
-    { uuid: uuidv4(), roleUuid: 'cashier', permissionUuid: 'payments.partial' },
+    { rolePermissionId: uuidv4(), roleId: 'cashier', permissionId: 'payments.process' },
+    { rolePermissionId: uuidv4(), roleId: 'cashier', permissionId: 'payments.view' },
+    { rolePermissionId: uuidv4(), roleId: 'cashier', permissionId: 'payments.partial' },
 
     // Basic discount permissions
-    { uuid: uuidv4(), roleUuid: 'cashier', permissionUuid: 'discounts.apply' },
+    { rolePermissionId: uuidv4(), roleId: 'cashier', permissionId: 'discounts.apply' },
 
     // Cash management
-    { uuid: uuidv4(), roleUuid: 'cashier', permissionUuid: 'cash.drawer.open' },
-    { uuid: uuidv4(), roleUuid: 'cashier', permissionUuid: 'cash.count' },
+    { rolePermissionId: uuidv4(), roleId: 'cashier', permissionId: 'cash.drawer.open' },
+    { rolePermissionId: uuidv4(), roleId: 'cashier', permissionId: 'cash.count' },
 ];

@@ -1,9 +1,9 @@
 import { PermissionCategory, PermissionScope } from "../../../utils/constants";
 
-export const DEFAULT_PERMISSIONS = [
+export const DEFAULT_PERMISSIONS: Array<Permission> = [
     // ===== SALES PERMISSIONS =====
     {
-        uuid: 'sales.create',
+        permissionId: 'sales.create',
         name: 'sales.create',
         displayName: 'Create Sales',
         description: 'Create new sales transactions',
@@ -12,7 +12,7 @@ export const DEFAULT_PERMISSIONS = [
         isSystemPermission: true,
     },
     {
-        uuid: 'sales.view',
+        permissionId: 'sales.view',
         name: 'sales.view',
         displayName: 'View Sales',
         description: 'View sales transactions',
@@ -21,7 +21,7 @@ export const DEFAULT_PERMISSIONS = [
         isSystemPermission: true,
     },
     {
-        uuid: 'sales.view.own',
+        permissionId: 'sales.view.own',
         name: 'sales.view.own',
         displayName: 'View Own Sales',
         description: 'View only own sales transactions',
@@ -30,7 +30,7 @@ export const DEFAULT_PERMISSIONS = [
         isSystemPermission: true,
     },
     {
-        uuid: 'sales.edit',
+        permissionId: 'sales.edit',
         name: 'sales.edit',
         displayName: 'Edit Sales',
         description: 'Edit existing sales transactions',
@@ -39,7 +39,7 @@ export const DEFAULT_PERMISSIONS = [
         isSystemPermission: true,
     },
     {
-        uuid: 'sales.void',
+        permissionId: 'sales.void',
         name: 'sales.void',
         displayName: 'Void Sales',
         description: 'Void sales transactions',
@@ -50,7 +50,7 @@ export const DEFAULT_PERMISSIONS = [
 
     // ===== PRODUCT PERMISSIONS =====
     {
-        uuid: 'products.create',
+        permissionId: 'products.create',
         name: 'products.create',
         displayName: 'Create Products',
         description: 'Create new products',
@@ -59,7 +59,7 @@ export const DEFAULT_PERMISSIONS = [
         isSystemPermission: true,
     },
     {
-        uuid: 'products.view',
+        permissionId: 'products.view',
         name: 'products.view',
         displayName: 'View Products',
         description: 'View product catalog',
@@ -68,7 +68,7 @@ export const DEFAULT_PERMISSIONS = [
         isSystemPermission: true,
     },
     {
-        uuid: 'products.edit',
+        permissionId: 'products.edit',
         name: 'products.edit',
         displayName: 'Edit Products',
         description: 'Edit existing products',
@@ -77,7 +77,7 @@ export const DEFAULT_PERMISSIONS = [
         isSystemPermission: true,
     },
     {
-        uuid: 'products.delete',
+        permissionId: 'products.delete',
         name: 'products.delete',
         displayName: 'Delete Products',
         description: 'Delete products',
@@ -86,7 +86,7 @@ export const DEFAULT_PERMISSIONS = [
         isSystemPermission: true,
     },
     {
-        uuid: 'products.pricing',
+        permissionId: 'products.pricing',
         name: 'products.pricing',
         displayName: 'Manage Product Pricing',
         description: 'Manage product prices and cost',
@@ -97,7 +97,7 @@ export const DEFAULT_PERMISSIONS = [
 
     // ===== INVENTORY PERMISSIONS =====
     {
-        uuid: 'inventory.view',
+        permissionId: 'inventory.view',
         name: 'inventory.view',
         displayName: 'View Inventory',
         description: 'View inventory levels and stock',
@@ -106,7 +106,7 @@ export const DEFAULT_PERMISSIONS = [
         isSystemPermission: true,
     },
     {
-        uuid: 'inventory.adjust',
+        permissionId: 'inventory.adjust',
         name: 'inventory.adjust',
         displayName: 'Adjust Inventory',
         description: 'Make inventory adjustments',
@@ -115,7 +115,7 @@ export const DEFAULT_PERMISSIONS = [
         isSystemPermission: true,
     },
     {
-        uuid: 'inventory.transfer',
+        permissionId: 'inventory.transfer',
         name: 'inventory.transfer',
         displayName: 'Transfer Inventory',
         description: 'Transfer inventory between locations',
@@ -124,7 +124,7 @@ export const DEFAULT_PERMISSIONS = [
         isSystemPermission: true,
     },
     {
-        uuid: 'inventory.receive',
+        permissionId: 'inventory.receive',
         name: 'inventory.receive',
         displayName: 'Receive Inventory',
         description: 'Receive inventory from suppliers',
@@ -135,7 +135,7 @@ export const DEFAULT_PERMISSIONS = [
 
     // ===== CUSTOMER PERMISSIONS =====
     {
-        uuid: 'customers.create',
+        permissionId: 'customers.create',
         name: 'customers.create',
         displayName: 'Create Customers',
         description: 'Create new customer records',
@@ -144,7 +144,7 @@ export const DEFAULT_PERMISSIONS = [
         isSystemPermission: true,
     },
     {
-        uuid: 'customers.view',
+        permissionId: 'customers.view',
         name: 'customers.view',
         displayName: 'View Customers',
         description: 'View customer information',
@@ -153,7 +153,7 @@ export const DEFAULT_PERMISSIONS = [
         isSystemPermission: true,
     },
     {
-        uuid: 'customers.edit',
+        permissionId: 'customers.edit',
         name: 'customers.edit',
         displayName: 'Edit Customers',
         description: 'Edit customer information',
@@ -162,7 +162,7 @@ export const DEFAULT_PERMISSIONS = [
         isSystemPermission: true,
     },
     {
-        uuid: 'customers.delete',
+        permissionId: 'customers.delete',
         name: 'customers.delete',
         displayName: 'Delete Customers',
         description: 'Delete customer records',
@@ -173,7 +173,7 @@ export const DEFAULT_PERMISSIONS = [
 
     // ===== PAYMENT PERMISSIONS =====
     {
-        uuid: 'payments.process',
+        permissionId: 'payments.process',
         name: 'payments.process',
         displayName: 'Process Payments',
         description: 'Process customer payments',
@@ -182,7 +182,7 @@ export const DEFAULT_PERMISSIONS = [
         isSystemPermission: true,
     },
     {
-        uuid: 'payments.view',
+        permissionId: 'payments.view',
         name: 'payments.view',
         displayName: 'View Payments',
         description: 'View payment records',
@@ -191,7 +191,7 @@ export const DEFAULT_PERMISSIONS = [
         isSystemPermission: true,
     },
     {
-        uuid: 'payments.partial',
+        permissionId: 'payments.partial',
         name: 'payments.partial',
         displayName: 'Accept Partial Payments',
         description: 'Accept partial payments for orders',
@@ -202,7 +202,7 @@ export const DEFAULT_PERMISSIONS = [
 
     // ===== REFUND PERMISSIONS =====
     {
-        uuid: 'refunds.process',
+        permissionId: 'refunds.process',
         name: 'refunds.process',
         displayName: 'Process Refunds',
         description: 'Process customer refunds',
@@ -211,7 +211,7 @@ export const DEFAULT_PERMISSIONS = [
         isSystemPermission: true,
     },
     {
-        uuid: 'refunds.view',
+        permissionId: 'refunds.view',
         name: 'refunds.view',
         displayName: 'View Refunds',
         description: 'View refund records',
@@ -220,7 +220,7 @@ export const DEFAULT_PERMISSIONS = [
         isSystemPermission: true,
     },
     {
-        uuid: 'refunds.approve',
+        permissionId: 'refunds.approve',
         name: 'refunds.approve',
         displayName: 'Approve Refunds',
         description: 'Approve refund requests',
@@ -231,7 +231,7 @@ export const DEFAULT_PERMISSIONS = [
 
     // ===== DISCOUNT PERMISSIONS =====
     {
-        uuid: 'discounts.apply',
+        permissionId: 'discounts.apply',
         name: 'discounts.apply',
         displayName: 'Apply Discounts',
         description: 'Apply discounts to sales',
@@ -240,7 +240,7 @@ export const DEFAULT_PERMISSIONS = [
         isSystemPermission: true,
     },
     {
-        uuid: 'discounts.create',
+        permissionId: 'discounts.create',
         name: 'discounts.create',
         displayName: 'Create Discounts',
         description: 'Create discount rules',
@@ -249,7 +249,7 @@ export const DEFAULT_PERMISSIONS = [
         isSystemPermission: true,
     },
     {
-        uuid: 'discounts.override',
+        permissionId: 'discounts.override',
         name: 'discounts.override',
         displayName: 'Override Discount Limits',
         description: 'Override discount amount limits',
@@ -260,7 +260,7 @@ export const DEFAULT_PERMISSIONS = [
 
     // ===== CASH MANAGEMENT PERMISSIONS =====
     {
-        uuid: 'cash.drawer.open',
+        permissionId: 'cash.drawer.open',
         name: 'cash.drawer.open',
         displayName: 'Open Cash Drawer',
         description: 'Open cash drawer manually',
@@ -269,7 +269,7 @@ export const DEFAULT_PERMISSIONS = [
         isSystemPermission: true,
     },
     {
-        uuid: 'cash.count',
+        permissionId: 'cash.count',
         name: 'cash.count',
         displayName: 'Count Cash',
         description: 'Perform cash counts',
@@ -278,7 +278,7 @@ export const DEFAULT_PERMISSIONS = [
         isSystemPermission: true,
     },
     {
-        uuid: 'cash.deposit',
+        permissionId: 'cash.deposit',
         name: 'cash.deposit',
         displayName: 'Cash Deposits',
         description: 'Make cash deposits',
@@ -289,7 +289,7 @@ export const DEFAULT_PERMISSIONS = [
 
     // ===== REPORT PERMISSIONS =====
     {
-        uuid: 'reports.sales.daily',
+        permissionId: 'reports.sales.daily',
         name: 'reports.sales.daily',
         displayName: 'Daily Sales Reports',
         description: 'View daily sales reports',
@@ -298,7 +298,7 @@ export const DEFAULT_PERMISSIONS = [
         isSystemPermission: true,
     },
     {
-        uuid: 'reports.sales.detailed',
+        permissionId: 'reports.sales.detailed',
         name: 'reports.sales.detailed',
         displayName: 'Detailed Sales Reports',
         description: 'View detailed sales reports',
@@ -307,7 +307,7 @@ export const DEFAULT_PERMISSIONS = [
         isSystemPermission: true,
     },
     {
-        uuid: 'reports.inventory',
+        permissionId: 'reports.inventory',
         name: 'reports.inventory',
         displayName: 'Inventory Reports',
         description: 'View inventory reports',
@@ -316,7 +316,7 @@ export const DEFAULT_PERMISSIONS = [
         isSystemPermission: true,
     },
     {
-        uuid: 'reports.financial',
+        permissionId: 'reports.financial',
         name: 'reports.financial',
         displayName: 'Financial Reports',
         description: 'View financial reports',
@@ -327,7 +327,7 @@ export const DEFAULT_PERMISSIONS = [
 
     // ===== USER MANAGEMENT PERMISSIONS =====
     {
-        uuid: 'users.create',
+        permissionId: 'users.create',
         name: 'users.create',
         displayName: 'Create Users',
         description: 'Create new user accounts',
@@ -336,7 +336,7 @@ export const DEFAULT_PERMISSIONS = [
         isSystemPermission: true,
     },
     {
-        uuid: 'users.view',
+        permissionId: 'users.view',
         name: 'users.view',
         displayName: 'View Users',
         description: 'View user accounts',
@@ -345,7 +345,7 @@ export const DEFAULT_PERMISSIONS = [
         isSystemPermission: true,
     },
     {
-        uuid: 'users.edit',
+        permissionId: 'users.edit',
         name: 'users.edit',
         displayName: 'Edit Users',
         description: 'Edit user accounts',
@@ -354,7 +354,7 @@ export const DEFAULT_PERMISSIONS = [
         isSystemPermission: true,
     },
     {
-        uuid: 'users.delete',
+        permissionId: 'users.delete',
         name: 'users.delete',
         displayName: 'Delete Users',
         description: 'Delete user accounts',
@@ -363,7 +363,7 @@ export const DEFAULT_PERMISSIONS = [
         isSystemPermission: true,
     },
     {
-        uuid: 'users.roles.assign',
+        permissionId: 'users.roles.assign',
         name: 'users.roles.assign',
         displayName: 'Assign User Roles',
         description: 'Assign roles to users',
@@ -374,7 +374,7 @@ export const DEFAULT_PERMISSIONS = [
 
     // ===== SETTINGS PERMISSIONS =====
     {
-        uuid: 'settings.shop.manage',
+        permissionId: 'settings.shop.manage',
         name: 'settings.shop.manage',
         displayName: 'Manage Shop Settings',
         description: 'Manage shop configuration',
@@ -383,7 +383,7 @@ export const DEFAULT_PERMISSIONS = [
         isSystemPermission: true,
     },
     {
-        uuid: 'settings.tax.manage',
+        permissionId: 'settings.tax.manage',
         name: 'settings.tax.manage',
         displayName: 'Manage Tax Settings',
         description: 'Manage tax configuration',
@@ -392,7 +392,7 @@ export const DEFAULT_PERMISSIONS = [
         isSystemPermission: true,
     },
     {
-        uuid: 'settings.payment.manage',
+        permissionId: 'settings.payment.manage',
         name: 'settings.payment.manage',
         displayName: 'Manage Payment Settings',
         description: 'Manage payment methods configuration',
@@ -403,7 +403,7 @@ export const DEFAULT_PERMISSIONS = [
 
     // ===== SYSTEM PERMISSIONS =====
     {
-        uuid: 'system.admin',
+        permissionId: 'system.admin',
         name: 'system.admin',
         displayName: 'System Administration',
         description: 'Full system administration access',
@@ -412,7 +412,7 @@ export const DEFAULT_PERMISSIONS = [
         isSystemPermission: true,
     },
     {
-        uuid: 'system.backup',
+        permissionId: 'system.backup',
         name: 'system.backup',
         displayName: 'System Backup',
         description: 'Create and manage system backups',
@@ -421,7 +421,7 @@ export const DEFAULT_PERMISSIONS = [
         isSystemPermission: true,
     },
     {
-        uuid: 'system.logs.view',
+        permissionId: 'system.logs.view',
         name: 'system.logs.view',
         displayName: 'View System Logs',
         description: 'View system logs and audit trails',

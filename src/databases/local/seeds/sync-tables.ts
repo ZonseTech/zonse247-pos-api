@@ -1,8 +1,8 @@
 import {
     AUDIT_LOGS_DB,
     CATEGORIES_DB,
-    CLIENT_SUBSCRIPTIONS_DB,
-    CLIENTS_DB,
+    TENANT_SUBSCRIPTIONS_TABLE,
+    TENANT_TABLE,
     CUSTOMERS_DB,
     INVENTORY_DB,
     ORDERS_DB,
@@ -12,13 +12,13 @@ import {
     ROLE_PERMISSIONS_DB,
     ROLES_DB,
     SHOP_SETTINGS_DB,
-    SHOPS_DB,
-    SUBSCRIPTION_PLANS_DB,
+    BRANCHES_TABLE,
+    SUBSCRIPTION_PLANS_TABLE,
     TRANSACTIONS_DB,
     USER_PERMISSIONS_DB,
     USER_SESSIONS_DB,
     USERS_DB,
-    WORKSTATIONS_DB
+    TERMINALS_TABLE
 } from "../tables";
 
 const tables = [
@@ -89,25 +89,25 @@ const tables = [
         description: 'Contains user accounts and basic profile information',
     },
     {
-        id: CLIENTS_DB,
+        id: TENANT_TABLE,
         name: 'Clients',
         role: 'admin',
         description: 'Maintains client accounts for multi-tenant systems',
     },
     {
-        id: CLIENT_SUBSCRIPTIONS_DB,
+        id: TENANT_SUBSCRIPTIONS_TABLE,
         name: 'Client Subscriptions',
         role: 'admin',
         description: 'Tracks client subscription status and billing cycles',
     },
     {
-        id: SHOPS_DB,
+        id: BRANCHES_TABLE,
         name: 'Shops',
         role: 'admin',
         description: 'Stores information about physical or online store locations',
     },
     {
-        id: WORKSTATIONS_DB,
+        id: TERMINALS_TABLE,
         name: 'Workstations',
         role: 'admin',
         description: 'Manages POS terminals or workstations in retail environments',
@@ -131,7 +131,7 @@ const tables = [
         description: 'Manages custom permissions assigned to individual users',
     },
     {
-        id: SUBSCRIPTION_PLANS_DB,
+        id: SUBSCRIPTION_PLANS_TABLE,
         name: 'Subscription Plans',
         role: 'admin',
         description: 'Defines available subscription tiers and their features',
