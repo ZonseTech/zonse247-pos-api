@@ -23,8 +23,8 @@ export const corsOptions = {
 		'Authorization',
 		'X-Access-Token',
 		'X-Key',
-		'X-Client-Uuid',
-		'x-client-uuid'
+		'X-Tenant-Signature',
+		'x-tenant-signature'
 	],
 	maxAge: 86400,
 };

@@ -4,7 +4,7 @@ import { EmailService } from '../services/email.service';
 export const emailConfig: EmailConfig = {
     host: config.email.host || 'smtp.gmail.com',
     port: parseInt(config.email.port?.toString() || '587'),
-    secure: config.email.secure === 'true',
+    secure: config.email.secure === true,
     auth: {
         user: config.email.user || '',
         pass: config.email.password || '',
