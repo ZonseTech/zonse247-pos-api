@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { BaseController } from './base.controller';
 import { CategoryService } from '../services/category.service';
+import { AuthRequest } from '../lib/express.type';
 
 export class CategoryController extends BaseController {
     static async selectAll(req: Request, res: Response): Promise<void> {
@@ -18,7 +19,7 @@ export class CategoryController extends BaseController {
         CategoryController.sendResponse(res, 200, true, 'Category API');
     };
 
-    static getAllCategories = async (req: Request, res: Response): Promise<void> => {
+    static getAllCategories = async (req: AuthRequest, res: Response): Promise<void> => {
         try {
             const categories = await CategoryService.getAllCategories({
                 tenantId: req.auth.tenantId,
@@ -32,7 +33,7 @@ export class CategoryController extends BaseController {
         }
     };
 
-    static createCategory = async (req: Request, res: Response): Promise<void> => {
+    static createCategory = async (req: AuthRequest, res: Response): Promise<void> => {
         try {
             const { name, color, description, } = req.body;
             if (!name || typeof name !== 'string' || name.trim().length === 0) {
@@ -62,7 +63,7 @@ export class CategoryController extends BaseController {
         }
     };
 
-    static updateCategory = async (req: Request, res: Response): Promise<void> => {
+    static updateCategory = async (req: AuthRequest, res: Response): Promise<void> => {
         try {
             const { categoryId } = req.params;
             const { name, color, description } = req.body;
@@ -109,7 +110,7 @@ export class CategoryController extends BaseController {
         }
     };
 
-    static deleteCategory = async (req: Request, res: Response): Promise<void> => {
+    static deleteCategory = async (req: AuthRequest, res: Response): Promise<void> => {
         try {
             const { categoryId } = req.params;
 

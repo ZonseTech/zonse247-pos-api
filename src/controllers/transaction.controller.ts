@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { BaseController } from "./base.controller";
 import { TransactionService } from "../services/transaction.service";
+import { AuthRequest } from "../lib/express.type";
 
 export class TransactionController extends BaseController {
 
@@ -41,7 +42,7 @@ export class TransactionController extends BaseController {
         }
     }
 
-    static async create(req: Request, res: Response): Promise<void> {
+    static async create(req: AuthRequest, res: Response): Promise<void> {
         try {
             const newTransaction = await TransactionService.createTransaction(req.body, {
                 tenantId: req.auth.tenantId,

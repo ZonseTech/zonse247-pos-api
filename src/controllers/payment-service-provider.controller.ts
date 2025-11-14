@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { BaseController } from './base.controller';
 import { PaymentServiceProviderService } from '../services/payment-service-provider.service';
+import { AuthRequest } from '../lib/express.type';
 
 export class PaymentServiceProviderController extends BaseController {
 
@@ -24,7 +25,7 @@ export class PaymentServiceProviderController extends BaseController {
         }
     }
 
-    static async getAllPaymentServiceProviders(req: Request, res: Response): Promise<void> {
+    static async getAllPaymentServiceProviders(req: AuthRequest, res: Response): Promise<void> {
         try {
             const user = req.auth;
             if (!user) {
@@ -49,7 +50,7 @@ export class PaymentServiceProviderController extends BaseController {
         }
     }
 
-    static async createPaymentServiceProvider(req: Request, res: Response): Promise<void> {
+    static async createPaymentServiceProvider(req: AuthRequest, res: Response): Promise<void> {
         try {
             const user = req.auth;
             if (!user) {
@@ -91,7 +92,7 @@ export class PaymentServiceProviderController extends BaseController {
         }
     }
 
-    static async updatePaymentServiceProvider(req: Request, res: Response): Promise<void> {
+    static async updatePaymentServiceProvider(req: AuthRequest, res: Response): Promise<void> {
         try {
             const user = req.auth;
             if (!user) {
@@ -135,7 +136,7 @@ export class PaymentServiceProviderController extends BaseController {
         }
     }
 
-    static async deletePaymentServiceProvider(req: Request, res: Response): Promise<void> {
+    static async deletePaymentServiceProvider(req: AuthRequest, res: Response): Promise<void> {
         try {
             const user = req.auth;
             if (!user) {
@@ -173,7 +174,7 @@ export class PaymentServiceProviderController extends BaseController {
         }
     }
 
-    static async getPaymentServiceProviderById(req: Request, res: Response): Promise<void> {
+    static async getPaymentServiceProviderById(req: AuthRequest, res: Response): Promise<void> {
         try {
             const user = req.auth;
             if (!user) {
@@ -211,7 +212,7 @@ export class PaymentServiceProviderController extends BaseController {
         }
     }
 
-    static async searchPaymentServiceProviders(req: Request, res: Response): Promise<void> {
+    static async searchPaymentServiceProviders(req: AuthRequest, res: Response): Promise<void> {
         try {
             const user = req.auth;
             if (!user) {
@@ -243,7 +244,7 @@ export class PaymentServiceProviderController extends BaseController {
         }
     }
 
-    static async getUnsyncedPaymentServiceProviders(req: Request, res: Response): Promise<void> {
+    static async getUnsyncedPaymentServiceProviders(req: AuthRequest, res: Response): Promise<void> {
         try {
             const user = req.auth;
             if (!user) {
@@ -263,7 +264,7 @@ export class PaymentServiceProviderController extends BaseController {
         }
     }
 
-    static async markPaymentServiceProviderAsSynced(req: Request, res: Response): Promise<void> {
+    static async markPaymentServiceProviderAsSynced(req: AuthRequest, res: Response): Promise<void> {
         try {
             const user = req.auth;
             if (!user) {

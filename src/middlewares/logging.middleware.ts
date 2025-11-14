@@ -1,13 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
 import morgan from 'morgan';
+import { AuthRequest } from '../lib/express.type';
 
-declare module 'express' {
-	interface Request {
-		requestStartTime?: number;
-	}
-}
-
-morgan.token('user', (req: Request) => {
+morgan.token('user', (req: AuthRequest) => {
 	return req.auth ? `User:${req.auth?.username}(${req?.auth?.userId})` : 'Anonymous';
 });
 
@@ -32,7 +27,7 @@ export const productionLogger = morgan(
 );
 
 export const securityLogger = (
-	req: Request,
+	req: AuthRequest,
 	res: Response,
 	next: NextFunction
 ): void => {
@@ -73,7 +68,7 @@ export const securityLogger = (
 };
 
 export const requestTracker = (
-	req: Request,
+	req: AuthRequest,
 	res: Response,
 	next: NextFunction
 ): void => {
@@ -116,7 +111,7 @@ export const requestTracker = (
 };
 
 export const apiAnalytics = (
-	req: Request,
+	req: AuthRequest,
 	res: Response,
 	next: NextFunction
 ): void => {
@@ -147,7 +142,7 @@ export const apiAnalytics = (
 
 export const errorLogger = (
 	error: Error,
-	req: Request,
+	req: AuthRequest,
 	res: Response,
 	next: NextFunction
 ): void => {

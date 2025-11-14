@@ -2,9 +2,10 @@ import { Request, Response } from 'express';
 import syncService from '../services/sync.service';
 import { hasAnyPermission, hasRole } from '../utils';
 import tables from '../databases/local/seeds/sync-tables';
+import { AuthRequest } from '../lib/express.type';
 
 export class SyncController {
-	getTables = async (req: Request, res: Response) => {
+	getTables = async (req: AuthRequest, res: Response) => {
 		try {
 			const syncStatuses = await syncService.getSyncStatus();
 
