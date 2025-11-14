@@ -55,5 +55,5 @@ jobs:
             fi
 
             # Make scripts executable and deploy
-            # chmod +x deploy.sh
-            # ./deploy.sh production
+            chmod +x deploy.sh
+            ./deploy.sh production
