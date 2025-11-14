@@ -7,9 +7,9 @@ import { PaymentServiceProviderModel } from "../models/payment-service-provider.
 import { PaymentMethodModel } from '../models/payment-methods.model';
 import { SubscriptionModel } from '../models/subscription.model';
 import config from '../config';
-import { UserModel } from 'models/user.model';
-import { CustomerModel } from 'models/customer.model';
-import { CategoryModel } from 'models/category.model';
+import { UserModel } from '../models/user.model';
+import { CustomerModel } from '../models/customer.model';
+import { CategoryModel } from '../models/category.model';
 
 const API_TIMEOUT = 30000;
 
