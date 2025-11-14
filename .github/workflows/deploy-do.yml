@@ -46,16 +46,15 @@ jobs:
             # Check if it's a git repository
             if [ ! -d .git ]; then
               echo "🔄 Initial clone..."
-              # git remote set-url origin git@github.com:ZonseTech/zonse247-pos-api.git
-              git clone https://github.com/ZonseTech/zonse247-pos-api.git /var/www/pos-api-temp
-              mv /var/www/pos-api-temp/* /var/www/pos-api/
-              mv /var/www/pos-api-temp/.* /var/www/pos-api/ 2>/dev/null || true
-              rm -rf /var/www/pos-api-temp
+              cd /var/www
+              rm -rf pos-api
+              git clone git@github.com:ZonseTech/zonse247-pos-api.git pos-api
+              cd pos-api
             else
               echo "🔄 Resetting local changes and pulling..."
               git reset --hard HEAD
               git clean -fd
-              git pull origin main --force
+              git pull origin main
             fi
 
             # Make scripts executable and deploy

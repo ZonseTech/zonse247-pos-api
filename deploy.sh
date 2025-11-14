@@ -47,7 +47,7 @@ echo "🔨 Building application..."
 npm run build
 
 # Run database migrations (if any)
-echo "🗃️ Running database migrations..."
+# echo "🗃️ Running database migrations..."
 # npm run migrate
 
 # Restart application with PM2
