@@ -7,7 +7,7 @@ set -e
 echo "🚀 Starting deployment..."
 
 # Environment variables
-APP_NAME="zonse247-pos-api"
+APP_NAME="pos-api"
 APP_DIR="/var/www/$APP_NAME"
 BACKUP_DIR="/var/backups/$APP_NAME"
 NODE_ENV=${1:-production}
