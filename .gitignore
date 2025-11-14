@@ -128,3 +128,5 @@ out/
 .data
 .backups
 exports
+
+*.keystore
