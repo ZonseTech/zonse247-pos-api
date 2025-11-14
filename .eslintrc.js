@@ -5,6 +5,7 @@ module.exports = {
   env: {
     node: true,
     es6: true,
+    jest: true,
   },
   parserOptions: {
     ecmaVersion: 2020,
@@ -21,6 +22,9 @@ module.exports = {
     "@typescript-eslint/explicit-function-return-type": "off",
     "@typescript-eslint/explicit-module-boundary-types": "off",
     "@typescript-eslint/no-explicit-any": "off",
+    "no-console": "off",
+    "prefer-const": "error",
+    "no-var": "error",
   },
   overrides: [
     {
@@ -30,4 +34,5 @@ module.exports = {
       },
     },
   ],
+  ignorePatterns: ["dist/", "node_modules/"],
 };
