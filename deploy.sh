@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Deployment script - UBUNTU
+# Deployment script to main server
 
 set -e
 
