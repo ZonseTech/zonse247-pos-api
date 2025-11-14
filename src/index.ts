@@ -1,3 +1,7 @@
 import server from './server';
 
-server.start();
+try {
+    server.start();
+} catch (error) {
+    server.stop();
+}
