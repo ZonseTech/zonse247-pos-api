@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { AuthRequest } from 'src/lib/express.type';
+import { AuthRequest } from '../lib/express.type';
 
 export class MetadataMiddleware {
 
