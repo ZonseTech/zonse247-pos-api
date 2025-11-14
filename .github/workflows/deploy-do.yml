@@ -46,14 +46,14 @@ jobs:
             # Check if it's a git repository
             if [ ! -d .git ]; then
               echo "🔄 Initial clone..."
-              git clone https://github.com/ZonseTech/zonse247-pos-api.git /var/www/pos-api-temp
-              mv /var/www/pos-api-tmp/* /var/www/pos-api/
-              rm -rf /var/www/pos-api-tmp
+              git clone https://github.com/ZonseTech/zonse247-pos-api.git /var/www/zonse247-pos-api-temp
+              mv /var/www/zonse247-pos-api-tmp/* /var/www/zonse247-pos-api/
+              rm -rf /var/www/zonse247-pos-api-tmp
             else
               echo "🔄 Pulling latest changes..."
               git pull origin main
             fi
 
             # Make scripts executable and deploy
-            chmod +x deploy.sh
-            ./deploy.sh production
+            # chmod +x deploy.sh
+            # ./deploy.sh production
