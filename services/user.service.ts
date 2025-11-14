@@ -54,7 +54,7 @@ export class UserService {
 		return publicUsers;
 	}
 
-	static async createUser(userData: CreateUserRequest): Promise<any> {
+	static async createUser(userData: Partial<User>): Promise<any> {
 		const userExists = await UserModel.checkUserExists(
 			userData.username,
 			userData.email
@@ -93,7 +93,7 @@ export class UserService {
 		await UserModel.update(userId, updatedUserData);
 
 		const updatedUser = await UserModel.findById(userId);
-		return UserModel.getPublicUser(updatedUser!);
+		return UserModel.getPublicUser(updatedUser);
 	}
 
 	static async deleteUser(userId: string): Promise<void> {
@@ -157,9 +157,9 @@ export class UserService {
 		await UserModel.update(userId, { status });
 
 		const updatedUser = await UserModel.findById(userId);
-		const roleData = await this.getRoleWithPermissions(updatedUser!.roleId);
+		const roleData = await this.getRoleWithPermissions(updatedUser.roleId);
 
-		return this.getPublicUser(updatedUser!, roleData || {});
+		return this.getPublicUser(updatedUser, roleData || {});
 	}
 
 	static async checkUserExists(username: string, email: string): Promise<boolean> {
@@ -170,7 +170,7 @@ export class UserService {
 	}
 
 	static getPublicUser(user: User, privileges: any): PublicUser {
-		const { password, ...publicUser } = user;
+		const { password: _, ...publicUser } = user;
 		return {
 			...publicUser,
 			roleName: privileges.roleName || null,

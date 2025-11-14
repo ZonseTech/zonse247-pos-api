@@ -49,10 +49,10 @@ export class InventoryService {
 
     static async getProductsWithCategories(
         auth: AuthenticatedUser,
-        page: number = 1,
-        perPage: number = 10,
-        search: string = '',
-        filter: string = 'all',
+        page = 1,
+        perPage = 10,
+        search = '',
+        filter = 'all',
         categoryId?: number
     ): Promise<{ products: Product[]; total: number; totalPages: number }> {
         const categories: Category[] = await CategoryService.getAllCategories(auth);
@@ -166,7 +166,7 @@ export class InventoryService {
         return await InventoryModel.decrementInventory(products, auth);
     }
 
-    static async getProductCount(auth: AuthenticatedUser, includeVoided: boolean = false): Promise<number> {
+    static async getProductCount(auth: AuthenticatedUser, includeVoided = false): Promise<number> {
         return await InventoryModel.getCount(auth, includeVoided);
     }
 
@@ -191,7 +191,7 @@ export class InventoryService {
         return await InventoryModel.find({ status }, auth);
     }
 
-    static async getAllProducts(auth: AuthenticatedUser, includeVoided: boolean = false): Promise<Product[]> {
+    static async getAllProducts(auth: AuthenticatedUser, includeVoided = false): Promise<Product[]> {
         if (includeVoided) {
             return await InventoryModel.find({}, auth);
         }

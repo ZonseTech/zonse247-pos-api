@@ -147,8 +147,8 @@ export class SealDBModel {
 	public findWithPagination<T = any>(
 		table: string,
 		conditions: any = {},
-		skip: number = 0,
-		limit: number = 10
+		skip = 0,
+		limit = 10
 	): Promise<T[]> {
 		return new Promise((resolve, reject) => {
 			try {

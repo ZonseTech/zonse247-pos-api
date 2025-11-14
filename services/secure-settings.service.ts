@@ -6,6 +6,7 @@ import { APP_SETUP_DB } from '../databases/local/tables';
 import { SyncService } from './sync.service';
 import { ElectronStorageAdapter, NodeStorageAdapter } from '../lib/security-adapter.lib';
 import { isElectron } from '../utils';
+import os from 'os'
 
 export class SecureSettingsService {
     private static initialized = false;
@@ -63,8 +64,6 @@ export class SecureSettingsService {
     }
 
     private static async getMachineId(): Promise<string> {
-        const os = require('os');
-
         const identifiers = [
             os.hostname(),
             os.platform(),
@@ -222,7 +221,7 @@ export class SecureSettingsService {
     static async hasAppSetup(): Promise<boolean> {
         try {
             const setup = await sealDBModel.findById(APP_SETUP_DB, { setupId: '-1' });
-            // return setup !== null;
+            return setup !== null;
             return false
         } catch (error) {
             return false;
@@ -339,22 +338,18 @@ export class SecureSettingsService {
      * @returns Object containing the decrypted tenantId
      */
     static async decryptTenantId(encryptedTenantId: string): Promise<{ tenantId: string }> {
-        try {
-            if (!this.initialized) {
-                await this.initialize();
-            }
-
-            const [encrypted, iv] = encryptedTenantId.split(':');
-
-            if (!encrypted || !iv) {
-                throw new Error('Invalid encrypted tenantId format');
-            }
-
-            const tenantId = this.decrypt(encrypted, iv);
-
-            return { tenantId };
-        } catch (error) {
-            throw error;
+        if (!this.initialized) {
+            await this.initialize();
         }
+
+        const [encrypted, iv] = encryptedTenantId.split(':');
+
+        if (!encrypted || !iv) {
+            throw new Error('Invalid encrypted tenantId format');
+        }
+
+        const tenantId = this.decrypt(encrypted, iv);
+
+        return { tenantId };
     }
 }

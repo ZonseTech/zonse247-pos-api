@@ -4,7 +4,7 @@ import { WorkstationService } from "../services/workstation.service";
 
 export class WorkStationController extends BaseController {
 
-    static async createWorkstation(req: Request<{}, ApiResponse<Workstation>, CreateWorkstationRequest>, res: Response): Promise<void> {
+    static async createWorkstation(req: Request<ApiResponse<Workstation>, CreateWorkstationRequest>, res: Response): Promise<void> {
         try {
             const newWorkstation = await WorkstationService.createWorkstation(req.body);
             BaseController.sendResponse(res, 201, true, 'Workstation created successfully', newWorkstation);

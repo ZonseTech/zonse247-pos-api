@@ -83,8 +83,8 @@ export class TransactionModel {
 
     static async findTransactionsWithPagination(
         conditions: any = {},
-        page: number = 1,
-        limit: number = 10
+        page = 1,
+        limit = 10
     ): Promise<{ transactions: Transaction[], total: number, page: number, limit: number }> {
         const allTransactions = await sealDBModel.find(TABLE_NAMES.TRANSACTIONS, conditions);
         const total = allTransactions.length;
@@ -213,7 +213,7 @@ export class TransactionModel {
             return 'Invalid transaction status';
         }
 
-        if (data.phoneNumber && !/^\+?[\d\s\-\(\)]+$/.test(data.phoneNumber)) {
+        if (data.phoneNumber && !/^\+?[\d\s\-()]+$/.test(data.phoneNumber)) {
             return 'Invalid phone number format';
         }
 
@@ -223,12 +223,19 @@ export class TransactionModel {
     static buildTransactionData(data: any): Partial<Transaction> {
         const {
             createdAt,
-            updatedAt,
+            updatedAt: _,
             customer,
             items,
             user,
             ...transactionData
         } = data;
+
+        console.log('====================================');
+        console.log(createdAt,
+            customer,
+            items,
+            user,);
+        console.log('====================================');
 
         return transactionData;
     }

@@ -64,8 +64,8 @@ export class RolePermissionModel {
         const now = new Date();
         return {
             rolePermissionId: uuidv4(),
-            roleId: data.roleId!,
-            permissionId: data.permissionId!,
+            roleId: data.roleId,
+            permissionId: data.permissionId,
             createdAt: data.createdAt || now
         };
     }

@@ -27,7 +27,7 @@ export class PermissionController extends BaseController {
         }
     }
 
-    static async create(req: Request<{}, ApiResponse<Permission>, CreatePermissionRequest>, res: Response): Promise<void> {
+    static async create(req: Request<ApiResponse<Permission>, CreatePermissionRequest>, res: Response): Promise<void> {
         try {
             const newPermission = await PermissionService.createPermission(req.body);
             BaseController.sendResponse(res, 201, true, 'Permission created successfully', newPermission);

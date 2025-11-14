@@ -52,7 +52,7 @@ export class UserController extends BaseController {
 		}
 	}
 
-	static async store(req: Request<{}, ApiResponse<PublicUser>, CreateUserRequest>, res: Response): Promise<void> {
+	static async store(req: Request<ApiResponse<PublicUser>, Partial<User>>, res: Response): Promise<void> {
 		try {
 			const newUser = await UserService.createUser(req.body);
 			BaseController.sendResponse(res, 201, true, 'User created successfully', newUser);
@@ -72,7 +72,7 @@ export class UserController extends BaseController {
 		}
 	}
 
-	static async update(req: Request<{ id: string; }, ApiResponse<PublicUser>, Partial<CreateUserRequest>>, res: Response): Promise<void> {
+	static async update(req: Request<{ id: string; }, ApiResponse<PublicUser>, Partial<User>>, res: Response): Promise<void> {
 		try {
 			const userId = req.params.id;
 			const updateData = req.body;
@@ -82,7 +82,7 @@ export class UserController extends BaseController {
 				return;
 			}
 
-			const updatedUser = await UserService.updateUser(userId, updateData);
+			await UserService.updateUser(userId, updateData);
 			BaseController.sendResponse(res, 200, true, 'User updated successfully', updateData);
 		} catch (error: any) {
 			console.error('Error updating user:', error);
@@ -111,7 +111,7 @@ export class UserController extends BaseController {
 				return;
 			}
 
-			const result = await UserService.deleteUser(id);
+			await UserService.deleteUser(id);
 			BaseController.sendResponse(res, 200, true, 'User deleted successfully', { status: true });
 		} catch (error: any) {
 			console.error('Error deleting user:', error);

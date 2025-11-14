@@ -1,6 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
 import { sealDBModel } from '../databases/local';
-import { SubscriptionPlanModel } from './subscription-plan.model';
 import { TENANT_SUBSCRIPTIONS_TABLE } from '../databases/local/tables';
 import { mysqlPool } from '../config/db';
 
@@ -101,9 +100,6 @@ export class SubscriptionModel {
 	}> {
 		const now = new Date();
 		const allSubscriptions = await this.findAll();
-		const allPlans = await SubscriptionPlanModel.findAll();
-
-		const plansMap = new Map(allPlans.map((plan) => [plan.planId, plan]));
 
 		const stats = {
 			total: allSubscriptions.length,

@@ -1,3 +1,4 @@
+import { existsSync, unlinkSync } from 'fs'
 import { Request, Response } from 'express';
 import { MigrationService } from '../services/migration.service';
 
@@ -35,8 +36,8 @@ export class MigrationController {
 			});
 		} catch (error: any) {
 			console.error('Upload error:', error);
-			if (req.file?.path && require('fs').existsSync(req.file.path)) {
-				require('fs').unlinkSync(req.file.path);
+			if (req.file?.path && existsSync(req.file.path)) {
+				unlinkSync(req.file.path);
 			}
 			res.status(500).json({
 				success: false,

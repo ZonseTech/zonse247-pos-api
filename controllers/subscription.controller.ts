@@ -62,7 +62,7 @@ export class SubscriptionController extends BaseController {
             console.error('Error creating subscription:', error);
 
             let statusCode = 500;
-            let message = error.message;
+            const message = error.message;
 
             if (error.message.includes('Missing required field')) {
                 statusCode = 400;

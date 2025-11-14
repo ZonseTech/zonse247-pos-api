@@ -84,10 +84,10 @@ export class PermissionModel {
         const now = new Date();
         return {
             permissionId: data.permissionId || uuidv4(),
-            name: data.name!,
-            displayName: data.displayName!,
+            name: data.name,
+            displayName: data.displayName,
             description: data.description || null,
-            category: data.category!,
+            category: data.category,
             scope: data.scope || PermissionScope.CLIENT,
             isSystemPermission: data.isSystemPermission || false,
             createdAt: data.createdAt || now,

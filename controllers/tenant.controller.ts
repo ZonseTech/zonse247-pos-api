@@ -20,7 +20,7 @@ export class TenantController extends BaseController {
         }
     }
 
-    static async store(req: Request<{}, ApiResponse<Tenant>, TenantFormValues>, res: Response): Promise<void> {
+    static async store(req: Request<ApiResponse<Tenant>, TenantFormValues>, res: Response): Promise<void> {
         try {
             const newTenant = await TenantService.registerTenant(req.body);
             return BaseController.sendResponse(res, 201, true, 'Tenant created successfully', newTenant);
@@ -119,7 +119,7 @@ export class TenantController extends BaseController {
         }
     }
 
-    static async verify(req: Request<{}, ApiResponse<Omit<Tenant, 'verificationToken'>>, VerifyTenantRequest>, res: Response): Promise<void> {
+    static async verify(req: Request<ApiResponse<Omit<Tenant, 'verificationToken'>>, VerifyTenantRequest>, res: Response): Promise<void> {
         try {
             const { verificationToken } = req.body;
 

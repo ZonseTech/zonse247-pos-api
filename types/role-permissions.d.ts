@@ -23,10 +23,6 @@ interface Permission {
     updatedAt?: Date;
 }
 
-interface PermissionCategory { }
-
-interface PermissionScope { }
-
 interface RolePermission {
     rolePermissionId: string;
     roleId: string;

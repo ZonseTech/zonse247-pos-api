@@ -34,7 +34,7 @@ export class ShopController extends BaseController {
         }
     }
 
-    static async create(req: Request<{}, ApiResponse<IShop>, CreateShopRequest>, res: Response): Promise<void> {
+    static async create(req: Request<ApiResponse<IShop>, CreateShopRequest>, res: Response): Promise<void> {
         try {
             const newShop = await ShopService.createShop(req.body);
             BaseController.sendResponse(res, 201, true, 'Shop created successfully', newShop);

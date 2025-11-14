@@ -7,6 +7,9 @@ import { PaymentServiceProviderModel } from "../models/payment-service-provider.
 import { PaymentMethodModel } from '../models/payment-methods.model';
 import { SubscriptionModel } from '../models/subscription.model';
 import config from '../config';
+import { UserModel } from 'models/user.model';
+import { CustomerModel } from 'models/customer.model';
+import { CategoryModel } from 'models/category.model';
 
 const API_TIMEOUT = 30000;
 
@@ -234,10 +237,36 @@ export class MetadataService {
             const response = await this.fetchFromExternalAPI('/account-seeds/default-user', params);
             const userData = response.data || response;
 
-            // Implement user sync logic here
-            // Similar to roles and permissions
+            if (!Array.isArray(userData)) {
+                throw new Error('Invalid response format - expected array of users');
+            }
 
-            result.success = true;
+            result.recordsProcessed = userData.length;
+
+            for (const data of userData) {
+                try {
+                    const existingRole = await UserModel.findById(data.userId);
+
+                    if (existingRole) {
+                        await UserModel.update(data.userId, {
+                            ...data,
+                            updatedAt: new Date()
+                        });
+                        result.recordsUpdated++;
+                    } else {
+                        await UserModel.create({
+                            ...data,
+                            createdAt: new Date(),
+                            updatedAt: new Date()
+                        });
+                        result.recordsInserted++;
+                    }
+                } catch (error: any) {
+                    result.errors.push(`User ${data.userId}: ${error.message}`);
+                }
+            }
+
+            result.success = result.errors.length === 0;
             return result;
 
         } catch (error: any) {
@@ -263,9 +292,36 @@ export class MetadataService {
             const response = await this.fetchFromExternalAPI('/account-seeds/customer', params);
             const customerData = response.data || response;
 
-            // Implement customer sync logic here
+            if (!Array.isArray(customerData)) {
+                throw new Error('Invalid response format - expected array of customer');
+            }
 
-            result.success = true;
+            result.recordsProcessed = customerData.length;
+
+            for (const data of customerData) {
+                try {
+                    const existingRole = await CustomerModel.findById(data.customerId);
+
+                    if (existingRole) {
+                        await CustomerModel.update(data.customerId, {
+                            ...data,
+                            updatedAt: new Date()
+                        });
+                        result.recordsUpdated++;
+                    } else {
+                        await CustomerModel.create({
+                            ...data,
+                            createdAt: new Date(),
+                            updatedAt: new Date()
+                        });
+                        result.recordsInserted++;
+                    }
+                } catch (error: any) {
+                    result.errors.push(`User ${data.customerId}: ${error.message}`);
+                }
+            }
+
+            result.success = result.errors.length === 0;
             return result;
 
         } catch (error: any) {
@@ -291,9 +347,36 @@ export class MetadataService {
             const response = await this.fetchFromExternalAPI('/account-seeds/category', params);
             const categoryData = response.data || response;
 
-            // Implement category sync logic here
+            if (!Array.isArray(categoryData)) {
+                throw new Error('Invalid response format - expected array of category');
+            }
 
-            result.success = true;
+            result.recordsProcessed = categoryData.length;
+
+            for (const data of categoryData) {
+                try {
+                    const existingRole = await CategoryModel.findById(data.categoryId);
+
+                    if (existingRole) {
+                        await CustomerModel.update(data.categoryId, {
+                            ...data,
+                            updatedAt: new Date()
+                        });
+                        result.recordsUpdated++;
+                    } else {
+                        await CustomerModel.create({
+                            ...data,
+                            createdAt: new Date(),
+                            updatedAt: new Date()
+                        });
+                        result.recordsInserted++;
+                    }
+                } catch (error: any) {
+                    result.errors.push(`User ${data.categoryId}: ${error.message}`);
+                }
+            }
+
+            result.success = result.errors.length === 0;
             return result;
 
         } catch (error: any) {
@@ -588,7 +671,7 @@ export class MetadataService {
                 status: 'ready'
             };
         } catch (error: any) {
-            throw new Error(`Failed to get sync status: ${error.message}`);
+            throw new Error(`Failed to get sync status: ${error.message} ${params}`);
         }
     }
 }

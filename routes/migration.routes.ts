@@ -119,14 +119,4 @@ router.get('/progress', migrationController.getMigrationProgress);
 router.post('/map-data', migrationController.startMappingData);
 router.get('/reset', migrationController.resetMigration);
 
-router.use((error: any, req: Request, res: Response, next: NextFunction) => {
-	console.error('Migration router error:', error);
-	if (!res.headersSent) {
-		res.status(500).json({
-			error: 'Internal server error',
-			message: 'An unexpected error occurred during the migration process'
-		});
-	}
-});
-
 export default router;
