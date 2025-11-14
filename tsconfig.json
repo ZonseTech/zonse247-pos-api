@@ -11,9 +11,9 @@
     "outDir": "dist",
     "moduleResolution": "node",
     "resolveJsonModule": true,
-    "typeRoots": ["./node_modules/@types", "src/types"]
+    "typeRoots": ["./node_modules/@types", "types"]
   },
-  "include": ["src/**/*", "src/types/**/*.d.ts", "src/types"],
+  "include": ["*.ts", "*.js", "*.json", "types/**/*.d.ts"],
   "ts-node": {
     "files": true
   }

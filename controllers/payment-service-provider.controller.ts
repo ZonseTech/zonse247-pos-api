@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { BaseController } from '../controllers/base.controller';
+import { BaseController } from './base.controller';
 import { PaymentServiceProviderService } from '../services/payment-service-provider.service';
 
 export class PaymentServiceProviderController extends BaseController {
