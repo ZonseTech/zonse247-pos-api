@@ -7,7 +7,6 @@ import HoldOrdersRoutes from './hold-orders.routes'
 import InventoryRoutes from './inventory.routes'
 import MigrationRoutes from './migration.routes'
 import PaymentMethodRoutes from './payment-method.routes'
-import PrinterRoutes from './printer.routes'
 import SettingsRoutes from './settings.routes'
 import SyncRoutes from './sync.routes'
 import TransactionsRoutes from './transaction.routes'
@@ -62,7 +61,6 @@ router.use('/sync', SyncRoutes);
 router.use('/payment-service-providers', PaymentServiceProviderRoutes);
 router.use('/users', UsersRoutes);
 router.use('/dashboard', DashboardRoutes);
-router.use('/printers', PrinterRoutes);
 router.use('/inventory', InventoryRoutes);
 router.use('/customers', CustomersRoutes);
 router.use('/categories', CategoriesRoutes);
