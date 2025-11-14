@@ -39,7 +39,7 @@ jobs:
           username: ${{ secrets.API_USERNAME }}
           key: ${{ secrets.API_SSH_KEY }}
           script: |
-            cd /var/www/zonse247-pos-api
+            cd /var/www/pos-api
             git pull origin main
             chmod +x deploy.sh
             ./deploy.sh production
