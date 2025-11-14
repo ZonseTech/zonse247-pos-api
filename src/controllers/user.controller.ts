@@ -1,0 +1,182 @@
+import { Request, Response } from 'express';
+import { UserService } from '../services/user.service';
+import { BaseController } from './base.controller';
+
+export class UserController extends BaseController {
+	constructor() {
+		super();
+	}
+
+	static async selectAll(req: Request, res: Response): Promise<void> {
+		try {
+			const params = req.body;
+			const users = await UserService.selectAll(params);
+			BaseController.sendResponse(res, 200, true, 'Users retrieved successfully', users);
+		} catch (error: any) {
+			console.error('Error fetching roles:', error);
+			BaseController.sendResponse(res, 500, false, error.message, undefined, error.message);
+		}
+	}
+
+	static async healthCheck(req: Request, res: Response): Promise<void> {
+		BaseController.sendResponse(res, 200, true, 'Users API is running');
+	}
+
+	static async list(req: Request, res: Response): Promise<void> {
+		try {
+			const query = req.query;
+			const users = await UserService.getAllUsers(query);
+			BaseController.sendResponse(res, 200, true, 'Users retrieved successfully', users);
+		} catch (error: any) {
+			console.error('Error retrieving users:', error);
+			BaseController.sendResponse(res, 500, false, error.message, undefined, error.message);
+		}
+	}
+
+	static async show(req: Request<{ id: string }, ApiResponse<PublicUser>>, res: Response): Promise<void> {
+		try {
+			const { id } = req.params;
+
+			if (!id) {
+				BaseController.sendResponse(res, 400, false, 'User ID is required');
+				return;
+			}
+
+			const user = await UserService.getUserById(id);
+			BaseController.sendResponse(res, 200, true, 'User retrieved successfully', user);
+		} catch (error: any) {
+			console.error('Error retrieving user:', error);
+
+			const statusCode = error.message.includes('not found') ? 404 : 500;
+			BaseController.sendResponse(res, statusCode, false, error.message, undefined, error.message);
+		}
+	}
+
+	static async store(req: Request<ApiResponse<PublicUser>, Partial<User>>, res: Response): Promise<void> {
+		try {
+			const newUser = await UserService.createUser(req.body);
+			BaseController.sendResponse(res, 201, true, 'User created successfully', newUser);
+		} catch (error: any) {
+			console.error('Error creating user:', error);
+
+			let statusCode = 500;
+			if (error.message.includes('Missing required field') ||
+				error.message.includes('Invalid email format') ||
+				error.message.includes('Password must be')) {
+				statusCode = 400;
+			} else if (error.message.includes('already exists')) {
+				statusCode = 409;
+			}
+
+			BaseController.sendResponse(res, statusCode, false, error.message, undefined, error.message);
+		}
+	}
+
+	static async update(req: Request<{ id: string; }, ApiResponse<PublicUser>, Partial<User>>, res: Response): Promise<void> {
+		try {
+			const userId = req.params.id;
+			const updateData = req.body;
+
+			if (!userId) {
+				BaseController.sendResponse(res, 400, false, 'User ID is required');
+				return;
+			}
+
+			await UserService.updateUser(userId, updateData);
+			BaseController.sendResponse(res, 200, true, 'User updated successfully', updateData);
+		} catch (error: any) {
+			console.error('Error updating user:', error);
+
+			let statusCode = 500;
+			if (error.message.includes('not found')) {
+				statusCode = 404;
+			} else if (error.message.includes('already exists') ||
+				error.message.includes('Failed to update')) {
+				statusCode = 409;
+			} else if (error.message.includes('Invalid') ||
+				error.message.includes('required')) {
+				statusCode = 400;
+			}
+
+			BaseController.sendResponse(res, statusCode, false, error.message, undefined, error.message);
+		}
+	}
+
+	static async delete(req: Request<{ id: string }, ApiResponse<{ status: boolean }>>, res: Response): Promise<void> {
+		try {
+			const { id } = req.params;
+
+			if (!id) {
+				BaseController.sendResponse(res, 400, false, 'User ID is required');
+				return;
+			}
+
+			await UserService.deleteUser(id);
+			BaseController.sendResponse(res, 200, true, 'User deleted successfully', { status: true });
+		} catch (error: any) {
+			console.error('Error deleting user:', error);
+
+			const statusCode = error.message.includes('not found') ? 404 : 500;
+			BaseController.sendResponse(res, statusCode, false, error.message, undefined, error.message);
+		}
+	}
+
+	static async getUsersByRole(req: Request<{ roleId: string }>, res: Response): Promise<void> {
+		try {
+			const { roleId } = req.params;
+
+			if (!roleId) {
+				BaseController.sendResponse(res, 400, false, 'Role ID is required');
+				return;
+			}
+
+			const users = await UserService.getUsersByRole(roleId);
+			BaseController.sendResponse(res, 200, true, 'Users retrieved successfully', users);
+		} catch (error: any) {
+			console.error('Error retrieving users by role:', error);
+			BaseController.sendResponse(res, 500, false, error.message, undefined, error.message);
+		}
+	}
+
+	static async getUsersByShop(req: Request<{ shopUuid: string }>, res: Response): Promise<void> {
+		try {
+			const { shopUuid } = req.params;
+
+			if (!shopUuid) {
+				BaseController.sendResponse(res, 400, false, 'Shop ID is required');
+				return;
+			}
+
+			const users = await UserService.getUsersByShop(shopUuid);
+			BaseController.sendResponse(res, 200, true, 'Users retrieved successfully', users);
+		} catch (error: any) {
+			console.error('Error retrieving users by shop:', error);
+			BaseController.sendResponse(res, 500, false, error.message, undefined, error.message);
+		}
+	}
+
+	static async updateUserStatus(req: Request<{ id: string }, ApiResponse<PublicUser>, { status: 'active' | 'inactive' | 'suspended' }>, res: Response): Promise<void> {
+		try {
+			const { id } = req.params;
+			const { status } = req.body;
+
+			if (!id) {
+				BaseController.sendResponse(res, 400, false, 'User ID is required');
+				return;
+			}
+
+			if (!status || !['active', 'inactive', 'suspended'].includes(status)) {
+				BaseController.sendResponse(res, 400, false, 'Valid status is required (active, inactive, suspended)');
+				return;
+			}
+
+			const updatedUser = await UserService.updateUserStatus(id, status);
+			BaseController.sendResponse(res, 200, true, 'User status updated successfully', updatedUser);
+		} catch (error: any) {
+			console.error('Error updating user status:', error);
+
+			const statusCode = error.message.includes('not found') ? 404 : 500;
+			BaseController.sendResponse(res, statusCode, false, error.message, undefined, error.message);
+		}
+	}
+}
