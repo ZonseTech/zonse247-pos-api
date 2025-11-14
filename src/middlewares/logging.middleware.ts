@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import morgan from 'morgan';
 import { AuthRequest } from '../lib/express.type';
 
-morgan.token('user', (req: AuthRequest) => {
+morgan.token('user', (req: Request & AuthRequest) => {
 	return req.auth ? `User:${req.auth?.username}(${req?.auth?.userId})` : 'Anonymous';
 });
 
@@ -27,7 +27,7 @@ export const productionLogger = morgan(
 );
 
 export const securityLogger = (
-	req: AuthRequest,
+	req: Request & AuthRequest,
 	res: Response,
 	next: NextFunction
 ): void => {
@@ -68,7 +68,7 @@ export const securityLogger = (
 };
 
 export const requestTracker = (
-	req: AuthRequest,
+	req: Request & AuthRequest,
 	res: Response,
 	next: NextFunction
 ): void => {
@@ -111,7 +111,7 @@ export const requestTracker = (
 };
 
 export const apiAnalytics = (
-	req: AuthRequest,
+	req: Request & AuthRequest,
 	res: Response,
 	next: NextFunction
 ): void => {
@@ -142,7 +142,7 @@ export const apiAnalytics = (
 
 export const errorLogger = (
 	error: Error,
-	req: AuthRequest,
+	req: Request & AuthRequest,
 	res: Response,
 	next: NextFunction
 ): void => {

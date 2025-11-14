@@ -5,7 +5,7 @@ import tables from '../databases/local/seeds/sync-tables';
 import { AuthRequest } from '../lib/express.type';
 
 export class SyncController {
-	getTables = async (req: AuthRequest, res: Response) => {
+	getTables = async (req: Request & AuthRequest, res: Response) => {
 		try {
 			const syncStatuses = await syncService.getSyncStatus();
 

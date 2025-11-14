@@ -42,7 +42,7 @@ export class TransactionController extends BaseController {
         }
     }
 
-    static async create(req: AuthRequest, res: Response): Promise<void> {
+    static async create(req: Request & AuthRequest, res: Response): Promise<void> {
         try {
             const newTransaction = await TransactionService.createTransaction(req.body, {
                 tenantId: req.auth.tenantId,

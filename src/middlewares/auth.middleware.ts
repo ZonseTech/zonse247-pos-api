@@ -53,7 +53,7 @@ export class AuthMiddleware {
 		}
 	};
 
-	verifyToken = (req: AuthRequest, res: Response, next: NextFunction): void => {
+	verifyToken = (req: Request & AuthRequest, res: Response, next: NextFunction): void => {
 		const token =
 			req.headers.authorization?.replace('Bearer ', '') ||
 			(req.headers['x-access-token'] as string);

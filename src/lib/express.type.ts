@@ -1,12 +1,13 @@
-import { Request } from "express";
-
-interface AuthRequestBase extends Request {
+interface AuthRequestBase {
     auth?: User;
     requestStartTime: number;
-    tenant?: {
-        id: string;
-        plan: string;
+    verifiedMetadata?: {
+        tenantId: string;
+        branchId: string;
+        terminalId: string;
+        verificationKey: string;
     };
+    // ip: number;
 }
 
 export type AuthRequest = AuthRequestBase;

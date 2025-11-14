@@ -1,10 +1,10 @@
-import { Response } from 'express';
+import { Request, Response } from 'express';
 import { BaseController } from './base.controller';
 import { InventoryService } from '../services/inventory.service';
 import { AuthRequest } from '../lib/express.type';
 
 export class InventoryController extends BaseController {
-    private static getAuthContext(req: AuthRequest) {
+    private static getAuthContext(req: Request & AuthRequest) {
         return {
             tenantId: req.auth?.tenantId || '',
             branchId: req.auth?.branchId || '',
@@ -12,7 +12,7 @@ export class InventoryController extends BaseController {
         };
     }
 
-    static async getSummary(req: AuthRequest, res: Response): Promise<void> {
+    static async getSummary(req: Request & AuthRequest, res: Response): Promise<void> {
         try {
             const auth = InventoryController.getAuthContext(req);
             const summary = await InventoryService.getProductsSummary(auth);
@@ -23,7 +23,7 @@ export class InventoryController extends BaseController {
         }
     }
 
-    static async getProduct(req: AuthRequest, res: Response): Promise<void> {
+    static async getProduct(req: Request & AuthRequest, res: Response): Promise<void> {
         try {
             if (!req.params.productUuid) {
                 BaseController.sendBadRequest(res, 'Product ID is required.');
@@ -45,7 +45,7 @@ export class InventoryController extends BaseController {
         }
     }
 
-    static async getProductsOnly(req: AuthRequest, res: Response): Promise<void> {
+    static async getProductsOnly(req: Request & AuthRequest, res: Response): Promise<void> {
         try {
             const auth = InventoryController.getAuthContext(req);
             const products = await InventoryService.getActiveProducts(auth);
@@ -56,7 +56,7 @@ export class InventoryController extends BaseController {
         }
     }
 
-    static async getProducts(req: AuthRequest, res: Response): Promise<void> {
+    static async getProducts(req: Request & AuthRequest, res: Response): Promise<void> {
         try {
             const auth = InventoryController.getAuthContext(req);
             const page = parseInt(req.query.page as string) || 1;
@@ -89,7 +89,7 @@ export class InventoryController extends BaseController {
         }
     }
 
-    static async createProduct(req: AuthRequest, res: Response): Promise<void> {
+    static async createProduct(req: Request & AuthRequest, res: Response): Promise<void> {
         try {
             const auth = InventoryController.getAuthContext(req);
             const newProduct = await InventoryService.createProduct(req.body, auth);
@@ -104,7 +104,7 @@ export class InventoryController extends BaseController {
         }
     }
 
-    static async updateProduct(req: AuthRequest, res: Response): Promise<void> {
+    static async updateProduct(req: Request & AuthRequest, res: Response): Promise<void> {
         try {
             const auth = InventoryController.getAuthContext(req);
             const numReplaced = await InventoryService.updateProduct(
@@ -131,7 +131,7 @@ export class InventoryController extends BaseController {
         }
     }
 
-    static async voidProduct(req: AuthRequest, res: Response): Promise<void> {
+    static async voidProduct(req: Request & AuthRequest, res: Response): Promise<void> {
         try {
             const auth = InventoryController.getAuthContext(req);
             const numReplaced = await InventoryService.voidProduct(req.params.productUuid, auth);
@@ -151,7 +151,7 @@ export class InventoryController extends BaseController {
         }
     }
 
-    static async deleteProduct(req: AuthRequest, res: Response): Promise<void> {
+    static async deleteProduct(req: Request & AuthRequest, res: Response): Promise<void> {
         try {
             const auth = InventoryController.getAuthContext(req);
             const numDeleted = await InventoryService.deleteProduct(req.params.productUuid, auth);
@@ -171,7 +171,7 @@ export class InventoryController extends BaseController {
         }
     }
 
-    static async findProductBySku(req: AuthRequest, res: Response): Promise<void> {
+    static async findProductBySku(req: Request & AuthRequest, res: Response): Promise<void> {
         try {
             const { skuCode } = req.body;
             if (!skuCode) {
