@@ -55,7 +55,7 @@ export class AnalyticsModel {
         userUuid: string,
         limit: number,
         offset: number,
-        includeItems: boolean = false
+        includeItems = false
     ): Promise<{
         total: number;
         transactions: Array<Transaction>;

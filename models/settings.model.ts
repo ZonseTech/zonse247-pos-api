@@ -1,10 +1,8 @@
 import { v4 as uuidv4 } from 'uuid';
 import { sealDBModel } from "../databases/local";
 import {
-    TENANT_TABLE,
     TERMINAL_SETTINGS_DB,
     BRANCHES_TABLE,
-    TERMINALS_TABLE
 } from "../databases/local/tables";
 import { SecureSettingsService } from '../services/secure-settings.service';
 
@@ -92,9 +90,7 @@ export class SettingsModel {
                 throw new Error('Settings params do not match configured setup');
             }
 
-            const tenant = await sealDBModel.findById<Tenant>(TENANT_TABLE, params.tenantId);
             const branch = await sealDBModel.findById<Branch>(BRANCHES_TABLE, params.branchId);
-            const terminal = await sealDBModel.findById<Terminal>(TERMINALS_TABLE, params.terminalId);
 
             const setting = {
                 uuid: uuidv4(),

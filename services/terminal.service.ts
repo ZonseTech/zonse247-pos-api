@@ -67,44 +67,40 @@ export class TerminalService {
     }
 
     static async updateTerminal(terminalId: string, data: Partial<Terminal>): Promise<Terminal | null> {
-        try {
-            const existingTerminal = await TerminalModel.findById(terminalId);
-            if (!existingTerminal) {
-                throw new Error('Terminal not found');
-            }
-
-            if (data.terminalCode && data.terminalCode !== existingTerminal.terminalCode) {
-                const conflictingTerminals = await TerminalModel.findByBranchIdAndTerminalCode(
-                    existingTerminal.branchId,
-                    data.terminalCode
-                );
-                if (conflictingTerminals.length > 0) {
-                    throw new Error('Terminal code already exists for this branch');
-                }
-            }
-
-            if (data.isPrimary === true && !existingTerminal.isPrimary) {
-                const primaryTerminals = await TerminalModel.findPrimaryByBranchId(existingTerminal.branchId);
-                for (const terminal of primaryTerminals) {
-                    await TerminalModel.update(terminal.terminalId, { isPrimary: false });
-                }
-            }
-
-            const updateData = {
-                ...data,
-                lastActivity: new Date(),
-                updatedAt: new Date()
-            };
-
-            const numUpdated = await TerminalModel.update(terminalId, updateData);
-            if (numUpdated === 0) {
-                return null;
-            }
-
-            return await TerminalModel.findById(terminalId);
-        } catch (error) {
-            throw error;
+        const existingTerminal = await TerminalModel.findById(terminalId);
+        if (!existingTerminal) {
+            throw new Error('Terminal not found');
         }
+
+        if (data.terminalCode && data.terminalCode !== existingTerminal.terminalCode) {
+            const conflictingTerminals = await TerminalModel.findByBranchIdAndTerminalCode(
+                existingTerminal.branchId,
+                data.terminalCode
+            );
+            if (conflictingTerminals.length > 0) {
+                throw new Error('Terminal code already exists for this branch');
+            }
+        }
+
+        if (data.isPrimary === true && !existingTerminal.isPrimary) {
+            const primaryTerminals = await TerminalModel.findPrimaryByBranchId(existingTerminal.branchId);
+            for (const terminal of primaryTerminals) {
+                await TerminalModel.update(terminal.terminalId, { isPrimary: false });
+            }
+        }
+
+        const updateData = {
+            ...data,
+            lastActivity: new Date(),
+            updatedAt: new Date()
+        };
+
+        const numUpdated = await TerminalModel.update(terminalId, updateData);
+        if (numUpdated === 0) {
+            return null;
+        }
+
+        return await TerminalModel.findById(terminalId);
     }
 
     static async deleteTerminal(terminalId: string): Promise<boolean> {
@@ -136,27 +132,23 @@ export class TerminalService {
     }
 
     static async syncTerminal(terminalId: string): Promise<{ status: boolean; lastSync: Date }> {
-        try {
-            const terminal = await TerminalModel.findById(terminalId);
-            if (!terminal) {
-                throw new Error('Terminal not found');
-            }
-
-            const lastSync = new Date();
-            await TerminalModel.update(terminalId, {
-                lastSync: lastSync,
-                lastSyncTimestamp: lastSync,
-                lastActivity: lastSync,
-                updatedAt: lastSync
-            });
-
-            return {
-                status: true,
-                lastSync: lastSync
-            };
-        } catch (error) {
-            throw error;
+        const terminal = await TerminalModel.findById(terminalId);
+        if (!terminal) {
+            throw new Error('Terminal not found');
         }
+
+        const lastSync = new Date();
+        await TerminalModel.update(terminalId, {
+            lastSync: lastSync,
+            lastSyncTimestamp: lastSync,
+            lastActivity: lastSync,
+            updatedAt: lastSync
+        });
+
+        return {
+            status: true,
+            lastSync: lastSync
+        };
     }
 
     static async createDefault(params: {

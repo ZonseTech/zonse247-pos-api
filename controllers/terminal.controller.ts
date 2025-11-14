@@ -4,7 +4,7 @@ import { TerminalService } from "../services/terminal.service";
 
 export class TerminalController extends BaseController {
 
-    static async createTerminal(req: Request<{}, ApiResponse<Terminal>, CreateTerminalRequest>, res: Response): Promise<void> {
+    static async createTerminal(req: Request<ApiResponse<Terminal>, CreateTerminalRequest>, res: Response): Promise<void> {
         try {
             const newTerminal = await TerminalService.createTerminal(req.body);
             BaseController.sendResponse(res, 201, true, 'Terminal created successfully', newTerminal);

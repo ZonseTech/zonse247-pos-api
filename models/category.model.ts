@@ -195,7 +195,7 @@ export class CategoryModel {
         }
     }
 
-    static async incrementItemCount(id: string, increment: number = 1): Promise<number> {
+    static async incrementItemCount(id: string, increment = 1): Promise<number> {
         try {
             const category = await this.findById(id);
             if (!category) {
@@ -208,7 +208,7 @@ export class CategoryModel {
         }
     }
 
-    static async decrementItemCount(id: string, decrement: number = 1): Promise<number> {
+    static async decrementItemCount(id: string, decrement = 1): Promise<number> {
         try {
             return await this.incrementItemCount(id, -decrement);
         } catch (error) {

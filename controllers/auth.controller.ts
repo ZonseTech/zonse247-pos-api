@@ -22,7 +22,7 @@ export class AuthController extends BaseController {
      * @returns Promise<void>
      */
     static async login(
-        req: Request<{}, ApiResponse<{ user: PublicUser; token: string }>, { username: string; password: string }>,
+        req: Request<ApiResponse<{ user: PublicUser; token: string }>, { username: string; password: string }>,
         res: Response
     ): Promise<void> {
         try {
@@ -39,8 +39,8 @@ export class AuthController extends BaseController {
                 BaseController.sendResponse(res, 401, false, result.message);
             } else {
                 BaseController.sendResponse(res, 200, true, 'Login successful', {
-                    user: result.user!,
-                    token: result.token!
+                    user: result.user,
+                    token: result.token
                 });
             }
         } catch (error: any) {
@@ -85,7 +85,7 @@ export class AuthController extends BaseController {
      * @returns Promise<void>
      */
     static async refreshToken(
-        req: Request<{}, ApiResponse<{ token: string }>, { token: string }>,
+        req: Request<ApiResponse<{ token: string }>, { token: string }>,
         res: Response
     ): Promise<void> {
         try {
@@ -119,7 +119,7 @@ export class AuthController extends BaseController {
      * @returns Promise<void>
      */
     static async verifyToken(
-        req: Request<{}, ApiResponse<{ user: any }>, {}, {}, { authorization?: string; 'x-access-token'?: string }>,
+        req: Request<ApiResponse<{ user: any }>, { authorization?: string; 'x-access-token'?: string }>,
         res: Response
     ): Promise<void> {
         try {
@@ -173,7 +173,7 @@ export class AuthController extends BaseController {
                 return;
             }
 
-            const result = await AuthService.changePassword(id, currentPassword, newPassword);
+            await AuthService.changePassword(id, currentPassword, newPassword);
             BaseController.sendResponse(res, 200, true, 'Password changed successfully', { status: true });
         } catch (error: any) {
             console.error('Error changing password:', error);

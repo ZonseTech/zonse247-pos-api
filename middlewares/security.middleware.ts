@@ -67,11 +67,11 @@ export const preventSQLInjection = (
 		/#(?!([A-Fa-f0-9]{3}|[A-Fa-f0-9]{6}|[A-Fa-f0-9]{8})\b)/gi,
 	];
 
-	const checkForSQLInjection = (value: string): boolean => {
+	const checkForSQLInjection = (value: string) => {
 		return sqlInjectionPatterns.some((pattern) => pattern.test(value));
 	};
 
-	const scanObject = (obj: any): boolean => {
+	const scanObject = (obj: any) => {
 		for (const key in obj) {
 			if (typeof obj[key] === 'string') {
 				if (checkForSQLInjection(obj[key])) {
@@ -109,11 +109,11 @@ export const preventXSS = (
 		/on\w+\s*=/gi,
 	];
 
-	const checkForXSS = (value: string): boolean => {
+	const checkForXSS = (value: string) => {
 		return xssPatterns.some((pattern) => pattern.test(value));
 	};
 
-	const scanObject = (obj: any): boolean => {
+	const scanObject = (obj: any) => {
 		for (const key in obj) {
 			if (typeof obj[key] === 'string') {
 				if (checkForXSS(obj[key])) {

@@ -108,7 +108,7 @@ export class BaseController {
      * @param res - Express response object
      * @param message - Unauthorized message (default: 'Unauthorized')
      */
-    static sendUnauthorized(res: Response, message: string = 'Unauthorized'): void {
+    static sendUnauthorized(res: Response, message = 'Unauthorized'): void {
         this.sendResponse(res, 401, false, message);
     }
 
@@ -136,7 +136,7 @@ export class BaseController {
      * @param res - Express response object
      * @param message - Not found message (default: 'Resource not found')
      */
-    static sendNotFound(res: Response, message: string = 'Resource not found'): void {
+    static sendNotFound(res: Response, message = 'Resource not found'): void {
         this.sendResponse(res, 404, false, message);
     }
 
@@ -162,7 +162,7 @@ export class BaseController {
      * @param message - Error message (default: 'Internal server error')
      * @param error - Detailed error information (optional)
      */
-    static sendServerError(res: Response, message: string = 'Internal server error', error?: string): void {
+    static sendServerError(res: Response, message = 'Internal server error', error?: string): void {
         this.sendResponse(res, 500, false, message, null, error);
     }
 
@@ -176,7 +176,7 @@ export class BaseController {
     static sendServerErrorWithSubscription(
         res: Response,
         message: string,
-        subscriptionStatus: string = 'error'
+        subscriptionStatus = 'error'
     ): void {
         this.sendResponseWithSubscription(res, 500, false, message, subscriptionStatus);
     }

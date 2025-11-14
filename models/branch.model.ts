@@ -139,6 +139,12 @@ export class BranchModel {
             ...updateableData
         } = data;
 
+        console.log('====================================');
+        console.log(branchId,
+            tenantId,
+            createdAt,);
+        console.log('====================================');
+
         return {
             ...updateableData,
             updatedAt: new Date()
@@ -192,8 +198,8 @@ export class BranchModel {
 
     static async findBranchesWithPagination(
         conditions: any = {},
-        page: number = 1,
-        limit: number = 10
+        page = 1,
+        limit = 10
     ): Promise<{ branches: Branch[], total: number, page: number, limit: number }> {
         const allBranches = await sealDBModel.find(BRANCHES_TABLE, conditions);
         const total = allBranches.length;

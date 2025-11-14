@@ -19,7 +19,7 @@ export class ClientController extends BaseController {
         }
     }
 
-    static async store(req: Request<{}, ApiResponse<Client>, RegisterClientRequest>, res: Response): Promise<void> {
+    static async store(req: Request<ApiResponse<Client>, RegisterClientRequest>, res: Response): Promise<void> {
         try {
             const newClient = await ClientService.registerClient(req.body);
             return BaseController.sendResponse(res, 201, true, 'Client created successfully', newClient);
@@ -101,7 +101,7 @@ export class ClientController extends BaseController {
         }
     }
 
-    static async register(req: Request<{}, ApiResponse<Client>, RegisterClientRequest>, res: Response): Promise<void> {
+    static async register(req: Request<ApiResponse<Client>, RegisterClientRequest>, res: Response): Promise<void> {
         try {
             const newClient = await ClientService.registerClient(req.body);
             return BaseController.sendResponse(res, 201, true, 'Client registered successfully', newClient);
@@ -119,7 +119,7 @@ export class ClientController extends BaseController {
         }
     }
 
-    static async verify(req: Request<{}, ApiResponse<Omit<Client, 'authKey'>>, VerifyClientRequest>, res: Response): Promise<void> {
+    static async verify(req: Request<ApiResponse<Omit<Client, 'authKey'>>, VerifyClientRequest>, res: Response): Promise<void> {
         try {
             const { clientUuid, authKey } = req.body;
 

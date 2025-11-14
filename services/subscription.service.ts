@@ -219,7 +219,7 @@ export class SubscriptionService {
 		return SubscriptionModel.findById(id);
 	}
 
-	static async getExpiring(days: number = 30): Promise<TenantSubscription[]> {
+	static async getExpiring(days = 30): Promise<TenantSubscription[]> {
 		return SubscriptionModel.findExpiring(days);
 	}
 

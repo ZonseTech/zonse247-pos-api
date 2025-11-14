@@ -50,9 +50,7 @@ export class OrderService {
         refNumber: string,
         items: CartItem[]
     ): Promise<OrderItem[]> {
-        const orderItems: OrderItem[] = [];
-
-        const createPromises = items.map(async (item) => {
+        const createPromises: Promise<OrderItem>[] = items.map(async (item) => {
             const orderItem: Partial<OrderItem> = {
                 refNumber,
                 transactionId,

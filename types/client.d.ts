@@ -27,11 +27,6 @@ interface AuthenticatedRequest extends Request {
     tenantId?: string;
 }
 
-interface ClientProps extends Omit<Client, 'verificationToken'> {
-
-}
-
-
 interface Client {
     uuid: string;
     clientCode: string;

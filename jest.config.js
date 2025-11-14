@@ -14,5 +14,10 @@ module.exports = {
     "!**/node_modules/**",
     "!**/dist/**",
     "!**/*.d.ts",
+    "!**/jest.config.js",
   ],
+  modulePathIgnorePatterns: ["<rootDir>/dist/"],
+  haste: {
+    throwOnModuleCollision: false,
+  },
 };

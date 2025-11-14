@@ -29,7 +29,7 @@ export class TenantMiddleware {
             }
 
             const tenant: Omit<Tenant, 'verificationToken'> = await TenantService.getTenantById(
-                verification.tenantId!
+                verification.tenantId
             );
 
             if (!tenant) {
@@ -138,7 +138,7 @@ export class TenantMiddleware {
                     isTrialExpired: false
                 };
 
-            case 'trial':
+            case 'trial': {
                 if (!tenant.trialEndsAt) {
                     return {
                         isValid: false,
@@ -149,7 +149,9 @@ export class TenantMiddleware {
                 }
 
                 const trialEndDate = new Date(tenant.trialEndsAt);
-                const daysRemaining = Math.ceil((trialEndDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+                const daysRemaining = Math.ceil(
+                    (trialEndDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
+                );
 
                 if (daysRemaining <= 0) {
                     return {
@@ -166,6 +168,9 @@ export class TenantMiddleware {
                     daysRemaining,
                     isTrialExpired: false
                 };
+            }
+
+
 
             case 'expired':
                 return {

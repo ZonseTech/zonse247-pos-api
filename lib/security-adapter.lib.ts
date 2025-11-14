@@ -1,14 +1,9 @@
 import path from "path";
+import { app } from "electron";
 
 class ElectronStorageAdapter implements StorageAdapter {
-    private app: any;
-
-    constructor() {
-        this.app = require('electron').app;
-    }
-
     getUserDataPath(): string {
-        return this.app.getPath('userData');
+        return app.getPath('userData');
     }
 
     isElectron(): boolean {

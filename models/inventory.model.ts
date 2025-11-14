@@ -37,8 +37,8 @@ export class InventoryModel {
         auth: AuthenticatedUser,
         skip: number,
         limit: number,
-        search: string = '',
-        filter: string = 'all',
+        search = '',
+        filter = 'all',
         categoryId?: number
     ): Promise<Product[]> {
         const query: any = {
@@ -83,8 +83,8 @@ export class InventoryModel {
 
     static async getFilteredCount(
         auth: AuthenticatedUser,
-        search: string = '',
-        filter: string = 'all',
+        search = '',
+        filter = 'all',
         categoryId?: number
     ): Promise<number> {
         const query: any = {
@@ -291,7 +291,7 @@ export class InventoryModel {
     /**
      * Get product count for a shop
      */
-    static async getCount(auth: AuthenticatedUser, includeVoided: boolean = false): Promise<number> {
+    static async getCount(auth: AuthenticatedUser, includeVoided = false): Promise<number> {
         const criteria: Record<string, any> = {
             tenantId: auth.tenantId,
             branchId: auth.branchId

@@ -33,7 +33,7 @@ export class BranchController extends BaseController {
         }
     }
 
-    static async create(req: Request<{}, ApiResponse<Branch>, CreateBranchRequest>, res: Response): Promise<void> {
+    static async create(req: Request<ApiResponse<Branch>, CreateBranchRequest>, res: Response): Promise<void> {
         try {
             const newBranch = await BranchService.createBranch(req.body);
             BaseController.sendResponse(res, 201, true, 'Branch created successfully', newBranch);

@@ -19,8 +19,6 @@ export class MigrationModel {
     private uploadedData: MigrationRecord[] = [];
     private currentTableName = '';
 
-    private constructor() { }
-
     public static getInstance(): MigrationModel {
         if (!MigrationModel.instance) {
             MigrationModel.instance = new MigrationModel();
@@ -48,7 +46,7 @@ export class MigrationModel {
         return this.currentTableName;
     }
 
-    public getUploadedDataPreview(limit: number = 5): MigrationRecord[] {
+    public getUploadedDataPreview(limit = 5): MigrationRecord[] {
         return this.uploadedData.slice(0, limit);
     }
 
@@ -242,11 +240,11 @@ export class MigrationModel {
         try {
             const columnMappings: TColumnMapping[] = migrationTables[this.currentTableName];
 
-            const tableColumns = await this.getTableColumns(connection);
+            await this.getTableColumns(connection);
 
             const data = this.transformData(record, columnMappings);
             const columns = Object.keys(data).join(", ");
-            const placeholders = Object.keys(data).map((_, i) => `?`).join(", ");
+            const placeholders = Object.keys(data).map((_) => `?`).join(", ");
             const values = Object.values(data);
 
             const query = `INSERT INTO ${this.currentTableName} (${columns}) VALUES (${placeholders})`;

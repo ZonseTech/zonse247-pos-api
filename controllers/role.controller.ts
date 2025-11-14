@@ -26,7 +26,7 @@ export class RoleController extends BaseController {
         }
     }
 
-    static async create(req: Request<{}, ApiResponse<Role>, CreateRoleRequest>, res: Response): Promise<void> {
+    static async create(req: Request<ApiResponse<Role>, CreateRoleRequest>, res: Response): Promise<void> {
         try {
             const newRole = await RoleService.createRole(req.body);
             BaseController.sendResponse(res, 201, true, 'Role created successfully', newRole);

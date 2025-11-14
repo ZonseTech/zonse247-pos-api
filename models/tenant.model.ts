@@ -9,6 +9,9 @@ export class TenantModel {
     }
 
     static async generateVerificationToken(tenantId: string): Promise<string> {
+        console.log('====================================');
+        console.log('generateVerificationToken:', tenantId);
+        console.log('====================================');
         return crypto.randomBytes(32).toString('hex');
     }
 
@@ -120,7 +123,7 @@ export class TenantModel {
     }
 
     static sanitizeTenant(tenant: Tenant): Omit<Tenant, 'verificationToken'> {
-        const { verificationToken, ...safeTenant } = tenant;
+        const { verificationToken: _, ...safeTenant } = tenant;
         return safeTenant;
     }
 }

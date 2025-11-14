@@ -8,12 +8,12 @@ interface File {
 	mimetype: string;
 }
 
-export const hasPermission = (user: User, permField: string): boolean => {
+export const hasPermission = (user: User, permField: string) => {
 	if (!user) return false;
 	return user?.permissions?.includes(permField);
 };
 
-export const hasRole = (user: User, role: string): boolean => {
+export const hasRole = (user: User, role: string) => {
 	if (!user) return false;
 	return user?.roleName === role;
 };
@@ -32,7 +32,7 @@ export const formatCurrency = (amount: number) => {
 		.replace(/^/, 'MK');
 };
 
-const checkFileType = (fileType: string, validFileTypes: string[]): boolean => {
+const checkFileType = (fileType: string, validFileTypes: string[]) => {
 	return validFileTypes.includes(fileType);
 };
 

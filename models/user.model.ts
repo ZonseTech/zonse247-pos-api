@@ -133,7 +133,7 @@ export class UserModel {
         }
     }
 
-    static async buildUserData(data: CreateUserRequest): Promise<User> {
+    static async buildUserData(data: Partial<User>): Promise<User> {
         const now = new Date();
         const hashedPassword = await bcrypt.hash(data.password, saltRounds);
 
@@ -220,7 +220,7 @@ export class UserModel {
         }
     }
 
-    static async forcePasswordChange(id: string, force: boolean = true): Promise<number> {
+    static async forcePasswordChange(id: string, force = true): Promise<number> {
         try {
             return await sealDBModel.update(USERS_DB, { userId: id }, {
                 forcePasswordChange: force,
@@ -276,7 +276,7 @@ export class UserModel {
     }
 
     static getPublicUser(user: User): PublicUser {
-        const { password, ...publicUser } = user;
+        const { password: _, ...publicUser } = user;
         return publicUser;
     }
 }

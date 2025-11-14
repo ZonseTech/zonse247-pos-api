@@ -26,7 +26,7 @@ export class RolePermissionController extends BaseController {
         }
     }
 
-    static async create(req: Request<{}, ApiResponse<RolePermission>, CreateRolePermissionRequest>, res: Response): Promise<void> {
+    static async create(req: Request<ApiResponse<RolePermission>, CreateRolePermissionRequest>, res: Response): Promise<void> {
         try {
             const newRolePermission = await RolePermissionService.createRolePermission(req.body);
             BaseController.sendResponse(res, 201, true, 'Role permission created successfully', newRolePermission);
@@ -63,7 +63,7 @@ export class RolePermissionController extends BaseController {
         }
     }
 
-    static async bulkAssign(req: Request<{}, ApiResponse<any>, BulkRolePermissionRequest>, res: Response): Promise<void> {
+    static async bulkAssign(req: Request<ApiResponse<any>, BulkRolePermissionRequest>, res: Response): Promise<void> {
         try {
             const result = await RolePermissionService.bulkAssignPermissions(req.body);
             BaseController.sendResponse(res, 201, true, 'Permissions assigned successfully', result);
@@ -81,7 +81,7 @@ export class RolePermissionController extends BaseController {
         }
     }
 
-    static async bulkRemove(req: Request<{}, ApiResponse<any>, BulkRolePermissionRequest>, res: Response): Promise<void> {
+    static async bulkRemove(req: Request<ApiResponse<any>, BulkRolePermissionRequest>, res: Response): Promise<void> {
         try {
             const result = await RolePermissionService.bulkRemovePermissions(req.body);
             BaseController.sendResponse(res, 200, true, 'Permissions removed successfully', result);
