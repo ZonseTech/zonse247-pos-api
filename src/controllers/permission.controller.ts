@@ -5,6 +5,17 @@ import { PermissionScope } from "../models/permission.model";
 
 export class PermissionController extends BaseController {
 
+    static async selectAll(req: Request, res: Response): Promise<void> {
+        try {
+            const params = req.body;
+            const permissions = await PermissionService.selectAll(params);
+            BaseController.sendResponse(res, 200, true, 'Permissions retrieved successfully', permissions);
+        } catch (error: any) {
+            console.error('Error fetching permissions:', error);
+            BaseController.sendResponse(res, 500, false, error.message, undefined, error.message);
+        }
+    }
+
     static async list(req: Request, res: Response): Promise<void> {
         try {
             const query = req.query;

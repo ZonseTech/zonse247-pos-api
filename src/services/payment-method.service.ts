@@ -2,6 +2,11 @@ import { v4 as uuidv4 } from 'uuid';
 import { PaymentMethodModel } from '../models/payment-methods.model';
 
 export class PaymentMethodService {
+
+    static async selectAll(params): Promise<Array<PaymentMethod>> {
+        return await PaymentMethodModel.findAllByRDBMS(params);
+    }
+
     static async getAllPaymentMethods(): Promise<PaymentMethod[]> {
         try {
             return await PaymentMethodModel.findAll();
@@ -24,29 +29,29 @@ export class PaymentMethodService {
         }
     }
 
-    static async getPaymentMethodsByClientAndShop(clientUuid: string, shopUuid: string): Promise<PaymentMethod[]> {
+    static async getPaymentMethodsByClientAndShop(tenantId: string, branchId: string): Promise<PaymentMethod[]> {
         try {
-            if (!clientUuid || !shopUuid) {
+            if (!tenantId || !branchId) {
                 throw new Error('Client UUID and Shop UUID are required');
             }
 
-            return await PaymentMethodModel.findByClientAndShop(clientUuid, shopUuid);
+            return await PaymentMethodModel.findByClientAndShop(tenantId, branchId);
         } catch (error) {
-            console.error(`Service: Error getting payment methods for client ${clientUuid} and shop ${shopUuid}:`, error);
+            console.error(`Service: Error getting payment methods for client ${tenantId} and shop ${branchId}:`, error);
             throw new Error('Failed to retrieve payment methods');
         }
     }
 
     static async createPaymentMethod(data: CreatePaymentMethodDto): Promise<PaymentMethod> {
         try {
-            if (!data.name || !data.clientUuid || !data.shopUuid || !data.userUuid) {
-                throw new Error('Name, clientUuid, shopUuid, and userUuid are required');
+            if (!data.name || !data.tenantId || !data.branchId || !data.userId) {
+                throw new Error('Name, tenantId, branchId, and userId are required');
             }
 
             const existingPaymentMethod = await PaymentMethodModel.findByName(
                 data.name,
-                data.clientUuid,
-                data.shopUuid
+                data.tenantId,
+                data.branchId
             );
 
             if (existingPaymentMethod) {
@@ -65,13 +70,13 @@ export class PaymentMethodService {
         }
     }
 
-    static async updatePaymentMethod(uuid: string, data: UpdatePaymentMethodDto): Promise<PaymentMethod | null> {
+    static async updatePaymentMethod(methodId: string, data: UpdatePaymentMethodDto): Promise<PaymentMethod | null> {
         try {
-            if (!uuid || typeof uuid !== 'string') {
+            if (!methodId || typeof methodId !== 'string') {
                 throw new Error('Invalid payment method ID provided');
             }
 
-            const existingPaymentMethod = await PaymentMethodModel.findById(uuid);
+            const existingPaymentMethod = await PaymentMethodModel.findById(methodId);
             if (!existingPaymentMethod) {
                 throw new Error('Payment method not found');
             }
@@ -79,24 +84,24 @@ export class PaymentMethodService {
             if (data.name && data.name !== existingPaymentMethod.name) {
                 const duplicatePaymentMethod = await PaymentMethodModel.findByName(
                     data.name,
-                    existingPaymentMethod.clientUuid,
-                    existingPaymentMethod.shopUuid
+                    existingPaymentMethod.tenantId,
+                    existingPaymentMethod.branchId
                 );
 
-                if (duplicatePaymentMethod && duplicatePaymentMethod.uuid !== uuid) {
+                if (duplicatePaymentMethod && duplicatePaymentMethod.methodId !== methodId) {
                     throw new Error('Payment method with this name already exists');
                 }
             }
 
-            const numUpdated = await PaymentMethodModel.update(uuid, data);
+            const numUpdated = await PaymentMethodModel.update(methodId, data);
 
             if (numUpdated === 0) {
                 throw new Error('Payment method not found or no changes made');
             }
 
-            return await PaymentMethodModel.findById(uuid);
+            return await PaymentMethodModel.findById(methodId);
         } catch (error) {
-            console.error(`Service: Error updating payment method ${uuid}:`, error);
+            console.error(`Service: Error updating payment method ${methodId}:`, error);
             throw error;
         }
     }
@@ -129,14 +134,14 @@ export class PaymentMethodService {
         }
     }
 
-    static async searchPaymentMethods(searchTerm: string, clientUuid?: string, shopUuid?: string): Promise<PaymentMethod[]> {
+    static async searchPaymentMethods(searchTerm: string, tenantId?: string, branchId?: string): Promise<PaymentMethod[]> {
         try {
             const conditions: any = {
                 name: { $regex: new RegExp(searchTerm, 'i') }
             };
 
-            if (clientUuid) conditions.clientUuid = clientUuid;
-            if (shopUuid) conditions.shopUuid = shopUuid;
+            if (tenantId) conditions.tenantId = tenantId;
+            if (branchId) conditions.branchId = branchId;
 
             return await PaymentMethodModel.find(conditions);
         } catch (error) {

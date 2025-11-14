@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { sealDBModel } from '../databases/local';
 import { PERMISSIONS_DB } from '../databases/local/tables';
+import { mysqlPool } from '../config/db';
 
 export enum PermissionScope {
     SYSTEM = 'system',
@@ -9,6 +10,19 @@ export enum PermissionScope {
 }
 
 export class PermissionModel {
+
+    static async findAllByRDBMS(conditions: ValidationParams): Promise<Array<Permission>> {
+        try {
+            const connection = await mysqlPool.getConnection();
+            const [rows] = await connection.execute(`SELECT * FROM ${PERMISSIONS_DB} WHERE tenant_id=${conditions.tenantId}`);
+            const records = rows as any[];
+
+            return records
+        } catch (error) {
+            throw new Error(`Error finding permissions: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+    }
+
     static async findAll(conditions: any = {}): Promise<Permission[]> {
         try {
             return await sealDBModel.find(PERMISSIONS_DB, conditions);
@@ -17,17 +31,17 @@ export class PermissionModel {
         }
     }
 
-    static async findById(id: string): Promise<Permission | null> {
+    static async findById(permissionId: string): Promise<Permission | null> {
         try {
-            return await sealDBModel.findById<Permission>(PERMISSIONS_DB, id);
+            return await sealDBModel.findById<Permission>(PERMISSIONS_DB, { permissionId });
         } catch (error) {
             throw new Error(`Error finding permission by ID: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
     }
 
-    static async findByUuid(uuid: string): Promise<Permission | null> {
+    static async findByUuid(permissionId: string): Promise<Permission | null> {
         try {
-            return await sealDBModel.findById<Permission>(PERMISSIONS_DB, { uuid });
+            return await sealDBModel.findById<Permission>(PERMISSIONS_DB, { permissionId });
         } catch (error) {
             throw new Error(`Error finding permission by UUID: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
@@ -60,7 +74,7 @@ export class PermissionModel {
 
     static async findSystemPermissions(isSystemPermission: boolean): Promise<Permission[]> {
         try {
-            return await sealDBModel.find(PERMISSIONS_DB, { isSystemPermission: isSystemPermission });
+            return await sealDBModel.find(PERMISSIONS_DB, { isSystemPermission });
         } catch (error) {
             throw new Error(`Error finding system permissions: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
@@ -69,7 +83,7 @@ export class PermissionModel {
     static buildPermissionData(data: Partial<Permission>): Permission {
         const now = new Date();
         return {
-            uuid: data.uuid || uuidv4(),
+            permissionId: data.permissionId || uuidv4(),
             name: data.name!,
             displayName: data.displayName!,
             description: data.description || null,

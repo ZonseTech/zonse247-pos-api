@@ -1,10 +1,10 @@
 interface Category {
-    uuid: string;
+    categoryId: string;
     name: string;
     description?: string;
-    clientUuid: string;
-    shopUuid: string;
-    userUuid: string;
+    tenantId: string;
+    branchId: string;
+    userId: string;
     createdAt?: Date;
     updatedAt?: Date;
     itemCount?: number;
@@ -25,8 +25,8 @@ interface UpdateCategoryDto {
 }
 
 interface CategoryFilters {
-    clientUuid: string;
-    shopUuid: string;
+    tenantId: string;
+    branchId: string;
 }
 
 
@@ -34,9 +34,9 @@ interface CreateCategoryRequest {
     name: string;
     description: string;
     color: string;
-    clientUuid: string;
-    shopUuid: string;
-    userUuid: string;
+    tenantId: string;
+    branchId: string;
+    userId: string;
 }
 
 interface UpdateCategoryDto {
@@ -47,6 +47,6 @@ interface UpdateCategoryDto {
 }
 
 interface CategoryFilters {
-    clientUuid: string;
-    shopUuid: string;
+    tenantId: string;
+    branchId: string;
 }

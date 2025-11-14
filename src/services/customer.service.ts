@@ -3,6 +3,11 @@ import validator from 'validator';
 import { CustomerModel } from '../models/customer.model';
 
 export class CustomerService {
+
+    static async selectAll(params): Promise<Array<Role>> {
+        return await CustomerModel.findAllByRDBMS(params);
+    }
+
     static async getCustomerById(customerId: string): Promise<Customer | null> {
         if (!customerId) {
             throw new Error('Customer ID is required');
@@ -35,7 +40,7 @@ export class CustomerService {
 
         const newCustomer: Customer = {
             ...sanitizedData,
-            uuid: uuidv4(),
+            customerId: uuidv4(),
         };
 
         return await CustomerModel.create(newCustomer);

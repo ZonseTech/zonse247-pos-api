@@ -4,6 +4,13 @@ interface APIMethodOptions {
     useLocal?: boolean;
 }
 
+interface ApiResponse<T> {
+    success: boolean;
+    message: string;
+    data?: T;
+    error?: string;
+}
+
 type APIProps = {
     config: AxiosInstance;
     get: <T>(

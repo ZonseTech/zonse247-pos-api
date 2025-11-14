@@ -3,6 +3,18 @@ import { BaseController } from '../controllers/base.controller';
 import { PaymentServiceProviderService } from '../services/payment-service-provider.service';
 
 export class PaymentServiceProviderController extends BaseController {
+
+    static async selectAll(req: Request, res: Response): Promise<void> {
+        try {
+            const params = req.body;
+            const services = await PaymentServiceProviderService.selectAll(params);
+            BaseController.sendResponse(res, 200, true, 'Services retrieved successfully', services);
+        } catch (error: any) {
+            console.error('Error fetching services:', error);
+            BaseController.sendResponse(res, 500, false, error.message, undefined, error.message);
+        }
+    }
+
     static async getWelcome(req: Request, res: Response): Promise<void> {
         try {
             PaymentServiceProviderController.sendSuccess(res, 'Payment Service Provider API is running');
@@ -21,8 +33,8 @@ export class PaymentServiceProviderController extends BaseController {
             }
 
             const filters: PaymentServiceProviderFilters = {
-                clientUuid: user.clientUuid,
-                shopUuid: user.shopUuid
+                tenantId: user.tenantId,
+                branchId: user.branchId
             };
 
             const psps = await PaymentServiceProviderService.getAllPaymentServiceProviders(filters);
@@ -177,8 +189,8 @@ export class PaymentServiceProviderController extends BaseController {
             }
 
             const filters: PaymentServiceProviderFilters = {
-                clientUuid: user.clientUuid,
-                shopUuid: user.shopUuid
+                tenantId: user.tenantId,
+                branchId: user.branchId
             };
 
             const psp = await PaymentServiceProviderService.getPaymentServiceProviderById(pspId, filters);
@@ -215,8 +227,8 @@ export class PaymentServiceProviderController extends BaseController {
             }
 
             const filters: PaymentServiceProviderFilters = {
-                clientUuid: user.clientUuid,
-                shopUuid: user.shopUuid
+                tenantId: user.tenantId,
+                branchId: user.branchId
             };
 
             const psps = await PaymentServiceProviderService.searchPaymentServiceProvidersByName(name, filters);
@@ -239,7 +251,7 @@ export class PaymentServiceProviderController extends BaseController {
                 return;
             }
 
-            const psps = await PaymentServiceProviderService.getUnsyncedPaymentServiceProviders(user.clientUuid);
+            const psps = await PaymentServiceProviderService.getUnsyncedPaymentServiceProviders(user.tenantId);
             PaymentServiceProviderController.sendSuccess(res, 'Unsynced payment service providers retrieved successfully', psps);
         } catch (error) {
             console.error('Error in getUnsyncedPaymentServiceProviders:', error);

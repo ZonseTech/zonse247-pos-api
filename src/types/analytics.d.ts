@@ -3,13 +3,8 @@ interface MonthlySales {
     totalAmount: number;
 }
 
-interface Category {
-    uuid: string;
-    name: string;
-}
-
 interface TopProduct {
-    uuid: string;
+    productId: string;
     name: string;
     quantity: number;
     summedSellPrice: number;

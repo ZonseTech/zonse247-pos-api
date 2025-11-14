@@ -1,6 +1,7 @@
 import jwt from 'jsonwebtoken';
-import config, { Config } from '../config';
+import config from '../config';
 import { Request, Response, NextFunction } from 'express';
+import { BaseController } from '../controllers/base.controller';
 
 declare module 'express' {
 	interface Request {
@@ -14,6 +15,45 @@ export class AuthMiddleware {
 	constructor() {
 		this.config = config;
 	}
+
+	verifyRequestHeaders = (
+		req: Request,
+		res: Response,
+		next: NextFunction
+	): void => {
+		try {
+			const tenantSignature = req.headers['x-tenant-signature'] as string | undefined;
+
+			if (!tenantSignature || tenantSignature.trim() === '') {
+				return BaseController.sendResponseWithSubscription(
+					res,
+					400,
+					false,
+					'Application not verified. Please verify your application before using the system.',
+					'unknown',
+					null
+				);
+			}
+
+			req.headers['x-tenant-signature'] = tenantSignature.trim();
+
+			next();
+		} catch (error) {
+			let message = 'Authentication failed. Please check your token and try again.';
+
+			if (error instanceof jwt.TokenExpiredError) {
+				message = 'Authentication failed: token has expired.';
+			} else if (error instanceof jwt.JsonWebTokenError) {
+				message = 'Authentication failed: invalid token format.';
+			}
+
+			res.status(401).json({
+				success: false,
+				error: 'Authentication Error',
+				message,
+			});
+		}
+	};
 
 	verifyToken = (req: Request, res: Response, next: NextFunction): void => {
 		const token =
@@ -52,8 +92,8 @@ export class AuthMiddleware {
 		const user = this.extractUserFromToken(req)
 
 		const userId = req.params.userId;
-		const requestingUserId = user?.uuid;
-		const userRole = user?.roleUuid;
+		const requestingUserId = user?.userId;
+		const userRole = user?.roleId;
 
 		if (!requestingUserId) {
 			res.status(401).json({
@@ -76,7 +116,7 @@ export class AuthMiddleware {
 
 	requireAdmin = (req: Request, res: Response, next: NextFunction): void => {
 		const user = this.extractUserFromToken(req)
-		const userRole = user?.roleUuid;
+		const userRole = user?.roleId;
 
 		if (userRole === 'admin' || userRole === 'super-admin') {
 			next();

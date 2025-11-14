@@ -7,14 +7,14 @@ import {
     CUSTOMERS_DB,
 } from '../databases/local/tables';
 import { sealDBModel } from '../databases/local';
+import dayjs from 'dayjs';
 
 export class AnalyticsModel {
     static async getMonthlySalesData(userUuid: string, year: number, month: number): Promise<Array<MonthlySales>> {
         const lastDayOfMonth = new Date(year, month, 0);
         const firstDayOfMonth = new Date(year, month - 1, 1);
-
-        const endDate = lastDayOfMonth.toISOString().split('T')[0];
-        const startDate = firstDayOfMonth.toISOString().split('T')[0];
+        const endDate = dayjs(lastDayOfMonth).format('YYYY-MM-DD');
+        const startDate = dayjs(firstDayOfMonth).format('YYYY-MM-DD');
 
         const transactions: Array<Transaction> = await sealDBModel.find(
             TRANSACTIONS_DB,
@@ -31,13 +31,12 @@ export class AnalyticsModel {
         const daysInMonth = lastDayOfMonth.getDate();
 
         for (let day = 1; day <= daysInMonth; day++) {
-            const currentDate = new Date(year, month - 1, day);
-            const dateString = currentDate.toISOString().split('T')[0];
+            const currentDate = dayjs(new Date(year, month - 1, day)).format('YYYY-MM-DD');
 
-            const dayTransactions = transactions.filter(
-                (transaction) =>
-                    transaction.date.toString().split('T')[0] === dateString
-            );
+            const dayTransactions = transactions.filter((transaction) => {
+                const t = dayjs(transaction.date).format('YYYY-MM-DD');
+                return t === currentDate;
+            });
 
             const totalAmount = dayTransactions.reduce((sum, transaction) => {
                 return sum + (transaction.total || 0);
@@ -52,7 +51,6 @@ export class AnalyticsModel {
         return salesData;
     }
 
-    // Get user transactions with pagination
     static async getUserTransactions(
         userUuid: string,
         limit: number,
@@ -82,14 +80,14 @@ export class AnalyticsModel {
             processedTransactions = await Promise.all(
                 sortedTransactions.map(async (transaction) => {
                     const orderItems = await sealDBModel.find(ORDERS_DB, {
-                        transactionUuid: transaction.uuid,
+                        transactionUuid: transaction.transactionId,
                     });
 
                     const itemsWithProductDetails = await Promise.all(
                         orderItems.map(async (item) => {
                             const product = await sealDBModel.findById(
                                 INVENTORY_DB,
-                                item.productUuid
+                                item.productId
                             );
                             return {
                                 ...item,
@@ -113,7 +111,6 @@ export class AnalyticsModel {
         };
     }
 
-    // Get top products
     static async getTopProducts(): Promise<Array<TopProduct>> {
         const [orders, products, categories] = await Promise.all([
             sealDBModel.findAll(ORDERS_DB),
@@ -143,14 +140,14 @@ export class AnalyticsModel {
         >();
 
         orders.forEach((order) => {
-            const productUuid = order.productUuid;
-            const existing = productSummary.get(productUuid) || {
+            const productId = order.productId;
+            const existing = productSummary.get(productId) || {
                 quantity: 0,
                 summedSellPrice: 0,
             };
 
-            productSummary.set(productUuid, {
-                quantity: existing.quantity + order.quantity,
+            productSummary.set(productId, {
+                quantity: parseInt(existing.quantity?.toString()) + parseInt(order.quantity),
                 summedSellPrice:
                     existing.summedSellPrice + order.sellPrice * order.quantity,
             });
@@ -158,18 +155,19 @@ export class AnalyticsModel {
 
         const topProducts = [] as Array<TopProduct>;
 
-        productSummary.forEach((summary, productUuid: string) => {
-            const product = productMap.get(productUuid);
+        productSummary.forEach((summary, productId: string) => {
+            const product = productMap.get(productId);
+
             if (product) {
-                if (product.uuid) {
-                    const categoryKey = product.uuid.toString();
+                if (product.productId) {
+                    const categoryKey = product.categoryId.toString();
                     if (categoryMap.has(categoryKey)) {
                         product.categoryDetails = categoryMap.get(categoryKey);
                     }
                 }
 
                 topProducts.push({
-                    uuid: product.uuid || productUuid,
+                    productId: product.productId || productId,
                     name: product.name || 'Unknown Product',
                     quantity: summary.quantity,
                     summedSellPrice: Math.round(summary.summedSellPrice * 100) / 100,
@@ -222,7 +220,6 @@ export class AnalyticsModel {
         };
     }
 
-    // Get transaction items
     static async getTransactionItems(transactionUuid: string): Promise<{
         transaction: Transaction | null;
         orderItems: Array<any>;
@@ -240,7 +237,7 @@ export class AnalyticsModel {
             orderItems.map(async (item) => {
                 const product = await sealDBModel.findById(
                     INVENTORY_DB,
-                    item.productUuid
+                    item.productId
                 );
                 return {
                     ...item,
@@ -255,7 +252,6 @@ export class AnalyticsModel {
         };
     }
 
-    // Get transaction details
     static async getTransactionDetails(transactionUuid: string): Promise<{
         transaction: Transaction | null;
         orderItems: Array<any>;
@@ -273,14 +269,14 @@ export class AnalyticsModel {
 
         const categoryMap = new Map<string, Category>();
         categories.forEach((category: Category) => {
-            categoryMap.set(category.uuid.toString(), category);
+            categoryMap.set(category.categoryId.toString(), category);
         });
 
         const detailedOrderItems = await Promise.all(
             orderItems.map(async (item) => {
                 const product = await sealDBModel.findById(
                     INVENTORY_DB,
-                    item.productUuid
+                    item.productId
                 );
 
                 let categoryDetails = null;

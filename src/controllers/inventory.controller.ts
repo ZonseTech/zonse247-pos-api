@@ -5,10 +5,21 @@ import { InventoryService } from '../services/inventory.service';
 export class InventoryController extends BaseController {
     private static getAuthContext(req: Request) {
         return {
-            clientUuid: req.auth?.clientUuid || '',
-            shopUuid: req.auth?.shopUuid || '',
-            userUuid: req.auth?.uuid || ''
+            tenantId: req.auth?.tenantId || '',
+            branchId: req.auth?.branchId || '',
+            userId: req.auth?.userId || ''
         };
+    }
+
+    static async getSummary(req: Request, res: Response): Promise<void> {
+        try {
+            const auth = InventoryController.getAuthContext(req);
+            const summary = await InventoryService.getProductsSummary(auth);
+            BaseController.sendSuccess(res, 'Products summary retrieved successfully.', summary);
+        } catch (error) {
+            console.error('Error fetching products summary:', error);
+            BaseController.sendServerError(res, 'Failed to fetch products summary.');
+        }
     }
 
     static async getProduct(req: Request, res: Response): Promise<void> {
@@ -47,8 +58,30 @@ export class InventoryController extends BaseController {
     static async getProducts(req: Request, res: Response): Promise<void> {
         try {
             const auth = InventoryController.getAuthContext(req);
-            const products = await InventoryService.getProductsWithCategories(auth);
-            BaseController.sendSuccess(res, 'Products with categories retrieved successfully.', products);
+            const page = parseInt(req.query.page as string) || 1;
+            const perPage = parseInt(req.query.perPage as string) || 10;
+            const search = req.query.search as string || '';
+            const filter = req.query.filter as string || 'all';
+            const categoryId = req.query.categoryId ? parseInt(req.query.categoryId as string) : undefined;
+
+            const { products, total, totalPages } = await InventoryService.getProductsWithCategories(
+                auth,
+                page,
+                perPage,
+                search,
+                filter,
+                categoryId
+            );
+
+            BaseController.sendSuccess(res, 'Products with categories retrieved successfully.', {
+                products,
+                pagination: {
+                    currentPage: page,
+                    totalPages,
+                    totalItems: total,
+                    itemsPerPage: perPage
+                }
+            });
         } catch (error) {
             console.error('Error fetching products with categories:', error);
             BaseController.sendServerError(res, 'Failed to fetch products with categories.');

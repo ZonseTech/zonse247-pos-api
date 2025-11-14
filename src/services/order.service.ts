@@ -23,19 +23,19 @@ export class OrderService {
     }
 
     static async createOrderItems(
-        transactionUuid: string,
+        transactionId: string,
         items: CartItem[]
     ): Promise<OrderItem[]> {
         const orderItems: OrderItem[] = [];
 
         for (const item of items) {
             const orderItem: Partial<OrderItem> = {
-                transactionUuid,
-                productUuid: item.productUuid,
+                transactionId,
+                productId: item.productId,
                 quantity: item.quantity,
                 purchasePrice: item.purchasePrice,
                 sellPrice: item.sellPrice,
-                uuid: uuidv4(),
+                itemId: uuidv4(),
             };
 
             const savedItem = await OrderModel.create(orderItem);
@@ -46,7 +46,7 @@ export class OrderService {
     }
 
     static async createOrderItemsBatch(
-        transactionUuid: string,
+        transactionId: string,
         refNumber: string,
         items: CartItem[]
     ): Promise<OrderItem[]> {
@@ -55,12 +55,12 @@ export class OrderService {
         const createPromises = items.map(async (item) => {
             const orderItem: Partial<OrderItem> = {
                 refNumber,
-                transactionUuid,
-                productUuid: item.productUuid,
+                transactionId,
+                productId: item.productId,
                 quantity: item.quantity,
                 purchasePrice: item.purchasePrice,
                 sellPrice: item.sellPrice,
-                uuid: uuidv4(),
+                itemId: uuidv4(),
             };
 
             return await OrderModel.create(orderItem);
@@ -89,7 +89,7 @@ export class OrderService {
 
         let deletedCount = 0;
         for (const order of orders) {
-            await OrderModel.delete(order.uuid);
+            await OrderModel.delete(order.itemId);
             deletedCount++;
         }
 

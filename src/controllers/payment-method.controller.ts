@@ -3,6 +3,18 @@ import { BaseController } from './base.controller';
 import { PaymentMethodService } from '../services/payment-method.service';
 
 export class PaymentMethodController extends BaseController {
+
+    static async selectAll(req: Request, res: Response): Promise<void> {
+        try {
+            const params = req.body;
+            const subscriptions = await PaymentMethodService.selectAll(params);
+            BaseController.sendResponse(res, 200, true, 'Subscriptions retrieved successfully', subscriptions);
+        } catch (error: any) {
+            console.error('Error fetching Subscriptions:', error);
+            BaseController.sendResponse(res, 500, false, error.message, undefined, error.message);
+        }
+    }
+
     static async list(req: Request, res: Response): Promise<void> {
         try {
             const { clientUuid, shopUuid, search } = req.query;
@@ -66,11 +78,11 @@ export class PaymentMethodController extends BaseController {
         try {
             const paymentMethodData: CreatePaymentMethodDto = req.body;
 
-            if (!paymentMethodData.name || !paymentMethodData.clientUuid ||
-                !paymentMethodData.shopUuid || !paymentMethodData.userUuid) {
+            if (!paymentMethodData.name || !paymentMethodData.tenantId ||
+                !paymentMethodData.branchId || !paymentMethodData.userId) {
                 PaymentMethodController.sendBadRequest(
                     res,
-                    'Name, clientUuid, shopUuid, and userUuid are required'
+                    'Name, tenantId, branchId, and userId are required'
                 );
                 return;
             }

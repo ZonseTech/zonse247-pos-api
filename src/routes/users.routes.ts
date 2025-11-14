@@ -53,19 +53,6 @@ router.delete(
 	asyncHandler(UserController.delete)
 );
 
-router.put(
-	'/change-password/:id',
-	validateParams(userValidationSchemas.id),
-	validateBody(userValidationSchemas.changePassword),
-	authMiddleware.verifyOwnership,
-	createUserSpecificLimiter(
-		60 * 60 * 1000,
-		5,
-		'Too many password change attempts, please try again later'
-	),
-	asyncHandler(UserController.changePassword)
-);
-
 router.get('/list', asyncHandler(UserController.list));
 
 router.use(authMiddleware.requireAdmin);
@@ -96,12 +83,6 @@ router.delete(
 	'/:id',
 	validateParams(userValidationSchemas.userId),
 	asyncHandler(UserController.delete)
-);
-
-router.post(
-	'/reset-password/:id',
-	validateParams(userValidationSchemas.userId),
-	asyncHandler(UserController.resetPassword)
 );
 
 router.put(

@@ -1,8 +1,29 @@
 import { v4 as uuidv4 } from 'uuid';
 import { sealDBModel } from '../databases/local';
 import { ROLES_DB } from '../databases/local/tables';
+import { mysqlPool } from '../config/db';
 
 export class RoleModel {
+    static async findAllByRDBMS(conditions: ValidationParams): Promise<Role[]> {
+        try {
+            const connection = await mysqlPool.getConnection();
+            const [rows] = await connection.execute(`SELECT * FROM ${ROLES_DB} WHERE tenant_id=${conditions.tenantId}`);
+            const records = rows as any[];
+
+            return records
+        } catch (error) {
+            throw new Error(`Error finding roles: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+    }
+
+    static async selectAll(conditions: any = {}): Promise<Role[]> {
+        try {
+            return await sealDBModel.find(ROLES_DB, conditions);
+        } catch (error) {
+            throw new Error(`Error finding roles: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+    }
+
     static async findAll(conditions: any = {}): Promise<Role[]> {
         try {
             return await sealDBModel.find(ROLES_DB, conditions);
@@ -11,9 +32,9 @@ export class RoleModel {
         }
     }
 
-    static async findById(id: string): Promise<Role | null> {
+    static async findById(roleId: string): Promise<Role | null> {
         try {
-            return await sealDBModel.findById<Role>(ROLES_DB, id);
+            return await sealDBModel.findById<Role>(ROLES_DB, { roleId });
         } catch (error) {
             throw new Error(`Error finding role by ID: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
@@ -27,7 +48,7 @@ export class RoleModel {
         }
     }
 
-    static async findByShopUuid(shopUuid: string): Promise<Role[]> {
+    static async findByBranchId(shopUuid: string): Promise<Role[]> {
         try {
             return await sealDBModel.find(ROLES_DB, { shopUuid: shopUuid });
         } catch (error) {
@@ -65,9 +86,9 @@ export class RoleModel {
     static buildRoleData(data: CreateRoleRequest): Role {
         const now = new Date();
         return {
-            uuid: uuidv4(),
-            clientUuid: data.clientUuid,
-            shopUuid: data.shopUuid || null,
+            roleId: uuidv4(),
+            tenantId: data.tenantId,
+            branchId: data.branchId || null,
             name: data.name,
             displayName: data.displayName,
             description: data.description || null,

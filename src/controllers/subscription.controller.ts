@@ -3,11 +3,22 @@ import { BaseController } from "./base.controller";
 import { SubscriptionService } from "../services/subscription.service";
 
 export class SubscriptionController extends BaseController {
+
+    static async selectAll(req: Request, res: Response): Promise<void> {
+        try {
+            const params = req.body;
+            const subscriptions = await SubscriptionService.selectAll(params);
+            BaseController.sendResponse(res, 200, true, 'Subscriptions retrieved successfully', subscriptions);
+        } catch (error: any) {
+            console.error('Error fetching Subscriptions:', error);
+            BaseController.sendResponse(res, 500, false, error.message, undefined, error.message);
+        }
+    }
+
     static async list(req: Request, res: Response): Promise<void> {
         try {
             const { status, clientUuid, planId } = req.query;
-
-            let subscriptions: SubscriptionService;
+            let subscriptions;
 
             if (status) {
                 subscriptions = await SubscriptionService.getByStatus(status as string);
@@ -49,15 +60,21 @@ export class SubscriptionController extends BaseController {
             BaseController.sendResponse(res, 201, true, 'Subscription created successfully', newSubscription);
         } catch (error: any) {
             console.error('Error creating subscription:', error);
+
             let statusCode = 500;
+            let message = error.message;
+
             if (error.message.includes('Missing required field')) {
                 statusCode = 400;
             } else if (error.message.includes('not found')) {
                 statusCode = 404;
             } else if (error.message.includes('already has an active subscription')) {
                 statusCode = 409;
+            } else if (error.message.includes('Invalid') || error.message.includes('Validation')) {
+                statusCode = 422;
             }
-            BaseController.sendResponse(res, statusCode, false, error.message, undefined, error.message);
+
+            BaseController.sendResponse(res, statusCode, false, message, undefined, error.message);
         }
     }
 
@@ -74,7 +91,15 @@ export class SubscriptionController extends BaseController {
             BaseController.sendResponse(res, 200, true, 'Subscription updated successfully', updatedSubscription);
         } catch (error: any) {
             console.error('Error updating subscription:', error);
-            BaseController.sendResponse(res, 500, false, 'Failed to update subscription', undefined, error.message);
+
+            let statusCode = 500;
+            if (error.message.includes('not found') || error.message.includes('does not exist')) {
+                statusCode = 404;
+            } else if (error.message.includes('Invalid') || error.message.includes('Validation')) {
+                statusCode = 422;
+            }
+
+            BaseController.sendResponse(res, statusCode, false, error.message, undefined, error.message);
         }
     }
 
@@ -95,39 +120,6 @@ export class SubscriptionController extends BaseController {
         }
     }
 
-    static async getByStatus(req: Request, res: Response): Promise<void> {
-        try {
-            const { status } = req.params;
-            const subscriptions = await SubscriptionService.getByStatus(status);
-            BaseController.sendResponse(res, 200, true, 'Subscriptions retrieved successfully', subscriptions);
-        } catch (error: any) {
-            console.error('Error fetching subscriptions by status:', error);
-            BaseController.sendResponse(res, 500, false, 'Failed to fetch subscriptions', undefined, error.message);
-        }
-    }
-
-    static async getByClientUuid(req: Request, res: Response): Promise<void> {
-        try {
-            const { clientUuid } = req.params;
-            const subscriptions = await SubscriptionService.getByClientUuid(clientUuid);
-            BaseController.sendResponse(res, 200, true, 'Subscriptions retrieved successfully', subscriptions);
-        } catch (error: any) {
-            console.error('Error fetching subscriptions by client:', error);
-            BaseController.sendResponse(res, 500, false, 'Failed to fetch subscriptions', undefined, error.message);
-        }
-    }
-
-    static async getByPlanId(req: Request, res: Response): Promise<void> {
-        try {
-            const { planId } = req.params;
-            const subscriptions = await SubscriptionService.getByPlanId(planId);
-            BaseController.sendResponse(res, 200, true, 'Subscriptions retrieved successfully', subscriptions);
-        } catch (error: any) {
-            console.error('Error fetching subscriptions by plan:', error);
-            BaseController.sendResponse(res, 500, false, 'Failed to fetch subscriptions', undefined, error.message);
-        }
-    }
-
     static async cancel(req: Request, res: Response): Promise<void> {
         try {
             const { id } = req.params;
@@ -141,7 +133,15 @@ export class SubscriptionController extends BaseController {
             BaseController.sendResponse(res, 200, true, 'Subscription cancelled successfully', cancelledSubscription);
         } catch (error: any) {
             console.error('Error cancelling subscription:', error);
-            BaseController.sendResponse(res, 500, false, 'Failed to cancel subscription', undefined, error.message);
+
+            let statusCode = 500;
+            if (error.message.includes('not found')) {
+                statusCode = 404;
+            } else if (error.message.includes('already cancelled')) {
+                statusCode = 409;
+            }
+
+            BaseController.sendResponse(res, statusCode, false, error.message, undefined, error.message);
         }
     }
 
@@ -158,7 +158,17 @@ export class SubscriptionController extends BaseController {
             BaseController.sendResponse(res, 200, true, 'Subscription reactivated successfully', reactivatedSubscription);
         } catch (error: any) {
             console.error('Error reactivating subscription:', error);
-            BaseController.sendResponse(res, 500, false, 'Failed to reactivate subscription', undefined, error.message);
+
+            let statusCode = 500;
+            if (error.message.includes('not found')) {
+                statusCode = 404;
+            } else if (error.message.includes('already active')) {
+                statusCode = 409;
+            } else if (error.message.includes('plan not found')) {
+                statusCode = 422;
+            }
+
+            BaseController.sendResponse(res, statusCode, false, error.message, undefined, error.message);
         }
     }
 
@@ -172,6 +182,11 @@ export class SubscriptionController extends BaseController {
                 return;
             }
 
+            if (amount <= 0) {
+                BaseController.sendResponse(res, 400, false, 'Amount must be greater than 0');
+                return;
+            }
+
             const updatedSubscription = await SubscriptionService.processPayment(id, { amount, paymentMethod });
 
             if (!updatedSubscription) {
@@ -182,13 +197,27 @@ export class SubscriptionController extends BaseController {
             BaseController.sendResponse(res, 200, true, 'Payment processed successfully', updatedSubscription);
         } catch (error: any) {
             console.error('Error processing payment:', error);
-            BaseController.sendResponse(res, 500, false, 'Failed to process payment', undefined, error.message);
+
+            let statusCode = 500;
+            if (error.message.includes('not found')) {
+                statusCode = 404;
+            } else if (error.message.includes('Invalid amount')) {
+                statusCode = 400;
+            }
+
+            BaseController.sendResponse(res, statusCode, false, error.message, undefined, error.message);
         }
     }
 
     static async getExpiring(req: Request, res: Response): Promise<void> {
         try {
-            const days = parseInt(req.params.days) || 30;
+            const days = parseInt(req.query.days as string) || 30;
+
+            if (days < 1 || days > 365) {
+                BaseController.sendResponse(res, 400, false, 'Days must be between 1 and 365');
+                return;
+            }
+
             const subscriptions = await SubscriptionService.getExpiring(days);
             BaseController.sendResponse(res, 200, true, 'Expiring subscriptions retrieved successfully', subscriptions);
         } catch (error: any) {
@@ -202,7 +231,12 @@ export class SubscriptionController extends BaseController {
             const { ids, data } = req.body;
 
             if (!ids || !Array.isArray(ids) || ids.length === 0) {
-                BaseController.sendResponse(res, 400, false, 'IDs array is required');
+                BaseController.sendResponse(res, 400, false, 'IDs array is required and must not be empty');
+                return;
+            }
+
+            if (!data || typeof data !== 'object') {
+                BaseController.sendResponse(res, 400, false, 'Update data is required');
                 return;
             }
 
@@ -224,31 +258,36 @@ export class SubscriptionController extends BaseController {
         }
     }
 
-    static async getSubscriptionPlans(req: Request, res: Response): Promise<void> {
+    static async getByStatus(req: Request, res: Response): Promise<void> {
         try {
-            const plans = await SubscriptionService.getActivePlans();
-            BaseController.sendResponse(res, 200, true, 'Subscription plans retrieved successfully', plans);
+            const { status } = req.params;
+            const subscriptions = await SubscriptionService.getByStatus(status);
+            BaseController.sendResponse(res, 200, true, 'Subscriptions retrieved by status', subscriptions);
         } catch (error: any) {
-            console.error('Error fetching subscription plans:', error);
-            BaseController.sendResponse(res, 500, false, 'Failed to fetch subscription plans', undefined, error.message);
+            console.error('Error fetching subscriptions by status:', error);
+            BaseController.sendResponse(res, 500, false, 'Failed to fetch subscriptions by status', undefined, error.message);
         }
     }
 
-    static async createSubscription(req: Request, res: Response): Promise<void> {
+    static async getByClient(req: Request, res: Response): Promise<void> {
         try {
-            const newSubscription = await SubscriptionService.createSubscription(req.body);
-            BaseController.sendResponse(res, 201, true, 'Subscription created successfully', newSubscription);
+            const { clientUuid } = req.params;
+            const subscriptions = await SubscriptionService.getByClientUuid(clientUuid);
+            BaseController.sendResponse(res, 200, true, 'Subscriptions retrieved by client', subscriptions);
         } catch (error: any) {
-            console.error('Error creating subscription:', error);
-            let statusCode = 500;
-            if (error.message.includes('Missing required field')) {
-                statusCode = 400;
-            } else if (error.message.includes('not found')) {
-                statusCode = 404;
-            } else if (error.message.includes('already has an active subscription')) {
-                statusCode = 409;
-            }
-            BaseController.sendResponse(res, statusCode, false, error.message, undefined, error.message);
+            console.error('Error fetching subscriptions by client:', error);
+            BaseController.sendResponse(res, 500, false, 'Failed to fetch subscriptions by client', undefined, error.message);
+        }
+    }
+
+    static async getByPlan(req: Request, res: Response): Promise<void> {
+        try {
+            const { planId } = req.params;
+            const subscriptions = await SubscriptionService.getByPlanId(planId);
+            BaseController.sendResponse(res, 200, true, 'Subscriptions retrieved by plan', subscriptions);
+        } catch (error: any) {
+            console.error('Error fetching subscriptions by plan:', error);
+            BaseController.sendResponse(res, 500, false, 'Failed to fetch subscriptions by plan', undefined, error.message);
         }
     }
 }

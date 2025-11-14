@@ -1,8 +1,21 @@
 import { v4 as uuidv4 } from 'uuid';
 import { sealDBModel } from "../databases/local";
 import { ROLE_PERMISSIONS_DB } from "../databases/local/tables";
+import { mysqlPool } from '../config/db';
 
 export class RolePermissionModel {
+    static async findAllByRDBMS(conditions: ValidationParams): Promise<Array<RolePermission>> {
+        try {
+            const connection = await mysqlPool.getConnection();
+            const [rows] = await connection.execute(`SELECT * FROM ${ROLE_PERMISSIONS_DB} WHERE tenant_id=${conditions.tenantId}`);
+            const records = rows as any[];
+
+            return records
+        } catch (error) {
+            throw new Error(`Error finding roles: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+    }
+
     static async findAll(conditions: any = {}): Promise<RolePermission[]> {
         try {
             return await sealDBModel.find(ROLE_PERMISSIONS_DB, conditions);
@@ -19,40 +32,40 @@ export class RolePermissionModel {
         }
     }
 
-    static async findByRoleUuid(roleUuid: string): Promise<RolePermission[]> {
+    static async findByRoleId(roleId: string): Promise<RolePermission[]> {
         try {
-            return await sealDBModel.find(ROLE_PERMISSIONS_DB, { roleUuid: roleUuid });
+            return await sealDBModel.find(ROLE_PERMISSIONS_DB, { roleId: roleId });
         } catch (error) {
-            throw new Error(`Error finding role permissions by role UUID: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            throw new Error(`Error finding role permissions by role Id: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
     }
 
-    static async findByPermissionUuid(permissionUuid: string): Promise<RolePermission[]> {
+    static async findByPermissionId(permissionId: string): Promise<RolePermission[]> {
         try {
-            return await sealDBModel.find(ROLE_PERMISSIONS_DB, { permissionUuid: permissionUuid });
+            return await sealDBModel.find(ROLE_PERMISSIONS_DB, { permissionId: permissionId });
         } catch (error) {
-            throw new Error(`Error finding role permissions by permission UUID: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            throw new Error(`Error finding role permissions by permission Id: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
     }
 
-    static async findByRoleAndPermissionUuid(roleUuid: string, permissionUuid: string): Promise<RolePermission | null> {
+    static async findByRoleAndPermissionId(roleId: string, permissionId: string): Promise<RolePermission | null> {
         try {
             const results = await sealDBModel.find(ROLE_PERMISSIONS_DB, {
-                roleUuid: roleUuid,
-                permissionUuid: permissionUuid
+                roleId: roleId,
+                permissionId: permissionId
             });
             return results.length > 0 ? results[0] : null;
         } catch (error) {
-            throw new Error(`Error finding role permission by role and permission UUID: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            throw new Error(`Error finding role permission by role and permission Id: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
     }
 
     static buildRolePermissionData(data: Partial<RolePermission>): RolePermission {
         const now = new Date();
         return {
-            uuid: uuidv4(),
-            roleUuid: data.roleUuid!,
-            permissionUuid: data.permissionUuid!,
+            rolePermissionId: uuidv4(),
+            roleId: data.roleId!,
+            permissionId: data.permissionId!,
             createdAt: data.createdAt || now
         };
     }
@@ -74,53 +87,53 @@ export class RolePermissionModel {
         }
     }
 
-    static async deleteByRoleUuid(roleUuid: string): Promise<number> {
+    static async deleteByRoleId(roleId: string): Promise<number> {
         try {
-            const rolePermissions = await this.findByRoleUuid(roleUuid);
+            const rolePermissions = await this.findByRoleId(roleId);
             let deletedCount = 0;
 
             for (const rp of rolePermissions) {
-                if (rp.roleUuid) {
-                    const deleted = await sealDBModel.delete(ROLE_PERMISSIONS_DB, rp.roleUuid.toString());
+                if (rp.roleId) {
+                    const deleted = await sealDBModel.delete(ROLE_PERMISSIONS_DB, rp.roleId.toString());
                     deletedCount += deleted;
                 }
             }
 
             return deletedCount;
         } catch (error) {
-            throw new Error(`Error deleting role permissions by role UUID: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            throw new Error(`Error deleting role permissions by role Id: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
     }
 
-    static async deleteByPermissionUuid(permissionUuid: string): Promise<number> {
+    static async deleteByPermissionId(permissionId: string): Promise<number> {
         try {
-            const rolePermissions = await this.findByPermissionUuid(permissionUuid);
+            const rolePermissions = await this.findByPermissionId(permissionId);
             let deletedCount = 0;
 
             for (const rp of rolePermissions) {
-                if (rp.permissionUuid) {
-                    const deleted = await sealDBModel.delete(ROLE_PERMISSIONS_DB, rp.uuid.toString());
+                if (rp.permissionId) {
+                    const deleted = await sealDBModel.delete(ROLE_PERMISSIONS_DB, rp.roleId.toString());
                     deletedCount += deleted;
                 }
             }
 
             return deletedCount;
         } catch (error) {
-            throw new Error(`Error deleting role permissions by permission UUID: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            throw new Error(`Error deleting role permissions by permission Id: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
     }
 
-    static async deleteByRoleAndPermissionUuid(roleUuid: string, permissionUuid: string): Promise<number> {
+    static async deleteByRoleAndPermissionId(roleId: string, permissionId: string): Promise<number> {
         try {
-            const rolePermission = await this.findByRoleAndPermissionUuid(roleUuid, permissionUuid);
+            const rolePermission = await this.findByRoleAndPermissionId(roleId, permissionId);
 
-            if (!rolePermission || !rolePermission.roleUuid || !rolePermission.permissionUuid) {
+            if (!rolePermission || !rolePermission.roleId || !rolePermission.permissionId) {
                 return 0;
             }
 
-            return await sealDBModel.delete(ROLE_PERMISSIONS_DB, rolePermission.uuid.toString());
+            return await sealDBModel.delete(ROLE_PERMISSIONS_DB, rolePermission.rolePermissionId.toString());
         } catch (error) {
-            throw new Error(`Error deleting role permission by role and permission UUID: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            throw new Error(`Error deleting role permission by role and permission Id: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
     }
 

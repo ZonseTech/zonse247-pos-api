@@ -1,16 +1,7 @@
 import { SettingsModel } from "../models/settings.model";
 
 export class SettingsService {
-    static async checkAppSetup(): Promise<SetupParams> {
-        try {
-            return await SettingsModel.getAppSetup();
-        } catch (error) {
-            console.error('Error in app setup service - checkAppSetup:', error);
-            throw error;
-        }
-    }
-
-    static async getSettings(): Promise<WorkstatSettings> {
+    static async getSettings(): Promise<TerminalSettings> {
         try {
             return await SettingsModel.getSettingsGroup();
         } catch (error) {
@@ -19,36 +10,36 @@ export class SettingsService {
         }
     }
 
-    static async store(settingsData: CreateSettingRequest): Promise<WorkstatSettings> {
+    static async store(settingsData: CreateSettingRequest): Promise<TerminalSettings> {
         try {
-            return await SettingsModel.create(settingsData);
+            const settings = await SettingsModel.create(settingsData);
+
+            settings.tenantSignature = this.setTenantSignature(settings);
+
+            return settings;
         } catch (error) {
             console.error('Error in settings service - createOrUpdateSettings:', error);
             throw error;
         }
     }
 
-    static async updateSetupConfigurations(): Promise<boolean> {
-        try {
-            return await SettingsModel.updateSetup();
-        } catch (error) {
-            console.error('Error in settings service - createOrUpdateSettings:', error);
-            throw error;
-        }
+    private static setTenantSignature(settings: TerminalSettings): string {
+        const dataString = `${settings.tenantId}|${settings.branchId}|${settings.terminalId}|${settings.verificationToken}`;
+        return Buffer.from(dataString).toString('base64');
     }
 
     static async getSetting(
-        clientUuid: string,
-        shopUuid: string,
-        workstationUuid: string,
+        tenantId: string,
+        branchId: string,
+        terminalId: string,
         key: string
     ): Promise<Setting | null> {
         try {
-            if (!clientUuid || !shopUuid || !workstationUuid || !key) {
+            if (!tenantId || !branchId || !terminalId || !key) {
                 throw new Error('Client UUID, Shop UUID, Workstation UUID, and key are required');
             }
 
-            return await SettingsModel.findByKey(clientUuid, shopUuid, workstationUuid, key);
+            return await SettingsModel.findByKey(tenantId, branchId, terminalId, key);
         } catch (error) {
             console.error('Error in settings service - getSetting:', error);
             throw error;
@@ -82,17 +73,17 @@ export class SettingsService {
     }
 
     static async getSettingsByCategory(
-        clientUuid: string,
-        shopUuid: string,
-        workstationUuid: string,
+        tenantId: string,
+        branchId: string,
+        terminalId: string,
         category: string
     ): Promise<Setting[]> {
         try {
-            if (!clientUuid || !shopUuid || !workstationUuid || !category) {
+            if (!tenantId || !branchId || !terminalId || !category) {
                 throw new Error('Client UUID, Shop UUID, Workstation UUID, and category are required');
             }
 
-            return await SettingsModel.getSettingsByCategory(clientUuid, shopUuid, workstationUuid, category);
+            return await SettingsModel.getSettingsByCategory(tenantId, branchId, terminalId, category);
         } catch (error) {
             console.error('Error in settings service - getSettingsByCategory:', error);
             throw error;

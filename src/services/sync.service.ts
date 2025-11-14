@@ -3,6 +3,12 @@ import { sealDBModel } from '../databases/local';
 import tables from '../databases/local/tables';
 import { transformValue } from '../utils/data-sync-transfomer';
 
+interface SyncResult {
+	success: boolean;
+	recordCount: number;
+	errors: string[];
+	timestamp: string;
+}
 export class SyncService {
 	private syncInterval: NodeJS.Timeout | null = null;
 

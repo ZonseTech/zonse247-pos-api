@@ -7,11 +7,11 @@ export class EmailController extends BaseController {
     static async testEmail(req: Request, res: Response): Promise<void> {
         try {
             const testClient = {
-                companyName: 'Test Company',
+                businessName: 'Test Company',
+                tenantCode: 'Test Owner',
                 ownerName: 'Test Owner',
                 email: 'test@example.com',
-                clientUuid: 'test-uuid',
-                authKey: 'test-auth-key'
+                verificationToken: 'test-auth-key'
             };
 
             await EmailService.sendWelcomeEmail(testClient);

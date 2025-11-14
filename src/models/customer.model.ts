@@ -1,8 +1,21 @@
+import { mysqlPool } from '../config/db';
 import { sealDBModel } from '../databases/local';
 import { CUSTOMERS_DB } from '../databases/local/tables';
 
 export class CustomerModel {
     private static tableName = CUSTOMERS_DB;
+
+    static async findAllByRDBMS(conditions: ValidationParams): Promise<Role[]> {
+        try {
+            const connection = await mysqlPool.getConnection();
+            const [rows] = await connection.execute(`SELECT * FROM ${CUSTOMERS_DB} WHERE tenant_id=${conditions.tenantId}`);
+            const records = rows as any[];
+
+            return records
+        } catch (error) {
+            throw new Error(`Error finding roles: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+    }
 
     static async findById(id: string): Promise<Customer | null> {
         try {

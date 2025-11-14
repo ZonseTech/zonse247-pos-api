@@ -1,167 +1,195 @@
 import { v4 as uuidv4 } from 'uuid';
 import { sealDBModel } from '../databases/local';
-import { TABLE_NAMES } from '../databases/local/tables';
+import { SubscriptionPlanModel } from './subscription-plan.model';
+import { TENANT_SUBSCRIPTIONS_TABLE } from '../databases/local/tables';
+import { mysqlPool } from '../config/db';
 
 export class SubscriptionModel {
+	static async findAllByRDBMS(conditions: ValidationParams): Promise<Role[]> {
+		try {
+			const connection = await mysqlPool.getConnection();
+			const [rows] = await connection.execute(`SELECT * FROM ${TENANT_SUBSCRIPTIONS_TABLE} WHERE tenant_id=${conditions.tenantId}`);
+			const records = rows as any[];
 
-    static async findAll(): Promise<ClientSubscription[]> {
-        return sealDBModel.findAll(TABLE_NAMES.CLIENT_SUBSCRIPTIONS);
-    }
+			return records
+		} catch (error) {
+			throw new Error(`Error finding roles: ${error instanceof Error ? error.message : 'Unknown error'}`);
+		}
+	}
 
-    static async findByUuid(uuid: string): Promise<ClientSubscription | null> {
-        return sealDBModel.findById(TABLE_NAMES.CLIENT_SUBSCRIPTIONS, uuid);
-    }
+	static async findAll(): Promise<TenantSubscription[]> {
+		return sealDBModel.findAll(TENANT_SUBSCRIPTIONS_TABLE);
+	}
 
-    static async findByStatus(status: string): Promise<ClientSubscription[]> {
-        return sealDBModel.find(TABLE_NAMES.CLIENT_SUBSCRIPTIONS, { status });
-    }
+	static async findById(subscriptionId: string): Promise<TenantSubscription | null> {
+		return sealDBModel.findById(TENANT_SUBSCRIPTIONS_TABLE, { subscriptionId });
+	}
 
-    static async findByPlanId(planId: string): Promise<ClientSubscription[]> {
-        return sealDBModel.find(TABLE_NAMES.CLIENT_SUBSCRIPTIONS, { planId });
-    }
+	static async findByStatus(status: string): Promise<TenantSubscription[]> {
+		return sealDBModel.find(TENANT_SUBSCRIPTIONS_TABLE, { status });
+	}
 
-    static async update(uuid: string, data: Partial<ClientSubscription>): Promise<number> {
-        return sealDBModel.update(TABLE_NAMES.CLIENT_SUBSCRIPTIONS, uuid, data);
-    }
+	static async findByPlanId(planId: string): Promise<TenantSubscription[]> {
+		return sealDBModel.find(TENANT_SUBSCRIPTIONS_TABLE, { planId });
+	}
 
-    static async delete(uuid: string): Promise<number> {
-        return sealDBModel.delete(TABLE_NAMES.CLIENT_SUBSCRIPTIONS, uuid);
-    }
+	static async findByTenantId(tenantId: string): Promise<TenantSubscription[]> {
+		return sealDBModel.find(TENANT_SUBSCRIPTIONS_TABLE, { tenantId });
+	}
 
-    static async findExpiring(days: number): Promise<ClientSubscription[]> {
-        const allSubscriptions = await sealDBModel.findAll(TABLE_NAMES.CLIENT_SUBSCRIPTIONS);
-        const expirationDate = new Date();
-        expirationDate.setDate(expirationDate.getDate() + days);
+	static async findActiveByTenantId(tenantId: string): Promise<TenantSubscription | null> {
+		const subscriptions = await sealDBModel.find(TENANT_SUBSCRIPTIONS_TABLE, {
+			tenantId,
+			status: 'active'
+		});
+		return subscriptions.length > 0 ? subscriptions[0] : null;
+	}
 
-        return allSubscriptions.filter(subscription => {
-            if (!subscription.endsAt || subscription.status !== 'active') return false;
+	static async create(subscriptionData: Omit<TenantSubscription, 'id'>): Promise<TenantSubscription> {
+		const subscriptionWithId = {
+			...subscriptionData,
+			createdAt: new Date(),
+			updatedAt: new Date(),
+		};
 
-            const endDate = new Date(subscription.endsAt);
-            return endDate <= expirationDate && endDate > new Date();
-        });
-    }
+		return sealDBModel.insert(TENANT_SUBSCRIPTIONS_TABLE, subscriptionWithId);
+	}
 
-    static async getStats(): Promise<{
-        total: number;
-        active: number;
-        cancelled: number;
-        expired: number;
-        pastDue: number;
-        monthlyRevenue: number;
-        annualRevenue: number;
-    }> {
-        const now = new Date();
-        const allSubscriptions = await sealDBModel.findAll(TABLE_NAMES.CLIENT_SUBSCRIPTIONS);
+	static async update(subscriptionId: string, data: Partial<TenantSubscription>): Promise<number> {
+		const updateData = {
+			...data,
+			updated_at: new Date(),
+		};
 
-        const stats = {
-            total: allSubscriptions.length,
-            active: 0,
-            cancelled: 0,
-            expired: 0,
-            pastDue: 0,
-            monthlyRevenue: 0,
-            annualRevenue: 0
-        };
+		return sealDBModel.update(TENANT_SUBSCRIPTIONS_TABLE, { subscriptionId }, updateData);
+	}
 
-        const allPlans = await sealDBModel.findAll(TABLE_NAMES.SUBSCRIPTION_PLANS);
-        const plansMap = new Map(allPlans.map(plan => [plan.uuid, plan]));
+	static async delete(uuid: string): Promise<number> {
+		return sealDBModel.delete(TENANT_SUBSCRIPTIONS_TABLE, uuid);
+	}
 
-        for (const subscription of allSubscriptions) {
-            switch (subscription.status) {
-                case 'active':
-                    if (subscription.endsAt && new Date(subscription.endsAt) < now) {
-                        stats.expired++;
-                    } else {
-                        stats.active++;
+	static async count(conditions: any = {}): Promise<number> {
+		try {
+			return await sealDBModel.count(TENANT_SUBSCRIPTIONS_TABLE, conditions);
+		} catch (error) {
+			console.error('Error counting payment methods:', error);
+			throw error;
+		}
+	}
 
-                        const plan = plansMap.get(subscription.planId);
-                        if (plan) {
-                            if (plan.billingCycle === 'monthly') {
-                                stats.monthlyRevenue += plan.price || 0;
-                                stats.annualRevenue += (plan.price || 0) * 12;
-                            } else if (plan.billingCycle === 'yearly') {
-                                stats.annualRevenue += plan.price || 0;
-                                stats.monthlyRevenue += (plan.price || 0) / 12;
-                            }
-                        }
-                    }
-                    break;
-                case 'cancelled':
-                    stats.cancelled++;
-                    break;
-                case 'expired':
-                    stats.expired++;
-                    break;
-                case 'pastDue':
-                    stats.pastDue++;
-                    break;
-            }
-        }
+	static async findExpiring(days: number): Promise<TenantSubscription[]> {
+		const allSubscriptions = await this.findAll();
+		const expirationDate = new Date();
+		expirationDate.setDate(expirationDate.getDate() + days);
 
-        return stats;
-    }
+		return allSubscriptions.filter((subscription) => {
+			if (!subscription.endsAt || subscription.status !== 'active') return false;
 
-    static async findActivePlans(): Promise<SubscriptionPlan[]> {
-        return sealDBModel.find(TABLE_NAMES.SUBSCRIPTION_PLANS, { is_active: true });
-    }
+			const endDate = new Date(subscription.endsAt);
+			return endDate <= expirationDate && endDate > new Date();
+		});
+	}
 
-    static async findById(id: string): Promise<SubscriptionPlan | null> {
-        return sealDBModel.findById(TABLE_NAMES.SUBSCRIPTION_PLANS, id);
-    }
+	static async getStats(): Promise<{
+		total: number;
+		active: number;
+		cancelled: number;
+		expired: number;
+		pastDue: number;
+		monthlyRevenue: number;
+		annualRevenue: number;
+	}> {
+		const now = new Date();
+		const allSubscriptions = await this.findAll();
+		const allPlans = await SubscriptionPlanModel.findAll();
 
-    static async findActiveByClientUuid(clientUuid: string): Promise<ClientSubscription> {
-        return sealDBModel.findById(TABLE_NAMES.CLIENT_SUBSCRIPTIONS, { clientUuid, status: 'active' });
-    }
+		const plansMap = new Map(allPlans.map((plan) => [plan.planId, plan]));
 
-    static async findByClientUuid(clientUuid: string): Promise<ClientSubscription[]> {
-        return sealDBModel.find(TABLE_NAMES.CLIENT_SUBSCRIPTIONS, { clientUuid });
-    }
+		const stats = {
+			total: allSubscriptions.length,
+			active: 0,
+			cancelled: 0,
+			expired: 0,
+			pastDue: 0,
+			monthlyRevenue: 0,
+			annualRevenue: 0,
+		};
 
-    static async create(subscriptionData: Omit<ClientSubscription, 'uuid'>): Promise<ClientSubscription> {
-        return sealDBModel.insert(TABLE_NAMES.CLIENT_SUBSCRIPTIONS, subscriptionData);
-    }
+		for (const subscription of allSubscriptions) {
+			switch (subscription.status) {
+				case 'active':
+					if (subscription.endsAt && new Date(subscription.endsAt) < now) {
+						stats.expired++;
+					} else {
+						stats.active++;
+					}
+					break;
+				case 'cancelled':
+					stats.cancelled++;
+					break;
+				case 'expired':
+					stats.expired++;
+					break;
+				case 'past_due':
+					stats.pastDue++;
+					break;
+			}
+		}
 
-    static buildSubscriptionData(
-        clientUuid: string,
-        planId: string,
-        plan: SubscriptionPlan,
-        paymentMethod?: string,
-        autoRenew = true
-    ): Omit<ClientSubscription, 'id'> {
-        const now = new Date();
-        let endDate: Date | null = null;
-        let nextPaymentDate: Date | null = null;
+		return stats;
+	}
 
-        switch (plan.billingCycle) {
-            case 'monthly':
-                endDate = new Date(now.getTime() + (30 * 24 * 60 * 60 * 1000));
-                nextPaymentDate = new Date(endDate);
-                break;
-            case 'yearly':
-                endDate = new Date(now.getTime() + (365 * 24 * 60 * 60 * 1000));
-                nextPaymentDate = new Date(endDate);
-                break;
-            case 'lifetime':
-                endDate = null;
-                nextPaymentDate = null;
-                break;
-            default:
-                endDate = new Date(now.getTime() + (30 * 24 * 60 * 60 * 1000));
-                nextPaymentDate = new Date(endDate);
-        }
+	static buildSubscriptionData(
+		data: CreateSubscriptionRequest
+	): Omit<TenantSubscription, 'id'> {
+		const now = new Date();
+		let endDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+		let nextPaymentDate = new Date(endDate);
 
-        return {
-            uuid: uuidv4(),
-            clientUuid,
-            planId,
-            status: 'active',
-            startsAt: now.toISOString(),
-            endsAt: endDate ? endDate.toISOString() : undefined,
-            autoRenew,
-            maxShops: plan.maxShops || 1,
-            paymentMethod: paymentMethod || '',
-            lastPaymentDate: now.toISOString(),
-            nextPaymentDate: nextPaymentDate ? nextPaymentDate.toISOString() : undefined
-        };
-    }
+		if (data.billingCycle === 'monthly') {
+			endDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+			nextPaymentDate = new Date(endDate);
+		}
+
+		if (data.billingCycle === 'yearly') {
+			endDate = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000);
+			nextPaymentDate = new Date(endDate);
+		}
+
+		return {
+			...data,
+			status: 'active',
+			startsAt: now.toISOString(),
+			endsAt: endDate.toISOString() || undefined,
+			lastPaymentDate: now.toISOString(),
+			nextPaymentDate: nextPaymentDate.toISOString() || undefined,
+			maxBranches: 1,
+			subscriptionId: uuidv4(),
+		};
+	}
+
+	static async getSubscriptionsCountByPlan(): Promise<{ [planId: string]: number }> {
+		const allSubscriptions = await this.findAll();
+		const countByPlan: { [planId: string]: number } = {};
+
+		for (const subscription of allSubscriptions) {
+			countByPlan[subscription.planId] = (countByPlan[subscription.planId] || 0) + 1;
+		}
+
+		return countByPlan;
+	}
+
+	static async findRenewableSubscriptions(): Promise<TenantSubscription[]> {
+		const allSubscriptions = await this.findAll();
+		const now = new Date();
+		const renewalWindow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000); // 7 days from now
+
+		return allSubscriptions.filter(subscription =>
+			subscription.autoRenew &&
+			subscription.status === 'active' &&
+			subscription.endsAt &&
+			new Date(subscription.endsAt) <= renewalWindow &&
+			new Date(subscription.endsAt) > now
+		);
+	}
 }

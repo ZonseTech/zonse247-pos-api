@@ -10,10 +10,10 @@ interface EmailConfig {
 }
 
 interface WelcomeEmailData {
-    companyName: string;
+    businessName: string;
+    tenantCode: string;
     ownerName: string;
     email: string;
-    clientUuid: string;
-    authKey: string;
+    verificationToken: string;
     verificationUrl?: string;
 }

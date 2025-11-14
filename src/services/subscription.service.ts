@@ -1,286 +1,258 @@
-import { ClientService } from "./client.service";
-import { ClientModel } from "../models/client.model";
-import { SubscriptionModel } from "../models/subscription.model";
+import { TenantService } from './tenant.service';
+import { TenantModel } from '../models/tenant.model';
+import { SubscriptionModel } from '../models/subscription.model';
+import { SubscriptionPlanService } from './subscription-plan.service';
 
 export class SubscriptionService {
 
-    static async getAll(): Promise<ClientSubscription[]> {
-        const subscriptions = await SubscriptionModel.findAll()
+	static async selectAll(params): Promise<Array<Role>> {
+		return await SubscriptionModel.findAllByRDBMS(params);
+	}
 
-        const enhancedSubscriptions = await Promise.all(
-            subscriptions.map(async (subscription) => {
-                const client = await ClientModel.findById(subscription.clientUuid);
+	static async getAll(): Promise<Array<TenantSubscription>> {
+		const subscriptions = await SubscriptionModel.findAll();
 
-                return {
-                    ...subscription,
-                    clientDetails: {
-                        clientCode: client?.clientCode,
-                        companyName: client?.companyName,
-                        ownerName: client?.ownerName
-                    }
-                };
-            })
-        );
+		const enhancedSubscriptions = await Promise.all(
+			subscriptions.map(async (subscription) => {
+				const tenant = await TenantModel.findById(subscription.tenantId);
 
-        return enhancedSubscriptions
-    }
+				return {
+					...subscription,
+					tenantDetails: {
+						tenantCode: tenant?.tenantCode,
+						companyName: tenant?.businessName,
+						ownerName: tenant?.ownerName,
+					},
+				};
+			})
+		);
 
-    static async getById(id: string): Promise<ClientSubscription | null> {
-        return SubscriptionModel.findByUuid(id);
-    }
+		return enhancedSubscriptions;
+	}
 
-    static async create(data: Omit<ClientSubscription, 'uuid' | 'createdAt' | 'updatedAt'>): Promise<ClientSubscription> {
-        const validationError = ClientService.validateRequired(data, ['clientUuid', 'planId']);
-        if (validationError) {
-            throw new Error(validationError);
-        }
+	static async getById(id: string): Promise<TenantSubscription | null> {
+		return SubscriptionModel.findById(id);
+	}
 
-        const client = await ClientModel.findByClientUuid(data.clientUuid);
-        if (!client) {
-            throw new Error('Client not found');
-        }
+	static async create(
+		data: CreateSubscriptionRequest
+	): Promise<TenantSubscription> {
+		const validationError = TenantService.validateRequired(data, [
+			'tenantId',
+			'planId',
+		]);
+		if (validationError) {
+			throw new Error(validationError);
+		}
 
-        /* const plan = await SubscriptionModel.findById(data.planId);
-        if (!plan || !plan.isActive) {
-            throw new Error('Subscription plan not found or inactive');
-        } */
+		const tenant = await TenantModel.findById(data.tenantId);
+		if (!tenant) {
+			throw new Error('Tenant not found');
+		}
 
-        const existingSubscriptions = await SubscriptionModel.findActiveByClientUuid(data.clientUuid);
-        if (existingSubscriptions) {
-            throw new Error('Client already has an active subscription');
-        }
+		const plan = await SubscriptionPlanService.getById(data.planId);
+		if (!plan || !plan.isActive) {
+			throw new Error('Subscription plan not found or inactive');
+		}
 
-        const subscriptionData = {
-            ...data,
-            status: data.status || 'active',
-            startsAt: data.startsAt || new Date().toISOString(),
-            autoRenew: data.autoRenew !== undefined ? data.autoRenew : true
-        };
+		if (tenant.subscriptionPlan === data.planName) {
+			throw new Error('Tenant already subscribe to this plan.');
+		}
 
-        const newSubscription = await SubscriptionModel.create(subscriptionData);
+		const existingSubscription = await SubscriptionModel.findActiveByTenantId(data.tenantId);
 
-        await ClientModel.update(data.clientUuid, {
-            subscriptionStatus: 'active',
-            status: 'active',
-            activatedAt: new Date().toISOString()
-        });
+		if (existingSubscription.subscriptionId) {
+			await SubscriptionModel.update(existingSubscription.subscriptionId, {
+				status: 'cancelled',
+			})
+		}
 
-        return newSubscription;
-    }
+		const subscriptionData = SubscriptionModel.buildSubscriptionData(data);
+		const newSubscription = await SubscriptionModel.create(subscriptionData);
 
-    static async update(id: string, data: Partial<ClientSubscription>): Promise<ClientSubscription | null> {
-        const existingSubscription = await SubscriptionModel.findByUuid(id);
-        if (!existingSubscription) {
-            return null;
-        }
+		const now = new Date();
+		await TenantModel.update(data.tenantId, {
+			subscriptionPlan: plan.name,
+			subscriptionStatus: 'ACTIVE',
+			status: 'active',
+			activatedAt: now,
+		});
 
-        const numUpdated = await SubscriptionModel.update(id, data);
-        if (numUpdated === 0) {
-            return null;
-        }
+		return newSubscription;
+	}
 
-        return SubscriptionModel.findByUuid(id);
-    }
+	static async update(
+		id: string,
+		data: Partial<TenantSubscription>
+	): Promise<TenantSubscription | null> {
+		const existingSubscription = await SubscriptionModel.findById(id);
+		if (!existingSubscription) {
+			return null;
+		}
 
-    static async delete(id: string): Promise<boolean> {
-        const numDeleted = await SubscriptionModel.delete(id);
-        return numDeleted > 0;
-    }
+		const numUpdated = await SubscriptionModel.update(id, data);
+		if (numUpdated === 0) {
+			return null;
+		}
 
-    static async getByStatus(status: string): Promise<ClientSubscription[]> {
-        return SubscriptionModel.findByStatus(status);
-    }
+		return SubscriptionModel.findById(id);
+	}
 
-    static async getByClientUuid(clientUuid: string): Promise<ClientSubscription[]> {
-        return SubscriptionModel.findByClientUuid(clientUuid);
-    }
+	static async delete(id: string): Promise<boolean> {
+		const numDeleted = await SubscriptionModel.delete(id);
+		return numDeleted > 0;
+	}
 
-    static async getByPlanId(planId: string): Promise<ClientSubscription[]> {
-        return SubscriptionModel.findByPlanId(planId);
-    }
+	static async getByStatus(status: string): Promise<TenantSubscription[]> {
+		return SubscriptionModel.findByStatus(status);
+	}
 
-    static async cancel(id: string): Promise<ClientSubscription | null> {
-        const subscription = await SubscriptionModel.findByUuid(id);
-        if (!subscription) {
-            return null;
-        }
+	static async getByClientUuid(
+		clientUuid: string
+	): Promise<TenantSubscription[]> {
+		return SubscriptionModel.findByTenantId(clientUuid);
+	}
 
-        const cancelData = {
-            status: 'cancelled',
-            ends_at: new Date().toISOString(),
-            autoRenew: false,
-            cancelled_at: new Date().toISOString()
-        };
+	static async getByPlanId(planId: string): Promise<TenantSubscription[]> {
+		return SubscriptionModel.findByPlanId(planId);
+	}
 
-        await SubscriptionModel.update(id, cancelData as any);
+	static async cancel(id: string): Promise<TenantSubscription | null> {
+		const subscription = await SubscriptionModel.findById(id);
+		if (!subscription) {
+			return null;
+		}
 
-        await ClientModel.update(subscription.clientUuid, {
-            subscriptionStatus: 'cancelled'
-        });
+		const cancelData = {
+			status: 'cancelled',
+			ends_at: new Date().toISOString(),
+			autoRenew: false,
+			cancelled_at: new Date().toISOString(),
+		};
 
-        return SubscriptionModel.findByUuid(id);
-    }
+		await SubscriptionModel.update(id, cancelData as any);
 
-    static async reactivate(id: string): Promise<ClientSubscription | null> {
-        const subscription = await SubscriptionModel.findByUuid(id);
-        if (!subscription) {
-            return null;
-        }
+		await TenantModel.update(subscription.tenantId, {
+			subscriptionStatus: 'CANCELLED',
+		});
 
-        const plan = await SubscriptionModel.findById(subscription.planId);
-        if (!plan) {
-            throw new Error('Subscription plan not found');
-        }
+		return SubscriptionModel.findById(id);
+	}
 
-        const now = new Date();
-        let endDate: Date | null = null;
+	static async reactivate(id: string): Promise<TenantSubscription | null> {
+		const subscription = await SubscriptionModel.findById(id);
+		if (!subscription) {
+			return null;
+		}
 
-        switch (plan.billingCycle) {
-            case 'monthly':
-                endDate = new Date(now.getTime() + (30 * 24 * 60 * 60 * 1000));
-                break;
-            case 'yearly':
-                endDate = new Date(now.getTime() + (365 * 24 * 60 * 60 * 1000));
-                break;
-            case 'lifetime':
-                endDate = null;
-                break;
-            default:
-                endDate = new Date(now.getTime() + (30 * 24 * 60 * 60 * 1000));
-        }
+		const plan = await SubscriptionPlanService.getById(subscription.planId);
+		if (!plan) {
+			throw new Error('Subscription plan not found');
+		}
 
-        const reactivateData = {
-            status: 'active',
-            startsAt: now.toISOString(),
-            ends_at: endDate ? endDate.toISOString() : undefined,
-            autoRenew: true,
-            cancelled_at: undefined
-        };
+		const now = new Date();
+		let endDate: Date | null = null;
 
-        await SubscriptionModel.update(id, reactivateData as any);
+		if (plan.monthlyPrice) {
+			endDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+		}
 
-        await ClientModel.update(subscription.clientUuid, {
-            subscriptionStatus: 'active',
-            status: 'active'
-        });
+		if (plan.yearlyPrice) {
 
-        return SubscriptionModel.findByUuid(id);
-    }
+			endDate = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000);
+		}
 
-    static async processPayment(id: string, paymentData: { amount: number; paymentMethod: string }): Promise<ClientSubscription | null> {
-        const subscription = await SubscriptionModel.findByUuid(id);
-        if (!subscription) {
-            return null;
-        }
 
-        const now = new Date();
-        const paymentProcessData = {
-            last_payment_date: now.toISOString(),
-            paymentMethod: paymentData.paymentMethod,
-            status: 'active'
-        };
+		const reactivateData = {
+			status: 'active',
+			startsAt: now.toISOString(),
+			ends_at: endDate ? endDate.toISOString() : undefined,
+			autoRenew: true,
+			cancelled_at: undefined,
+		};
 
-        const plan = await SubscriptionModel.findById(subscription.planId);
-        if (plan) {
-            let nextPaymentDate: Date | null = null;
-            switch (plan.billingCycle) {
-                case 'monthly':
-                    nextPaymentDate = new Date(now.getTime() + (30 * 24 * 60 * 60 * 1000));
-                    break;
-                case 'yearly':
-                    nextPaymentDate = new Date(now.getTime() + (365 * 24 * 60 * 60 * 1000));
-                    break;
-                case 'lifetime':
-                    nextPaymentDate = null;
-                    break;
-            }
+		await SubscriptionModel.update(id, reactivateData as any);
 
-            if (nextPaymentDate) {
-                (paymentProcessData as any).next_payment_date = nextPaymentDate.toISOString();
-                (paymentProcessData as any).ends_at = nextPaymentDate.toISOString();
-            }
-        }
+		await TenantModel.update(subscription.tenantId, {
+			subscriptionStatus: 'ACTIVE',
+			status: 'active',
+		});
 
-        await SubscriptionModel.update(id, paymentProcessData as any);
-        return SubscriptionModel.findByUuid(id);
-    }
+		return SubscriptionModel.findById(id);
+	}
 
-    static async getExpiring(days: number = 30): Promise<ClientSubscription[]> {
-        return SubscriptionModel.findExpiring(days);
-    }
+	static async processPayment(
+		id: string,
+		paymentData: { amount: number; paymentMethod: string }
+	): Promise<TenantSubscription | null> {
+		const subscription = await SubscriptionModel.findById(id);
+		if (!subscription) {
+			return null;
+		}
 
-    static async bulkUpdate(ids: string[], updateData: Partial<ClientSubscription>): Promise<ClientSubscription[]> {
-        const updatedSubscriptions: ClientSubscription[] = [];
+		const now = new Date();
+		const paymentProcessData = {
+			last_payment_date: now.toISOString(),
+			paymentMethod: paymentData.paymentMethod,
+			status: 'active',
+		};
 
-        for (const id of ids) {
-            try {
-                await SubscriptionModel.update(id, updateData);
-                const updated = await SubscriptionModel.findByUuid(id);
-                if (updated) {
-                    updatedSubscriptions.push(updated);
-                }
-            } catch (error) {
-                console.error(`Error updating subscription ${id}:`, error);
-            }
-        }
+		const plan = await SubscriptionPlanService.getById(subscription.planId);
+		if (plan) {
+			let nextPaymentDate: Date | null = null;
+			if (plan.monthlyPrice) {
+				nextPaymentDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+			}
 
-        return updatedSubscriptions;
-    }
+			if (plan.yearlyPrice) {
 
-    static async getStats(): Promise<{
-        total: number;
-        active: number;
-        cancelled: number;
-        expired: number;
-        pastDue: number;
-        monthlyRevenue: number;
-        annualRevenue: number;
-    }> {
-        return SubscriptionModel.getStats();
-    }
+				nextPaymentDate = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000);
+			}
 
-    static async getActivePlans(): Promise<SubscriptionPlan[]> {
-        return SubscriptionModel.findActivePlans();
-    }
+			if (nextPaymentDate) {
+				(paymentProcessData as any).next_payment_date = nextPaymentDate.toISOString();
+				(paymentProcessData as any).ends_at = nextPaymentDate.toISOString();
+			}
+		}
 
-    static async createSubscription(data: CreateSubscriptionRequest): Promise<ClientSubscription> {
-        const validationError = ClientService.validateRequired(data, ['clientUuid', 'planId']);
-        if (validationError) {
-            throw new Error(validationError);
-        }
+		await SubscriptionModel.update(id, paymentProcessData as any);
+		return SubscriptionModel.findById(id);
+	}
 
-        const client = await ClientModel.findById(data.clientUuid);
-        if (!client) {
-            throw new Error('Client not found');
-        }
+	static async getExpiring(days: number = 30): Promise<TenantSubscription[]> {
+		return SubscriptionModel.findExpiring(days);
+	}
 
-        const plan = await SubscriptionModel.findById(data.planId);
-        if (!plan || !plan.isActive) {
-            throw new Error('Subscription plan not found or inactive');
-        }
+	static async bulkUpdate(
+		ids: string[],
+		updateData: Partial<TenantSubscription>
+	): Promise<TenantSubscription[]> {
+		const updatedSubscriptions: TenantSubscription[] = [];
 
-        const existingSubscriptions = await SubscriptionModel.findActiveByClientUuid(data.clientUuid);
-        if (existingSubscriptions) {
-            throw new Error('Client already has an active subscription');
-        }
+		for (const id of ids) {
+			try {
+				await SubscriptionModel.update(id, updateData);
+				const updated = await SubscriptionModel.findById(id);
+				if (updated) {
+					updatedSubscriptions.push(updated);
+				}
+			} catch (error) {
+				console.error(`Error updating subscription ${id}:`, error);
+			}
+		}
 
-        const subscriptionData = SubscriptionModel.buildSubscriptionData(
-            data.clientUuid,
-            data.planId,
-            plan,
-            data.paymentMethod,
-            data.autoRenew
-        );
+		return updatedSubscriptions;
+	}
 
-        const newSubscription = await SubscriptionModel.create(subscriptionData);
-
-        const now = new Date();
-        await ClientModel.update(data.clientUuid, {
-            subscriptionStatus: 'active',
-            status: 'active',
-            activatedAt: now.toISOString()
-        });
-
-        return newSubscription;
-    }
+	static async getStats(): Promise<{
+		total: number;
+		active: number;
+		cancelled: number;
+		expired: number;
+		pastDue: number;
+		monthlyRevenue: number;
+		annualRevenue: number;
+	}> {
+		return SubscriptionModel.getStats();
+	}
 }

@@ -2,7 +2,7 @@ import { base64Logo } from './base64-logo';
 
 export function generateTransactionHtml(
 	transaction: Transaction,
-	settings: WorkstatSettings
+	settings: TerminalSettings
 ): string {
 	return `
 		<!DOCTYPE html>

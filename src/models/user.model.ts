@@ -2,10 +2,24 @@ import { v4 as uuidv4 } from 'uuid';
 import bcrypt from 'bcryptjs';
 import { sealDBModel } from '../databases/local';
 import { USERS_DB } from '../databases/local/tables';
+import { mysqlPool } from '../config/db';
 
 const saltRounds = 10;
 
 export class UserModel {
+
+    static async findAllByRDBMS(conditions: ValidationParams): Promise<Array<User>> {
+        try {
+            const connection = await mysqlPool.getConnection();
+            const [rows] = await connection.execute(`SELECT * FROM ${USERS_DB} WHERE tenant_id=${conditions.tenantId}`);
+            const records = rows as any[];
+
+            return records
+        } catch (error) {
+            throw new Error(`Error finding roles: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+    }
+
     static async findAll(conditions: any = {}): Promise<User[]> {
         try {
             return await sealDBModel.find(USERS_DB, conditions);
@@ -49,7 +63,7 @@ export class UserModel {
         }
     }
 
-    static async findByRoleUuid(roleUuid: string): Promise<User[]> {
+    static async findByRoleId(roleUuid: string): Promise<User[]> {
         try {
             return await sealDBModel.find(USERS_DB, { roleUuid: roleUuid });
         } catch (error) {
@@ -57,15 +71,15 @@ export class UserModel {
         }
     }
 
-    static async findByClientUuid(clientUuid: string): Promise<User[]> {
+    static async findByTenantId(tenantId: string): Promise<User[]> {
         try {
-            return await sealDBModel.find(USERS_DB, { clientUuid: clientUuid });
+            return await sealDBModel.find(USERS_DB, { tenantId });
         } catch (error) {
             throw new Error(`Error finding users by client ID: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
     }
 
-    static async findByShopUuid(shopUuid: string): Promise<User[]> {
+    static async findByBranchId(shopUuid: string): Promise<User[]> {
         try {
             return await sealDBModel.find(USERS_DB, { shopUuid: shopUuid });
         } catch (error) {
@@ -73,9 +87,9 @@ export class UserModel {
         }
     }
 
-    static async findByCurrentShopUuid(currentShopUuid: string): Promise<User[]> {
+    static async findByCurrentTerminalId(currentTerminaId: string): Promise<User[]> {
         try {
-            return await sealDBModel.find(USERS_DB, { currentShopUuid: currentShopUuid });
+            return await sealDBModel.find(USERS_DB, { currentTerminaId: currentTerminaId });
         } catch (error) {
             throw new Error(`Error finding users by current shop ID: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
@@ -124,22 +138,22 @@ export class UserModel {
         const hashedPassword = await bcrypt.hash(data.password, saltRounds);
 
         return {
-            uuid: uuidv4(),
-            clientUuid: data.clientUuid || '',
-            shopUuid: data.shopUuid || '',
+            userId: uuidv4(),
+            tenantId: data.tenantId || '',
+            branchId: data.branchId || '',
             username: data.username,
             password: hashedPassword,
             fullname: data.fullname || '',
             email: data.email || null,
             phone: data.phone || null,
-            roleUuid: data.roleUuid,
+            roleId: data.roleId,
             status: data.status || 'active',
             accessibleShops: data.accessibleShops || null,
             allowedWorkstations: data.allowedWorkstations || null,
             maxDiscountPercent: data.maxDiscountPercent || 0,
             canOverridePrices: data.canOverridePrices || false,
             pinCode: data.pinCode || null,
-            currentShopUuid: data.currentShopUuid || null,
+            currentBranchId: data.currentBranchId || null,
             passwordChangedAt: now,
             forcePasswordChange: data.forcePasswordChange || false,
             createdAt: now,
@@ -167,7 +181,7 @@ export class UserModel {
                 updateDataWithTimestamp.passwordChangedAt = new Date();
             }
 
-            return await sealDBModel.update(USERS_DB, id, updateDataWithTimestamp);
+            return await sealDBModel.update(USERS_DB, { userId: id }, updateDataWithTimestamp);
         } catch (error) {
             throw new Error(`Error updating user: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
@@ -175,7 +189,7 @@ export class UserModel {
 
     static async updateLastLogin(id: string): Promise<number> {
         try {
-            return await sealDBModel.update(USERS_DB, id, {
+            return await sealDBModel.update(USERS_DB, { userId: id }, {
                 lastLogin: new Date(),
                 updatedAt: new Date()
             });
@@ -186,7 +200,7 @@ export class UserModel {
 
     static async updateLastLogout(id: string): Promise<number> {
         try {
-            return await sealDBModel.update(USERS_DB, id, {
+            return await sealDBModel.update(USERS_DB, { userId: id }, {
                 lastLogout: new Date(),
                 updatedAt: new Date()
             });
@@ -195,10 +209,10 @@ export class UserModel {
         }
     }
 
-    static async updateCurrentShop(id: string, currentShopUuid: string): Promise<number> {
+    static async updateCurrentShop(id: string, currentBranchId: string): Promise<number> {
         try {
-            return await sealDBModel.update(USERS_DB, id, {
-                currentShopUuid: currentShopUuid,
+            return await sealDBModel.update(USERS_DB, { userId: id }, {
+                currentBranchId: currentBranchId,
                 updatedAt: new Date()
             });
         } catch (error) {
@@ -208,7 +222,7 @@ export class UserModel {
 
     static async forcePasswordChange(id: string, force: boolean = true): Promise<number> {
         try {
-            return await sealDBModel.update(USERS_DB, id, {
+            return await sealDBModel.update(USERS_DB, { userId: id }, {
                 forcePasswordChange: force,
                 updatedAt: new Date()
             });
@@ -219,7 +233,7 @@ export class UserModel {
 
     static async updatePinCode(id: string, pinCode: string | null): Promise<number> {
         try {
-            return await sealDBModel.update(USERS_DB, id, {
+            return await sealDBModel.update(USERS_DB, { userId: id }, {
                 pinCode: pinCode,
                 updatedAt: new Date()
             });
@@ -230,7 +244,7 @@ export class UserModel {
 
     static async delete(id: string): Promise<number> {
         try {
-            return await sealDBModel.delete(USERS_DB, id);
+            return await sealDBModel.delete(USERS_DB, { userId: id });
         } catch (error) {
             throw new Error(`Error deleting user: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }

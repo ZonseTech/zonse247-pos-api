@@ -1,9 +1,14 @@
 import { PaymentServiceProviderModel } from "../models/payment-service-provider.model";
 
 export class PaymentServiceProviderService {
+
+    static async selectAll(params): Promise<Array<PaymentServiceProvider>> {
+        return await PaymentServiceProviderModel.findAllByRDBMS(params);
+    }
+
     static async getAllPaymentServiceProviders(filters: PaymentServiceProviderFilters): Promise<PaymentServiceProvider[]> {
         try {
-            return await PaymentServiceProviderModel.findByClientUuidAndShopUuid(filters.clientUuid, filters.shopUuid);
+            return await PaymentServiceProviderModel.findByTenantIdAndBranchId(filters.tenantId, filters.branchId);
         } catch (error) {
             console.error('Error fetching payment service providers:', error);
             throw new Error('Failed to fetch payment service providers');
@@ -18,9 +23,9 @@ export class PaymentServiceProviderService {
             const createRequest: CreatePaymentServiceProviderRequest = {
                 name: pspData.name,
                 logoUrl: pspData.logoUrl,
-                clientUuid: user.clientUuid,
-                shopUuid: user.shopUuid,
-                userUuid: user.userUuid,
+                tenantId: user.tenantId,
+                branchId: user.branchId,
+                userId: user.userId,
             };
 
             const validationErrors = PaymentServiceProviderModel.validateCreateRequest(createRequest);
@@ -28,14 +33,14 @@ export class PaymentServiceProviderService {
                 throw new Error(`Validation failed: ${validationErrors.join(', ')}`);
             }
 
-            const existingPSPs = await PaymentServiceProviderModel.findByClientUuidAndName(
-                user.clientUuid,
+            const existingPSPs = await PaymentServiceProviderModel.findByTenantIdAndName(
+                user.tenantId,
                 pspData.name.trim()
             );
 
-            const duplicateInShop = existingPSPs.find(psp => psp.shopUuid === user.shopUuid);
-            if (duplicateInShop) {
-                throw new Error('Payment service provider with this name already exists in the shop');
+            const duplicateInBranch = existingPSPs.find(psp => psp.branchId === user.branchId);
+            if (duplicateInBranch) {
+                throw new Error('Payment service provider with this name already exists in the branch');
             }
 
             const newPSP = PaymentServiceProviderModel.buildPaymentServiceProviderData(createRequest);
@@ -58,8 +63,8 @@ export class PaymentServiceProviderService {
             }
 
             const existingPSP = await this.getPaymentServiceProviderById(pspId, {
-                clientUuid: user.clientUuid,
-                shopUuid: user.shopUuid
+                tenantId: user.tenantId,
+                branchId: user.branchId
             });
 
             if (!existingPSP) {
@@ -67,16 +72,16 @@ export class PaymentServiceProviderService {
             }
 
             if (updateData.name && updateData.name.trim() !== existingPSP.name) {
-                const existingPSPs = await PaymentServiceProviderModel.findByClientUuidAndName(
-                    user.clientUuid,
+                const existingPSPs = await PaymentServiceProviderModel.findByTenantIdAndName(
+                    user.tenantId,
                     updateData.name.trim()
                 );
 
-                const duplicateInShop = existingPSPs.find(
-                    psp => psp.shopUuid === user.shopUuid && psp.uuid !== pspId
+                const duplicateInBranch = existingPSPs.find(
+                    psp => psp.branchId === user.branchId && psp.providerId !== pspId
                 );
-                if (duplicateInShop) {
-                    throw new Error('Payment service provider with this name already exists in the shop');
+                if (duplicateInBranch) {
+                    throw new Error('Payment service provider with this name already exists in the branch');
                 }
             }
 
@@ -96,8 +101,8 @@ export class PaymentServiceProviderService {
     ): Promise<void> {
         try {
             const existingPSP = await this.getPaymentServiceProviderById(pspId, {
-                clientUuid: user.clientUuid,
-                shopUuid: user.shopUuid
+                tenantId: user.tenantId,
+                branchId: user.branchId
             });
 
             if (!existingPSP) {
@@ -128,8 +133,8 @@ export class PaymentServiceProviderService {
             const psp = await PaymentServiceProviderModel.findById(pspId);
 
             if (!psp ||
-                psp.clientUuid !== filters.clientUuid ||
-                psp.shopUuid !== filters.shopUuid) {
+                psp.tenantId !== filters.tenantId ||
+                psp.branchId !== filters.branchId) {
                 return null;
             }
 
@@ -140,21 +145,21 @@ export class PaymentServiceProviderService {
         }
     }
 
-    static async getPaymentServiceProvidersByClient(clientUuid: string): Promise<PaymentServiceProvider[]> {
+    static async getPaymentServiceProvidersByTenant(tenantId: string): Promise<PaymentServiceProvider[]> {
         try {
-            return await PaymentServiceProviderModel.findByClientUuid(clientUuid);
+            return await PaymentServiceProviderModel.findByTenantId(tenantId);
         } catch (error) {
-            console.error('Error fetching payment service providers by client:', error);
-            throw new Error('Failed to fetch payment service providers by client');
+            console.error('Error fetching payment service providers by tenant:', error);
+            throw new Error('Failed to fetch payment service providers by tenant');
         }
     }
 
-    static async getPaymentServiceProvidersByShop(shopUuid: string): Promise<PaymentServiceProvider[]> {
+    static async getPaymentServiceProvidersByBranch(branchId: string): Promise<PaymentServiceProvider[]> {
         try {
-            return await PaymentServiceProviderModel.findByShopUuid(shopUuid);
+            return await PaymentServiceProviderModel.findByBranchId(branchId);
         } catch (error) {
-            console.error('Error fetching payment service providers by shop:', error);
-            throw new Error('Failed to fetch payment service providers by shop');
+            console.error('Error fetching payment service providers by branch:', error);
+            throw new Error('Failed to fetch payment service providers by branch');
         }
     }
 
@@ -163,9 +168,9 @@ export class PaymentServiceProviderService {
         filters: PaymentServiceProviderFilters
     ): Promise<PaymentServiceProvider[]> {
         try {
-            const allPSPs = await PaymentServiceProviderModel.findByClientUuidAndShopUuid(
-                filters.clientUuid,
-                filters.shopUuid
+            const allPSPs = await PaymentServiceProviderModel.findByTenantIdAndBranchId(
+                filters.tenantId,
+                filters.branchId
             );
 
             return allPSPs.filter(psp =>
@@ -177,9 +182,9 @@ export class PaymentServiceProviderService {
         }
     }
 
-    static async getUnsyncedPaymentServiceProviders(clientUuid: string): Promise<PaymentServiceProvider[]> {
+    static async getUnsyncedPaymentServiceProviders(tenantId: string): Promise<PaymentServiceProvider[]> {
         try {
-            return await PaymentServiceProviderModel.findUnsyncedByClient(clientUuid);
+            return await PaymentServiceProviderModel.findUnsyncedByTenant(tenantId);
         } catch (error) {
             console.error('Error fetching unsynced payment service providers:', error);
             throw new Error('Failed to fetch unsynced payment service providers');
@@ -189,8 +194,8 @@ export class PaymentServiceProviderService {
     static async markPaymentServiceProviderAsSynced(pspId: string, user: AuthenticatedUser): Promise<void> {
         try {
             const psp = await this.getPaymentServiceProviderById(pspId, {
-                clientUuid: user.clientUuid,
-                shopUuid: user.shopUuid
+                tenantId: user.tenantId,
+                branchId: user.branchId
             });
 
             if (!psp) {
@@ -210,8 +215,8 @@ export class PaymentServiceProviderService {
     static async markPaymentServiceProviderAsUnsynced(pspId: string, user: AuthenticatedUser): Promise<void> {
         try {
             const psp = await this.getPaymentServiceProviderById(pspId, {
-                clientUuid: user.clientUuid,
-                shopUuid: user.shopUuid
+                tenantId: user.tenantId,
+                branchId: user.branchId
             });
 
             if (!psp) {
@@ -260,8 +265,8 @@ export class PaymentServiceProviderService {
     ): Promise<boolean> {
         try {
             const psp = await this.getPaymentServiceProviderById(pspId, {
-                clientUuid: user.clientUuid,
-                shopUuid: user.shopUuid
+                tenantId: user.tenantId,
+                branchId: user.branchId
             });
             return psp !== null;
         } catch (error) {

@@ -1,8 +1,22 @@
 import { v4 as uuidv4 } from 'uuid';
 import { sealDBModel } from '../databases/local';
 import { CATEGORIES_DB } from '../databases/local/tables';
+import { mysqlPool } from '../config/db';
 
 export class CategoryModel {
+
+    static async findAllByRDBMS(conditions: ValidationParams): Promise<Array<Category>> {
+        try {
+            const connection = await mysqlPool.getConnection();
+            const [rows] = await connection.execute(`SELECT * FROM ${CATEGORIES_DB} WHERE tenant_id=${conditions.tenantId}`);
+            const records = rows as any[];
+
+            return records
+        } catch (error) {
+            throw new Error(`Error finding roles: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+    }
+
     static async findAll(conditions: any = {}): Promise<Category[]> {
         try {
             return await sealDBModel.find(CATEGORIES_DB, conditions);
@@ -19,30 +33,30 @@ export class CategoryModel {
         }
     }
 
-    static async findByClientUuid(clientUuid: string): Promise<Category[]> {
+    static async findByTenantId(tenantId: string): Promise<Category[]> {
         try {
-            return await sealDBModel.find(CATEGORIES_DB, { clientUuid: clientUuid });
+            return await sealDBModel.find(CATEGORIES_DB, { tenantId: tenantId });
         } catch (error) {
-            throw new Error(`Error finding categories by client ID: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            throw new Error(`Error finding categories by tenant ID: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
     }
 
-    static async findByShopUuid(shopUuid: string): Promise<Category[]> {
+    static async findByBranchId(branchId: string): Promise<Category[]> {
         try {
-            return await sealDBModel.find(CATEGORIES_DB, { shopUuid: shopUuid });
+            return await sealDBModel.find(CATEGORIES_DB, { branchId: branchId });
         } catch (error) {
-            throw new Error(`Error finding categories by shop ID: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            throw new Error(`Error finding categories by branch ID: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
     }
 
-    static async findByClientUuidAndShopUuid(clientUuid: string, shopUuid: string): Promise<Category[]> {
+    static async findByTenantIdAndBranchId(tenantId: string, branchId: string): Promise<Category[]> {
         try {
             return await sealDBModel.find(CATEGORIES_DB, {
-                clientUuid,
-                shopUuid
+                tenantId,
+                branchId
             });
         } catch (error) {
-            throw new Error(`Error finding categories by client ID and shop ID: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            throw new Error(`Error finding categories by tenant ID and branch ID: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
     }
 
@@ -54,14 +68,14 @@ export class CategoryModel {
         }
     }
 
-    static async findByClientUuidAndName(clientUuid: string, name: string): Promise<Category[]> {
+    static async findByTenantIdAndName(tenantId: string, name: string): Promise<Category[]> {
         try {
             return await sealDBModel.find(CATEGORIES_DB, {
-                clientUuid: clientUuid,
+                tenantId: tenantId,
                 name: name
             });
         } catch (error) {
-            throw new Error(`Error finding category by client ID and name: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            throw new Error(`Error finding category by tenant ID and name: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
     }
 
@@ -89,14 +103,14 @@ export class CategoryModel {
         }
     }
 
-    static async findUnsyncedByClient(clientUuid: string): Promise<Category[]> {
+    static async findUnsyncedByTenant(tenantId: string): Promise<Category[]> {
         try {
             return await sealDBModel.find(CATEGORIES_DB, {
-                clientUuid: clientUuid,
+                tenantId: tenantId,
                 synced: 0
             });
         } catch (error) {
-            throw new Error(`Error finding unsynced categories by client: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            throw new Error(`Error finding unsynced categories by tenant: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
     }
 
@@ -115,13 +129,13 @@ export class CategoryModel {
     static buildCategoryData(data: CreateCategoryRequest): Category {
         const now = new Date();
         return {
-            uuid: uuidv4(),
+            categoryId: uuidv4(),
             name: data.name,
             description: data.description,
             color: data.color,
-            clientUuid: data.clientUuid,
-            shopUuid: data.shopUuid,
-            userUuid: data.userUuid,
+            tenantId: data.tenantId,
+            branchId: data.branchId,
+            userId: data.userId,
             createdAt: now,
             updatedAt: now,
             synced: 0
@@ -221,15 +235,15 @@ export class CategoryModel {
             errors.push('Category color must be a valid hex color code (e.g., #FF0000 or #F00)');
         }
 
-        if (!data.clientUuid || data.clientUuid.trim().length === 0) {
-            errors.push('Client ID is required');
+        if (!data.tenantId || data.tenantId.trim().length === 0) {
+            errors.push('Tenant ID is required');
         }
 
-        if (!data.shopUuid || data.shopUuid.trim().length === 0) {
-            errors.push('Shop ID is required');
+        if (!data.branchId || data.branchId.trim().length === 0) {
+            errors.push('Branch ID is required');
         }
 
-        if (!data.userUuid || data.userUuid.trim().length === 0) {
+        if (!data.userId || data.userId.trim().length === 0) {
             errors.push('User ID is required');
         }
 

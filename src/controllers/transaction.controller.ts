@@ -44,9 +44,9 @@ export class TransactionController extends BaseController {
     static async create(req: Request, res: Response): Promise<void> {
         try {
             const newTransaction = await TransactionService.createTransaction(req.body, {
-                clientUuid: req.auth.clientUuid,
-                shopUuid: req.auth.shopUuid,
-                userUuid: req.auth.uuid,
+                tenantId: req.auth.tenantId,
+                branchId: req.auth.branchId,
+                userId: req.auth.userId,
             });
             BaseController.sendResponse(res, 201, true, 'Transaction created successfully', newTransaction);
         } catch (error: any) {

@@ -1,9 +1,9 @@
 interface Customer {
-    uuid: string;
+    customerId: string;
     name: string;
-    clientUuid?: string;
-    shopUuid?: string;
-    userUuid?: string;
+    tenantId: string;
+    branchId: string;
+    userId: string;
     phone?: string;
     email?: string;
     address?: string;
@@ -15,6 +15,9 @@ interface CreateCustomerData {
     email?: string;
     phone?: string;
     address?: string;
+    tenantId: string;
+    branchId: string;
+    userId: string;
 }
 
 interface UpdateCustomerData {

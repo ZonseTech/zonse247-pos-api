@@ -7,7 +7,7 @@ import { CustomerModel } from '../models/customer.model';
 import { OrderModel } from '../models/order.model';
 import { OrderService } from './order.service';
 import { PaymentServiceProviderModel } from '../models/payment-service-provider.model';
-import { WorkstationModel } from '../models/work-station.model';
+import { TerminalModel } from '../models/terminal.model';
 import { CategoryModel } from '../models/category.model';
 
 export class TransactionService {
@@ -150,9 +150,9 @@ export class TransactionService {
     ): Promise<Transaction> {
         const promises = [];
 
-        if (transaction.customerUuid) {
+        if (transaction.customerId) {
             promises.push(
-                CustomerModel.findById(transaction.customerUuid)
+                CustomerModel.findById(transaction.customerId)
                     .then(customer => ({ customer }))
                     .catch(() => ({ customer: null }))
             );
@@ -160,9 +160,9 @@ export class TransactionService {
             promises.push(Promise.resolve({ customer: null }));
         }
 
-        if (transaction.tillUuid) {
+        if (transaction.terminalId) {
             promises.push(
-                WorkstationModel.findById(transaction.tillUuid)
+                TerminalModel.findById(transaction.terminalId)
                     .then(workstation => ({ workstation }))
                     .catch(() => ({ workstation: null }))
             );
@@ -170,9 +170,9 @@ export class TransactionService {
             promises.push(Promise.resolve({ workstation: null }));
         }
 
-        if (transaction.paymentMethodUuid) {
+        if (transaction.paymentMethodId) {
             promises.push(
-                PaymentMethodModel.findById(transaction.paymentMethodUuid)
+                PaymentMethodModel.findById(transaction.paymentMethodId)
                     .then(paymentMethod => ({ paymentMethod }))
                     .catch(() => ({ paymentMethod: null }))
             );
@@ -180,9 +180,9 @@ export class TransactionService {
             promises.push(Promise.resolve({ paymentMethod: null }));
         }
 
-        if (transaction.paymentServiceProviderUuid) {
+        if (transaction.paymentServiceProviderId) {
             promises.push(
-                PaymentServiceProviderModel.findById(transaction.paymentServiceProviderUuid)
+                PaymentServiceProviderModel.findById(transaction.paymentServiceProviderId)
                     .then(paymentServiceProvider => ({ paymentServiceProvider }))
                     .catch(() => ({ paymentServiceProvider: null }))
             );
@@ -190,9 +190,9 @@ export class TransactionService {
             promises.push(Promise.resolve({ paymentServiceProvider: null }));
         }
 
-        if (transaction.userUuid) {
+        if (transaction.userId) {
             promises.push(
-                UserModel.findById(transaction.userUuid)
+                UserModel.findById(transaction.userId)
                     .then(user => ({ user }))
                     .catch(() => ({ user: null }))
             );
@@ -201,16 +201,16 @@ export class TransactionService {
         }
 
 
-        if (includeItems && transaction.uuid) {
+        if (includeItems && transaction.transactionId) {
             promises.push(
                 OrderModel.findByTransactionRefNumber(transaction.refNumber)
                     .then(async (orderItems) => {
                         const itemsWithProducts = await Promise.all(
                             orderItems.map(async (item) => {
                                 try {
-                                    const product = await InventoryModel.findByUuid(item.productUuid);
+                                    const product = await InventoryModel.findByUuid(item.productId);
 
-                                    product.categoryDetails = await CategoryModel.findById(product.categoryUuid)
+                                    product.categoryDetails = await CategoryModel.findById(product.categoryId)
 
                                     return {
                                         ...item,
@@ -254,35 +254,34 @@ export class TransactionService {
         ];
 
         if (filters.user && filters.user !== 0) {
-            baseQuery.push({ userUuid: filters.user });
+            baseQuery.push({ userId: filters.user });
         }
         if (filters.till && filters.till !== 0) {
-            baseQuery.push({ tillUuid: filters.till });
+            baseQuery.push({ terminalId: filters.till });
         }
 
         return { $and: baseQuery };
     }
 
-    private static buildTransactionData(data: any, transactionUuid: string): Transaction {
+    private static buildTransactionData(data: any, transactionId: string): Transaction {
         return {
-            uuid: transactionUuid,
+            transactionId,
             refNumber: data.refNumber || 'TRX-' + Date.now(),
             discount: data.discount || 0,
-            customerUuid: data.customerUuid || null,
+            customerId: data.customerId || null,
             subtotal: data.subtotal || 0,
             tax: data.tax || 0,
             date: data.date || new Date().toISOString(),
-            paymentMethodUuid: data.paymentMethodUuid || null,
-            transactionId: data.transactionId || null,
+            paymentMethodId: data.paymentMethodId || null,
             phoneNumber: data.phoneNumber || '',
-            paymentServiceProviderUuid: data.paymentServiceProviderUuid || null,
+            paymentServiceProviderId: data.paymentServiceProviderId || null,
             total: data.total || 0,
             paid: data.paid || 0,
             changeAmount: data.changeAmount || 0,
-            tillUuid: data.tillUuid || null,
-            userUuid: data.userUuid || null,
-            clientUuid: data.clientUuid || null,
-            shopUuid: data.shopUuid || null,
+            terminalId: data.terminalId || null,
+            userId: data.userId || null,
+            tenantId: data.tenantId || null,
+            branchId: data.branchId || null,
             status: data.status || 'completed',
         };
     }

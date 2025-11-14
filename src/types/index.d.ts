@@ -1,6 +1,6 @@
 interface Till {
 	id: number;
-	uuid: string;
+	userId: string;
 	name: string;
 }
 

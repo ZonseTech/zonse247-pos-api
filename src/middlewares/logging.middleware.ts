@@ -8,7 +8,7 @@ declare module 'express' {
 }
 
 morgan.token('user', (req: Request) => {
-	return req.auth ? `User:${req.auth?.username}(${req?.auth?.uuid})` : 'Anonymous';
+	return req.auth ? `User:${req.auth?.username}(${req?.auth?.userId})` : 'Anonymous';
 });
 
 morgan.token('request-id', (req: Request) => {
@@ -128,7 +128,7 @@ export const apiAnalytics = (
 			endpoint: req.route?.path || req.url,
 			method: req.method,
 			statusCode: res.statusCode,
-			userId: req.auth?.uuid || null,
+			userId: req.auth?.userId || null,
 			userAgent: req.get('User-Agent'),
 			ip: req.ip,
 			responseSize: JSON.stringify(data).length,

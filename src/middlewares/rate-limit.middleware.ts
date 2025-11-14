@@ -68,7 +68,7 @@ export const createUserSpecificLimiter = (
 		standardHeaders: true,
 		legacyHeaders: false,
 		keyGenerator: (req: Request) => {
-			return req.auth?.uuid || req.ip;
+			return req.auth?.userId || req.ip;
 		},
 	});
 };

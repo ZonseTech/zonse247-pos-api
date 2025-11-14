@@ -3,6 +3,17 @@ import { BaseController } from './base.controller';
 import { CategoryService } from '../services/category.service';
 
 export class CategoryController extends BaseController {
+    static async selectAll(req: Request, res: Response): Promise<void> {
+        try {
+            const params = req.body;
+            const categories = await CategoryService.selectAll(params);
+            BaseController.sendResponse(res, 200, true, 'Categories retrieved successfully', categories);
+        } catch (error: any) {
+            console.error('Error fetching roles:', error);
+            BaseController.sendResponse(res, 500, false, error.message, undefined, error.message);
+        }
+    }
+
     static getWelcome = (req: Request, res: Response): void => {
         CategoryController.sendResponse(res, 200, true, 'Category API');
     };
@@ -10,8 +21,8 @@ export class CategoryController extends BaseController {
     static getAllCategories = async (req: Request, res: Response): Promise<void> => {
         try {
             const categories = await CategoryService.getAllCategories({
-                clientUuid: req.auth.clientUuid,
-                shopUuid: req.auth.shopUuid
+                tenantId: req.auth.tenantId,
+                branchId: req.auth.branchId
             });
 
             CategoryController.sendResponse(res, 200, true, 'Categories fetched successfully', categories);
@@ -38,9 +49,9 @@ export class CategoryController extends BaseController {
             const newCategory = await CategoryService.createCategory(
                 categoryData,
                 {
-                    userUuid: req.auth.uuid,
-                    clientUuid: req.auth.clientUuid,
-                    shopUuid: req.auth.shopUuid,
+                    userId: req.auth.userId,
+                    tenantId: req.auth.tenantId,
+                    branchId: req.auth.branchId,
                 }
             );
 
@@ -79,9 +90,9 @@ export class CategoryController extends BaseController {
                 categoryId,
                 updateData,
                 {
-                    userUuid: req.auth.uuid,
-                    clientUuid: req.auth.clientUuid,
-                    shopUuid: req.auth.shopUuid,
+                    userId: req.auth.userId,
+                    tenantId: req.auth.tenantId,
+                    branchId: req.auth.branchId,
                 }
             );
 
@@ -108,9 +119,9 @@ export class CategoryController extends BaseController {
             }
 
             await CategoryService.deleteCategory(categoryId, {
-                userUuid: req.auth.uuid,
-                clientUuid: req.auth.clientUuid,
-                shopUuid: req.auth.shopUuid,
+                userId: req.auth.userId,
+                tenantId: req.auth.tenantId,
+                branchId: req.auth.branchId,
             });
 
             CategoryController.sendResponse(res, 200, true, 'Category deleted successfully');

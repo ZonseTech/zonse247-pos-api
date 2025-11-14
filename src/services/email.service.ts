@@ -33,9 +33,9 @@ export class EmailService {
 
     static generateWelcomeEmailTemplate(data: WelcomeEmailData): { subject: string; html: string; text: string } {
         const baseUrl = process.env.CLIENT_PORTAL_URL || 'https://pos.zonse247.com';
-        const verificationUrl = data.verificationUrl || `${baseUrl}/verify?clientId=${data.clientUuid}&authKey=${data.authKey}`;
+        const verificationUrl = data.verificationUrl || `${baseUrl}/verify?clientId=${data.tenantCode}&verificationToken=${data.verificationToken}`;
 
-        const subject = `Welcome to Our Platform, ${data.companyName}!`;
+        const subject = `Welcome to Our Platform, ${data.businessName}!`;
 
         const html = `
             <!DOCTYPE html>
@@ -53,13 +53,13 @@ export class EmailService {
                     <div style="background: #f8f9fa; padding: 30px; border-radius: 0 0 10px 10px; border: 1px solid #e9ecef;">
                         <h2 style="color: #333; margin-top: 0;">Hello ${data.ownerName},</h2>
                         
-                        <p>Thank you for registering <strong>${data.companyName}</strong> with our platform! We're excited to have you on board.</p>
+                        <p>Thank you for registering <strong>${data.businessName}</strong> with our platform! We're excited to have you on board.</p>
                     
                         <div style="background: white; padding: 20px; border-radius: 8px; border-left: 4px solid #667eea; margin: 20px 0;">
                             <h3 style="margin-top: 0; color: #667eea;">Your Account Details:</h3>
-                            <p><strong>Company:</strong> ${data.companyName}</p>
-                            <p><strong>Client ID:</strong> ${data.clientUuid}</p>
-                            <p><strong>Authentication Key:</strong> ${data.authKey}</p>
+                            <p><strong>Company:</strong> ${data.businessName}</p>
+                            <p><strong>Client ID:</strong> ${data.tenantCode}</p>
+                            <p><strong>Authentication Key:</strong> ${data.verificationToken}</p>
                         </div>
                         
                         <p>To complete your registration and activate your account, please click the button below:</p>
@@ -109,12 +109,12 @@ export class EmailService {
 
             Hello ${data.ownerName},
 
-            Thank you for registering ${data.companyName} with our platform! We're excited to have you on board.
+            Thank you for registering ${data.businessName} with our platform! We're excited to have you on board.
 
             Your Account Details:
-            - Company: ${data.companyName}
+            - Company: ${data.businessName}
             - Email: ${data.email}
-            - Client ID: ${data.clientUuid}
+            - Client ID: ${data.tenantCode}
 
             To complete your registration and activate your account, please visit:
             ${verificationUrl}
@@ -159,7 +159,7 @@ export class EmailService {
             console.log('Welcome email sent successfully:', {
                 messageId: result.messageId,
                 to: clientData.email,
-                company: clientData.companyName
+                company: clientData.businessName
             });
 
             return true;

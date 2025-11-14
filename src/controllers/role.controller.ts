@@ -4,6 +4,17 @@ import { RoleService } from "../services/role.service";
 
 export class RoleController extends BaseController {
 
+    static async selectAll(req: Request, res: Response): Promise<void> {
+        try {
+            const params = req.body;
+            const roles = await RoleService.selectAll(params);
+            BaseController.sendResponse(res, 200, true, 'Roles retrieved successfully', roles);
+        } catch (error: any) {
+            console.error('Error fetching roles:', error);
+            BaseController.sendResponse(res, 500, false, error.message, undefined, error.message);
+        }
+    }
+
     static async list(req: Request, res: Response): Promise<void> {
         try {
             const query = req.query;

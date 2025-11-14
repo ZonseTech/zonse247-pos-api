@@ -1,7 +1,7 @@
 interface Role {
-    uuid: string;
-    clientUuid: string;
-    shopUuid?: string | null;
+    roleId: string;
+    tenantId: string;
+    branchId?: string | null;
     name: string;
     displayName: string;
     description?: string | null;
@@ -12,7 +12,7 @@ interface Role {
 }
 
 interface Permission {
-    uuid: string;
+    permissionId: string;
     name: string;
     displayName: string;
     description?: string | null;
@@ -28,15 +28,15 @@ interface PermissionCategory { }
 interface PermissionScope { }
 
 interface RolePermission {
-    uuid: string;
-    roleUuid: string;
-    permissionUuid: string;
+    rolePermissionId: string;
+    roleId: string;
+    permissionId: string;
     createdAt?: Date;
 }
 
 interface CreateRoleRequest {
-    clientUuid: string;
-    shopUuid?: string | null;
+    tenantId: string;
+    branchId?: string | null;
     name: string;
     displayName: string;
     description?: string | null;
@@ -45,8 +45,8 @@ interface CreateRoleRequest {
 }
 
 interface CreateRolePermissionRequest {
-    roleUuid: string;
-    permissionUuid: string;
+    roleId: string;
+    permissionId: string;
 }
 
 interface CreatePermissionRequest {
@@ -55,45 +55,13 @@ interface CreatePermissionRequest {
 }
 
 interface BulkRolePermissionRequest {
-    roleUuid: string;
-    permissionUuids: Array<string>
-}
-
-interface Role {
-    uuid: string;
-    clientUuid: string;
-    shopUuid?: string | null;
-    name: string;
-    displayName: string;
-    description?: string | null;
-    isSystemRole?: boolean;
-    isActive?: boolean;
-    createdAt?: Date;
-    updatedAt?: Date;
-}
-
-interface Permission {
-    uuid: string;
-    name: string;
-    displayName: string;
-    description?: string | null;
-    category: string;
-    scope?: PermissionScope;
-    isSystemPermission?: boolean;
-    createdAt?: Date;
-    updatedAt?: Date;
-}
-
-interface RolePermission {
-    uuid: string;
-    roleUuid: string;
-    permissionUuid: string;
-    createdAt?: Date;
+    roleId: string;
+    permissionIds: Array<string>
 }
 
 interface CreateRoleRequest {
-    clientUuid: string;
-    shopUuid?: string | null;
+    tenantId: string;
+    branchId?: string | null;
     name: string;
     displayName: string;
     description?: string | null;
@@ -102,11 +70,6 @@ interface CreateRoleRequest {
 
 interface UpdateRoleRequest extends Partial<CreateRoleRequest> {
     uuid: string;
-}
-
-interface CreateRolePermissionRequest {
-    roleUuid: string;
-    permissionUuid: string;
 }
 
 interface CreatePermissionRequest {
@@ -122,8 +85,8 @@ interface UpdatePermissionRequest extends Partial<CreatePermissionRequest> {
 }
 
 interface BulkRolePermissionRequest {
-    roleUuid: string;
-    permissionUuids: Array<string>;
+    roleId: string;
+    permissionIds: Array<string>;
 }
 
 interface FilterState {
@@ -165,7 +128,7 @@ interface PermissionTabProps {
 interface AssignmentTabProps {
     roles: Role[];
     permissions: Permission[];
-    onBulkAssign: (roleUuid: string, permissionUuids: string[]) => void;
+    onBulkAssign: (roleId: string, permissionIds: string[]) => void;
 }
 
 interface RoleModalProps {
@@ -186,7 +149,7 @@ interface AssignPermissionsModalProps {
     role: Role;
     permissions: Permission[];
     currentPermissions: Permission[];
-    onAssign: (permissionUuids: string[]) => void;
+    onAssign: (permissionIds: string[]) => void;
     onClose: () => void;
 }
 

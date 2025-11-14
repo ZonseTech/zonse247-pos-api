@@ -1,18 +1,19 @@
 interface Product {
-    uuid: string;
+    productId: string;
     barcode: number | string;
     expirationDate?: string;
     createdAt?: string;
-    clientUuid?: string;
-    shopUuid?: string;
-    userUuid?: string;
+    tenantId?: string;
+    branchId?: string;
+    userId?: string;
     updatedAt?: string;
     costPrice?: string;
     description?: string;
     sellPrice?: string;
     promoPrice?: string;
     customPrice?: string;
-    categoryUuid?: string;
+    discount?: number;
+    categoryId?: string;
     quantity?: string | number;
     orderItems?: number;
     originalQuantity?: number;

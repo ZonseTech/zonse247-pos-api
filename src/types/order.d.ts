@@ -1,8 +1,8 @@
 interface OrderItem {
-    uuid: string;
+    itemId: string;
     refNumber?: string;
-    transactionUuid: string;
-    productUuid: string;
+    transactionId: string;
+    productId: string;
     quantity: number;
     purchasePrice: number;
     sellPrice: number;
@@ -22,7 +22,7 @@ interface OrderSummary {
 }
 
 interface HoldOrder {
-    uuid: string;
+    itemId: string;
     reference: string;
     items: Array<CartItem>;
     total: number;
@@ -35,10 +35,11 @@ interface HoldOrder {
 
 interface CartItem {
     barcode: number | string;
-    productUuid: string;
+    productId: string;
     name: string;
-    categoryUuid: string;
+    categoryId: string;
     sellPrice: number;
+    discount: number;
     purchasePrice: number;
     variancePrice?: number;
     quantity: number;

@@ -1,8 +1,21 @@
+import { mysqlPool } from '../config/db';
 import { sealDBModel } from '../databases/local';
 import { PAYMENT_METHODS_DB } from '../databases/local/tables';
 
 export class PaymentMethodModel {
     private static tableName = PAYMENT_METHODS_DB;
+
+    static async findAllByRDBMS(conditions: ValidationParams): Promise<Array<PaymentMethod>> {
+        try {
+            const connection = await mysqlPool.getConnection();
+            const [rows] = await connection.execute(`SELECT * FROM ${this.tableName} WHERE tenant_id=${conditions.tenantId}`);
+            const records = rows as any[];
+
+            return records
+        } catch (error) {
+            throw new Error(`Error finding roles: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+    }
 
     static async findAll(): Promise<PaymentMethod[]> {
         try {
@@ -31,7 +44,7 @@ export class PaymentMethodModel {
         }
     }
 
-    static async create(data: Omit<PaymentMethod, 'uuid' | 'createdAt' | 'updatedAt' | 'synced'>): Promise<PaymentMethod> {
+    static async create(data: Omit<PaymentMethod, 'methodId' | 'createdAt' | 'updatedAt' | 'synced'>): Promise<PaymentMethod> {
         try {
             return await sealDBModel.insert(this.tableName, data);
         } catch (error) {

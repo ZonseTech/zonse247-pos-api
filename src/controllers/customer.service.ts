@@ -4,6 +4,17 @@ import { CustomerService } from '../services/customer.service';
 
 export class CustomerController extends BaseController {
 
+    static async selectAll(req: Request, res: Response): Promise<void> {
+        try {
+            const params = req.body;
+            const customers = await CustomerService.selectAll(params);
+            BaseController.sendResponse(res, 200, true, 'Customers retrieved successfully', customers);
+        } catch (error: any) {
+            console.error('Error fetching roles:', error);
+            BaseController.sendResponse(res, 500, false, error.message, undefined, error.message);
+        }
+    }
+
     static async getById(req: Request, res: Response): Promise<void> {
         try {
             const { customerId } = req.params;

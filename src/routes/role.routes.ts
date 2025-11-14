@@ -1,12 +1,9 @@
-import { Request, Response, Router } from 'express';
+import { Router } from 'express';
 import { RoleController } from '../controllers/role.controller';
 
 const router = Router();
 
-router.get('/', function (req: Request, res: Response): void {
-    res.send('Role API');
-});
-
+router.get('/', RoleController.list);
 router.get('/all', RoleController.list);
 router.post('/post', RoleController.create);
 router.put('/update/:id', RoleController.update);

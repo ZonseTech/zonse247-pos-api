@@ -1,39 +1,25 @@
-interface SubscriptionPlan {
-    uuid: string;
-    name: string;
-    description?: string;
-    price: number;
-    billingCycle: 'monthly' | 'yearly' | 'lifetime';
-    maxShops: number;
-    maxUsersPerShop: number;
-    maxProducts: number;
-    maxTransactionsPerMonth: number;
-    features?: Record<string, any>;
-    isActive: boolean;
-    createdAt?: string;
-    updatedAt?: string;
+interface TerminalVerificationParams {
+    verificationToken: string;
+    os: string;
+    hostname: string;
+    macAddress: string;
 }
 
-interface VerifyClientRequest {
-    clientUuid: string;
-    authKey: string;
-}
-
-interface ApiResponse<T = any> {
-    success: boolean;
-    data?: T;
-    message: string;
-    error?: string;
+type ValidationParams = {
+    tenantId: string;
+    branchId: string;
+    terminalId: string;
+    verificationKey: string;
 }
 
 interface OnboardingStatus {
-    client: Omit<Client, 'authKey'>;
+    tenant: Omit<Tenant, 'verificationToken'>;
     subscription: any;
     shops: any[];
     workstations: any[];
     onboarding: {
         steps: {
-            clientRegistered: boolean;
+            tenantRegistered: boolean;
             subscriptionActive: boolean;
             shopCreated: boolean;
             workstationSetup: boolean;

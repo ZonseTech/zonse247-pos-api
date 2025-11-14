@@ -3,6 +3,7 @@ import { InventoryController } from '../controllers/inventory.controller';
 
 const router = Router();
 
+router.get('/summary', InventoryController.getSummary);
 router.get('/', InventoryController.getProducts);
 router.post('/product', InventoryController.createProduct);
 router.post('/product/sku', InventoryController.findProductBySku);

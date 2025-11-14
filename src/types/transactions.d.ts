@@ -1,18 +1,17 @@
 type Transaction = {
-    uuid: string;
     refNumber?: string;
     discount: number;
     subtotal: number;
     tax: number;
     date: string;
-    tillUuid: string;
-    clientUuid?: string;
-    shopUuid?: string;
-    customerUuid?: string;
-    paymentServiceProviderUuid?: string;
+    userId: string;
+    tenantId?: string;
+    branchId?: string;
+    customerId?: string;
+    paymentServiceProviderId?: string;
     transactionId?: string;
-    paymentMethodUuid?: string;
-    userUuid: string;
+    paymentMethodId?: string;
+    terminalId: string;
     phoneNumber: string;
     total: number;
     paid: number;
@@ -33,10 +32,11 @@ type Transaction = {
 };
 
 type TransactionValues = {
-    paymentMethodUuid?: string;
-    paymentServiceProviderUuid?: string;
+    paymentMethodId?: string;
+    paymentServiceProviderId?: string;
     phoneNumber: string;
     transactionId: string;
+    cashTendered: string;
 };
 
 interface DateRangeFilters {

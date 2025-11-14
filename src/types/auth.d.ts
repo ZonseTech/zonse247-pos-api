@@ -27,7 +27,7 @@ type TAuthTokenProps = {
 };
 
 interface AuthenticatedUser {
-	userUuid: string;
-	clientUuid: string;
-	shopUuid: string;
+	userId: string;
+	tenantId: string;
+	branchId: string;
 }

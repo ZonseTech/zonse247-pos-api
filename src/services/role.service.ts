@@ -1,16 +1,20 @@
 import { RoleModel } from "../models/role.model";
 import { RolePermissionModel } from "../models/role-permission.model";
-import { ClientService } from "./client.service";
+import { TenantService } from "./tenant.service";
 import { PermissionModel } from "../models/permission.model";
 
 export class RoleService {
+
+    static async selectAll(params): Promise<Array<Role>> {
+        return await RoleModel.findAllByRDBMS(params);
+    }
 
     static async getAllRoles(query: any = {}): Promise<Role[]> {
         try {
             const conditions: any = {};
 
-            if (query.clientUuid) {
-                conditions.clientUuid = query.clientUuid;
+            if (query.tenantId) {
+                conditions.tenantId = query.tenantId;
             }
 
             if (query.shopUuid) {
@@ -49,7 +53,7 @@ export class RoleService {
     }
 
     static async createRole(data: CreateRoleRequest): Promise<Role> {
-        const validationError = ClientService.validateRequired(data, ['name', 'displayName']);
+        const validationError = TenantService.validateRequired(data, ['name', 'displayName']);
         if (validationError) {
             throw new Error(validationError);
         }
@@ -58,7 +62,7 @@ export class RoleService {
             throw new Error('Role name must contain only lowercase letters and underscores');
         }
 
-        const existingRoles = await RoleModel.findByClientUuidAndName(data.clientUuid, data.name);
+        const existingRoles = await RoleModel.findByClientUuidAndName(data.tenantId, data.name);
         if (existingRoles.length > 0) {
             throw new Error('Role name already exists for this client');
         }
@@ -95,7 +99,7 @@ export class RoleService {
         }
 
         if (updateData.name && updateData.name !== existingRole.name) {
-            const existingRoles = await RoleModel.findByClientUuidAndName(existingRole.clientUuid, updateData.name);
+            const existingRoles = await RoleModel.findByClientUuidAndName(existingRole.tenantId, updateData.name);
             if (existingRoles.length > 0) {
                 throw new Error('Role name already exists for this client');
             }
@@ -128,7 +132,7 @@ export class RoleService {
             throw new Error('System roles cannot be deleted');
         }
 
-        await RolePermissionModel.deleteByRoleUuid(existingRole.uuid);
+        await RolePermissionModel.deleteByRoleId(existingRole.roleId);
 
         const numDeleted = await RoleModel.delete(id);
         if (numDeleted === 0) {
@@ -151,7 +155,7 @@ export class RoleService {
             throw new Error('Shop ID is required');
         }
 
-        return await RoleModel.findByShopUuid(shopUuid);
+        return await RoleModel.findByBranchId(shopUuid);
     }
 
     static async getSystemRoles(): Promise<Role[]> {
@@ -189,11 +193,11 @@ export class RoleService {
             throw new Error('Role not found');
         }
 
-        const rolePermissions = await RolePermissionModel.findByRoleUuid(role.uuid);
+        const rolePermissions = await RolePermissionModel.findByRoleId(role.roleId);
         const permissions: Permission[] = [];
 
         for (const rp of rolePermissions) {
-            const permission = await PermissionModel.findByUuid(rp.permissionUuid);
+            const permission = await PermissionModel.findById(rp.permissionId);
             if (permission) {
                 permissions.push(permission);
             }
@@ -202,9 +206,9 @@ export class RoleService {
         return permissions;
     }
 
-    static async assignPermissionsToRole(roleId: string, permissionUuids: string[]): Promise<{ assigned: number }> {
-        if (!roleId || !permissionUuids || permissionUuids.length === 0) {
-            throw new Error('Role ID and permission UUIDs are required');
+    static async assignPermissionsToRole(roleId: string, permissionIds: string[]): Promise<{ assigned: number }> {
+        if (!roleId || !permissionIds || permissionIds.length === 0) {
+            throw new Error('Role ID and permission IDs are required');
         }
 
         const role = await RoleModel.findById(roleId);
@@ -214,17 +218,17 @@ export class RoleService {
 
         let assignedCount = 0;
 
-        for (const permissionUuid of permissionUuids) {
-            const permission = await PermissionModel.findByUuid(permissionUuid);
+        for (const permissionId of permissionIds) {
+            const permission = await PermissionModel.findById(permissionId);
             if (!permission) {
-                throw new Error(`Permission with UUID ${permissionUuid} not found`);
+                throw new Error(`Permission with Id ${permissionId} not found`);
             }
 
-            const exists = await RolePermissionModel.findByRoleAndPermissionUuid(role.uuid, permissionUuid);
+            const exists = await RolePermissionModel.findByRoleAndPermissionId(role.roleId, permissionId);
             if (!exists) {
                 await RolePermissionModel.create({
-                    roleUuid: role.uuid,
-                    permissionUuid: permissionUuid
+                    roleId: role.roleId,
+                    permissionId: permissionId
                 });
                 assignedCount++;
             }
@@ -243,12 +247,12 @@ export class RoleService {
             throw new Error('Role not found');
         }
 
-        const permission = await PermissionModel.findByUuid(permissionUuid);
+        const permission = await PermissionModel.findById(permissionUuid);
         if (!permission) {
             throw new Error('Permission not found');
         }
 
-        const numDeleted = await RolePermissionModel.deleteByRoleAndPermissionUuid(role.uuid, permissionUuid);
+        const numDeleted = await RolePermissionModel.deleteByRoleAndPermissionId(role.roleId, permissionUuid);
         if (numDeleted === 0) {
             throw new Error('Role permission assignment not found');
         }

@@ -1,9 +1,9 @@
 type PaymentServiceProvider = {
+    providerId: string;
     name: string;
-    uuid: string;
-    clientUuid: string;
-    shopUuid: string;
-    userUuid: string;
+    tenantId: string;
+    branchId: string;
+    userId: string;
     createdAt?: Date;
     updatedAt?: Date;
     logoUrl?: string;
@@ -12,22 +12,22 @@ type PaymentServiceProvider = {
 
 interface CreatePaymentServiceProviderRequest {
     name: string;
-    clientUuid: string;
-    shopUuid: string;
-    userUuid: string;
+    tenantId: string;
+    branchId: string;
+    userId: string;
     logoUrl: string;
 }
 
 interface UpdatePaymentServiceProviderDto {
     name?: string;
-    clientUuid?: string;
-    shopUuid?: string;
-    userUuid?: string;
+    tenantId?: string;
+    branchId?: string;
+    userId?: string;
     logoUrl?: string;
     synced?: number;
 }
 
 interface PaymentServiceProviderFilters {
-    clientUuid: string;
-    shopUuid: string;
+    tenantId: string;
+    branchId: string;
 }

@@ -1,10 +1,10 @@
 interface PaymentMethod {
-    uuid: string;
+    methodId: string;
     name: string;
     icon?: string;
-    clientUuid: string;
-    shopUuid: string;
-    userUuid: string;
+    tenantId: string;
+    branchId: string;
+    userId: string;
     createdAt?: string;
     updatedAt?: string;
     synced?: number;
@@ -13,15 +13,15 @@ interface PaymentMethod {
 interface CreatePaymentMethodDto {
     name: string;
     icon?: string;
-    clientUuid: string;
-    shopUuid: string;
-    userUuid: string;
+    tenantId: string;
+    branchId: string;
+    userId: string;
 }
 
 interface UpdatePaymentMethodDto {
     name?: string;
     icon?: string;
-    clientUuid?: string;
-    shopUuid?: string;
-    userUuid?: string;
+    tenantId?: string;
+    branchId?: string;
+    userId?: string;
 }
