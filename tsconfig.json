@@ -1,7 +1,8 @@
 {
   "compilerOptions": {
-    "target": "ESNext",
+    "target": "ES2020",
     "module": "commonjs",
+    "lib": ["ES2020"],
     "allowJs": true,
     "skipLibCheck": true,
     "esModuleInterop": true,
@@ -14,9 +15,23 @@
     "typeRoots": ["./node_modules/@types"],
     "paths": {
       "*": ["src/types/*", "*"]
-    }
+    },
+    // Added for better module distribution
+    "declaration": true,
+    "declarationMap": true,
+    "removeComments": false,
+    "noEmitOnError": true,
+    "strict": false,
+    "forceConsistentCasingInFileNames": true
   },
-  "include": ["src/**/*", "*.ts", "*.js", "*.json"],
+  "include": ["src/**/*", "*.ts", "*.js", "*.json", "**/*.d.ts"],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "**/*.test.ts",
+    "**/*.spec.ts",
+    "**/test/**"
+  ],
   "ts-node": {
     "files": true
   }
