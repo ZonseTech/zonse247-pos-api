@@ -1,0 +1,10 @@
+src/
+.github/
+.gitignore
+*.test.ts
+*.spec.ts
+jest.config.js
+ecosystem.config.js
+server-setup.sh
+deploy.sh
+.env*
