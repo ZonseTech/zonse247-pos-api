@@ -16,7 +16,6 @@
     "paths": {
       "*": ["src/types/*", "*"]
     },
-    // Added for better module distribution
     "declaration": true,
     "declarationMap": true,
     "removeComments": false,
