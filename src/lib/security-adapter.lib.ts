@@ -1,4 +1,5 @@
 import path from "path";
+import { StorageAdapter } from "security";
 
 class NodeStorageAdapter implements StorageAdapter {
     private dataPath: string;
