@@ -1,3 +1,4 @@
+import { EmailConfig, WelcomeEmailData } from 'email';
 import { createTransport, Transporter } from 'nodemailer';
 
 export class EmailService {

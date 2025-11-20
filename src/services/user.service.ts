@@ -3,6 +3,8 @@ import { UserModel } from '../models/user.model';
 import { RoleModel } from '../models/role.model';
 import { RolePermissionModel } from '../models/role-permission.model';
 import { PermissionModel } from '../models/permission.model';
+import type { PublicUser, User } from 'users';
+import type { Permission } from 'role-permission';
 
 export class UserService {
 

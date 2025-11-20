@@ -1,5 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import { OrderModel } from '../models/order.model';
+import { CartItem, OrderItem, OrderSummary } from 'order';
 
 export class OrderService {
     static async getAllOrders(): Promise<OrderItem[]> {

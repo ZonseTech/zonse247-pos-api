@@ -2,6 +2,8 @@ import { TenantService } from './tenant.service';
 import { TenantModel } from '../models/tenant.model';
 import { SubscriptionModel } from '../models/subscription.model';
 import { SubscriptionPlanService } from './subscription-plan.service';
+import type { Role } from 'role-permission';
+import type { CreateSubscriptionRequest, TenantSubscription } from 'subscription';
 
 export class SubscriptionService {
 

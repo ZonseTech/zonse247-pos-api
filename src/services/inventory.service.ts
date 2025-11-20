@@ -1,5 +1,9 @@
+import { AuthenticatedUser } from 'auth';
 import { InventoryModel } from '../models/inventory.model';
 import { CategoryService } from './category.service';
+import { Product } from 'product';
+import { Category } from 'categoty';
+import { CartItem } from 'order';
 
 export class InventoryService {
     static async getProductsSummary(auth: AuthenticatedUser): Promise<{

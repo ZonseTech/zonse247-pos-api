@@ -10,6 +10,7 @@ import config from '../config';
 import { UserModel } from '../models/user.model';
 import { CustomerModel } from '../models/customer.model';
 import { CategoryModel } from '../models/category.model';
+import { ValidationParams } from 'on-boarding';
 
 const API_TIMEOUT = 30000;
 
