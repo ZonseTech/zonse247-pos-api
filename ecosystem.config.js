@@ -1,7 +1,7 @@
 module.exports = {
   apps: [
     {
-      name: "zonse247-pos-api",
+      name: "api",
       script: "dist/index.js",
       instances: "max",
       exec_mode: "cluster",
