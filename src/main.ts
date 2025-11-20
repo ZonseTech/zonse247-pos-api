@@ -2,4 +2,8 @@ import { Server } from './server';
 
 const server = new Server(null)
 
-server.start();
+try {
+    server.start();
+} catch (error) {
+    server.stop();
+}
