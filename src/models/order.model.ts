@@ -1,3 +1,4 @@
+import { OrderItem } from 'order';
 import { sealDBModel } from '../databases/local';
 import { ORDERS_DB } from '../databases/local/tables';
 

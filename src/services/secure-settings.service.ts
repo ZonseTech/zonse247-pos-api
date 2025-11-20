@@ -4,9 +4,9 @@ import fs from 'fs/promises';
 import { sealDBModel } from '../databases/local';
 import { APP_SETUP_DB } from '../databases/local/tables';
 import { SyncService } from './sync.service';
-import { ElectronStorageAdapter, NodeStorageAdapter } from '../lib/security-adapter.lib';
-import { isElectron } from '../utils';
+import { NodeStorageAdapter } from '../lib/security-adapter.lib';
 import os from 'os'
+import type { EncryptionResult, SetupData, SetupParams, StorageAdapter } from 'security';
 
 export class SecureSettingsService {
     private static initialized = false;
@@ -17,20 +17,16 @@ export class SecureSettingsService {
     private static encryptionKey: Buffer | null = null;
     private static storageAdapter: StorageAdapter;
 
-    static async initialize(): Promise<void> {
+    static async initialize(storagePath = ''): Promise<void> {
         if (this.initialized) {
             return;
         }
 
         try {
 
-            if (isElectron()) {
-                this.storageAdapter = new ElectronStorageAdapter();
-            } else {
-                this.storageAdapter = new NodeStorageAdapter(path.join(__dirname, '../.secure-data'));
-            }
+            this.storageAdapter = new NodeStorageAdapter(path.join(__dirname, '../.secure-data'));
 
-            const dataPath = this.storageAdapter.getUserDataPath();
+            const dataPath = storagePath || this.storageAdapter.getUserDataPath();
             await fs.mkdir(dataPath, { recursive: true });
 
             const keyPath = path.join(dataPath, '.keystore');

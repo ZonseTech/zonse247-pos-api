@@ -1,4 +1,6 @@
-import { PermissionCategory, PermissionScope } from "../../../utils/constants";
+import { Permission, } from "role-permission";
+import { PermissionCategory, PermissionScope } from "../../../utils/enums";
+
 
 export const DEFAULT_PERMISSIONS: Array<Permission> = [
     // ===== SALES PERMISSIONS =====

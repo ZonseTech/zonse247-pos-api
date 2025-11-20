@@ -1,3 +1,4 @@
+import { Transaction } from 'transactions';
 import { sealDBModel } from '../databases/local';
 import { TABLE_NAMES } from '../databases/local/tables';
 

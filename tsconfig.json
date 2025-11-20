@@ -1,7 +1,8 @@
 {
   "compilerOptions": {
-    "target": "ESNext",
+    "target": "ES2020",
     "module": "commonjs",
+    "lib": ["ES2020"],
     "allowJs": true,
     "skipLibCheck": true,
     "esModuleInterop": true,
@@ -9,15 +10,26 @@
     "sourceMap": true,
     "baseUrl": ".",
     "outDir": "dist",
+    "rootDir": "src",
     "moduleResolution": "node",
     "resolveJsonModule": true,
     "typeRoots": ["./node_modules/@types"],
     "paths": {
       "*": ["src/types/*", "*"]
-    }
+    },
+    "declaration": true,
+    "declarationMap": true,
+    "removeComments": false,
+    "noEmitOnError": true,
+    "strict": false,
+    "forceConsistentCasingInFileNames": true
   },
-  "include": ["src/**/*", "*.ts", "*.js", "*.json"],
-  "ts-node": {
-    "files": true
-  }
+  "include": ["src/**/*"],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "**/*.test.ts",
+    "**/*.spec.ts",
+    "**/test/**"
+  ]
 }

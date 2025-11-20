@@ -2,11 +2,11 @@ import jwt from 'jsonwebtoken';
 import config from '../config';
 import { Request, Response, NextFunction } from 'express';
 import { BaseController } from '../controllers/base.controller';
+import { User } from 'users';
+import { Config } from 'config';
 
-declare module 'express' {
-	interface Request {
-		auth?: User;
-	}
+interface AuthRequest extends Request {
+	auth?: User;
 }
 
 export class AuthMiddleware {
@@ -55,7 +55,7 @@ export class AuthMiddleware {
 		}
 	};
 
-	verifyToken = (req: Request, res: Response, next: NextFunction): void => {
+	verifyToken = (req: Request & AuthRequest, res: Response, next: NextFunction): void => {
 		const token =
 			req.headers.authorization?.replace('Bearer ', '') ||
 			(req.headers['x-access-token'] as string);

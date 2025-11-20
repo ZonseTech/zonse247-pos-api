@@ -5,6 +5,9 @@ import {
     BRANCHES_TABLE,
 } from "../databases/local/tables";
 import { SecureSettingsService } from '../services/secure-settings.service';
+import { CreateSettingRequest, Setting, TerminalSettings, UpdateSettingRequest } from 'settings';
+import { SetupParams } from 'security';
+import { Branch } from 'branch';
 
 export class SettingsModel {
     static async findByContext(tenantId: string, branchId: string, terminalId: string): Promise<Setting[]> {

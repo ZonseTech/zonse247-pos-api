@@ -1,6 +1,8 @@
 import { Request, Response } from "express";
 import { BaseController } from "./base.controller";
 import { RolePermissionService } from "../services/role-permission.service";
+import { ApiResponse } from "network";
+import { BulkRolePermissionRequest, CreateRolePermissionRequest, RolePermission } from "role-permission";
 
 export class RolePermissionController extends BaseController {
 

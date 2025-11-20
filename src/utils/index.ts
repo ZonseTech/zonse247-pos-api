@@ -1,6 +1,7 @@
 import { Request } from 'express';
 import fs from 'fs';
 import crypto from 'crypto';
+import { User } from 'users';
 
 const VALID_FILE_TYPES = ['image/jpg', 'image/jpeg', 'image/png', 'image/webp'];
 

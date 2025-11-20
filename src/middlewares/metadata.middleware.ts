@@ -1,22 +1,12 @@
 import { Request, Response, NextFunction } from 'express';
-
-declare module 'express' {
-    interface Request {
-        verifiedMetadata?: {
-            tenantId: string;
-            branchId: string;
-            terminalId: string;
-            verificationKey: string;
-        };
-    }
-}
+import { AuthRequest } from '../lib/express.type';
 
 export class MetadataMiddleware {
 
     /**
      * Verify verification key and required params
      */
-    static async validateKey(req: Request, res: Response, next: NextFunction): Promise<void> {
+    static async validateKey(req: Request & AuthRequest, res: Response, next: NextFunction): Promise<void> {
         try {
             const {
                 verificationKey,

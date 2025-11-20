@@ -39,6 +39,8 @@ jobs:
           username: ${{ secrets.API_USERNAME }}
           key: ${{ secrets.API_SSH_KEY }}
           script: |
+            # Create directory if it doesn't exist
+            mkdir -p /var/www/pos-api
             cd /var/www/pos-api
 
             # Check if it's a git repository

@@ -1,6 +1,8 @@
 import { Request, Response } from "express";
 import { BaseController } from "./base.controller";
 import { TerminalService } from "../services/terminal.service";
+import { ApiResponse } from "network";
+import { CreateTerminalRequest, Terminal } from "terminal";
 
 export class TerminalController extends BaseController {
 

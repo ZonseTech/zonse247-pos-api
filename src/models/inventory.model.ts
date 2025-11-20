@@ -1,6 +1,9 @@
 import { sealDBModel } from '../databases/local';
 import { ProductModel } from './product.model';
 import { INVENTORY_DB } from '../databases/local/tables';
+import { AuthenticatedUser } from 'auth';
+import { Product } from 'product';
+import { CartItem } from 'order';
 
 export class InventoryModel {
     static async findById(productId: string, auth: AuthenticatedUser): Promise<Product | null> {

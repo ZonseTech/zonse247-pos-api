@@ -2,6 +2,9 @@ import { v4 as uuidv4 } from 'uuid';
 import { sealDBModel } from '../databases/local';
 import { SUBSCRIPTION_PLANS_TABLE } from '../databases/local/tables';
 import { mysqlPool } from '../config/db';
+import { ValidationParams } from 'on-boarding';
+import type { Role } from 'role-permission';
+import { PlanFeature, SubscriptionPlan } from 'subscription';
 
 export class SubscriptionPlanModel {
 

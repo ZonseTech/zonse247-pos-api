@@ -1,7 +1,8 @@
 import { Request, Response } from "express";
 import { BaseController } from "./base.controller";
 import { PermissionService } from "../services/permission.service";
-import { PermissionScope } from "../models/permission.model";
+import { CreatePermissionRequest, Permission } from "role-permission";
+import { ApiResponse } from "network";
 
 export class PermissionController extends BaseController {
 
@@ -118,7 +119,7 @@ export class PermissionController extends BaseController {
     static async getByScope(req: Request<{ scope: string }>, res: Response): Promise<void> {
         try {
             const { scope } = req.params;
-            const permissions = await PermissionService.getPermissionsByScope(scope as PermissionScope);
+            const permissions = await PermissionService.getPermissionsByScope(scope as any);
             BaseController.sendResponse(res, 200, true, 'Scope permissions retrieved successfully', permissions);
         } catch (error: any) {
             console.error('Error fetching scope permissions:', error);

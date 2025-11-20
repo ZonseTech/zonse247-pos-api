@@ -1,5 +1,6 @@
-import { Request } from 'express';
 import { rateLimit } from 'express-rate-limit';
+import { AuthRequest } from '../lib/express.type';
+import { Request } from 'express';
 
 export const generalLimiter = rateLimit({
 	windowMs: 15 * 60 * 1000,
@@ -67,7 +68,7 @@ export const createUserSpecificLimiter = (
 		},
 		standardHeaders: true,
 		legacyHeaders: false,
-		keyGenerator: (req: Request) => {
+		keyGenerator: (req: Request & AuthRequest) => {
 			return req.auth?.userId || req.ip;
 		},
 	});

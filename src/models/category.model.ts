@@ -2,6 +2,8 @@ import { v4 as uuidv4 } from 'uuid';
 import { sealDBModel } from '../databases/local';
 import { CATEGORIES_DB } from '../databases/local/tables';
 import { mysqlPool } from '../config/db';
+import { ValidationParams } from 'on-boarding';
+import { Category, CreateCategoryRequest, UpdateCategoryDto } from 'categoty';
 
 export class CategoryModel {
 

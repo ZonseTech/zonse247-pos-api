@@ -1,6 +1,7 @@
 import path from 'path';
 import fs from 'fs';
 import { MigrationModel } from '../models/migration.model';
+import { MappingConfig, MigrationRecord, UploadedFile } from 'migrations';
 
 export class MigrationService {
     private migrationModel: MigrationModel;

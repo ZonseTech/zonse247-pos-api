@@ -1,7 +1,7 @@
-import server from './server';
+export {
+    SecureSettingsService,
+} from './services/secure-settings.service';
 
-try {
-    server.start();
-} catch (error) {
-    server.stop();
-}
+import { Server } from './server';
+
+export default Server;

@@ -1,5 +1,7 @@
+import { Category, CategoryFilters, CreateCategoryRequest, UpdateCategoryDto } from "categoty";
 import { CategoryModel } from "../models/category.model";
 import { InventoryModel } from "../models/inventory.model";
+import { AuthenticatedUser } from "auth";
 
 export class CategoryService {
 

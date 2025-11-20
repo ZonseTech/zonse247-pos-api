@@ -1,15 +1,5 @@
 import path from "path";
-import { app } from "electron";
-
-class ElectronStorageAdapter implements StorageAdapter {
-    getUserDataPath(): string {
-        return app.getPath('userData');
-    }
-
-    isElectron(): boolean {
-        return true;
-    }
-}
+import { StorageAdapter } from "security";
 
 class NodeStorageAdapter implements StorageAdapter {
     private dataPath: string;
@@ -27,4 +17,4 @@ class NodeStorageAdapter implements StorageAdapter {
     }
 }
 
-export { ElectronStorageAdapter, NodeStorageAdapter }
+export { NodeStorageAdapter }

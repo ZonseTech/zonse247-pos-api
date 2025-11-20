@@ -1,6 +1,7 @@
 import { TenantService } from "./tenant.service";
 import { BranchModel } from "../models/branch.model";
 import { TerminalModel } from "../models/terminal.model";
+import { CreateTerminalRequest, Terminal } from "terminal";
 
 export class TerminalService {
 

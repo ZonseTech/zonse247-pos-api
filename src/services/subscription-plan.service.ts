@@ -1,4 +1,6 @@
+import type { Role } from 'role-permission';
 import { SubscriptionPlanModel } from '../models/subscription-plan.model';
+import { SubscriptionPlan } from 'subscription';
 
 export class SubscriptionPlanService {
 

@@ -1,5 +1,4 @@
 import cors from 'cors';
-import { app } from 'electron';
 import compression from 'compression';
 import { createServer, Server as HttpServer } from 'http';
 import express, { Request, Response, Application } from 'express';
@@ -24,17 +23,18 @@ import {
 } from './middlewares/security.middleware';
 import ApiRoutes from './routes';
 import { initializeEmailService } from './config/email.config';
-import { isElectron } from './utils';
 
-class Server {
+export class Server {
 	private server: HttpServer;
 	private app: Application;
+	private electron: any | null;
 
-	constructor() {
+	constructor(electronApp: any) {
 		this.app = express();
+		this.electron = electronApp
 
-		if (process.versions.electron) {
-			process.env.APPDATA = app.getPath('appData');
+		if (this.electron) {
+			process.env.APPDATA = this.electron.getPath('appData');
 		}
 
 		this.server = createServer(this.app);
@@ -154,7 +154,7 @@ class Server {
 			}
 		}
 
-		if (config.database.seed && isElectron()) {
+		if (config.database.seed && this.electron) {
 			try {
 				await seedDatabase();
 				console.log('✅ Database seeding completed successfully');
@@ -181,5 +181,3 @@ class Server {
 	}
 }
 
-const server = new Server();
-export default server;

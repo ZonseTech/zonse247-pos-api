@@ -1,6 +1,8 @@
 import { Request, Response } from "express";
 import { BaseController } from "./base.controller";
 import { RoleService } from "../services/role.service";
+import { ApiResponse } from "network";
+import { CreateRoleRequest, Role } from "role-permission";
 
 export class RoleController extends BaseController {
 

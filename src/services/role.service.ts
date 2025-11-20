@@ -2,6 +2,7 @@ import { RoleModel } from "../models/role.model";
 import { RolePermissionModel } from "../models/role-permission.model";
 import { TenantService } from "./tenant.service";
 import { PermissionModel } from "../models/permission.model";
+import { CreateRoleRequest, Permission, Role } from "role-permission";
 
 export class RoleService {
 

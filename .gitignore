@@ -121,9 +121,6 @@ typings/
 # Vite
 .vite/
 
-# Electron-Forge
-out/
-
 # Data storage
 .data
 .backups

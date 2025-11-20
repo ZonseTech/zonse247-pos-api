@@ -1,5 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import { PaymentMethodModel } from '../models/payment-methods.model';
+import { CreatePaymentMethodDto, PaymentMethod, UpdatePaymentMethodDto } from 'payment-method';
 
 export class PaymentMethodService {
 
