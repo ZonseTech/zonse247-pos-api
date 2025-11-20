@@ -2,6 +2,8 @@ import jwt from 'jsonwebtoken';
 import config from '../config';
 import { Request, Response, NextFunction } from 'express';
 import { BaseController } from '../controllers/base.controller';
+import { User } from 'users';
+import { Config } from 'config';
 
 interface AuthRequest extends Request {
 	auth?: User;

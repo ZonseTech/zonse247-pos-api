@@ -2,6 +2,8 @@ import { Request, Response, NextFunction } from "express";
 import { TenantService } from "../services/tenant.service";
 import { BaseController } from "../controllers/base.controller";
 import { SecureSettingsService } from "../services/secure-settings.service";
+import { Tenant } from "tenant";
+import { AuthRequest } from "src/lib/express.type";
 
 export class TenantMiddleware {
     subscriptionStatus = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
@@ -207,7 +209,7 @@ export class TenantMiddleware {
         }
     }
 
-    trialWarning = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+    trialWarning = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
         try {
             if (req.tenant && req.tenant.subscriptionStatus?.toLowerCase() === 'trial') {
                 const subscriptionCheck = this.checkSubscriptionStatus(req.tenant);
