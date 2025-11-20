@@ -52,8 +52,8 @@ jobs:
               rm -rf /var/www/pos-api-temp
             else
               echo "🔄 Resetting local changes and pulling..."
-              # git reset --hard HEAD
-              # git clean -fd
+              git reset --hard HEAD
+              git clean -fd
               git pull origin main --force
             fi
 
