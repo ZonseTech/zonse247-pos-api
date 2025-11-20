@@ -5,6 +5,7 @@ import { sealDBModel } from '../databases/local';
 import { PoolConnection } from 'mysql2/promise';
 import migrationTables from '../databases/local/migration-table-columns'
 import { transformValue } from '../utils/data-sync-transfomer';
+import { MigrationProgress, MigrationRecord, MigrationStats, TColumnMapping } from 'migrations';
 
 export class MigrationModel {
     private static instance: MigrationModel;

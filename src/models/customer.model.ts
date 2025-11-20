@@ -1,6 +1,9 @@
+import { ValidationParams } from 'on-boarding';
 import { mysqlPool } from '../config/db';
 import { sealDBModel } from '../databases/local';
 import { CUSTOMERS_DB } from '../databases/local/tables';
+import { Role } from 'role-permission';
+import { Customer } from 'customer';
 
 export class CustomerModel {
     private static tableName = CUSTOMERS_DB;

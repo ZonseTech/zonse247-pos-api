@@ -1,3 +1,5 @@
+import { AuthenticatedUser } from 'auth';
+import { Product } from 'product';
 import { v4 as uuidv4 } from 'uuid';
 
 export class ProductModel {

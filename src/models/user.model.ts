@@ -3,6 +3,8 @@ import bcrypt from 'bcryptjs';
 import { sealDBModel } from '../databases/local';
 import { USERS_DB } from '../databases/local/tables';
 import { mysqlPool } from '../config/db';
+import { ValidationParams } from 'on-boarding';
+import { PublicUser, User, UserStatus } from 'users';
 
 const saltRounds = 10;
 
