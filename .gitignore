@@ -125,5 +125,6 @@ typings/
 .data
 .backups
 exports
+mapped-data
 
 *.keystore
