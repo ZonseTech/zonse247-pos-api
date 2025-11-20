@@ -1,6 +1,7 @@
 import { existsSync, unlinkSync } from 'fs'
 import { Request, Response } from 'express';
 import { MigrationService } from '../services/migration.service';
+import { MappingConfigRequest } from 'migrations';
 
 export class MigrationController {
 	private migrationService: MigrationService;

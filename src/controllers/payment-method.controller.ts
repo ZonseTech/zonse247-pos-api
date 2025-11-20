@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { BaseController } from './base.controller';
 import { PaymentMethodService } from '../services/payment-method.service';
+import { CreatePaymentMethodDto, UpdatePaymentMethodDto } from 'payment-method';
 
 export class PaymentMethodController extends BaseController {
 

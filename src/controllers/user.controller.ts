@@ -1,6 +1,8 @@
 import { Request, Response } from 'express';
 import { UserService } from '../services/user.service';
 import { BaseController } from './base.controller';
+import { ApiResponse } from 'network';
+import { PublicUser, User } from 'users';
 
 export class UserController extends BaseController {
 	constructor() {

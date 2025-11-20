@@ -3,6 +3,8 @@ import { BaseController } from "./base.controller";
 import { TenantService } from "../services/tenant.service";
 import { BranchService } from "../services/branch.service";
 import { SecureSettingsService } from "../services/secure-settings.service";
+import { ApiResponse } from "network";
+import { MsonkhoOnlineStatus, Tenant, TenantFormValues, VerifyTenantRequest } from "tenant";
 
 export class TenantController extends BaseController {
     constructor() {

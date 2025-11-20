@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { TenantService } from '../services/tenant.service';
+import { ApiResponse } from 'network';
 
 export class OnboardingController {
     static sendResponse<T>(res: Response, statusCode: number, success: boolean, message: string, data?: T, error?: string): void {

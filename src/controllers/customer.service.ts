@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { BaseController } from './base.controller';
 import { CustomerService } from '../services/customer.service';
+import { CreateCustomerData, SearchConditions, UpdateCustomerData } from 'customer';
 
 export class CustomerController extends BaseController {
 
