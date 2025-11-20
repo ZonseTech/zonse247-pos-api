@@ -14,7 +14,7 @@
     "build:clean": "npm run clean && npm run build",
     "build:watch": "tsc --watch",
     "prepack": "npm run build:clean && npm run test:ci",
-    "start": "node dist/index.js",
+    "start": "node dist/main.js",
     "dev": "nodemon --exec ts-node src/index.ts",
     "clean": "rm -rf dist",
     "lint": "eslint . --ext .ts,.js --fix",
@@ -35,7 +35,12 @@
     "pm2:monitor": "pm2 monit",
     "pm2:status": "pm2 status",
     "deploy:setup": "chmod +x server-setup.sh && ./server-setup.sh",
-    "deploy": "chmod +x deploy.sh && ./deploy.sh"
+    "deploy": "chmod +x deploy.sh && ./deploy.sh",
+    "pub:dry-run": "npm run build:clean && npm pack",
+    "pub:local": "npm run build:clean && npm pack",
+    "pub:npm": "npm run build:clean && npm publish",
+    "pub:npm:public": "npm run build:clean && npm publish --access public",
+    "pub:npm:otp": "npm run build:clean && npm publish --otp"
   },
   "keywords": [
     "pos",
@@ -113,5 +118,13 @@
     "typescript-nedb-orm": "^1.7.0",
     "uuid": "^11.1.0",
     "validator": "^13.15.0"
+  },
+  "peerDependencies": {
+    "axios": "^1.8.4"
+  },
+  "peerDependenciesMeta": {
+    "axios": {
+      "optional": false
+    }
   }
 }
