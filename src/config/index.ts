@@ -16,7 +16,8 @@ const config: Config = {
 		title: 'Zonse247 POS',
 	},
 	server: {
-		port: 3000,
+		// port: 3000,
+		port: new Date().getFullYear(),
 		host: 'localhost',
 		environment: 'production',
 		trustProxy: true,
