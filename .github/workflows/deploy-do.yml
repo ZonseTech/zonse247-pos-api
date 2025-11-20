@@ -40,6 +40,21 @@ jobs:
           key: ${{ secrets.API_SSH_KEY }}
           script: |
             cd /var/www/pos-api
-            git pull origin main
+
+            # Check if it's a git repository
+            if [ ! -d .git ]; then
+              echo "🔄 Initial clone..."
+              git clone https://github.com/ZonseTech/zonse247-pos-api.git /var/www/pos-api-temp
+              mv /var/www/pos-api-temp/* /var/www/pos-api/
+              mv /var/www/pos-api-temp/.* /var/www/pos-api/ 2>/dev/null || true
+              rm -rf /var/www/pos-api-temp
+            else
+              echo "🔄 Resetting local changes and pulling..."
+              git reset --hard HEAD
+              git clean -fd
+              git pull origin main --force
+            fi
+
+            # Make scripts executable and deploy
             chmod +x deploy.sh
             ./deploy.sh production
