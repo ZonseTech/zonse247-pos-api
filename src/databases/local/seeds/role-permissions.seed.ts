@@ -1,3 +1,4 @@
+import { RolePermission } from 'role-permission';
 import { v4 as uuidv4 } from 'uuid';
 
 export const DEFAULT_ROLE_PERMISSIONS: Array<RolePermission> = [

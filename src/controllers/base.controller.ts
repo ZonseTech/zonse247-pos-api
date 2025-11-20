@@ -1,4 +1,5 @@
 import { Response } from "express";
+import { ApiResponse } from "network";
 
 /**
  * Base Controller Class

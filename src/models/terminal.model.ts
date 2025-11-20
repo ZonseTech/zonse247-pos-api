@@ -1,3 +1,4 @@
+import { CreateTerminalRequest, Terminal } from 'terminal';
 import { sealDBModel } from '../databases/local';
 import { TERMINALS_TABLE } from '../databases/local/tables';
 

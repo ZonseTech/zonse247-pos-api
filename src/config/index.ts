@@ -1,3 +1,5 @@
+import { Config } from "config";
+
 const config: Config = {
 	app: {
 		name: 'Zonse247 POS',

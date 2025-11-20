@@ -1,6 +1,8 @@
+import { ValidationParams } from 'on-boarding';
 import { mysqlPool } from '../config/db';
 import { sealDBModel } from '../databases/local';
 import { PAYMENT_METHODS_DB } from '../databases/local/tables';
+import { PaymentMethod } from 'payment-method';
 
 export class PaymentMethodModel {
     private static tableName = PAYMENT_METHODS_DB;

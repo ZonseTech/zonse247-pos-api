@@ -2,6 +2,8 @@ import { v4 as uuidv4 } from 'uuid';
 import { sealDBModel } from "../databases/local";
 import { ROLE_PERMISSIONS_DB } from "../databases/local/tables";
 import { mysqlPool } from '../config/db';
+import { ValidationParams } from 'on-boarding';
+import type { RolePermission } from 'role-permission';
 
 export class RolePermissionModel {
     static async findAllByRDBMS(conditions: ValidationParams): Promise<Array<RolePermission>> {

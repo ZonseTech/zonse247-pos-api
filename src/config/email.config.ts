@@ -1,5 +1,6 @@
 import config from './index';
 import { EmailService } from '../services/email.service';
+import { EmailConfig } from 'email';
 
 export const emailConfig: EmailConfig = {
     host: config.email.host || 'smtp.gmail.com',

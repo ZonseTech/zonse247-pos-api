@@ -2,6 +2,9 @@ import { Request, Response } from "express";
 import { BaseController } from "./base.controller";
 import { BranchService } from "../services/branch.service";
 import { TerminalService } from "../services/terminal.service";
+import { ApiResponse } from "network";
+import { Terminal } from "terminal";
+import { Branch, CreateBranchRequest } from "branch";
 
 export class BranchController extends BaseController {
 
@@ -17,6 +20,7 @@ export class BranchController extends BaseController {
     }
 
     static async getBranchTerminals(req: Request<{ branchId: string }, ApiResponse<Array<Terminal>>>, res: Response): Promise<void> {
+
         try {
             const { branchId } = req.params;
 

@@ -1,6 +1,8 @@
 import { TenantService } from "./tenant.service";
 import { RolePermissionModel } from "../models/role-permission.model";
-import { PermissionModel, PermissionScope } from "../models/permission.model";
+import { PermissionModel } from "../models/permission.model";
+import { CreatePermissionRequest, Permission } from "role-permission";
+import type { PermissionScopeType } from "../utils/enums";
 
 export class PermissionService {
 
@@ -62,7 +64,7 @@ export class PermissionService {
             throw new Error('Permission name already exists');
         }
 
-        if (data.scope && !this.isValidScope(data.scope as PermissionScope)) {
+        if (data.scope && !this.isValidScope(data.scope as PermissionScopeType)) {
             throw new Error('Invalid permission scope');
         }
 
@@ -104,7 +106,7 @@ export class PermissionService {
             }
         }
 
-        if (updateData.scope && !this.isValidScope(updateData.scope as PermissionScope)) {
+        if (updateData.scope && !this.isValidScope(updateData.scope as PermissionScopeType)) {
             throw new Error('Invalid permission scope');
         }
 
@@ -153,7 +155,7 @@ export class PermissionService {
         return await PermissionModel.findByCategory(category);
     }
 
-    static async getPermissionsByScope(scope: PermissionScope): Promise<Permission[]> {
+    static async getPermissionsByScope(scope: PermissionScopeType): Promise<Permission[]> {
         if (!scope || !this.isValidScope(scope)) {
             throw new Error('Valid scope is required');
         }
@@ -178,13 +180,13 @@ export class PermissionService {
         return Array.from(categories).sort();
     }
 
-    static async getPermissionScopes(): Promise<PermissionScope[]> {
+    static async getPermissionScopes(): Promise<PermissionScopeType[]> {
         const permissions = await PermissionModel.findAll();
-        const scopes = new Set<PermissionScope>();
+        const scopes = new Set<PermissionScopeType>();
 
         permissions.forEach(permission => {
             if (permission.scope) {
-                scopes.add(permission.scope as PermissionScope);
+                scopes.add(permission.scope as PermissionScopeType);
             }
         });
 
@@ -215,8 +217,8 @@ export class PermissionService {
         );
     }
 
-    private static isValidScope(scope: PermissionScope): boolean {
-        const validScopes: PermissionScope[] = ['client', 'shop', 'user'] as any;
+    private static isValidScope(scope: PermissionScopeType): boolean {
+        const validScopes: PermissionScopeType[] = ['client', 'shop', 'user'] as any;
         return validScopes.includes(scope);
     }
 

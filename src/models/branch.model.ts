@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { sealDBModel } from '../databases/local';
 import { BRANCHES_TABLE } from '../databases/local/tables';
+import { Branch, BranchStatus, CreateBranchRequest, MraApprovalStatus } from 'branch';
 
 export class BranchModel {
 

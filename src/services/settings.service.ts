@@ -1,3 +1,4 @@
+import { CreateSettingRequest, Setting, TerminalSettings, UpdateSettingRequest } from "settings";
 import { SettingsModel } from "../models/settings.model";
 
 export class SettingsService {

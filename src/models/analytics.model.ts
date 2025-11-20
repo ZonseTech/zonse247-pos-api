@@ -8,6 +8,10 @@ import {
 } from '../databases/local/tables';
 import { sealDBModel } from '../databases/local';
 import dayjs from 'dayjs';
+import { Transaction } from 'transactions';
+import { DashboardCounts, MonthlySales, TopProduct } from 'analytics';
+import { Product } from 'product';
+import { Category } from 'categoty';
 
 export class AnalyticsModel {
     static async getMonthlySalesData(userUuid: string, year: number, month: number): Promise<Array<MonthlySales>> {

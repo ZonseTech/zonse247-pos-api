@@ -1,9 +1,7 @@
+export {
+    SecureSettingsService,
+} from './services/secure-settings.service';
+
 import { Server } from './server';
 
-const server = new Server(null)
-
-try {
-    server.start();
-} catch (error) {
-    server.stop();
-}
+export default Server;

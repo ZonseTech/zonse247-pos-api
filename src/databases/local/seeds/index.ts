@@ -20,6 +20,17 @@ import { sealDBModel } from '..';
 import { DEFAULT_PERMISSIONS } from './permission.seed';
 import { DEFAULT_ROLE_PERMISSIONS } from './role-permissions.seed';
 import config from '../../../config';
+import type { Permission, Role, RolePermission } from 'role-permission';
+import type { Tenant } from 'tenant';
+import type { Branch } from 'branch';
+import type { Terminal } from 'terminal';
+import type { SubscriptionPlan, TenantSubscription } from 'subscription';
+import type { User } from 'users';
+import type { Customer } from 'customer';
+import type { TerminalSettings } from 'settings';
+import type { Category } from 'categoty';
+import type { PaymentMethod } from 'payment-method';
+import type { PaymentServiceProvider } from 'payment-service-provider';
 
 const now = new Date();
 

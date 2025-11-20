@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { BaseController } from './base.controller';
 import { PaymentServiceProviderService } from '../services/payment-service-provider.service';
 import { AuthRequest } from '../lib/express.type';
+import { PaymentServiceProviderFilters } from 'payment-service-provider';
 
 export class PaymentServiceProviderController extends BaseController {
 

@@ -1,6 +1,8 @@
 import { v4 as uuidv4 } from 'uuid';
 import validator from 'validator';
 import { CustomerModel } from '../models/customer.model';
+import type { Role } from 'role-permission';
+import { CreateCustomerData, Customer, SearchConditions, UpdateCustomerData } from 'customer';
 
 export class CustomerService {
 

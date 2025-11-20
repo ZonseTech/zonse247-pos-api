@@ -6,6 +6,7 @@ import { APP_SETUP_DB } from '../databases/local/tables';
 import { SyncService } from './sync.service';
 import { NodeStorageAdapter } from '../lib/security-adapter.lib';
 import os from 'os'
+import type { EncryptionResult, SetupData, SetupParams, StorageAdapter } from 'security';
 
 export class SecureSettingsService {
     private static initialized = false;

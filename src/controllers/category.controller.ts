@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { BaseController } from './base.controller';
 import { CategoryService } from '../services/category.service';
 import { AuthRequest } from '../lib/express.type';
+import { CreateCategoryDto, UpdateCategoryDto } from 'categoty';
 
 export class CategoryController extends BaseController {
     static async selectAll(req: Request, res: Response): Promise<void> {

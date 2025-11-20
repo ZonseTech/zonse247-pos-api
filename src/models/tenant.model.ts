@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import { sealDBModel } from '../databases/local';
 import { TENANT_TABLE } from '../databases/local/tables';
+import { Tenant, TenantFormValues } from 'tenant';
 
 export class TenantModel {
     static generateTenantCode(): string {
@@ -9,9 +10,7 @@ export class TenantModel {
     }
 
     static async generateVerificationToken(tenantId: string): Promise<string> {
-        console.log('====================================');
-        console.log('generateVerificationToken:', tenantId);
-        console.log('====================================');
+        tenantId
         return crypto.randomBytes(32).toString('hex');
     }
 

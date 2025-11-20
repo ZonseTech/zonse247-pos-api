@@ -23,7 +23,6 @@ export class SubscriptionPlanController extends BaseController {
             if (billingCycle) {
                 plans = await SubscriptionPlanService.getByBillingCycle(billingCycle as string);
             } else if (isActive !== undefined) {
-                // Get all plans and filter by active status if needed
                 const allPlans = await SubscriptionPlanService.getAll();
                 plans = allPlans.filter(plan =>
                     isActive === 'true' ? plan.isActive : !plan.isActive

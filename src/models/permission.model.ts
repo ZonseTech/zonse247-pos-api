@@ -2,12 +2,9 @@ import { v4 as uuidv4 } from 'uuid';
 import { sealDBModel } from '../databases/local';
 import { PERMISSIONS_DB } from '../databases/local/tables';
 import { mysqlPool } from '../config/db';
-
-export enum PermissionScope {
-    SYSTEM = 'system',
-    CLIENT = 'client',
-    SHOP = 'shop'
-}
+import { ValidationParams } from 'on-boarding';
+import type { Permission } from 'role-permission';
+import { PermissionScope, PermissionScopeType } from '../utils/enums';
 
 export class PermissionModel {
 
@@ -64,7 +61,7 @@ export class PermissionModel {
         }
     }
 
-    static async findByScope(scope: PermissionScope): Promise<Permission[]> {
+    static async findByScope(scope: PermissionScopeType): Promise<Permission[]> {
         try {
             return await sealDBModel.find(PERMISSIONS_DB, { scope });
         } catch (error) {

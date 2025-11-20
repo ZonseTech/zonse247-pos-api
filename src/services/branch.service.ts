@@ -2,6 +2,7 @@ import { TenantService } from "./tenant.service";
 import { BranchModel } from "../models/branch.model";
 import { TenantModel } from "../models/tenant.model";
 import { SubscriptionModel } from "../models/subscription.model";
+import { Branch, BranchStatus, CreateBranchRequest } from "branch";
 
 export class BranchService {
 

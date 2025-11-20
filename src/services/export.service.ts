@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import config from '../config';
 import { ExportDBModel } from '../models/exports.model';
+import { ExportOptions, ExportResult } from 'db-export';
 
 export class DatabaseExportService {
 	private exportDBModel: ExportDBModel;

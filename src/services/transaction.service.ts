@@ -9,6 +9,8 @@ import { OrderService } from './order.service';
 import { PaymentServiceProviderModel } from '../models/payment-service-provider.model';
 import { TerminalModel } from '../models/terminal.model';
 import { CategoryModel } from '../models/category.model';
+import { DateRangeFilters, Transaction } from 'transactions';
+import { AuthenticatedUser } from 'auth';
 
 export class TransactionService {
 
@@ -233,14 +235,13 @@ export class TransactionService {
             promises.push(Promise.resolve({ items: [] }));
         }
 
-        const [customerResult, workstationResult, paymentMethodResult, paymentServiceProviderResult, userResult, itemsResult] =
+        const [customerResult, paymentMethodResult, paymentServiceProviderResult, userResult, itemsResult] =
             await Promise.all(promises);
 
         return {
             ...transaction,
             user: userResult.user,
             customer: customerResult.customer,
-            workstation: workstationResult.workstation,
             paymentMethod: paymentMethodResult.paymentMethod,
             paymentServiceProvider: paymentServiceProviderResult.paymentServiceProvider,
             items: includeItems ? itemsResult.items : [],

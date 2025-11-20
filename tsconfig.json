@@ -10,6 +10,7 @@
     "sourceMap": true,
     "baseUrl": ".",
     "outDir": "dist",
+    "rootDir": "src",
     "moduleResolution": "node",
     "resolveJsonModule": true,
     "typeRoots": ["./node_modules/@types"],
@@ -23,15 +24,12 @@
     "strict": false,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["src/**/*", "*.ts", "*.js", "*.json", "**/*.d.ts"],
+  "include": ["src/**/*"],
   "exclude": [
     "node_modules",
     "dist",
     "**/*.test.ts",
     "**/*.spec.ts",
     "**/test/**"
-  ],
-  "ts-node": {
-    "files": true
-  }
+  ]
 }

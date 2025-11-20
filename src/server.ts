@@ -154,7 +154,7 @@ export class Server {
 			}
 		}
 
-		if (config.database.seed && this.electron()) {
+		if (config.database.seed && this.electron) {
 			try {
 				await seedDatabase();
 				console.log('✅ Database seeding completed successfully');
