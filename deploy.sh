@@ -7,7 +7,7 @@ set -e
 echo "🚀 Starting deployment..."
 
 # Environment variables
-APP_NAME="pos-api"
+APP_NAME="api"  # ← Change to match ecosystem.config.js
 APP_DIR="/var/www/$APP_NAME"
 BACKUP_DIR="/var/backups/$APP_NAME"
 NODE_ENV=${1:-production}
@@ -62,7 +62,7 @@ echo "🗃️ Running database migrations..."
 echo "🔄 Restarting application..."
 if pm2 show $APP_NAME > /dev/null; then
     echo "🔄 Reloading existing application..."
-    pm2 reload $APP_NAME --update-env
+    pm2 reload ecosystem.config.js --env $NODE_ENV 
 else
     echo "⭐ Starting new application..."
     pm2 start ecosystem.config.js --env $NODE_ENV
