@@ -1,5 +1,3 @@
-import config from './index';
-
 export const corsOptions = {
 	origin: (
 		origin: string | undefined,
@@ -7,7 +5,7 @@ export const corsOptions = {
 	) => {
 		if (!origin) return callback(null, true);
 
-		if (config.security.allowedOrigins.includes(origin)) {
+		if ((process.env.CORS_ALLOWED_ORIGINS || []).includes(origin)) {
 			callback(null, true);
 		} else {
 			callback(new Error('Not allowed by CORS'));

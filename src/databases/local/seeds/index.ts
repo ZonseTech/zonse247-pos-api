@@ -19,7 +19,6 @@ import bcrypt from 'bcryptjs';
 import { sealDBModel } from '..';
 import { DEFAULT_PERMISSIONS } from './permission.seed';
 import { DEFAULT_ROLE_PERMISSIONS } from './role-permissions.seed';
-import config from '../../../config';
 import type { Permission, Role, RolePermission } from 'role-permission';
 import type { Tenant } from 'tenant';
 import type { Branch } from 'branch';
@@ -482,13 +481,13 @@ async function checkOrCreateDefaultSettings(): Promise<void> {
 			tenantId: '-1',
 			branchId: '-1',
 			terminalId: '-1',
-			app: config.app.name,
+			app: process.env.APP_NAME || '',
 			store: 'Main Till',
 			addressLine1: '123 Business Street',
 			addressLine2: '123 Business Street',
 			country: 'Malawi',
 			city: 'Lilongwe',
-			contact: config.app.contact,
+			contact: process.env.APP_CONTACT || '',
 			verificationToken: '',
 			tenantSignature: '',
 			tax: '0.00',

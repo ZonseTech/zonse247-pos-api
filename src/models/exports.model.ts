@@ -1,6 +1,5 @@
 import fs from 'fs';
 import path from 'path';
-import config from '../config';
 import Datastore from '@seald-io/nedb';
 
 export class ExportDBModel {
@@ -13,7 +12,7 @@ export class ExportDBModel {
 	}
 
 	private getAppDataPath(): string {
-		return path.join(config.upload.migrationsPath);
+		return path.join(process.env.MIGRATIONS_PATH);
 	}
 
 	private ensureDirectoryExists(dirPath: string): void {

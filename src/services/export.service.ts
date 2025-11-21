@@ -1,6 +1,5 @@
 import fs from 'fs';
 import path from 'path';
-import config from '../config';
 import { ExportDBModel } from '../models/exports.model';
 import { ExportOptions, ExportResult } from 'db-export';
 
@@ -9,7 +8,7 @@ export class DatabaseExportService {
 	private readonly databasePath: string;
 
 	constructor(tableName?: string) {
-		this.databasePath = path.join(config.upload.migrationsPath);
+		this.databasePath = path.join(process.env.MIGRATIONS_PATH || './.backups/migrations');
 
 		if (tableName)
 			this.exportDBModel = new ExportDBModel(tableName);

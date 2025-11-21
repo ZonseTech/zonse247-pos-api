@@ -2,14 +2,13 @@ import multer from 'multer';
 import { Router } from 'express';
 import fs from 'fs';
 import path from 'path';
-import config from '../config';
 import { Request, Response, NextFunction } from 'express';
 import { MigrationController } from '../controllers/migration.controller';
 
 const router = Router();
 const migrationController = new MigrationController();
 
-const UPLOAD_DIR = config.upload.uploadPath;
+const UPLOAD_DIR = process.env.UPLOAD_PATH || './.backups/uploads';
 
 const ensureUploadDirectory = (): void => {
 	try {

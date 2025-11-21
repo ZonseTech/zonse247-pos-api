@@ -1,19 +1,22 @@
 import jwt from 'jsonwebtoken';
-import config from '../config';
 import { Request, Response, NextFunction } from 'express';
 import { BaseController } from '../controllers/base.controller';
 import { User } from 'users';
-import { Config } from 'config';
 
 interface AuthRequest extends Request {
 	auth?: User;
 }
 
 export class AuthMiddleware {
-	private config: Config;
+	private config: Record<string, string>;
 
 	constructor() {
-		this.config = config;
+		this.config = {
+			secret: process.env.JWT_SECRET || '',
+			expiresIn: process.env.JWT_EXPIRES_IN || '24h',
+			refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
+			refreshSecret: process.env.JWT_REFRESH_SECRET || '',
+		};
 	}
 
 	verifyRequestHeaders = (
@@ -69,7 +72,7 @@ export class AuthMiddleware {
 		}
 
 		try {
-			const decoded = jwt.verify(token, this.config.jwt.secret);
+			const decoded = jwt.verify(token, this.config.secret);
 			req.auth = decoded as User;
 			next();
 		} catch (error) {
@@ -187,7 +190,7 @@ export class AuthMiddleware {
 		if (!token) return null;
 
 		try {
-			return jwt.verify(token, this.config.jwt.secret);
+			return jwt.verify(token, this.config.secret);
 		} catch (error) {
 			return null;
 		}

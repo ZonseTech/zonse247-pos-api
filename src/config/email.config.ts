@@ -1,16 +1,15 @@
-import config from './index';
 import { EmailService } from '../services/email.service';
 import { EmailConfig } from 'email';
 
 export const emailConfig: EmailConfig = {
-    host: config.email.host || 'smtp.gmail.com',
-    port: parseInt(config.email.port?.toString() || '587'),
-    secure: config.email.secure === true,
+    host: process.env.SMTP_HOST || 'smtp.gmail.com',
+    port: parseInt(process.env.SMTP_PORT?.toString() || '587'),
+    secure: process.env.SMTP_SECURE === 'true',
     auth: {
-        user: config.email.user || '',
-        pass: config.email.password || '',
+        user: process.env.SMTP_USER || '',
+        pass: process.env.SMTP_PASS || '',
     },
-    from: config.email.from || 'noreply-zonse247@gmail.com',
+    from: process.env.SMTP_FROM || 'noreply-zonse247@gmail.com',
 };
 
 export const initializeEmailService = async (): Promise<void> => {

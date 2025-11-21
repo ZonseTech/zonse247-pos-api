@@ -1,9 +1,8 @@
+import 'dotenv/config';
 import cors from 'cors';
 import compression from 'compression';
 import { createServer, Server as HttpServer } from 'http';
 import express, { Request, Response, Application } from 'express';
-
-import config from './config';
 import { corsOptions } from './config/cors';
 
 import syncService from './services/sync.service';
@@ -45,12 +44,12 @@ export class Server {
 	}
 
 	private setupMiddleware() {
-		this.app.set('trust proxy', config.server.trustProxy);
-		this.app.use(timeoutHandler(config.server.timeout));
+		this.app.set('trust proxy', process.env.TRUST_PROXY === 'true');
+		this.app.use(timeoutHandler(parseInt(process.env.SERVER_TIMEOUT || '0')));
 		this.app.use(requestTracker);
 		this.app.use(apiAnalytics);
 
-		if (config.server.environment === 'production') {
+		if (process.env.NODE_ENV === 'production') {
 			this.app.use(productionLogger);
 		} else {
 			this.app.use(developmentLogger);
@@ -59,14 +58,14 @@ export class Server {
 		this.app.use(helmetConfig);
 		this.app.use(cors(corsOptions));
 		this.app.use(compression());
-		this.app.use(limitRequestSize(config.security.requestSizeLimit));
+		this.app.use(limitRequestSize(process.env.CORS_REQUEST_SIZE_LIMIT));
 		this.app.use(securityLogger);
 
-		this.app.use(express.json({ limit: config.security.requestSizeLimit }));
+		this.app.use(express.json({ limit: process.env.CORS_REQUEST_SIZE_LIMIT }));
 		this.app.use(
 			express.urlencoded({
 				extended: true,
-				limit: config.security.requestSizeLimit,
+				limit: process.env.CORS_REQUEST_SIZE_LIMIT,
 			})
 		);
 	}
@@ -77,7 +76,7 @@ export class Server {
 				success: true,
 				message: 'Server is running',
 				timestamp: new Date().toISOString(),
-				environment: config.server.environment,
+				environment: process.env.NODE_ENV,
 				version: process.env.npm_package_version || '1.0.0',
 			});
 		});
@@ -101,7 +100,7 @@ export class Server {
 				success: false,
 				message: 'Internal server error',
 				error:
-					config.server.environment === 'development' ? err.message : undefined,
+					process.env.NODE_ENV === 'development' ? err.message : undefined,
 			});
 		});
 
@@ -117,9 +116,9 @@ export class Server {
 	}
 
 	public async start() {
-		this.server.listen(config.server.port, '0.0.0.0', async () => {
-			console.log(`🚀 Server running on port ${config.server.port}`);
-			console.log(`📊 Environment: ${config.server.environment}`);
+		this.server.listen(parseInt(process.env.SERVER_PORT || '3000'), '0.0.0.0', async () => {
+			console.log(`🚀 Server running on port ${process.env.SERVER_PORT}`);
+			console.log(`📊 Environment: ${process.env.NODE_ENV}`);
 
 			await this.initializeServices();
 			await initializeEmailService()
@@ -140,12 +139,12 @@ export class Server {
 	private async initializeServices() {
 		await this.testDatabaseConnections();
 
-		if (config.sync.enabled) {
-			syncService.startAutoSync(config.sync.interval);
-			console.log(`🔄 Auto sync enabled (interval: ${config.sync.interval}ms)`);
+		if (process.env.enabled) {
+			syncService.startAutoSync(parseInt(process.env.SYNC_INTERVAL));
+			console.log(`🔄 Auto sync enabled (interval: ${process.env.interval}ms)`);
 		}
 
-		if (config.database.migrate) {
+		if (process.env.DB_MIGRATE === 'true') {
 			try {
 				await initDatabase();
 				console.log('✅ Database migrations completed successfully');
@@ -154,7 +153,7 @@ export class Server {
 			}
 		}
 
-		if (config.database.seed && this.electron) {
+		if (process.env.DB_SEED === 'true' && this.electron) {
 			try {
 				await seedDatabase();
 				console.log('✅ Database seeding completed successfully');

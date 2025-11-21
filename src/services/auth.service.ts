@@ -1,6 +1,5 @@
 import jwt from 'jsonwebtoken';
 import validator from 'validator';
-import config from '../config';
 import { UserModel } from '../models/user.model';
 import { UserService } from './user.service';
 
@@ -98,10 +97,10 @@ export class AuthService {
             iat: Math.floor(Date.now() / 1000),
         };
 
-        return (jwt as any).sign(payload, config.jwt.secret, {
-            expiresIn: config.jwt.expiresIn,
-            issuer: config.app.name,
-            audience: config.app.users,
+        return (jwt as any).sign(payload, process.env.JWT_SECRET, {
+            expiresIn: process.env.JWT_EXPIRES_IN || '',
+            issuer: process.env.APP_NAME || '',
+            audience: 'users',
         });
     }
 
@@ -124,7 +123,7 @@ export class AuthService {
      */
     static verifyJWTToken(token: string): any {
         try {
-            return jwt.verify(token, config.jwt.secret);
+            return jwt.verify(token, process.env.JWT_SECRET);
         } catch (error) {
             if (error instanceof jwt.TokenExpiredError) {
                 throw new Error('Token has expired');
@@ -149,7 +148,7 @@ export class AuthService {
      */
     static async refreshToken(oldToken: string): Promise<string> {
         try {
-            const decoded = jwt.verify(oldToken, config.jwt.secret, {
+            const decoded = jwt.verify(oldToken, process.env.JWT_SECRET, {
                 ignoreExpiration: true,
             }) as any;
 

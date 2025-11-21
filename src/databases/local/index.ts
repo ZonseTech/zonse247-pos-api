@@ -13,7 +13,6 @@ import tables, {
 	USERS_DB,
 	TERMINALS_TABLE,
 } from './tables';
-import config from '../../config';
 import Datastore from '@seald-io/nedb';
 import dayjs from 'dayjs';
 
@@ -38,7 +37,7 @@ export class SealDBModel {
 	}
 
 	private getAppDataPath(): string {
-		return path.join(config.database.dataPath);
+		return path.join(process.env.DATABASE_URL || './.data/zonse247-pos');
 	}
 
 	private initializeDatabases() {

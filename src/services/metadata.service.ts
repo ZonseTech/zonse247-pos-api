@@ -6,7 +6,6 @@ import { SubscriptionPlanModel } from "../models/subscription-plan.model";
 import { PaymentServiceProviderModel } from "../models/payment-service-provider.model";
 import { PaymentMethodModel } from '../models/payment-methods.model';
 import { SubscriptionModel } from '../models/subscription.model';
-import config from '../config';
 import { UserModel } from '../models/user.model';
 import { CustomerModel } from '../models/customer.model';
 import { CategoryModel } from '../models/category.model';
@@ -35,7 +34,10 @@ export class MetadataService {
      */
     private static async fetchFromExternalAPI(endpoint: string, params: ValidationParams): Promise<any> {
         try {
-            const response = await axios.post(`${config.client.apiUrl}${endpoint}`,
+            const host = process.env.API_HOST || 'localhost'
+            const port = process.env.API_PORT || '3000'
+
+            const response = await axios.post(`${host}:${port}${endpoint}`,
                 params,
                 {
                     timeout: API_TIMEOUT,
