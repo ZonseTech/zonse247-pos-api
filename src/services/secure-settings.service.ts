@@ -275,6 +275,10 @@ export class SecureSettingsService {
         verificationToken?: string;
         error?: string;
     }> {
+        console.log('====================================');
+        console.log("tenant key:", this.encryptTenantId('-1'));
+        console.log('====================================');
+
         try {
             if (!this.initialized) {
                 await this.initialize();
@@ -300,9 +304,6 @@ export class SecureSettingsService {
 
             return { isValid: false };
         } catch (error) {
-            console.log('====================================');
-            console.log("tenant key:", this.encryptTenantId('-1'));
-            console.log('====================================');
             return { isValid: false, error: error.message };
         }
     }
