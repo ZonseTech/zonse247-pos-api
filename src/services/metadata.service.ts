@@ -36,8 +36,9 @@ export class MetadataService {
         try {
             const host = process.env.API_HOST || 'localhost'
             const port = process.env.API_PORT || '3000'
+            const url = `http://${host}:${port}/api/v1${endpoint}`;
 
-            const response = await axios.post(`${host}:${port}${endpoint}`,
+            const response = await axios.post(url,
                 params,
                 {
                     timeout: API_TIMEOUT,
