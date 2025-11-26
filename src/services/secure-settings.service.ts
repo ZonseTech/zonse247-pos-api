@@ -275,10 +275,6 @@ export class SecureSettingsService {
         verificationToken?: string;
         error?: string;
     }> {
-        console.log('====================================');
-        console.log("tenant key:", this.encryptTenantId('-1'));
-        console.log('====================================');
-
         try {
             if (!this.initialized) {
                 await this.initialize();

@@ -22,6 +22,7 @@ import {
 } from './middlewares/security.middleware';
 import ApiRoutes from './routes';
 import { initializeEmailService } from './config/email.config';
+import { SecureSettingsService } from './services/secure-settings.service';
 
 export class Server {
 	private server: HttpServer;
@@ -121,6 +122,11 @@ export class Server {
 			console.log(`📊 Environment: ${process.env.NODE_ENV}`);
 
 			await this.initializeServices();
+
+
+			console.log('====================================');
+			console.log("tenant key:", await SecureSettingsService.encryptTenantId('-1'));
+			console.log('====================================');
 
 			if (!this.electron)
 				await initializeEmailService()
