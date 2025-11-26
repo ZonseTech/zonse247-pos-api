@@ -11,11 +11,12 @@ export class SubscriptionPlanModel {
 	static async findAllByRDBMS(conditions: ValidationParams): Promise<Role[]> {
 		try {
 			const connection = await mysqlPool.getConnection();
-			const [rows] = await connection.execute(`SELECT * FROM ${SUBSCRIPTION_PLANS_TABLE} WHERE tenant_id=${conditions.tenantId}`);
+			const [rows] = await connection.execute(`SELECT * FROM ${SUBSCRIPTION_PLANS_TABLE};`);
 			const records = rows as any[];
 
 			return records
 		} catch (error) {
+			conditions
 			throw new Error(`Error finding roles: ${error instanceof Error ? error.message : 'Unknown error'}`);
 		}
 	}
