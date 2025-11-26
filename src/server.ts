@@ -22,7 +22,6 @@ import {
 } from './middlewares/security.middleware';
 import ApiRoutes from './routes';
 import { initializeEmailService } from './config/email.config';
-import { SecureSettingsService } from './services/secure-settings.service';
 
 export class Server {
 	private server: HttpServer;
@@ -123,11 +122,6 @@ export class Server {
 
 			await this.initializeServices();
 
-
-			console.log('====================================');
-			console.log("tenant key:", await SecureSettingsService.encryptTenantId('-1'));
-			console.log('====================================');
-
 			if (!this.electron)
 				await initializeEmailService()
 					.then(() => {
@@ -152,16 +146,15 @@ export class Server {
 				syncService.startAutoSync(parseInt(process.env.SYNC_INTERVAL));
 				console.log(`🔄 Auto sync enabled (interval: ${process.env.SYNC_INTERVAL}ms)`);
 			}
+		}
 
-			if (process.env.DB_SEED === 'true') {
-				try {
-					await seedDatabase();
-					console.log('✅ Database seeding completed successfully');
-				} catch (err) {
-					console.error('❌ Error running seeds:', err);
-				}
+		if (process.env.DB_SEED === 'true') {
+			try {
+				await seedDatabase();
+				console.log('✅ Database seeding completed successfully');
+			} catch (err) {
+				console.error('❌ Error running seeds:', err);
 			}
-
 		}
 
 		if (process.env.DB_MIGRATE === 'true') {
@@ -176,7 +169,7 @@ export class Server {
 
 	private async testDatabaseConnections() {
 		try {
-			const connections = await syncService.testConnections();
+			const connections = await syncService.testConnections(this.electron);
 			console.log('🔗 Database connections:', connections);
 
 			if (!connections.mysql) {

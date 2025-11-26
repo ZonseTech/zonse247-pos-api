@@ -231,16 +231,18 @@ export class SyncService {
 		return await sealDBModel.getSyncStatus(tableName);
 	}
 
-	async testConnections(): Promise<{ mysql: boolean; sealdb: boolean }> {
+	async testConnections(appType = null): Promise<{ mysql: boolean; sealdb: boolean }> {
 		const result = { mysql: false, sealdb: false };
 
-		try {
-			const connection = await mysqlPool.getConnection();
-			await connection.ping();
-			connection.release();
-			result.mysql = true;
-		} catch (error) {
-			console.error('MySQL connection test failed:', error);
+		if (!appType) {
+			try {
+				const connection = await mysqlPool.getConnection();
+				await connection.ping();
+				connection.release();
+				result.mysql = true;
+			} catch (error) {
+				console.error('MySQL connection test failed:', error);
+			}
 		}
 
 		try {
