@@ -7,11 +7,11 @@ module.exports = {
       exec_mode: "cluster",
       env: {
         NODE_ENV: "development",
-        PORT: 2025,
+        PORT: 3000,
       },
       env_production: {
         NODE_ENV: "production",
-        PORT: 2025,
+        PORT: parseInt(process.env.SERVER_PORT) || 3000,
       },
       node_args: "--max-old-space-size=1024",
       error_file: "./logs/err.log",
