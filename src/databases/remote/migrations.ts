@@ -98,7 +98,7 @@ const initDatabase = async () => {
 
         await connection.query(`
             CREATE TABLE IF NOT EXISTS ${SUBSCRIPTION_PLANS_TABLE} (
-                subscription_plan_id INT PRIMARY KEY AUTO_INCREMENT,
+                subscription_plan_id VARCHAR(100) PRIMARY KEY,
                 plan_code VARCHAR(50) UNIQUE NOT NULL,
                 name VARCHAR(100) NOT NULL,
                 description TEXT,
@@ -131,7 +131,7 @@ const initDatabase = async () => {
             CREATE TABLE IF NOT EXISTS ${TENANT_SUBSCRIPTIONS_TABLE} (
                 tenant_subscription_id VARCHAR(36) PRIMARY KEY,
                 tenant_id VARCHAR(100) NOT NULL,
-                subscription_plan_id INT NOT NULL,
+                subscription_plan_id VARCHAR(100) NOT NULL,
                 status ENUM('active', 'cancelled', 'expired', 'past_due') DEFAULT 'active',
                 starts_at TIMESTAMP(3) NOT NULL,
                 ends_at TIMESTAMP(3) NULL,
