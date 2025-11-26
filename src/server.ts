@@ -121,13 +121,15 @@ export class Server {
 			console.log(`📊 Environment: ${process.env.NODE_ENV}`);
 
 			await this.initializeServices();
-			await initializeEmailService()
-				.then(() => {
-					console.log('✅ Email service ready');
-				})
-				.catch((error) => {
-					console.error('❌ Email service initialization failed:', error);
-				});
+
+			if (!this.electron)
+				await initializeEmailService()
+					.then(() => {
+						console.log('✅ Email service ready');
+					})
+					.catch((error) => {
+						console.error('❌ Email service initialization failed:', error);
+					});
 		});
 	}
 
@@ -139,9 +141,21 @@ export class Server {
 	private async initializeServices() {
 		await this.testDatabaseConnections();
 
-		if (process.env.enabled) {
-			syncService.startAutoSync(parseInt(process.env.SYNC_INTERVAL));
-			console.log(`🔄 Auto sync enabled (interval: ${process.env.interval}ms)`);
+		if (this.electron) {
+			if (process.env.AUTO_SYNC_ENABLED === 'true') {
+				syncService.startAutoSync(parseInt(process.env.SYNC_INTERVAL));
+				console.log(`🔄 Auto sync enabled (interval: ${process.env.SYNC_INTERVAL}ms)`);
+			}
+
+			if (process.env.DB_SEED === 'true' && this.electron) {
+				try {
+					await seedDatabase();
+					console.log('✅ Database seeding completed successfully');
+				} catch (err) {
+					console.error('❌ Error running seeds:', err);
+				}
+			}
+
 		}
 
 		if (process.env.DB_MIGRATE === 'true') {
@@ -150,15 +164,6 @@ export class Server {
 				console.log('✅ Database migrations completed successfully');
 			} catch (err) {
 				console.error('❌ Error running migrations:', err);
-			}
-		}
-
-		if (process.env.DB_SEED === 'true' && this.electron) {
-			try {
-				await seedDatabase();
-				console.log('✅ Database seeding completed successfully');
-			} catch (err) {
-				console.error('❌ Error running seeds:', err);
 			}
 		}
 	}
