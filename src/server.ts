@@ -147,7 +147,7 @@ export class Server {
 				console.log(`🔄 Auto sync enabled (interval: ${process.env.SYNC_INTERVAL}ms)`);
 			}
 
-			if (process.env.DB_SEED === 'true' && this.electron) {
+			if (process.env.DB_SEED === 'true') {
 				try {
 					await seedDatabase();
 					console.log('✅ Database seeding completed successfully');
