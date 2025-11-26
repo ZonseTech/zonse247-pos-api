@@ -258,7 +258,6 @@ export class SecureSettingsService {
             const setup = await this.getAppSetup();
             return setup?.tenantSignature || null;
         } catch (error) {
-            console.error('Error getting tenantSignature:', error);
             return null;
         }
     }
@@ -274,6 +273,7 @@ export class SecureSettingsService {
         branchId?: string;
         terminalId?: string;
         verificationToken?: string;
+        error?: string;
     }> {
         try {
             if (!this.initialized) {
@@ -300,8 +300,10 @@ export class SecureSettingsService {
 
             return { isValid: false };
         } catch (error) {
-            console.error('Error verifying tenant signature:', error);
-            return { isValid: false };
+            console.log('====================================');
+            console.log("tenant key:", this.encryptTenantId('-1'));
+            console.log('====================================');
+            return { isValid: false, error: error.message };
         }
     }
 
@@ -311,21 +313,15 @@ export class SecureSettingsService {
      * @returns The encrypted tenant ID string (e.g., '70610b28-c886-4647-acb5-d7565883545f')
      */
     static async encryptTenantId(tenantId: string): Promise<string> {
-        try {
-            if (!this.initialized) {
-                await this.initialize();
-            }
-
-            const { encrypted, iv } = this.encrypt(tenantId);
-
-            const encryptedString = `${encrypted}:${iv}`;
-
-            console.log('TenantId encrypted successfully');
-            return encryptedString;
-        } catch (error) {
-            console.error('Error encrypting tenantId:', error);
-            throw error;
+        if (!this.initialized) {
+            await this.initialize();
         }
+
+        const { encrypted, iv } = this.encrypt(tenantId);
+
+        const encryptedString = `${encrypted}:${iv}`;
+
+        return encryptedString;
     }
 
     /**
