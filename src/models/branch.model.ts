@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import { sealDBModel } from '../databases/local';
-import { BRANCHES_TABLE } from '../databases/local/tables';
+import { BRANCHES_TABLE, } from '../databases/local/tables';
 import { Branch, BranchStatus, CreateBranchRequest, MraApprovalStatus } from 'branch';
 
 export class BranchModel {
@@ -25,8 +25,24 @@ export class BranchModel {
         return sealDBModel.findById(BRANCHES_TABLE, branchId);
     }
 
+    static async exists(branchId: string, tenantId: string): Promise<boolean> {
+        const result = await sealDBModel.findById(BRANCHES_TABLE, { tenantId, branchId });
+
+        if (!result || typeof result !== 'object') {
+            return false;
+        }
+
+        const hasKeys = Object.keys(result).length > 0;
+
+        return hasKeys
+    }
+
     static async create(branchData: Omit<Branch, 'branchId'>): Promise<Branch> {
         return sealDBModel.insert(BRANCHES_TABLE, branchData);
+    }
+
+    static async insert(data: Branch): Promise<Branch> {
+        return await sealDBModel.insert(BRANCHES_TABLE, data);
     }
 
     static async update(branchId: string, data: Partial<Branch>): Promise<number> {

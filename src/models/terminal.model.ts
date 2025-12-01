@@ -36,6 +36,22 @@ export class TerminalModel {
         return sealDBModel.insert(TERMINALS_TABLE, terminalData);
     }
 
+    static async exists(branchId: string): Promise<boolean> {
+        const result = await sealDBModel.findById(TERMINALS_TABLE, { branchId });
+
+        if (!result || typeof result !== 'object') {
+            return false;
+        }
+
+        const hasKeys = Object.keys(result).length > 0;
+
+        return hasKeys
+    }
+
+    static async insert(data: Terminal): Promise<Terminal> {
+        return await sealDBModel.insert(TERMINALS_TABLE, data);
+    }
+
     static async update(terminalId: string, updateData: Partial<Terminal>): Promise<number> {
         return sealDBModel.update(TERMINALS_TABLE, terminalId, updateData);
     }
