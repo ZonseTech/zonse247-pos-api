@@ -2,6 +2,7 @@ import { TenantService } from "./tenant.service";
 import { BranchModel } from "../models/branch.model";
 import { TerminalModel } from "../models/terminal.model";
 import { CreateTerminalRequest, Terminal } from "terminal";
+import { BaseService } from "./base.service";
 
 export class TerminalService {
 
@@ -51,12 +52,40 @@ export class TerminalService {
         }
     }
 
-    static async getTerminalsByBranchId(branchId: string): Promise<Terminal[]> {
-        try {
-            return await TerminalModel.findByBranchId(branchId);
-        } catch (error) {
-            throw new Error(`Failed to retrieve terminals: ${error}`);
+    static async getTerminalsByBranchId(branchId: string, isLive = false): Promise<Terminal[]> {
+        if (!branchId) {
+            throw new Error('Branch ID is required');
         }
+
+        if (isLive) {
+            try {
+                const terminals = await TerminalModel.findByBranchId(branchId);
+                return terminals;
+            } catch (error) {
+                throw new Error(`Failed to retrieve terminals: ${error}`);
+            }
+        }
+
+        const response = await BaseService.get<Array<Terminal>>(`/on-boarding/branch/${branchId}/terminals`, {
+            isLive: true,
+        });
+
+        if (!response.success) {
+            throw new Error(response.message || 'Failed to fetch terminals. External application down');
+        }
+
+        const terminals = response.data;
+
+        if (terminals && terminals.length > 0) {
+            for (const terminal of terminals) {
+                const terminalExists = await TerminalModel.exists(terminal.terminalId);
+                if (!terminalExists) {
+                    await TerminalModel.insert(terminal);
+                }
+            }
+        }
+
+        return terminals;
     }
 
     static async getTerminalById(terminalId: string): Promise<Terminal | null> {

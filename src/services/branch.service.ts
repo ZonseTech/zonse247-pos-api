@@ -3,6 +3,7 @@ import { BranchModel } from "../models/branch.model";
 import { TenantModel } from "../models/tenant.model";
 import { SubscriptionModel } from "../models/subscription.model";
 import { Branch, BranchStatus, CreateBranchRequest } from "branch";
+import { BaseService } from "./base.service";
 
 export class BranchService {
 
@@ -52,12 +53,35 @@ export class BranchService {
 		}
 	}
 
-	static async getBranchesByTenantId(tenantId: string): Promise<Branch[]> {
+	static async getBranchesByTenantId(tenantId: string, isLive = false): Promise<Branch[]> {
 		if (!tenantId) {
 			throw new Error('Tenant ID is required');
 		}
 
-		const branches = await BranchModel.findByTenantId(tenantId);
+		if (isLive) {
+			const branches = await BranchModel.findByTenantId(tenantId);
+			return branches;
+		}
+
+		const response = await BaseService.get<Array<Branch>>(`/on-boarding/tenant/${tenantId}/branches`, {
+			isLive: true,
+		});
+
+		if (!response.success) {
+			throw new Error(response.message || 'Failed to fetch branches. External application down');
+		}
+
+		const branches = response.data;
+
+		if (branches && branches.length > 0) {
+			for (const branch of branches) {
+				const branchExists = await BranchModel.exists(branch.branchId, tenantId);
+				if (!branchExists) {
+					await BranchModel.insert(branch);
+				}
+			}
+		}
+
 		return branches;
 	}
 
