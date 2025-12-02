@@ -1,11 +1,11 @@
 import fs from 'fs';
 import Papa from 'papaparse';
-import { mysqlPool } from '../config/db';
 import { sealDBModel } from '../databases/local';
 import { PoolConnection } from 'mysql2/promise';
 import migrationTables from '../databases/local/migration-table-columns'
 import { transformValue } from '../utils/data-sync-transfomer';
 import { MigrationProgress, MigrationRecord, MigrationStats, TColumnMapping } from 'migrations';
+import prisma from '../databases/prisma/client';
 
 export class MigrationModel {
     private static instance: MigrationModel;
@@ -172,44 +172,42 @@ export class MigrationModel {
 
     public async testConnections(): Promise<void> {
         try {
-            const connection = await mysqlPool.getConnection();
-            await connection.ping();
-            connection.release();
+            await prisma.$queryRaw`SELECT 1`;
 
-            await sealDBModel.count('users');
+            await prisma.users.count();
 
             this.addProgress('connection-test', 'completed', 'Database connections verified');
+
         } catch (error: any) {
             throw new Error(`Database connection failed: ${error.message}`);
         }
     }
 
+
     public async migrateBatch(batch: MigrationRecord[]): Promise<void> {
-        const connection = await mysqlPool.getConnection();
-
-        try {
-            await connection.beginTransaction();
-
+        await prisma.$transaction(async (tx) => {
             for (const record of batch) {
                 const cleanRecord = this.prepareRecordForMySQL(record);
 
-                const dataSet = {}
+                const dataSet: Record<string, any> = {};
 
-                Object.keys(cleanRecord)
-                    .map(key => dataSet[key.replace(/([A-Z])/g, '_$1').toLowerCase()] = cleanRecord[key])
+                Object.keys(cleanRecord).forEach(key => {
+                    dataSet[key.replace(/([A-Z])/g, '_$1').toLowerCase()] = cleanRecord[key];
+                });
 
-                await this.insertIntoMySQL(connection, dataSet);
-                await this.syncToLocalDB(dataSet);
+                await tx.categories.create({
+                    data: dataSet as any
+                });
+
+                await prisma.categories.upsert({
+                    where: { id: dataSet.id },
+                    update: dataSet,
+                    create: dataSet as any
+                });
             }
-
-            await connection.commit();
-        } catch (error) {
-            await connection.rollback();
-            throw error;
-        } finally {
-            connection.release();
-        }
+        });
     }
+
 
     private async getTableColumns(connection: PoolConnection): Promise<string[]> {
         const [rows] = await connection.execute(

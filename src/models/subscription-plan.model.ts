@@ -1,23 +1,20 @@
 import { v4 as uuidv4 } from 'uuid';
 import { sealDBModel } from '../databases/local';
 import { SUBSCRIPTION_PLANS_TABLE } from '../databases/local/tables';
-import { mysqlPool } from '../config/db';
 import { ValidationParams } from 'on-boarding';
 import type { Role } from 'role-permission';
 import { PlanFeature, SubscriptionPlan } from 'subscription';
+import prisma from '../databases/prisma/client';
 
 export class SubscriptionPlanModel {
 
-	static async findAllByRDBMS(conditions: ValidationParams): Promise<Role[]> {
+	static async findAllByRDBMS(_: ValidationParams): Promise<Role[]> {
 		try {
-			const connection = await mysqlPool.getConnection();
-			const [rows] = await connection.execute(`SELECT * FROM ${SUBSCRIPTION_PLANS_TABLE};`);
-			const records = rows as any[];
-
-			return records
+			return await prisma.subscription_plans.findMany() as unknown as Array<Role>;
 		} catch (error) {
-			conditions
-			throw new Error(`Error finding roles: ${error instanceof Error ? error.message : 'Unknown error'}`);
+			throw new Error(
+				`Error finding roles: ${error instanceof Error ? error.message : 'Unknown error'}`
+			);
 		}
 	}
 

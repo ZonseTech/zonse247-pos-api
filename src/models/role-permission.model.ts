@@ -1,20 +1,21 @@
 import { v4 as uuidv4 } from 'uuid';
 import { sealDBModel } from "../databases/local";
 import { ROLE_PERMISSIONS_DB } from "../databases/local/tables";
-import { mysqlPool } from '../config/db';
 import { ValidationParams } from 'on-boarding';
 import type { RolePermission } from 'role-permission';
+import prisma from '../databases/prisma/client';
 
 export class RolePermissionModel {
-    static async findAllByRDBMS(conditions: ValidationParams): Promise<Array<RolePermission>> {
+    static async findAllByRDBMS(_: ValidationParams): Promise<RolePermission[]> {
         try {
-            const connection = await mysqlPool.getConnection();
-            const [rows] = await connection.execute(`SELECT * FROM ${ROLE_PERMISSIONS_DB} WHERE tenant_id=${conditions.tenantId}`);
-            const records = rows as any[];
-
-            return records
+            return await prisma.role_permissions.findMany({
+                where: {
+                },
+            }) as unknown as Array<RolePermission>
         } catch (error) {
-            throw new Error(`Error finding roles: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            throw new Error(
+                `Error finding role permissions: ${error instanceof Error ? error.message : 'Unknown error'}`
+            );
         }
     }
 

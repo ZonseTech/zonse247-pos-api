@@ -60,7 +60,7 @@ export class SyncController {
 				return;
 			}
 
-			const result = await syncService.pullDataFromMySQL(tableName);
+			const result = await syncService.pullDataFromAPI(tableName);
 
 			res.json({
 				success: result.success,
@@ -92,7 +92,7 @@ export class SyncController {
 				});
 			}
 
-			const result = await syncService.pushDataToMySQL(tableName);
+			const result = await syncService.pullDataFromAPI(tableName);
 
 			res.json({
 				success: result.success,
@@ -213,8 +213,8 @@ export class SyncController {
 					? 'All connections successful'
 					: 'Some connections failed',
 				details: {
-					mysql: connections.mysql ? 'Connected' : 'Failed',
-					sealdb: connections.sealdb ? 'Connected' : 'Failed',
+					mysql: connections.api ? 'Connected' : 'Failed',
+					sealdb: connections.prisma ? 'Connected' : 'Failed',
 				},
 			});
 		} catch (error: any) {

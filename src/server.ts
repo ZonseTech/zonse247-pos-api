@@ -117,8 +117,6 @@ export class Server {
 			console.log(`🚀 Server running on port ${process.env.SERVER_PORT}`);
 			console.log(`📊 Environment: ${process.env.NODE_ENV}`);
 
-			await this.initializeServices();
-
 			if (!this.electron)
 				await initializeEmailService()
 					.then(() => {
@@ -133,33 +131,6 @@ export class Server {
 	public stop() {
 		syncService.stopAutoSync();
 		this.server.close();
-	}
-
-	private async initializeServices() {
-		await this.testDatabaseConnections();
-
-		if (this.electron) {
-			if (process.env.AUTO_SYNC_ENABLED === 'true') {
-				syncService.startAutoSync(parseInt(process.env.SYNC_INTERVAL));
-				console.log(`🔄 Auto sync enabled (interval: ${process.env.SYNC_INTERVAL}ms)`);
-			}
-		}
-	}
-
-	private async testDatabaseConnections() {
-		try {
-			const connections = await syncService.testConnections(this.electron);
-			console.log('🔗 Database connections:', connections);
-
-			if (!connections.mysql) {
-				console.warn('⚠️  Warning: MySQL connection failed');
-			}
-			if (!connections.sealdb) {
-				console.error('❌ Error: SealDB connection failed');
-			}
-		} catch (error) {
-			console.error('❌ Error testing database connections.');
-		}
 	}
 }
 

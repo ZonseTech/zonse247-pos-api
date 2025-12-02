@@ -1,22 +1,24 @@
 import { v4 as uuidv4 } from 'uuid';
 import { sealDBModel } from '../databases/local';
 import { ROLES_DB } from '../databases/local/tables';
-import { mysqlPool } from '../config/db';
 import { ValidationParams } from 'on-boarding';
 import type { CreateRoleRequest, Role } from 'role-permission';
+import prisma from '../databases/prisma/client';
 
 export class RoleModel {
-    static async findAllByRDBMS(conditions: ValidationParams): Promise<Role[]> {
+    static async findAllByRDBMS(_: ValidationParams): Promise<Role[]> {
         try {
-            const connection = await mysqlPool.getConnection();
-            const [rows] = await connection.execute(`SELECT * FROM ${ROLES_DB} WHERE tenant_id=${conditions.tenantId}`);
-            const records = rows as any[];
-
-            return records
+            return await prisma.roles.findMany({
+                where: {
+                },
+            }) as unknown as Array<Role>
         } catch (error) {
-            throw new Error(`Error finding roles: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            throw new Error(
+                `Error finding roles: ${error instanceof Error ? error.message : 'Unknown error'}`
+            );
         }
     }
+
 
     static async selectAll(conditions: any = {}): Promise<Role[]> {
         try {

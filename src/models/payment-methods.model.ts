@@ -1,21 +1,23 @@
 import { ValidationParams } from 'on-boarding';
-import { mysqlPool } from '../config/db';
 import { sealDBModel } from '../databases/local';
 import { PAYMENT_METHODS_DB } from '../databases/local/tables';
 import { PaymentMethod } from 'payment-method';
+import prisma from '../databases/prisma/client';
 
 export class PaymentMethodModel {
     private static tableName = PAYMENT_METHODS_DB;
 
-    static async findAllByRDBMS(conditions: ValidationParams): Promise<Array<PaymentMethod>> {
+    static async findAllByRDBMS(conditions: ValidationParams): Promise<PaymentMethod[]> {
         try {
-            const connection = await mysqlPool.getConnection();
-            const [rows] = await connection.execute(`SELECT * FROM ${this.tableName} WHERE tenant_id=${conditions.tenantId}`);
-            const records = rows as any[];
-
-            return records
+            return await prisma.payment_methods.findMany({
+                where: {
+                    tenant_id: conditions.tenantId,
+                },
+            }) as unknown as Array<PaymentMethod>
         } catch (error) {
-            throw new Error(`Error finding roles: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            throw new Error(
+                `Error finding payment methods: ${error instanceof Error ? error.message : 'Unknown error'}`
+            );
         }
     }
 

@@ -1,21 +1,22 @@
 import { v4 as uuidv4 } from 'uuid';
 import { sealDBModel } from '../databases/local';
 import { PAYMENT_SERVICE_PROVIDERS_DB } from '../databases/local/tables';
-import { mysqlPool } from '../config/db';
 import { ValidationParams } from 'on-boarding';
 import { CreatePaymentServiceProviderRequest, PaymentServiceProvider, UpdatePaymentServiceProviderDto } from 'payment-service-provider';
+import prisma from '../databases/prisma/client';
 
 export class PaymentServiceProviderModel {
 
-    static async findAllByRDBMS(conditions: ValidationParams): Promise<Array<PaymentServiceProvider>> {
+    static async findAllByRDBMS(_: ValidationParams): Promise<PaymentServiceProvider[]> {
         try {
-            const connection = await mysqlPool.getConnection();
-            const [rows] = await connection.execute(`SELECT * FROM ${PAYMENT_SERVICE_PROVIDERS_DB} WHERE tenant_id=${conditions.tenantId}`);
-            const records = rows as any[];
-
-            return records
+            return await prisma.paymentServiceProviders.findMany({
+                where: {
+                },
+            }) as unknown as Array<PaymentServiceProvider>
         } catch (error) {
-            throw new Error(`Error finding roles: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            throw new Error(
+                `Error finding payment service providers: ${error instanceof Error ? error.message : 'Unknown error'}`
+            );
         }
     }
 
