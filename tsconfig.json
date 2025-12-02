@@ -10,7 +10,7 @@
     "sourceMap": true,
     "baseUrl": ".",
     "outDir": "dist",
-    "rootDir": "src",
+    "rootDir": "./",
     "moduleResolution": "node",
     "resolveJsonModule": true,
     "typeRoots": ["./node_modules/@types"],
@@ -24,7 +24,7 @@
     "strict": false,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["src/**/*"],
+  "include": ["src/databases/prisma/**/*", "src/**/*"],
   "exclude": [
     "node_modules",
     "dist",
