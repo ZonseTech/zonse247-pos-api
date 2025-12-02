@@ -602,6 +602,31 @@ model users {
   @@index([username], map: "idx_username")
 }
 
+model SyncStatus {
+  tableName    String   @id
+  status       String
+  lastSyncAt   DateTime
+  errorMessage String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model PaymentServiceProviders {
+  id          Int       @id @default(autoincrement())
+  providerId  String    @unique @map("provider_id") @db.VarChar(100)
+  userId      String    @map("user_id") @db.VarChar(100)
+  name        String    @db.VarChar(100)
+  description String?   @db.Text
+  logoUrl     String?   @map("logoUrl") @db.Text
+  isActive    Boolean   @default(true) @map("is_active")
+  sortOrder   Int       @default(0) @map("sort_order")
+  synced      Int       @default(0)
+  createdAt   DateTime? @default(now()) @map("created_at")
+  updatedAt   DateTime? @updatedAt @map("updated_at")
+
+  @@map("payment_service_providers")
+}
+
 enum MRA_API_CONFIG_TABLE_environment {
   SANDBOX
   PRODUCTION
