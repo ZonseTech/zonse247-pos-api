@@ -24,18 +24,18 @@ export class AuthController extends BaseController {
      * @returns Promise<void>
      */
     static async login(
-        req: Request<ApiResponse<{ user: PublicUser; token: string }>, { username: string; password: string }>,
+        req: Request<ApiResponse<{ user: PublicUser; token: string }>, { username: string; password: string, isLive: boolean }>,
         res: Response
     ): Promise<void> {
         try {
-            const { username, password } = req.body;
+            const { username, password, isLive } = req.body;
 
             if (!username || !password) {
                 BaseController.sendResponse(res, 400, false, 'Username and password are required');
                 return;
             }
 
-            const result = await AuthService.loginUser(username, password);
+            const result = await AuthService.loginUser(username, password, isLive);
 
             if (result.message) {
                 BaseController.sendResponse(res, 401, false, result.message);

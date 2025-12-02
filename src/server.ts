@@ -4,10 +4,7 @@ import compression from 'compression';
 import { createServer, Server as HttpServer } from 'http';
 import express, { Request, Response, Application } from 'express';
 import { corsOptions } from './config/cors';
-
 import syncService from './services/sync.service';
-import { initDatabase } from './databases/remote/migrations';
-import { seedDatabase } from './databases/local/seeds';
 import { timeoutHandler } from './middlewares/error.middleware';
 import {
 	apiAnalytics,
@@ -145,24 +142,6 @@ export class Server {
 			if (process.env.AUTO_SYNC_ENABLED === 'true') {
 				syncService.startAutoSync(parseInt(process.env.SYNC_INTERVAL));
 				console.log(`🔄 Auto sync enabled (interval: ${process.env.SYNC_INTERVAL}ms)`);
-			}
-		}
-
-		if (process.env.DB_SEED === 'true') {
-			try {
-				await seedDatabase();
-				console.log('✅ Database seeding completed successfully');
-			} catch (err) {
-				console.error('❌ Error running seeds:', err);
-			}
-		}
-
-		if (process.env.DB_MIGRATE === 'true') {
-			try {
-				await initDatabase();
-				console.log('✅ Database migrations completed successfully');
-			} catch (err) {
-				console.error('❌ Error running migrations:', err);
 			}
 		}
 	}

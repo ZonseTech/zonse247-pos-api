@@ -129,3 +129,6 @@ exports
 mapped-data
 
 *.keystore
+
+/generated/prisma
+generated
