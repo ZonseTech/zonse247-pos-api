@@ -331,11 +331,6 @@ export class SecureSettingsService {
             await this.initialize();
         }
 
-        console.log('====================================');
-        console.log("verifyTenantSignature:", this.encryptTenantId('-1'));
-        console.log('====================================');
-
-
         const [encrypted, iv] = encryptedTenantId.split(':');
 
         if (!encrypted || !iv) {
