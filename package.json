@@ -42,10 +42,13 @@
     "pub:npm:public": "npm run build:clean && npm publish --access public",
     "pub:npm:otp": "npm run build:clean && npm publish --otp",
     "db:seed": "prisma db seed",
+    "db:pull": "prisma db pull",
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
-    "db:generate": "prisma generate"
+    "db:generate": "prisma generate",
+    "db:generate:mysql": "cp src/databases/prisma/schema.mysql.prisma src/databases/prisma/schema.prisma && npx prisma generate",
+    "db:generate:sqlite": "cp src/databases/prisma/schema.sqlite.prisma src/databases/prisma/schema.prisma && npx prisma generate"
   },
   "keywords": [
     "pos",

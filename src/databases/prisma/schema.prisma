@@ -4,121 +4,124 @@ generator client {
 }
 
 datasource db {
-  provider = "mysql"
+  provider = "sqlite"
 }
 
 model MRA_API_CONFIG_TABLE {
-  config_id           String                            @id @db.VarChar(36)
-  tenant_id           String                            @db.VarChar(100)
+  config_id           String                            @id @default(uuid())
+  tenant_id           String
   environment         MRA_API_CONFIG_TABLE_environment? @default(SANDBOX)
-  api_base_url        String                            @db.VarChar(255)
-  api_key             String?                           @db.VarChar(255)
-  api_secret          String?                           @db.VarChar(255)
-  last_sync_timestamp DateTime?                         @db.Timestamp(0)
+  api_base_url        String
+  api_key             String?
+  api_secret          String?
+  last_sync_timestamp DateTime?
   sync_status         MRA_API_CONFIG_TABLE_sync_status? @default(SUCCESS)
   is_active           Boolean?                          @default(true)
-  created_at          DateTime?                         @default(now()) @db.Timestamp(0)
-  updated_at          DateTime?                         @default(now()) @db.Timestamp(0)
-  tenants             tenants                           @relation(fields: [tenant_id], references: [tenant_id], onDelete: Cascade, onUpdate: NoAction, map: "MRA_API_CONFIG_TABLE_ibfk_1")
+  created_at          DateTime?                         @default(now())
+  updated_at          DateTime?                         @default(now())
+  tenants             tenants                           @relation(fields: [tenant_id], references: [tenant_id], onDelete: Cascade, onUpdate: NoAction)
 
-  @@unique([tenant_id, environment], map: "unique_tenant_env")
+  @@unique([tenant_id, environment], name: "unique_tenant_env")
+  @@map("MRA_API_CONFIG_TABLE")
 }
 
 model audit_logs {
   id              Int                    @id @default(autoincrement())
-  log_id          String                 @unique(map: "log_id") @db.VarChar(100)
-  tenant_id       String?                @db.VarChar(100)
-  branch_id       String?                @db.VarChar(100)
-  user_id         String?                @db.VarChar(100)
-  terminal_id     String?                @db.VarChar(100)
+  log_id          String                 @unique
+  tenant_id       String?
+  branch_id       String?
+  user_id         String?
+  terminal_id     String?
   action_type     audit_logs_action_type
-  entity_type     String                 @db.VarChar(50)
-  entity_id       String?                @db.VarChar(100)
-  entity_name     String?                @db.VarChar(200)
+  entity_type     String
+  entity_id       String?
+  entity_name     String?
   old_values      Json?
   new_values      Json?
-  changes_summary String?                @db.Text
-  ip_address      String?                @db.VarChar(45)
-  user_agent      String?                @db.Text
-  request_method  String?                @db.VarChar(10)
-  request_url     String?                @db.VarChar(500)
-  description     String?                @db.Text
-  synced          Int?                   @default(0) @db.TinyInt
+  changes_summary String?
+  ip_address      String?
+  user_agent      String?
+  request_method  String?
+  request_url     String?
+  description     String?
+  synced          Int?                   @default(0)
   severity        audit_logs_severity?   @default(low)
-  created_at      DateTime?              @default(now()) @db.Timestamp(3)
-  tenants         tenants?               @relation(fields: [tenant_id], references: [tenant_id], onUpdate: NoAction, map: "audit_logs_ibfk_1")
-  branches        branches?              @relation(fields: [branch_id], references: [branch_id], onUpdate: NoAction, map: "audit_logs_ibfk_2")
-  users           users?                 @relation(fields: [user_id], references: [user_id], onUpdate: NoAction, map: "audit_logs_ibfk_3")
-  terminals       terminals?             @relation(fields: [terminal_id], references: [terminal_id], onUpdate: NoAction, map: "audit_logs_ibfk_4")
+  created_at      DateTime?              @default(now())
+  tenants         tenants?               @relation(fields: [tenant_id], references: [tenant_id], onUpdate: NoAction)
+  branches        branches?              @relation(fields: [branch_id], references: [branch_id], onUpdate: NoAction)
+  users           users?                 @relation(fields: [user_id], references: [user_id], onUpdate: NoAction)
+  terminals       terminals?             @relation(fields: [terminal_id], references: [terminal_id], onUpdate: NoAction)
 
-  @@index([action_type], map: "idx_action_type")
-  @@index([branch_id], map: "idx_branch_id")
-  @@index([tenant_id, branch_id], map: "idx_tenant_branch")
-  @@index([tenant_id], map: "idx_tenant_id")
-  @@index([terminal_id], map: "terminal_id")
-  @@index([user_id], map: "user_id")
+  @@index([action_type])
+  @@index([branch_id])
+  @@index([tenant_id, branch_id])
+  @@index([tenant_id])
+  @@index([terminal_id])
+  @@index([user_id])
+  @@map("audit_logs")
 }
 
 model branch_settings {
   id                Int                     @id @default(autoincrement())
-  branch_setting_id String                  @unique(map: "branch_setting_id") @db.VarChar(100)
-  tenant_id         String                  @db.VarChar(100)
-  branch_id         String                  @unique(map: "unique_branch_settings") @db.VarChar(100)
-  terminal_id       String                  @db.VarChar(100)
-  app               String?                 @db.VarChar(100)
-  store             String?                 @db.VarChar(255)
-  address_line1     String?                 @db.VarChar(255)
-  address_line2     String?                 @db.VarChar(255)
-  country           String?                 @db.VarChar(100)
-  city              String?                 @db.VarChar(100)
-  contact           String?                 @db.VarChar(100)
-  tax               String?                 @db.VarChar(50)
-  symbol            String?                 @db.VarChar(10)
-  footer            String?                 @db.Text
+  branch_setting_id String                  @unique
+  tenant_id         String
+  branch_id         String                  @unique
+  terminal_id       String
+  app               String?
+  store             String?
+  address_line1     String?
+  address_line2     String?
+  country           String?
+  city              String?
+  contact           String?
+  tax               String?
+  symbol            String?
+  footer            String?
   status            branch_settings_status? @default(inactive)
-  synced            Int?                    @default(0) @db.TinyInt
-  created_at        DateTime?               @default(now()) @db.Timestamp(3)
-  updated_at        DateTime?               @default(now()) @db.Timestamp(3)
-  branches          branches                @relation(fields: [branch_id], references: [branch_id], onDelete: Cascade, onUpdate: NoAction, map: "branch_settings_ibfk_1")
+  synced            Int?                    @default(0)
+  created_at        DateTime?               @default(now())
+  updated_at        DateTime?               @default(now())
+  branches          branches                @relation(fields: [branch_id], references: [branch_id], onDelete: Cascade, onUpdate: NoAction)
 
-  @@index([branch_id], map: "idx_branch_id")
+  @@index([branch_id])
+  @@map("branch_settings")
 }
 
 model branches {
   id                                      Int                           @id @default(autoincrement())
-  branch_id                               String                        @unique(map: "branch_id") @db.VarChar(100)
-  tenant_id                               String                        @db.VarChar(100)
-  branch_name                             String                        @db.VarChar(255)
-  branch_code                             String                        @db.VarChar(50)
-  site_id                                 String?                       @db.VarChar(100)
-  site_name                               String?                       @db.VarChar(255)
-  description                             String?                       @db.Text
-  address_line_1                          String?                       @db.VarChar(255)
-  address_line_2                          String?                       @db.VarChar(255)
-  address_line_3                          String?                       @db.VarChar(255)
-  district                                String?                       @db.VarChar(100)
-  city                                    String?                       @db.VarChar(100)
-  state                                   String?                       @db.VarChar(100)
-  postal_code                             String?                       @db.VarChar(20)
-  phone_number                            String?                       @db.VarChar(20)
-  email                                   String?                       @db.VarChar(100)
-  currency_code                           String?                       @default("MKW") @db.VarChar(3)
-  currency_symbol                         String?                       @default("K") @db.VarChar(10)
-  tax_rate                                Decimal?                      @default(0.00) @db.Decimal(5, 2)
+  branch_id                               String                        @unique
+  tenant_id                               String
+  branch_name                             String
+  branch_code                             String
+  site_id                                 String?
+  site_name                               String?
+  description                             String?
+  address_line_1                          String?
+  address_line_2                          String?
+  address_line_3                          String?
+  district                                String?
+  city                                    String?
+  state                                   String?
+  postal_code                             String?
+  phone_number                            String?
+  email                                   String?
+  currency_code                           String?                       @default("MKW")
+  currency_symbol                         String?                       @default("K")
+  tax_rate                                Decimal?                      @default(0.00)
   charge_tax                              Boolean?                      @default(false)
-  receipt_footer                          String?                       @db.Text
-  logo_url                                String?                       @db.VarChar(500)
+  receipt_footer                          String?
+  logo_url                                String?
   is_virtual_warehouse                    Boolean?                      @default(false)
   is_active                               Boolean?                      @default(true)
-  synced                                  Int?                          @default(0) @db.TinyInt
+  synced                                  Int?                          @default(0)
   mra_approval_status                     branches_mra_approval_status? @default(PENDING)
-  mra_approval_date                       DateTime?                     @db.Timestamp(0)
+  mra_approval_date                       DateTime?
   status                                  branches_status?              @default(active)
-  created_at                              DateTime?                     @default(now()) @db.Timestamp(3)
-  updated_at                              DateTime?                     @default(now()) @db.Timestamp(3)
+  created_at                              DateTime?                     @default(now())
+  updated_at                              DateTime?                     @default(now())
   audit_logs                              audit_logs[]
   branch_settings                         branch_settings?
-  tenants                                 tenants                       @relation(fields: [tenant_id], references: [tenant_id], onDelete: Cascade, onUpdate: NoAction, map: "branches_ibfk_1")
+  tenants                                 tenants                       @relation(fields: [tenant_id], references: [tenant_id], onDelete: Cascade, onUpdate: NoAction)
   categories                              categories[]
   customers                               customers[]
   inventory                               inventory[]
@@ -130,299 +133,314 @@ model branches {
   users_users_branch_idTobranches         users[]                       @relation("users_branch_idTobranches")
   users_users_current_branch_idTobranches users[]                       @relation("users_current_branch_idTobranches")
 
-  @@unique([tenant_id, branch_code], map: "unique_tenant_branch_code")
-  @@index([branch_code], map: "idx_branch_code")
-  @@index([tenant_id, is_active], map: "idx_tenant_active")
-  @@index([tenant_id], map: "idx_tenant_id")
+  @@unique([tenant_id, branch_code], name: "unique_tenant_branch_code")
+  @@index([branch_code])
+  @@index([tenant_id, is_active])
+  @@index([tenant_id])
+  @@map("branches")
 }
 
 model categories {
   id          Int         @id @default(autoincrement())
-  category_id String      @unique(map: "category_id") @db.VarChar(100)
-  branch_id   String      @db.VarChar(100)
-  tenant_id   String      @db.VarChar(100)
-  user_id     String      @db.VarChar(100)
-  name        String      @db.VarChar(100)
-  description String?     @db.Text
-  color       String?     @db.VarChar(7)
+  category_id String      @unique
+  branch_id   String
+  tenant_id   String
+  user_id     String
+  name        String
+  description String?
+  color       String?
   is_active   Boolean?    @default(true)
   sort_order  Int?        @default(0)
   item_count  Int?
-  synced      Int?        @default(0) @db.TinyInt
-  created_at  DateTime?   @default(now()) @db.Timestamp(3)
-  updated_at  DateTime?   @default(now()) @db.Timestamp(3)
-  branches    branches    @relation(fields: [branch_id], references: [branch_id], onDelete: Cascade, onUpdate: NoAction, map: "categories_ibfk_1")
+  synced      Int?        @default(0)
+  created_at  DateTime?   @default(now())
+  updated_at  DateTime?   @default(now())
+  branches    branches    @relation(fields: [branch_id], references: [branch_id], onDelete: Cascade, onUpdate: NoAction)
   inventory   inventory[]
 
-  @@unique([branch_id, name], map: "unique_branch_category")
-  @@index([branch_id], map: "idx_branch_id")
+  @@unique([branch_id, name], name: "unique_branch_category")
+  @@index([branch_id])
+  @@map("categories")
 }
 
 model customers {
   id          Int       @id @default(autoincrement())
-  customer_id String    @unique(map: "customer_id") @db.VarChar(100)
-  tenant_id   String    @db.VarChar(100)
-  branch_id   String    @db.VarChar(100)
-  user_id     String?   @db.VarChar(100)
-  name        String    @db.VarChar(100)
-  synced      Int?      @default(0) @db.TinyInt
-  created_at  DateTime? @default(now()) @db.Timestamp(3)
-  updated_at  DateTime? @default(now()) @db.Timestamp(3)
-  branches    branches  @relation(fields: [branch_id], references: [branch_id], onDelete: Cascade, onUpdate: NoAction, map: "customers_ibfk_1")
+  customer_id String    @unique
+  tenant_id   String
+  branch_id   String
+  user_id     String?
+  name        String
+  synced      Int?      @default(0)
+  created_at  DateTime? @default(now())
+  updated_at  DateTime? @default(now())
+  branches    branches  @relation(fields: [branch_id], references: [branch_id], onDelete: Cascade, onUpdate: NoAction)
 
-  @@index([branch_id], map: "idx_branch_id")
+  @@index([branch_id])
+  @@map("customers")
 }
 
 model inventory {
   id                                     Int               @id @default(autoincrement())
-  product_id                             String            @unique(map: "product_id") @db.VarChar(100)
-  branch_id                              String            @db.VarChar(100)
-  tenant_id                              String            @db.VarChar(100)
-  user_id                                String            @db.VarChar(100)
-  category_id                            String?           @db.VarChar(100)
-  barcode                                String            @db.VarChar(100)
-  sku                                    String?           @db.VarChar(50)
-  name                                   String            @db.VarChar(200)
-  description                            String?           @db.Text
-  brand                                  String?           @db.VarChar(100)
-  unit                                   String?           @default("piece") @db.VarChar(20)
-  cost_price                             Decimal           @default(0.00) @db.Decimal(10, 2)
-  sell_price                             Decimal           @default(0.00) @db.Decimal(10, 2)
-  promo_price                            Decimal?          @db.Decimal(10, 2)
-  promo_start                            DateTime?         @db.Date
-  promo_end                              DateTime?         @db.Date
-  quantity                               String?           @default("0") @db.VarChar(100)
+  product_id                             String            @unique
+  branch_id                              String
+  tenant_id                              String
+  user_id                                String
+  category_id                            String?
+  barcode                                String
+  sku                                    String?
+  name                                   String
+  description                            String?
+  brand                                  String?
+  unit                                   String?           @default("piece")
+  cost_price                             Decimal           @default(0.00)
+  sell_price                             Decimal           @default(0.00)
+  promo_price                            Decimal?
+  promo_start                            DateTime?
+  promo_end                              DateTime?
+  quantity                               String?           @default("0")
   reserved_quantity                      Int?              @default(0)
   min_stock                              Int?              @default(0)
-  original_quantity                      String?           @default("0") @db.VarChar(20)
+  original_quantity                      String?           @default("0")
   max_stock                              Int?
   stock                                  Int?
   reorder_level                          Int?
-  weight                                 Decimal?          @db.Decimal(8, 3)
-  dimensions                             String?           @db.VarChar(50)
-  color                                  String?           @db.VarChar(50)
-  size                                   String?           @db.VarChar(50)
+  weight                                 Decimal?
+  dimensions                             String?
+  color                                  String?
+  size                                   String?
   status                                 inventory_status? @default(active)
   track_inventory                        Boolean?          @default(true)
   allow_negative_stock                   Boolean?          @default(false)
   is_taxable                             Boolean?          @default(true)
-  expiration_date                        DateTime?         @db.Date
-  manufacture_date                       DateTime?         @db.Date
+  expiration_date                        DateTime?
+  manufacture_date                       DateTime?
   image_urls                             Json?
-  supplier_name                          String?           @db.VarChar(100)
-  supplier_code                          String?           @db.VarChar(50)
-  created_by                             String?           @db.VarChar(100)
-  last_updated_by                        String?           @db.VarChar(100)
-  synced                                 Int?              @default(0) @db.TinyInt
-  created_at                             DateTime?         @default(now()) @db.Timestamp(3)
-  updated_at                             DateTime?         @default(now()) @db.Timestamp(3)
-  branches                               branches          @relation(fields: [branch_id], references: [branch_id], onDelete: Cascade, onUpdate: NoAction, map: "inventory_ibfk_1")
-  categories                             categories?       @relation(fields: [category_id], references: [category_id], onUpdate: NoAction, map: "inventory_ibfk_2")
-  users_inventory_created_byTousers      users?            @relation("inventory_created_byTousers", fields: [created_by], references: [user_id], onUpdate: NoAction, map: "inventory_ibfk_3")
-  users_inventory_last_updated_byTousers users?            @relation("inventory_last_updated_byTousers", fields: [last_updated_by], references: [user_id], onUpdate: NoAction, map: "inventory_ibfk_4")
+  supplier_name                          String?
+  supplier_code                          String?
+  created_by                             String?
+  last_updated_by                        String?
+  synced                                 Int?              @default(0)
+  created_at                             DateTime?         @default(now())
+  updated_at                             DateTime?         @default(now())
+  branches                               branches          @relation(fields: [branch_id], references: [branch_id], onDelete: Cascade, onUpdate: NoAction)
+  categories                             categories?       @relation(fields: [category_id], references: [category_id], onUpdate: NoAction)
+  users_inventory_created_byTousers      users?            @relation("inventory_created_byTousers", fields: [created_by], references: [user_id], onUpdate: NoAction)
+  users_inventory_last_updated_byTousers users?            @relation("inventory_last_updated_byTousers", fields: [last_updated_by], references: [user_id], onUpdate: NoAction)
 
-  @@index([created_by], map: "created_by")
-  @@index([barcode], map: "idx_barcode")
-  @@index([branch_id], map: "idx_branch_id")
-  @@index([category_id], map: "idx_category_id")
-  @@index([name], map: "idx_name")
-  @@index([status], map: "idx_status")
-  @@index([last_updated_by], map: "last_updated_by")
+  @@index([created_by])
+  @@index([barcode])
+  @@index([branch_id])
+  @@index([category_id])
+  @@index([name])
+  @@index([status])
+  @@index([last_updated_by])
+  @@map("inventory")
 }
 
 model orders {
   id             Int       @id @default(autoincrement())
-  order_id       String    @unique(map: "order_id") @db.VarChar(100)
-  ref_number     String    @db.VarChar(100)
-  transaction_id String?   @default("1") @db.VarChar(100)
-  product_id     String    @db.VarChar(100)
-  quantity       Decimal   @default(1.000) @db.Decimal(10, 3)
-  purchase_price Decimal   @default(0.00) @db.Decimal(10, 2)
-  sell_price     Decimal   @default(0.00) @db.Decimal(10, 2)
-  synced         Int?      @default(0) @db.TinyInt
-  created_at     DateTime? @default(now()) @db.Timestamp(3)
-  updated_at     DateTime? @default(now()) @db.Timestamp(3)
+  order_id       String    @unique
+  ref_number     String
+  transaction_id String?   @default("1")
+  product_id     String
+  quantity       Decimal   @default(1.000)
+  purchase_price Decimal   @default(0.00)
+  sell_price     Decimal   @default(0.00)
+  synced         Int?      @default(0)
+  created_at     DateTime? @default(now())
+  updated_at     DateTime? @default(now())
 
-  @@index([transaction_id], map: "idx_transaction_id")
+  @@index([transaction_id])
+  @@map("orders")
 }
 
 model payment_methods {
   id         Int       @id @default(autoincrement())
-  method_id  String    @unique(map: "method_id") @db.VarChar(100)
-  branch_id  String    @db.VarChar(100)
-  tenant_id  String    @db.VarChar(100)
-  user_id    String    @db.VarChar(100)
-  name       String    @db.VarChar(50)
+  method_id  String    @unique
+  branch_id  String
+  tenant_id  String
+  user_id    String
+  name       String
   is_active  Boolean?  @default(true)
-  icon       String?   @db.VarChar(500)
+  icon       String?
   sort_order Int?      @default(0)
-  synced     Int?      @default(0) @db.TinyInt
-  created_at DateTime? @default(now()) @db.Timestamp(3)
-  updated_at DateTime? @default(now()) @db.Timestamp(3)
-  branches   branches  @relation(fields: [branch_id], references: [branch_id], onDelete: Cascade, onUpdate: NoAction, map: "payment_methods_ibfk_1")
-  tenants    tenants   @relation(fields: [tenant_id], references: [tenant_id], onDelete: Cascade, onUpdate: NoAction, map: "payment_methods_ibfk_2")
-  users      users     @relation(fields: [user_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction, map: "payment_methods_ibfk_3")
+  synced     Int?      @default(0)
+  created_at DateTime? @default(now())
+  updated_at DateTime? @default(now())
+  branches   branches  @relation(fields: [branch_id], references: [branch_id], onDelete: Cascade, onUpdate: NoAction)
+  tenants    tenants   @relation(fields: [tenant_id], references: [tenant_id], onDelete: Cascade, onUpdate: NoAction)
+  users      users     @relation(fields: [user_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
 
-  @@unique([branch_id, name], map: "unique_branch_payment_method")
-  @@unique([tenant_id, name], map: "unique_tenant_payment_method")
-  @@unique([user_id, name], map: "unique_user_payment_method")
-  @@index([branch_id], map: "idx_branch_id")
-  @@index([tenant_id], map: "idx_tenant_id")
-  @@index([user_id], map: "idx_user_id")
+  @@unique([branch_id, name], name: "unique_branch_payment_method")
+  @@unique([tenant_id, name], name: "unique_tenant_payment_method")
+  @@unique([user_id, name], name: "unique_user_payment_method")
+  @@index([branch_id])
+  @@index([tenant_id])
+  @@index([user_id])
+  @@map("payment_methods")
 }
 
 model permissions {
   id                   Int                @id @default(autoincrement())
-  permission_id        String             @unique(map: "permission_id") @db.VarChar(100)
-  name                 String             @unique(map: "name") @db.VarChar(255)
-  display_name         String             @db.VarChar(255)
-  description          String?            @db.Text
-  category             String             @db.VarChar(255)
+  permission_id        String             @unique
+  name                 String             @unique
+  display_name         String
+  description          String?
+  category             String
   scope                permissions_scope? @default(shop)
-  synced               Int?               @default(0) @db.TinyInt
+  synced               Int?               @default(0)
   is_system_permission Boolean?           @default(true)
-  created_at           DateTime?          @default(now()) @db.Timestamp(3)
-  updated_at           DateTime?          @default(now()) @db.Timestamp(3)
+  created_at           DateTime?          @default(now())
+  updated_at           DateTime?          @default(now())
   role_permissions     role_permissions[]
   user_permissions     user_permissions[]
 
-  @@index([category], map: "idx_category")
-  @@index([name], map: "idx_name")
-  @@index([scope], map: "idx_scope")
+  @@index([category])
+  @@index([name])
+  @@index([scope])
+  @@map("permissions")
 }
 
 model plan_features {
   feature_category_id Int       @id @default(autoincrement())
-  title               String    @db.VarChar(100)
+  title               String
   features            Json
   display_order       Int?      @default(0)
-  created_at          DateTime? @default(now()) @db.Timestamp(3)
-  updated_at          DateTime? @default(now()) @db.Timestamp(3)
+  created_at          DateTime? @default(now())
+  updated_at          DateTime? @default(now())
+  
+  @@map("plan_features")
 }
 
 model role_permissions {
   id                 Int         @id @default(autoincrement())
-  role_permission_id String      @unique(map: "role_permission_id") @db.VarChar(100)
-  role_id            String      @db.VarChar(100)
-  permission_id      String      @db.VarChar(100)
-  synced             Int?        @default(0) @db.TinyInt
-  created_at         DateTime?   @default(now()) @db.Timestamp(3)
-  updated_at         DateTime?   @default(now()) @db.Timestamp(3)
-  roles              roles       @relation(fields: [role_id], references: [role_id], onDelete: Cascade, onUpdate: NoAction, map: "role_permissions_ibfk_1")
-  permissions        permissions @relation(fields: [permission_id], references: [permission_id], onDelete: Cascade, onUpdate: NoAction, map: "role_permissions_ibfk_2")
+  role_permission_id String      @unique
+  role_id            String
+  permission_id      String
+  synced             Int?        @default(0)
+  created_at         DateTime?   @default(now())
+  updated_at         DateTime?   @default(now())
+  roles              roles       @relation(fields: [role_id], references: [role_id], onDelete: Cascade, onUpdate: NoAction)
+  permissions        permissions @relation(fields: [permission_id], references: [permission_id], onDelete: Cascade, onUpdate: NoAction)
 
-  @@unique([role_id, permission_id], map: "unique_role_permission")
-  @@index([permission_id], map: "idx_permission_id")
-  @@index([role_id], map: "idx_role_id")
+  @@unique([role_id, permission_id], name: "unique_role_permission")
+  @@index([permission_id])
+  @@index([role_id])
+  @@map("role_permissions")
 }
 
 model roles {
   id               Int                @id @default(autoincrement())
-  role_id          String             @unique(map: "role_id") @db.VarChar(100)
-  name             String             @unique @db.VarChar(50)
-  display_name     String             @db.VarChar(100)
-  description      String?            @db.Text
-  synced           Int?               @default(0) @db.TinyInt
+  role_id          String             @unique
+  name             String             @unique
+  display_name     String
+  description      String?
+  synced           Int?               @default(0)
   is_system_role   Boolean?           @default(false)
   is_active        Boolean?           @default(true)
-  created_at       DateTime?          @default(now()) @db.Timestamp(3)
-  updated_at       DateTime?          @default(now()) @db.Timestamp(3)
+  created_at       DateTime?          @default(now())
+  updated_at       DateTime?          @default(now())
   role_permissions role_permissions[]
   users            users[]
 
-  @@index([is_active], map: "idx_active_role")
-  @@index([name], map: "idx_role_name")
-  @@index([is_system_role], map: "idx_system_role")
+  @@index([is_active], name: "idx_active_role")
+  @@index([name], name: "idx_role_name")
+  @@index([is_system_role], name: "idx_system_role")
+  @@map("roles")
 }
 
 model service_provider {
   id          Int       @id @default(autoincrement())
-  provider_id String    @unique(map: "provider_id") @db.VarChar(100)
-  branch_id   String    @db.VarChar(100)
-  tenant_id   String    @db.VarChar(100)
-  user_id     String    @db.VarChar(100)
-  name        String    @db.VarChar(100)
-  description String?   @db.Text
-  logoUrl     String?   @db.Text
+  provider_id String    @unique
+  branch_id   String
+  tenant_id   String
+  user_id     String
+  name        String
+  description String?
+  logoUrl     String?
   is_active   Boolean?  @default(true)
   sort_order  Int?      @default(0)
-  synced      Int?      @default(0) @db.TinyInt
-  created_at  DateTime? @default(now()) @db.Timestamp(3)
-  updated_at  DateTime? @default(now()) @db.Timestamp(3)
-  branches    branches  @relation(fields: [branch_id], references: [branch_id], onDelete: Cascade, onUpdate: NoAction, map: "service_provider_ibfk_1")
+  synced      Int?      @default(0)
+  created_at  DateTime? @default(now())
+  updated_at  DateTime? @default(now())
+  branches    branches  @relation(fields: [branch_id], references: [branch_id], onDelete: Cascade, onUpdate: NoAction)
 
-  @@unique([branch_id, name], map: "unique_branch_service_provider")
-  @@index([branch_id], map: "idx_branch_id")
+  @@unique([branch_id, name], name: "unique_branch_service_provider")
+  @@index([branch_id])
+  @@map("service_provider")
 }
 
 model subscription_plans {
-  subscription_plan_id String                 @id @db.VarChar(100)
-  plan_code            String                 @unique(map: "plan_code") @db.VarChar(50)
-  name                 String                 @db.VarChar(100)
-  description          String?                @db.Text
-  monthly_price        Decimal                @default(0.00) @db.Decimal(12, 2)
-  yearly_price         Decimal                @default(0.00) @db.Decimal(12, 2)
-  color                String                 @default("gray") @db.VarChar(20)
+  subscription_plan_id String                 @id @default(uuid())
+  plan_code            String                 @unique
+  name                 String
+  description          String?
+  monthly_price        Decimal                @default(0.00)
+  yearly_price         Decimal                @default(0.00)
+  color                String                 @default("gray")
   is_popular           Boolean?               @default(false)
   is_active            Boolean?               @default(true)
   features             Json
   limits               Json
-  notes                String?                @db.Text
-  synced               Int?                   @default(0) @db.TinyInt
-  created_at           DateTime?              @default(now()) @db.Timestamp(3)
-  updated_at           DateTime?              @default(now()) @db.Timestamp(3)
+  notes                String?
+  synced               Int?                   @default(0)
+  created_at           DateTime?              @default(now())
+  updated_at           DateTime?              @default(now())
   tenant_subscriptions tenant_subscriptions[]
+
+  @@map("subscription_plans")
 }
 
 model tenant_subscriptions {
-  tenant_subscription_id String                       @id @db.VarChar(36)
-  tenant_id              String                       @db.VarChar(100)
-  subscription_plan_id   String                       @db.VarChar(100)
+  tenant_subscription_id String                       @id @default(uuid())
+  tenant_id              String
+  subscription_plan_id   String
   status                 tenant_subscriptions_status? @default(active)
-  starts_at              DateTime                     @db.Timestamp(3)
-  ends_at                DateTime?                    @db.Timestamp(3)
+  starts_at              DateTime
+  ends_at                DateTime?
   auto_renew             Boolean?                     @default(true)
-  payment_method         String?                      @db.VarChar(50)
+  payment_method         String?
   max_shops              Int?                         @default(1)
-  synced                 Int?                         @default(0) @db.TinyInt
-  last_payment_date      DateTime?                    @db.Timestamp(3)
-  next_payment_date      DateTime?                    @db.Timestamp(3)
-  created_at             DateTime?                    @default(now()) @db.Timestamp(3)
-  updated_at             DateTime?                    @default(now()) @db.Timestamp(3)
-  tenants                tenants                      @relation(fields: [tenant_id], references: [tenant_id], onDelete: Cascade, onUpdate: NoAction, map: "tenant_subscriptions_ibfk_1")
-  subscription_plans     subscription_plans           @relation(fields: [subscription_plan_id], references: [subscription_plan_id], onUpdate: NoAction, map: "tenant_subscriptions_ibfk_2")
+  synced                 Int?                         @default(0)
+  last_payment_date      DateTime?
+  next_payment_date      DateTime?
+  created_at             DateTime?                    @default(now())
+  updated_at             DateTime?                    @default(now())
+  tenants                tenants                      @relation(fields: [tenant_id], references: [tenant_id], onDelete: Cascade, onUpdate: NoAction)
+  subscription_plans     subscription_plans           @relation(fields: [subscription_plan_id], references: [subscription_plan_id], onUpdate: NoAction)
 
-  @@index([subscription_plan_id], map: "subscription_plan_id")
-  @@index([tenant_id], map: "tenant_id")
+  @@index([subscription_plan_id])
+  @@index([tenant_id])
+  @@map("tenant_subscriptions")
 }
 
 model tenants {
   id                    Int                            @id @default(autoincrement())
-  tenant_id             String                         @unique(map: "tenant_id") @db.VarChar(100)
-  business_name         String                         @db.VarChar(255)
-  tin                   String                         @unique(map: "tin") @db.VarChar(50)
-  tenant_code           String                         @unique(map: "tenant_code") @db.VarChar(50)
+  tenant_id             String                         @unique
+  business_name         String
+  tin                   String                         @unique
+  tenant_code           String                         @unique
   business_type         tenants_business_type
-  phone_number          String                         @db.VarChar(20)
-  email                 String                         @unique(map: "email") @db.VarChar(255)
-  mra_portal_username   String?                        @db.VarChar(100)
-  trading_name          String?                        @db.VarChar(255)
+  phone_number          String
+  email                 String                         @unique
+  mra_portal_username   String?
+  trading_name          String?
   is_vat_registered     Boolean?                       @default(false)
-  tax_office_code       String?                        @db.VarChar(50)
+  tax_office_code       String?
   msonkho_online_status tenants_msonkho_online_status? @default(PENDING)
-  subscription_plan     String?                        @db.VarChar(50)
+  subscription_plan     String?
   subscription_status   tenants_subscription_status?   @default(TRIAL)
-  owner_name            String                         @db.VarChar(100)
-  address               String?                        @db.Text
-  country               String?                        @db.VarChar(50)
-  trial_ends_at         DateTime?                      @db.Timestamp(3)
-  auth_key              String                         @unique(map: "auth_key") @db.VarChar(255)
+  owner_name            String
+  address               String?
+  country               String?
+  trial_ends_at         DateTime?
+  auth_key              String                         @unique
   status                tenants_status?                @default(pending)
-  registered_at         DateTime?                      @default(now()) @db.Timestamp(3)
-  activated_at          DateTime?                      @db.Timestamp(3)
-  synced                Int?                           @default(0) @db.TinyInt
-  created_at            DateTime?                      @default(now()) @db.Timestamp(3)
-  updated_at            DateTime?                      @default(now()) @db.Timestamp(3)
+  registered_at         DateTime?                      @default(now())
+  activated_at          DateTime?
+  synced                Int?                           @default(0)
+  created_at            DateTime?                      @default(now())
+  updated_at            DateTime?                      @default(now())
   MRA_API_CONFIG_TABLE  MRA_API_CONFIG_TABLE[]
   audit_logs            audit_logs[]
   branches              branches[]
@@ -431,157 +449,162 @@ model tenants {
   terminals             terminals[]
   users                 users[]
 
-  @@index([auth_key], map: "idx_auth_key")
-  @@index([email], map: "idx_email")
-  @@index([subscription_status], map: "idx_subscription_status")
-  @@index([tenant_code], map: "idx_tenant_code")
-  @@index([tin], map: "idx_tin")
+  @@index([auth_key])
+  @@index([email])
+  @@index([subscription_status])
+  @@index([tenant_code])
+  @@index([tin])
+  @@map("tenants")
 }
 
 model terminals {
   id                                Int                               @id @default(autoincrement())
-  terminal_id                       String                            @unique(map: "terminal_id") @db.VarChar(100)
-  tenant_id                         String                            @db.VarChar(100)
-  branch_id                         String                            @db.VarChar(100)
-  mra_terminal_id                   String?                           @unique(map: "mra_terminal_id") @db.VarChar(100)
-  terminal_code                     String                            @unique(map: "terminal_code") @db.VarChar(100)
-  terminal_label                    String                            @db.VarChar(255)
+  terminal_id                       String                            @unique
+  tenant_id                         String
+  branch_id                         String
+  mra_terminal_id                   String?                           @unique
+  terminal_code                     String                            @unique
+  terminal_label                    String
   terminal_position                 Int?
-  device_id                         String?                           @db.VarChar(100)
-  os_name                           String?                           @db.VarChar(100)
-  os_version                        String?                           @db.VarChar(100)
-  os_build                          String?                           @db.VarChar(100)
-  mac_address                       String?                           @db.VarChar(50)
-  pos_product_id                    String?                           @db.VarChar(100)
-  pos_product_version               String?                           @db.VarChar(50)
-  terminal_config_version           Decimal?                          @db.Decimal(10, 2)
-  offline_max_transaction_age_hours Decimal?                          @db.Decimal(10, 2)
-  offline_max_cumulative_amount     Decimal?                          @db.Decimal(15, 2)
-  activation_code                   String?                           @db.VarChar(255)
+  device_id                         String?
+  os_name                           String?
+  os_version                        String?
+  os_build                          String?
+  mac_address                       String?
+  pos_product_id                    String?
+  pos_product_version               String?
+  terminal_config_version           Decimal?
+  offline_max_transaction_age_hours Decimal?
+  offline_max_cumulative_amount     Decimal?
+  activation_code                   String?
   activation_status                 terminals_activation_status?      @default(PENDING)
-  activation_date                   DateTime?                         @db.Timestamp(0)
+  activation_date                   DateTime?
   is_primary                        Boolean?                          @default(false)
   is_blocked                        Boolean?                          @default(false)
-  blocking_reason                   String?                           @db.Text
-  blocked_at                        DateTime?                         @db.Timestamp(0)
+  blocking_reason                   String?
+  blocked_at                        DateTime?
   mra_application_status            terminals_mra_application_status? @default(APPLIED)
-  mra_approval_date                 DateTime?                         @db.Timestamp(0)
-  last_activity                     DateTime?                         @db.Timestamp(3)
-  last_sync                         DateTime?                         @db.Timestamp(3)
-  last_sync_timestamp               DateTime?                         @db.Timestamp(0)
-  synced                            Int?                              @default(0) @db.TinyInt
-  registered_at                     DateTime?                         @default(now()) @db.Timestamp(3)
-  created_at                        DateTime?                         @default(now()) @db.Timestamp(3)
-  updated_at                        DateTime?                         @default(now()) @db.Timestamp(3)
+  mra_approval_date                 DateTime?
+  last_activity                     DateTime?
+  last_sync                         DateTime?
+  last_sync_timestamp               DateTime?
+  synced                            Int?                              @default(0)
+  registered_at                     DateTime?                         @default(now())
+  created_at                        DateTime?                         @default(now())
+  updated_at                        DateTime?                         @default(now())
   audit_logs                        audit_logs[]
-  tenants                           tenants                           @relation(fields: [tenant_id], references: [tenant_id], onDelete: Cascade, onUpdate: NoAction, map: "terminals_ibfk_1")
-  branches                          branches                          @relation(fields: [branch_id], references: [branch_id], onDelete: Cascade, onUpdate: NoAction, map: "terminals_ibfk_2")
+  tenants                           tenants                           @relation(fields: [tenant_id], references: [tenant_id], onDelete: Cascade, onUpdate: NoAction)
+  branches                          branches                          @relation(fields: [branch_id], references: [branch_id], onDelete: Cascade, onUpdate: NoAction)
   user_sessions                     user_sessions[]
 
-  @@index([activation_status], map: "idx_activation_status")
-  @@index([branch_id], map: "idx_branch_id")
-  @@index([tenant_id, branch_id], map: "idx_tenant_branch")
-  @@index([tenant_id], map: "idx_tenant_id")
+  @@index([activation_status])
+  @@index([branch_id])
+  @@index([tenant_id, branch_id])
+  @@index([tenant_id])
+  @@map("terminals")
 }
 
 model transactions {
   id                          Int       @id @default(autoincrement())
-  transaction_id              String    @unique(map: "transaction_id") @db.VarChar(100)
-  ref_number                  String    @db.VarChar(50)
-  discount                    Decimal?  @default(0.00) @db.Decimal(10, 2)
-  customer_id                 String?   @db.VarChar(100)
-  subtotal                    Decimal?  @default(0.00) @db.Decimal(10, 2)
-  tax                         Decimal?  @default(0.00) @db.Decimal(10, 2)
-  date                        DateTime? @db.Timestamp(3)
-  payment_method_id           String?   @db.VarChar(100)
-  phone_number                String?   @db.VarChar(20)
-  payment_service_provider_id String?   @db.VarChar(100)
-  total                       Decimal?  @default(0.00) @db.Decimal(10, 2)
-  paid                        Decimal?  @default(0.00) @db.Decimal(10, 2)
-  change_amount               Decimal?  @default(0.00) @db.Decimal(10, 2)
-  terminal_id                 String?   @db.VarChar(100)
-  user_id                     String?   @db.VarChar(100)
-  tenant_id                   String    @db.VarChar(100)
-  branch_id                   String    @db.VarChar(100)
-  status                      String?   @db.VarChar(50)
-  synced                      Int?      @default(0) @db.TinyInt
-  created_at                  DateTime? @default(now()) @db.Timestamp(3)
-  updated_at                  DateTime? @default(now()) @db.Timestamp(3)
-  branches                    branches  @relation(fields: [branch_id], references: [branch_id], onDelete: Cascade, onUpdate: NoAction, map: "transactions_ibfk_1")
+  transaction_id              String    @unique
+  ref_number                  String
+  discount                    Decimal?  @default(0.00)
+  customer_id                 String?
+  subtotal                    Decimal?  @default(0.00)
+  tax                         Decimal?  @default(0.00)
+  date                        DateTime?
+  payment_method_id           String?
+  phone_number                String?
+  payment_service_provider_id String?
+  total                       Decimal?  @default(0.00)
+  paid                        Decimal?  @default(0.00)
+  change_amount               Decimal?  @default(0.00)
+  terminal_id                 String?
+  user_id                     String?
+  tenant_id                   String
+  branch_id                   String
+  status                      String?
+  synced                      Int?      @default(0)
+  created_at                  DateTime? @default(now())
+  updated_at                  DateTime? @default(now())
+  branches                    branches  @relation(fields: [branch_id], references: [branch_id], onDelete: Cascade, onUpdate: NoAction)
 
-  @@index([branch_id], map: "idx_branch_id")
+  @@index([branch_id])
+  @@map("transactions")
 }
 
 model user_permissions {
   id                                       Int         @id @default(autoincrement())
-  user_permission_id                       String      @unique(map: "user_permission_id") @db.VarChar(100)
-  user_id                                  String      @db.VarChar(100)
-  permission_id                            String      @db.VarChar(100)
-  branch_id                                String?     @db.VarChar(100)
+  user_permission_id                       String      @unique
+  user_id                                  String
+  permission_id                            String
+  branch_id                                String?
   granted                                  Boolean
-  created_at                               DateTime?   @default(now()) @db.Timestamp(3)
-  created_by                               String?     @db.VarChar(100)
-  synced                                   Int?        @default(0) @db.TinyInt
-  users_user_permissions_user_idTousers    users       @relation("user_permissions_user_idTousers", fields: [user_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction, map: "user_permissions_ibfk_1")
-  permissions                              permissions @relation(fields: [permission_id], references: [permission_id], onDelete: Cascade, onUpdate: NoAction, map: "user_permissions_ibfk_2")
-  branches                                 branches?   @relation(fields: [branch_id], references: [branch_id], onDelete: Cascade, onUpdate: NoAction, map: "user_permissions_ibfk_3")
-  users_user_permissions_created_byTousers users?      @relation("user_permissions_created_byTousers", fields: [created_by], references: [user_id], onUpdate: NoAction, map: "user_permissions_ibfk_4")
+  created_at                               DateTime?   @default(now())
+  created_by                               String?
+  synced                                   Int?        @default(0)
+  users_user_permissions_user_idTousers    users       @relation("user_permissions_user_idTousers", fields: [user_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
+  permissions                              permissions @relation(fields: [permission_id], references: [permission_id], onDelete: Cascade, onUpdate: NoAction)
+  branches                                 branches?   @relation(fields: [branch_id], references: [branch_id], onDelete: Cascade, onUpdate: NoAction)
+  users_user_permissions_created_byTousers users?      @relation("user_permissions_created_byTousers", fields: [created_by], references: [user_id], onUpdate: NoAction)
 
-  @@unique([user_id, permission_id, branch_id], map: "unique_user_permission_branch")
-  @@index([created_by], map: "created_by")
-  @@index([branch_id], map: "idx_branch_id")
-  @@index([permission_id], map: "idx_permission_id")
-  @@index([user_id], map: "idx_user_id")
+  @@unique([user_id, permission_id, branch_id], name: "unique_user_permission_branch")
+  @@index([created_by])
+  @@index([branch_id])
+  @@index([permission_id])
+  @@index([user_id])
+  @@map("user_permissions")
 }
 
 model user_sessions {
   id              Int       @id @default(autoincrement())
-  user_session_id String    @unique(map: "user_session_id") @db.VarChar(100)
-  user_id         String    @db.VarChar(100)
-  terminal_id     String    @db.VarChar(100)
-  session_token   String    @unique(map: "session_token") @db.VarChar(255)
-  ip_address      String?   @db.VarChar(45)
-  user_agent      String?   @db.Text
-  started_at      DateTime? @default(now()) @db.Timestamp(3)
-  last_activity   DateTime? @default(now()) @db.Timestamp(3)
-  ended_at        DateTime? @db.Timestamp(3)
-  synced          Int?      @default(0) @db.TinyInt
+  user_session_id String    @unique
+  user_id         String
+  terminal_id     String
+  session_token   String    @unique
+  ip_address      String?
+  user_agent      String?
+  started_at      DateTime? @default(now())
+  last_activity   DateTime? @default(now())
+  ended_at        DateTime?
+  synced          Int?      @default(0)
   is_active       Boolean?  @default(true)
-  created_at      DateTime? @default(now()) @db.Timestamp(3)
-  updated_at      DateTime? @default(now()) @db.Timestamp(3)
-  users           users     @relation(fields: [user_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction, map: "user_sessions_ibfk_1")
-  terminals       terminals @relation(fields: [terminal_id], references: [terminal_id], onDelete: Cascade, onUpdate: NoAction, map: "user_sessions_ibfk_2")
+  created_at      DateTime? @default(now())
+  updated_at      DateTime? @default(now())
+  users           users     @relation(fields: [user_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
+  terminals       terminals @relation(fields: [terminal_id], references: [terminal_id], onDelete: Cascade, onUpdate: NoAction)
 
-  @@index([session_token], map: "idx_session_token")
-  @@index([terminal_id], map: "idx_terminal_id")
-  @@index([user_id], map: "idx_user_id")
+  @@index([session_token])
+  @@index([terminal_id])
+  @@index([user_id])
+  @@map("user_sessions")
 }
 
 model users {
   id                                                  Int                @id @default(autoincrement())
-  user_id                                             String             @unique(map: "user_id") @db.VarChar(100)
-  tenant_id                                           String             @db.VarChar(100)
-  branch_id                                           String             @db.VarChar(100)
-  username                                            String             @db.VarChar(50)
-  password                                            String             @db.VarChar(255)
-  fullname                                            String             @db.VarChar(100)
-  email                                               String?            @db.VarChar(100)
-  phone                                               String?            @db.VarChar(20)
-  role_id                                             String             @db.VarChar(100)
+  user_id                                             String             @unique
+  tenant_id                                           String
+  branch_id                                           String
+  username                                            String
+  password                                            String
+  fullname                                            String
+  email                                               String?
+  phone                                               String?
+  role_id                                             String
   status                                              users_status?      @default(active)
   accessible_shops                                    Json?
   allowed_workstations                                Json?
-  max_discount_percent                                Decimal?           @default(0.00) @db.Decimal(5, 2)
+  max_discount_percent                                Decimal?           @default(0.00)
   can_override_prices                                 Boolean?           @default(false)
-  pin_code                                            String?            @db.VarChar(10)
-  current_branch_id                                   String?            @db.VarChar(100)
-  last_login                                          DateTime?          @db.Timestamp(3)
-  last_logout                                         DateTime?          @db.Timestamp(3)
-  password_changed_at                                 DateTime?          @default(now()) @db.Timestamp(3)
+  pin_code                                            String?
+  current_branch_id                                   String?
+  last_login                                          DateTime?
+  last_logout                                         DateTime?
+  password_changed_at                                 DateTime?          @default(now())
   force_password_change                               Boolean?           @default(false)
-  synced                                              Int?               @default(0) @db.TinyInt
-  created_at                                          DateTime?          @default(now()) @db.Timestamp(3)
-  updated_at                                          DateTime?          @default(now()) @db.Timestamp(3)
+  synced                                              Int?               @default(0)
+  created_at                                          DateTime?          @default(now())
+  updated_at                                          DateTime?          @default(now())
   audit_logs                                          audit_logs[]
   inventory_inventory_created_byTousers               inventory[]        @relation("inventory_created_byTousers")
   inventory_inventory_last_updated_byTousers          inventory[]        @relation("inventory_last_updated_byTousers")
@@ -589,17 +612,18 @@ model users {
   user_permissions_user_permissions_user_idTousers    user_permissions[] @relation("user_permissions_user_idTousers")
   user_permissions_user_permissions_created_byTousers user_permissions[] @relation("user_permissions_created_byTousers")
   user_sessions                                       user_sessions[]
-  tenants                                             tenants            @relation(fields: [tenant_id], references: [tenant_id], onDelete: Cascade, onUpdate: NoAction, map: "users_ibfk_1")
-  branches_users_branch_idTobranches                  branches           @relation("users_branch_idTobranches", fields: [branch_id], references: [branch_id], onDelete: Cascade, onUpdate: NoAction, map: "users_ibfk_2")
-  roles                                               roles              @relation(fields: [role_id], references: [role_id], onUpdate: NoAction, map: "users_ibfk_3")
-  branches_users_current_branch_idTobranches          branches?          @relation("users_current_branch_idTobranches", fields: [current_branch_id], references: [branch_id], onUpdate: NoAction, map: "users_ibfk_4")
+  tenants                                             tenants            @relation(fields: [tenant_id], references: [tenant_id], onDelete: Cascade, onUpdate: NoAction)
+  branches_users_branch_idTobranches                  branches           @relation("users_branch_idTobranches", fields: [branch_id], references: [branch_id], onDelete: Cascade, onUpdate: NoAction)
+  roles                                               roles              @relation(fields: [role_id], references: [role_id], onUpdate: NoAction)
+  branches_users_current_branch_idTobranches          branches?          @relation("users_current_branch_idTobranches", fields: [current_branch_id], references: [branch_id], onUpdate: NoAction)
 
-  @@unique([tenant_id, username], map: "unique_tenant_username")
-  @@index([branch_id], map: "branch_id")
-  @@index([current_branch_id], map: "current_branch_id")
-  @@index([role_id], map: "idx_role_id")
-  @@index([tenant_id], map: "idx_tenant_id")
-  @@index([username], map: "idx_username")
+  @@unique([tenant_id, username], name: "unique_tenant_username")
+  @@index([branch_id])
+  @@index([current_branch_id])
+  @@index([role_id])
+  @@index([tenant_id])
+  @@index([username])
+  @@map("users")
 }
 
 model SyncStatus {
@@ -609,20 +633,22 @@ model SyncStatus {
   errorMessage String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+  
+  @@map("SyncStatus")
 }
 
 model PaymentServiceProviders {
   id          Int       @id @default(autoincrement())
-  providerId  String    @unique @map("provider_id") @db.VarChar(100)
-  userId      String    @map("user_id") @db.VarChar(100)
-  name        String    @db.VarChar(100)
-  description String?   @db.Text
-  logoUrl     String?   @map("logoUrl") @db.Text
-  isActive    Boolean   @default(true) @map("is_active")
-  sortOrder   Int       @default(0) @map("sort_order")
+  providerId  String    @unique
+  userId      String
+  name        String
+  description String?
+  logoUrl     String?
+  isActive    Boolean   @default(true)
+  sortOrder   Int       @default(0)
   synced      Int       @default(0)
-  createdAt   DateTime? @default(now()) @map("created_at")
-  updatedAt   DateTime? @updatedAt @map("updated_at")
+  createdAt   DateTime? @default(now())
+  updatedAt   DateTime? @updatedAt
 
   @@map("payment_service_providers")
 }

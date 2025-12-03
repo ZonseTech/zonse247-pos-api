@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-empty-function */
+/* eslint-disable @typescript-eslint/no-non-null-assertion */
 import { PrismaMariaDb } from '@prisma/adapter-mariadb';
 import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
 import {
@@ -14,7 +16,7 @@ import { PrismaClient } from './generated/prisma/client';
 let localClient: PrismaClient | null = null;
 let remoteClient: PrismaClient | null = null;
 let prismaInstance: PrismaClient | null = null;
-let initPromise: Promise<PrismaClient> | null = null;
+let isInitialized = false;
 
 const initializeLocalClient = () => {
     if (!localClient) {
@@ -54,54 +56,147 @@ const initializeRemoteClient = async () => {
 const initializePrisma = async (): Promise<PrismaClient> => {
     if (prismaInstance) return prismaInstance;
 
-    if (OFFLINE_MODE) {
-        console.log('📦 Using local SQLite database');
-        prismaInstance = initializeLocalClient();
-        return prismaInstance;
+    if (!OFFLINE_MODE) {
+        try {
+            console.log('🌐 Attempting to connect to remote MySQL database...');
+            prismaInstance = await initializeRemoteClient();
+            console.log('✅ Connected to remote MySQL database');
+            isInitialized = true;
+            return prismaInstance;
+        } catch (error) {
+            console.warn('⚠️  Failed to connect to remote database, falling back to local:', error);
+            prismaInstance = initializeLocalClient();
+            isInitialized = true;
+            return prismaInstance;
+        }
     }
 
-    try {
-        console.log('🌐 Attempting to connect to remote MySQL database...');
-        prismaInstance = await initializeRemoteClient();
-        console.log('✅ Connected to remote MySQL database');
-        return prismaInstance;
-    } catch (error) {
-        console.warn('⚠️  Failed to connect to remote database, falling back to local:', error);
-        prismaInstance = initializeLocalClient();
-        return prismaInstance;
-    }
+    console.log('📦 Using local SQLite database');
+    prismaInstance = initializeLocalClient();
+    isInitialized = true;
+    return prismaInstance;
 };
 
-initPromise = initializePrisma();
+/**
+ * Prisma client wrapper that ensures initialization before any operation
+ * Use directly: prisma.model.findMany()
+ */
+class PrismaClientWrapper {
+    private clientPromise: Promise<PrismaClient>;
 
-export const prisma = new Proxy({} as PrismaClient, {
-    get: (target, prop) => {
-        return async (...args: any[]) => {
-            // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-            const client = await initPromise!;
-            const value = (client as any)[prop];
-            if (typeof value === 'function') {
-                return value.apply(client, args);
+    constructor() {
+        this.clientPromise = initializePrisma();
+    }
+
+    private async getClient(): Promise<PrismaClient> {
+        if (!isInitialized) {
+            await this.clientPromise;
+        }
+        return prismaInstance!;
+    }
+
+    // Proxy all property access to the actual client
+    private createProxy(): any {
+        return new Proxy(this, {
+            get: (target, prop: string) => {
+                // If accessing a method on the wrapper itself
+                if (prop in target) {
+                    return (target as any)[prop];
+                }
+
+                // Return a function that will get the client and access the property
+                return new Proxy(() => { }, {
+                    get: (_, subProp: string) => {
+                        return async (...args: any[]) => {
+                            const client = await target.getClient();
+                            const model = (client as any)[prop];
+
+                            if (!model) {
+                                throw new Error(`Model '${prop}' not found in Prisma schema`);
+                            }
+
+                            const method = model[subProp];
+
+                            if (typeof method !== 'function') {
+                                throw new Error(`Method '${subProp}' not found on model '${prop}'`);
+                            }
+
+                            return method.apply(model, args);
+                        };
+                    },
+                    apply: async (_, __, args: any[]) => {
+                        const client = await target.getClient();
+                        const value = (client as any)[prop];
+
+                        if (typeof value === 'function') {
+                            return value.apply(client, args);
+                        }
+
+                        return value;
+                    }
+                });
             }
-            return value;
-        };
+        });
     }
-});
 
-export const getPrismaClient = async (): Promise<PrismaClient> => {
-    if (!initPromise) {
-        initPromise = initializePrisma();
+    getProxy(): PrismaClient {
+        return this.createProxy() as PrismaClient;
     }
-    return initPromise;
+}
+
+const wrapper = new PrismaClientWrapper();
+
+/**
+ * Prisma client instance with lazy initialization
+ * Use directly: prisma.model.findMany()
+ * All operations automatically wait for initialization
+ */
+export const prisma: PrismaClient = wrapper.getProxy();
+
+/**
+ * Get the Prisma client instance (ensures initialization)
+ */
+export const getPrisma = async (): Promise<PrismaClient> => {
+    if (!isInitialized) {
+        await initializePrisma();
+    }
+    return prismaInstance!;
 };
 
+/**
+ * Legacy function for backward compatibility
+ * @deprecated Use getPrisma() instead
+ */
+export const getPrismaClient = async (): Promise<PrismaClient> => {
+    return getPrisma();
+};
+
+/**
+ * Disconnect all Prisma clients and reset state
+ */
 export const disconnectPrisma = async () => {
-    if (localClient) await localClient.$disconnect();
-    if (remoteClient) await remoteClient.$disconnect();
+    if (localClient) {
+        await localClient.$disconnect();
+    }
+    if (remoteClient) {
+        await remoteClient.$disconnect();
+    }
     prismaInstance = null;
     localClient = null;
     remoteClient = null;
-    initPromise = null;
+    isInitialized = false;
+};
+
+/**
+ * Get current connection status
+ */
+export const getConnectionStatus = () => {
+    return {
+        isInitialized,
+        isLocal: prismaInstance === localClient,
+        isRemote: prismaInstance === remoteClient,
+        offlineMode: OFFLINE_MODE
+    };
 };
 
 export default prisma;

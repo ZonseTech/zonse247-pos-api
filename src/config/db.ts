@@ -1,3 +1,5 @@
+import 'dotenv/config';
+
 export const NODE_ENV = process.env.NODE_ENV || "development";
 export const DATABASE_PROVIDER = process.env.DATABASE_PROVIDER || "sqlite";
 export const DATABASE_URL = process.env.DATABASE_URL || "file:./offline.db";

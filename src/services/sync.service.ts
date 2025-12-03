@@ -39,7 +39,7 @@ export class SyncService {
 	}
 
 	private async updateSyncStatus(tableName: string, status: 'syncing' | 'synced' | 'error', error?: string | null): Promise<void> {
-		await prisma.syncStatus.upsert({
+		await (await prisma).syncStatus.upsert({
 			where: { tableName },
 			update: {
 				status,
@@ -60,11 +60,11 @@ export class SyncService {
 
 	public async getSyncStatus(tableName?: string): Promise<any> {
 		if (tableName) {
-			return prisma.syncStatus.findUnique({
+			return (await prisma).syncStatus.findUnique({
 				where: { tableName }
 			});
 		}
-		return prisma.syncStatus.findMany();
+		return (await prisma).syncStatus.findMany();
 	}
 
 	private async fetchDataFromAPI(tableName: string): Promise<any[]> {
@@ -152,7 +152,7 @@ export class SyncService {
 			}
 
 			// Clear existing records (optional - depends on your use case)
-			await prisma.$executeRawUnsafe(`DELETE FROM "${tableName}"`);
+			await (await prisma).$executeRawUnsafe(`DELETE FROM "${tableName}"`);
 
 			let successCount = 0;
 			for (const record of records) {
@@ -365,7 +365,7 @@ export class SyncService {
 		}
 
 		try {
-			await prisma.$queryRaw`SELECT 1`;
+			await (await prisma).$queryRaw`SELECT 1`;
 			result.prisma = true;
 		} catch (error) {
 			console.error('Prisma connection test failed:', error);
