@@ -10,6 +10,8 @@
     "LICENSE"
   ],
   "scripts": {
+    "task": "task",
+    "task:list": "task --list-all",
     "build": "tsc",
     "build:clean": "npm run clean && npm run build",
     "build:watch": "tsc --watch",
