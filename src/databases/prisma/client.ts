@@ -74,6 +74,7 @@ const initializePrisma = async (): Promise<PrismaClient> => {
     console.log('📦 Using local SQLite database');
     prismaInstance = initializeLocalClient();
     isInitialized = true;
+    console.log('✅ Connected to remote SQLite database');
     return prismaInstance;
 };
 
