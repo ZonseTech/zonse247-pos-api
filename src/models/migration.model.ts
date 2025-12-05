@@ -174,7 +174,7 @@ export class MigrationModel {
         try {
             await prisma.$queryRaw`SELECT 1`;
 
-            await prisma.users.count();
+            await prisma.user.count();
 
             this.addProgress('connection-test', 'completed', 'Database connections verified');
 
@@ -195,11 +195,11 @@ export class MigrationModel {
                     dataSet[key.replace(/([A-Z])/g, '_$1').toLowerCase()] = cleanRecord[key];
                 });
 
-                await tx.categories.create({
+                await tx.category.create({
                     data: dataSet as any
                 });
 
-                await prisma.categories.upsert({
+                await prisma.category.upsert({
                     where: { id: dataSet.id },
                     update: dataSet,
                     create: dataSet as any

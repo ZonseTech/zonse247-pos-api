@@ -10,7 +10,7 @@ export class CustomerModel {
 
     static async findAllByRDBMS(conditions: ValidationParams): Promise<Role[]> {
         try {
-            return await prisma.roles.findMany({
+            return await prisma.role.findMany({
                 where: {},
             }) as unknown as Array<Role>;
         } catch (error) {

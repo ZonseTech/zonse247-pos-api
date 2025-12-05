@@ -1,8 +1,7 @@
 import crypto from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
-import { sealDBModel } from '../databases/local';
-import { TENANT_TABLE } from '../databases/local/tables';
 import { Tenant, TenantFormValues } from 'tenant';
+import prisma from '../databases/prisma/client';
 
 export class TenantModel {
     static generateTenantCode(): string {
@@ -15,67 +14,69 @@ export class TenantModel {
     }
 
     static async findAll(query: any = {}): Promise<Array<Tenant>> {
-        const conditions: any = {};
+        const where: any = {};
 
         if (query.status) {
-            conditions.status = query.status;
+            where.status = query.status;
         }
 
         if (query.subscriptionStatus) {
-            conditions.subscriptionStatus = query.subscriptionStatus;
+            where.subscriptionStatus = query.subscriptionStatus;
         }
 
         if (query.businessType) {
-            conditions.businessType = query.businessType;
+            where.businessType = query.businessType;
         }
 
         if (query.country) {
-            conditions.country = query.country;
+            where.country = query.country;
         }
 
         if (query.msonkhoOnlineStatus) {
-            conditions.msonkhoOnlineStatus = query.msonkhoOnlineStatus;
+            where.msonkhoOnlineStatus = query.msonkhoOnlineStatus;
         }
 
         if (query.search) {
-            conditions.$or = [
-                { businessName: { $regex: new RegExp(query.search, 'i') } },
-                { tradingName: { $regex: new RegExp(query.search, 'i') } },
-                { ownerName: { $regex: new RegExp(query.search, 'i') } },
-                { email: { $regex: new RegExp(query.search, 'i') } },
-                { tenantCode: { $regex: new RegExp(query.search, 'i') } }
+            where.OR = [
+                { businessName: { contains: query.search, mode: 'insensitive' } },
+                { tradingName: { contains: query.search, mode: 'insensitive' } },
+                { ownerName: { contains: query.search, mode: 'insensitive' } },
+                { email: { contains: query.search, mode: 'insensitive' } },
+                { tenantCode: { contains: query.search, mode: 'insensitive' } }
             ];
         }
 
-        return sealDBModel.find(TENANT_TABLE, conditions);
+        return await prisma.tenant.findMany({
+            where,
+            orderBy: { createdAt: 'desc' }
+        });
     }
 
     static async findByEmail(email: string): Promise<Array<Tenant>> {
-        return sealDBModel.find(TENANT_TABLE, { email });
+        return await prisma.tenant.findMany({
+            where: { email }
+        });
     }
 
     static async findByTin(tin: string): Promise<Array<Tenant>> {
-        return sealDBModel.find(TENANT_TABLE, { tin });
+        return await prisma.tenant.findMany({
+            where: { tin }
+        });
     }
 
     static async findById(tenantId: string): Promise<Tenant | null> {
-        return sealDBModel.findById(TENANT_TABLE, { tenantId });
+        return await prisma.tenant.findUnique({
+            where: { tenantId }
+        });
     }
 
     static async exists(tenantId: string): Promise<boolean> {
         try {
-            const result = await sealDBModel.findById(TENANT_TABLE, { tenantId });
-
-            if (!result || typeof result !== 'object') {
-                return false;
-            }
-
-            const hasKeys = Object.keys(result).length > 0;
-
-            const hasTenantId = result.tenantId === tenantId || result._id === tenantId || result.id === tenantId;
-
-            return hasKeys && hasTenantId;
-
+            const result = await prisma.tenant.findUnique({
+                where: { tenantId },
+                select: { tenantId: true }
+            });
+            return result !== null;
         } catch (error) {
             console.error('Error checking if tenant exists:', error);
             return false;
@@ -83,36 +84,46 @@ export class TenantModel {
     }
 
     static async findByTenantCode(tenantCode: string): Promise<Tenant | null> {
-        const results = await sealDBModel.find(TENANT_TABLE, { tenantCode });
-        return results.length > 0 ? results[0] : null;
-    }
-
-    static async findByCredentials(verificationToken: string): Promise<Tenant | null> {
-        return await sealDBModel.findOne(TENANT_TABLE, { verificationToken });
-    }
-
-    static async insert(data: TenantFormValues): Promise<Tenant> {
-        return await sealDBModel.insert(TENANT_TABLE, data);
-    }
-
-    static async create(data: TenantFormValues): Promise<Tenant> {
-        const tenantData = await this.buildTenantData(data);
-
-        return await sealDBModel.insert(TENANT_TABLE, {
-            uuid: uuidv4(),
-            ...tenantData
+        return await prisma.tenant.findUnique({
+            where: { tenantCode }
         });
     }
 
-    static async update(tenantId: string, updateData: Partial<Tenant>): Promise<number> {
-        return sealDBModel.update(TENANT_TABLE, { tenantId }, updateData);
+    static async findByCredentials(verificationToken: string): Promise<Tenant | null> {
+        return await prisma.tenant.findFirst({
+            where: { verificationToken }
+        });
     }
 
-    static async delete(tenantId: string): Promise<number> {
-        return sealDBModel.delete(TENANT_TABLE, { tenantId });
+    static async insert(data: TenantFormValues): Promise<Tenant> {
+        return await this.create(data);
     }
 
-    static async buildTenantData(data: TenantFormValues): Promise<Omit<Tenant, 'createdAt' | 'updatedAt'>> {
+    static async create(data: TenantFormValues): Promise<Tenant> {
+        const tenantData = await this.buildTenantData(data) as unknown as Tenant;
+
+        return await prisma.tenant.create({
+            data: {
+                tenantId: uuidv4(),
+                ...tenantData
+            }
+        });
+    }
+
+    static async update(tenantId: string, updateData: Partial<Tenant>): Promise<Tenant> {
+        return await prisma.tenant.update({
+            where: { tenantId },
+            data: updateData
+        });
+    }
+
+    static async delete(tenantId: string): Promise<Tenant> {
+        return await prisma.tenant.delete({
+            where: { tenantId }
+        });
+    }
+
+    static async buildTenantData(data: TenantFormValues): Promise<Omit<Tenant, 'createdAt' | 'updatedAt' | 'id'>> {
         const tenantId = uuidv4()
         const trialEndDate = new Date();
         trialEndDate.setDate(trialEndDate.getDate() + 30);
@@ -138,10 +149,11 @@ export class TenantModel {
             country: data.country || null,
             trialEndsAt: trialEndDate,
             verificationToken,
+            authKey: data.authKey,
             status: data.status || 'pending',
             registeredAt: new Date(),
             activatedAt: null,
-            synced: false
+            synced: 0
         };
     }
 

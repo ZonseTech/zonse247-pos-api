@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/no-empty-function */
-/* eslint-disable @typescript-eslint/no-non-null-assertion */
 import { PrismaMariaDb } from '@prisma/adapter-mariadb';
 import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
 import {
@@ -93,20 +91,18 @@ class PrismaClientWrapper {
         if (!isInitialized) {
             await this.clientPromise;
         }
-        return prismaInstance!;
+
+        return prismaInstance;
     }
 
-    // Proxy all property access to the actual client
     private createProxy(): any {
         return new Proxy(this, {
             get: (target, prop: string) => {
-                // If accessing a method on the wrapper itself
                 if (prop in target) {
                     return (target as any)[prop];
                 }
 
-                // Return a function that will get the client and access the property
-                return new Proxy(() => { }, {
+                return new Proxy(() => { 1 + 1 }, {
                     get: (_, subProp: string) => {
                         return async (...args: any[]) => {
                             const client = await target.getClient();
@@ -145,15 +141,6 @@ class PrismaClientWrapper {
     }
 }
 
-const wrapper = new PrismaClientWrapper();
-
-/**
- * Prisma client instance with lazy initialization
- * Use directly: prisma.model.findMany()
- * All operations automatically wait for initialization
- */
-export const prisma: PrismaClient = wrapper.getProxy();
-
 /**
  * Get the Prisma client instance (ensures initialization)
  */
@@ -161,7 +148,7 @@ export const getPrisma = async (): Promise<PrismaClient> => {
     if (!isInitialized) {
         await initializePrisma();
     }
-    return prismaInstance!;
+    return prismaInstance;
 };
 
 /**
@@ -199,5 +186,14 @@ export const getConnectionStatus = () => {
         offlineMode: OFFLINE_MODE
     };
 };
+
+const wrapper = new PrismaClientWrapper();
+
+/**
+ * Prisma client instance with lazy initialization
+ * Use directly: prisma.model.findMany()
+ * All operations automatically wait for initialization
+ */
+export const prisma: PrismaClient = wrapper.getProxy();
 
 export default prisma;

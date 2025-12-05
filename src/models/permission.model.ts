@@ -10,9 +10,7 @@ export class PermissionModel {
 
     static async findAllByRDBMS(_: ValidationParams): Promise<Permission[]> {
         try {
-            return await prisma.permissions.findMany({
-                where: {},
-            }) as unknown as Array<Permission>
+            return await prisma.permission.findMany() as unknown as Array<Permission>
         } catch (error) {
             throw new Error(
                 `Error finding permissions: ${error instanceof Error ? error.message : 'Unknown error'}`

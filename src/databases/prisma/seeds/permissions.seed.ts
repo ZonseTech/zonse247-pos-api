@@ -436,13 +436,13 @@ export async function seedPermissions(prisma: PrismaClient) {
     console.log('📝 Seeding permissions...');
 
     for (const perm of APP_PERMISSIONS) {
-        await prisma.permissions.upsert({
-            where: { permission_id: perm.permission_id },
+        await prisma.permission.upsert({
+            where: { permissionId: perm.permission_id },
             update: {},
             create: {
-                permission_id: perm.permission_id,
+                permissionId: perm.permission_id,
                 name: perm.name,
-                display_name: perm.display_name,
+                displayName: perm.display_name,
                 description: `Permission to ${perm.display_name}`,
                 category: perm.category,
                 scope: perm.scope as any,

@@ -9,10 +9,7 @@ export class PaymentServiceProviderModel {
 
     static async findAllByRDBMS(_: ValidationParams): Promise<PaymentServiceProvider[]> {
         try {
-            return await prisma.paymentServiceProviders.findMany({
-                where: {
-                },
-            }) as unknown as Array<PaymentServiceProvider>
+            return await prisma.paymentServiceProvider.findMany() as unknown as Array<PaymentServiceProvider>
         } catch (error) {
             throw new Error(
                 `Error finding payment service providers: ${error instanceof Error ? error.message : 'Unknown error'}`

@@ -5,42 +5,42 @@ export async function seedRoles(prisma: PrismaClient) {
 
     const roles = [
         {
-            role_id: 'super-admin',
+            roleId: 'super-admin',
             name: 'super_admin',
-            display_name: 'Super Administrator',
+            displayName: 'Super Administrator',
             description: 'System super administrator with full access',
-            is_system_role: true,
-            is_active: true,
+            isSystemRole: true,
+            isActive: true,
         },
         {
-            role_id: 'admin',
+            roleId: 'admin',
             name: 'admin',
-            display_name: 'Administrator',
+            displayName: 'Administrator',
             description: 'Shop administrator with full shop access',
-            is_system_role: true,
-            is_active: true,
+            isSystemRole: true,
+            isActive: true,
         },
         {
-            role_id: 'manager',
+            roleId: 'manager',
             name: 'manager',
-            display_name: 'Manager',
+            displayName: 'Manager',
             description: 'Shop manager with limited administrative access',
-            is_system_role: true,
-            is_active: true,
+            isSystemRole: true,
+            isActive: true,
         },
         {
-            role_id: 'cashier',
+            roleId: 'cashier',
             name: 'cashier',
-            display_name: 'Cashier',
+            displayName: 'Cashier',
             description: 'Basic cashier role for sales operations',
-            is_system_role: true,
-            is_active: true,
+            isSystemRole: true,
+            isActive: true,
         },
     ];
 
     for (const role of roles) {
-        await prisma.roles.upsert({
-            where: { role_id: role.role_id },
+        await prisma.role.upsert({
+            where: { roleId: role.roleId },
             update: role,
             create: role,
         });

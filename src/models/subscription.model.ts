@@ -9,9 +9,9 @@ import prisma from '../databases/prisma/client';
 export class SubscriptionModel {
 	static async findAllByRDBMS(conditions: ValidationParams): Promise<Role[]> {
 		try {
-			return await prisma.tenant_subscriptions.findMany({
+			return await prisma.tenantSubscription.findMany({
 				where: {
-					tenant_id: conditions.tenantId,
+					tenantId: conditions.tenantId,
 				},
 			}) as unknown as Array<Role>
 		} catch (error) {

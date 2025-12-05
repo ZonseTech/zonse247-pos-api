@@ -9,9 +9,9 @@ export class PaymentMethodModel {
 
     static async findAllByRDBMS(conditions: ValidationParams): Promise<PaymentMethod[]> {
         try {
-            return await prisma.payment_methods.findMany({
+            return await prisma.paymentMethod.findMany({
                 where: {
-                    tenant_id: conditions.tenantId,
+                    tenantId: conditions.tenantId,
                 },
             }) as unknown as Array<PaymentMethod>
         } catch (error) {
@@ -84,18 +84,18 @@ export class PaymentMethodModel {
         }
     }
 
-    static async findByClientAndShop(clientUuid: string, shopUuid: string): Promise<PaymentMethod[]> {
+    static async findByClientAndShop(tenantId: string, shopUuid: string): Promise<PaymentMethod[]> {
         try {
-            return await this.find({ clientUuid, shopUuid });
+            return await this.find({ tenantId, shopUuid });
         } catch (error) {
-            console.error(`Error finding payment methods for client ${clientUuid} and shop ${shopUuid}:`, error);
+            console.error(`Error finding payment methods for client ${tenantId} and shop ${shopUuid}:`, error);
             throw error;
         }
     }
 
-    static async findByName(name: string, clientUuid: string, shopUuid: string): Promise<PaymentMethod | null> {
+    static async findByName(name: string, tenantId: string, shopUuid: string): Promise<PaymentMethod | null> {
         try {
-            const results = await this.find({ name, clientUuid, shopUuid });
+            const results = await this.find({ name, tenantId, shopUuid });
             return results.length > 0 ? results[0] : null;
         } catch (error) {
             console.error(`Error finding payment method by name ${name}:`, error);

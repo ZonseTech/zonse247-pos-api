@@ -8,10 +8,7 @@ import prisma from '../databases/prisma/client';
 export class RoleModel {
     static async findAllByRDBMS(_: ValidationParams): Promise<Role[]> {
         try {
-            return await prisma.roles.findMany({
-                where: {
-                },
-            }) as unknown as Array<Role>
+            return await prisma.role.findMany() as unknown as Array<Role>
         } catch (error) {
             throw new Error(
                 `Error finding roles: ${error instanceof Error ? error.message : 'Unknown error'}`
@@ -44,9 +41,9 @@ export class RoleModel {
         }
     }
 
-    static async findByClientUuid(clientUuid: string): Promise<Role[]> {
+    static async findBytenantId(tenantId: string): Promise<Role[]> {
         try {
-            return await sealDBModel.find(ROLES_DB, { clientUuid: clientUuid });
+            return await sealDBModel.find(ROLES_DB, { tenantId: tenantId });
         } catch (error) {
             throw new Error(`Error finding roles by client ID: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
@@ -60,10 +57,10 @@ export class RoleModel {
         }
     }
 
-    static async findByClientUuidAndName(clientUuid: string, name: string): Promise<Role[]> {
+    static async findBytenantIdAndName(tenantId: string, name: string): Promise<Role[]> {
         try {
             return await sealDBModel.find(ROLES_DB, {
-                clientUuid: clientUuid,
+                tenantId: tenantId,
                 name: name
             });
         } catch (error) {

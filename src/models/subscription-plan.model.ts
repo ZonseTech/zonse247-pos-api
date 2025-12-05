@@ -10,7 +10,7 @@ export class SubscriptionPlanModel {
 
 	static async findAllByRDBMS(_: ValidationParams): Promise<Role[]> {
 		try {
-			return await prisma.subscription_plans.findMany() as unknown as Array<Role>;
+			return await prisma.subscriptionPlan.findMany() as unknown as Array<Role>;
 		} catch (error) {
 			throw new Error(
 				`Error finding roles: ${error instanceof Error ? error.message : 'Unknown error'}`

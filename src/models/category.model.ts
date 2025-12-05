@@ -9,9 +9,9 @@ export class CategoryModel {
 
     static async findAllByRDBMS(conditions: ValidationParams): Promise<Category[]> {
         try {
-            return await prisma.categories.findMany({
+            return await prisma.category.findMany({
                 where: {
-                    tenant_id: conditions.tenantId,
+                    tenantId: conditions.tenantId,
                 },
             }) as unknown as Array<Category>;
         } catch (error) {

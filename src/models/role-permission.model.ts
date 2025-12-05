@@ -8,10 +8,7 @@ import prisma from '../databases/prisma/client';
 export class RolePermissionModel {
     static async findAllByRDBMS(_: ValidationParams): Promise<RolePermission[]> {
         try {
-            return await prisma.role_permissions.findMany({
-                where: {
-                },
-            }) as unknown as Array<RolePermission>
+            return await prisma.rolePermission.findMany() as unknown as Array<RolePermission>
         } catch (error) {
             throw new Error(
                 `Error finding role permissions: ${error instanceof Error ? error.message : 'Unknown error'}`

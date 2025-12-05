@@ -12,9 +12,9 @@ export class UserModel {
 
     static async findAllByRDBMS(conditions: ValidationParams): Promise<User[]> {
         try {
-            return await prisma.users.findMany({
+            return await prisma.user.findMany({
                 where: {
-                    tenant_id: conditions.tenantId,
+                    tenantId: conditions.tenantId,
                 },
             }) as unknown as Array<User>
         } catch (error) {

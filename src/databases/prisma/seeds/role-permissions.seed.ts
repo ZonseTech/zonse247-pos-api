@@ -221,15 +221,15 @@ export async function seedRolePermissions(prisma: PrismaClient) {
 
     for (const [roleId, permissionIds] of Object.entries(permissionsByRole)) {
         for (const permissionId of permissionIds) {
-            const role_permission_id = `${roleId}-${permissionId}`;
+            const rolePermissionId = `${roleId}-${permissionId}`;
 
-            await prisma.role_permissions.upsert({
-                where: { role_permission_id },
+            await prisma.rolePermission.upsert({
+                where: { rolePermissionId },
                 update: {},
                 create: {
-                    role_permission_id,
-                    role_id: roleId,
-                    permission_id: permissionId,
+                    rolePermissionId,
+                    roleId: roleId,
+                    permissionId: permissionId,
                 },
             });
         }
