@@ -9,6 +9,7 @@ import { SecureSettingsService } from "./secure-settings.service";
 import { v4 as uuidv4 } from 'uuid';
 import { MsonkhoOnlineStatus, Tenant, TenantFormValues, TenantStatus } from "tenant";
 import { OnboardingStatus } from "on-boarding";
+import { BaseService } from "./base.service";
 
 export class TenantService {
     static validateEmail(email: string): boolean {
@@ -149,25 +150,54 @@ export class TenantService {
         return { status: true };
     }
 
-    static async verifyTenant(tenantId: string): Promise<Omit<Tenant, 'verificationToken'>> {
-        const tenant = await TenantModel.findById(tenantId);
+    static async verifyTenant(verificationToken: string, isLive = false): Promise<Omit<Tenant, 'verificationToken'>> {
+        if (isLive) {
+            const { tenantId } = await SecureSettingsService.decryptTenantId(verificationToken);
 
-        if (!tenant) {
-            throw new Error('Invalid tenant credentials');
+            const tenant = await TenantModel.findById(tenantId);
+
+            if (!tenant) {
+                throw new Error('Invalid tenant credentials');
+            }
+
+            const now = new Date();
+            await TenantModel.update(tenantId, {
+                status: 'active',
+                activatedAt: now
+            });
+
+            const updatedTenant = {
+                ...tenant,
+                status: 'active' as TenantStatus,
+                activatedAt: now
+            };
+
+            return updatedTenant;
         }
 
-        await TenantModel.update(tenantId, {
-            status: 'active',
-            activatedAt: new Date()
-        })
+        const response = await BaseService.post<TenantFormValues>('/on-boarding/verify-tenant', {
+            verificationToken,
+            isLive: true,
+        });
 
-        const updatedTenant = {
-            ...tenant,
-            status: 'active' as TenantStatus,
-            activatedAt: new Date()
-        };
+        if (!response.success) {
+            throw new Error(response.message || 'Failed to verify tenant');
+        }
 
-        return TenantModel.sanitizeTenant(updatedTenant);
+        const tenant = response.data;
+
+        const tenantExists = await TenantModel.exists(tenant.tenantId)
+
+        if (tenantExists)
+            return TenantModel.sanitizeTenant(tenant as unknown as Tenant);
+
+        const localTenant = await TenantModel.insert(tenant);
+
+        if (!localTenant) {
+            throw new Error('Something went wrong. External server down');
+        }
+
+        return TenantModel.sanitizeTenant(localTenant);
     }
 
     static async updateTenant(tenantId: string, updateData: Partial<TenantFormValues>): Promise<Omit<Tenant, 'verificationToken'>> {

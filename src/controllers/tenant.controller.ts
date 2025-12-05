@@ -2,7 +2,6 @@ import { Request, Response } from "express";
 import { BaseController } from "./base.controller";
 import { TenantService } from "../services/tenant.service";
 import { BranchService } from "../services/branch.service";
-import { SecureSettingsService } from "../services/secure-settings.service";
 import { ApiResponse } from "network";
 import { MsonkhoOnlineStatus, Tenant, TenantFormValues, VerifyTenantRequest } from "tenant";
 
@@ -121,17 +120,15 @@ export class TenantController extends BaseController {
         }
     }
 
-    static async verify(req: Request<ApiResponse<Omit<Tenant, 'verificationToken'>>, VerifyTenantRequest>, res: Response): Promise<void> {
+    static async verify(req: Request<ApiResponse<Omit<Tenant, 'verificationToken'> & { isLive: boolean }>, VerifyTenantRequest>, res: Response): Promise<void> {
         try {
-            const { verificationToken } = req.body;
+            const { verificationToken: encryptedVerificationToken, isLive } = req.body;
 
-            if (!verificationToken) {
+            if (!encryptedVerificationToken) {
                 return BaseController.sendResponse(res, 400, false, 'Verification token is required');
             }
 
-            const { tenantId } = await SecureSettingsService.decryptTenantId(verificationToken)
-
-            const safeTenantData = await TenantService.verifyTenant(tenantId);
+            const safeTenantData = await TenantService.verifyTenant(encryptedVerificationToken, isLive);
             return BaseController.sendResponse(res, 200, true, 'Tenant verified successfully', safeTenantData);
         } catch (error: any) {
             console.error('Error verifying tenant:', error);
@@ -141,15 +138,16 @@ export class TenantController extends BaseController {
         }
     }
 
-    static async getTenantBranches(req: Request<{ tenantId: string }>, res: Response): Promise<void> {
+    static async getTenantBranches(req: Request<{ tenantId: string, isLive: boolean }>, res: Response): Promise<void> {
         try {
+            const query = req.query;
             const { tenantId } = req.params;
 
             if (!tenantId) {
                 return BaseController.sendResponse(res, 400, false, 'Tenant ID is required');
             }
 
-            const branches = await BranchService.getBranchesByTenantId(tenantId);
+            const branches = await BranchService.getBranchesByTenantId(tenantId, Boolean(query.isLive));
             return BaseController.sendResponse(res, 200, true, 'Tenant branches retrieved successfully', branches);
         } catch (error: any) {
             console.error('Error fetching tenant branches:', error);

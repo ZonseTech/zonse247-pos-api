@@ -1,0 +1,771 @@
+generator client {
+  provider = "prisma-client"
+  output   = "./generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model MRA_API_CONFIG_TABLE {
+  config_id           String                            @id @default(uuid())
+  tenant_id           String
+  environment         MRA_API_CONFIG_TABLE_environment? @default(SANDBOX)
+  api_base_url        String
+  api_key             String?
+  api_secret          String?
+  last_sync_timestamp DateTime?
+  sync_status         MRA_API_CONFIG_TABLE_sync_status? @default(SUCCESS)
+  is_active           Boolean?                          @default(true)
+  created_at          DateTime?                         @default(now())
+  updated_at          DateTime?                         @default(now())
+  tenants             tenants                           @relation(fields: [tenant_id], references: [tenant_id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([tenant_id, environment], name: "unique_tenant_env")
+  @@map("MRA_API_CONFIG_TABLE")
+}
+
+model audit_logs {
+  id              Int                    @id @default(autoincrement())
+  log_id          String                 @unique
+  tenant_id       String?
+  branch_id       String?
+  user_id         String?
+  terminal_id     String?
+  action_type     audit_logs_action_type
+  entity_type     String
+  entity_id       String?
+  entity_name     String?
+  old_values      Json?
+  new_values      Json?
+  changes_summary String?
+  ip_address      String?
+  user_agent      String?
+  request_method  String?
+  request_url     String?
+  description     String?
+  synced          Int?                   @default(0)
+  severity        audit_logs_severity?   @default(low)
+  created_at      DateTime?              @default(now())
+  tenants         tenants?               @relation(fields: [tenant_id], references: [tenant_id], onUpdate: NoAction)
+  branches        branches?              @relation(fields: [branch_id], references: [branch_id], onUpdate: NoAction)
+  users           users?                 @relation(fields: [user_id], references: [user_id], onUpdate: NoAction)
+  terminals       terminals?             @relation(fields: [terminal_id], references: [terminal_id], onUpdate: NoAction)
+
+  @@index([action_type])
+  @@index([branch_id])
+  @@index([tenant_id, branch_id])
+  @@index([tenant_id])
+  @@index([terminal_id])
+  @@index([user_id])
+  @@map("audit_logs")
+}
+
+model branch_settings {
+  id                Int                     @id @default(autoincrement())
+  branch_setting_id String                  @unique
+  tenant_id         String
+  branch_id         String                  @unique
+  terminal_id       String
+  app               String?
+  store             String?
+  address_line1     String?
+  address_line2     String?
+  country           String?
+  city              String?
+  contact           String?
+  tax               String?
+  symbol            String?
+  footer            String?
+  status            branch_settings_status? @default(inactive)
+  synced            Int?                    @default(0)
+  created_at        DateTime?               @default(now())
+  updated_at        DateTime?               @default(now())
+  branches          branches                @relation(fields: [branch_id], references: [branch_id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([branch_id])
+  @@map("branch_settings")
+}
+
+model branches {
+  id                                      Int                           @id @default(autoincrement())
+  branch_id                               String                        @unique
+  tenant_id                               String
+  branch_name                             String
+  branch_code                             String
+  site_id                                 String?
+  site_name                               String?
+  description                             String?
+  address_line_1                          String?
+  address_line_2                          String?
+  address_line_3                          String?
+  district                                String?
+  city                                    String?
+  state                                   String?
+  postal_code                             String?
+  phone_number                            String?
+  email                                   String?
+  currency_code                           String?                       @default("MKW")
+  currency_symbol                         String?                       @default("K")
+  tax_rate                                Decimal?                      @default(0.00)
+  charge_tax                              Boolean?                      @default(false)
+  receipt_footer                          String?
+  logo_url                                String?
+  is_virtual_warehouse                    Boolean?                      @default(false)
+  is_active                               Boolean?                      @default(true)
+  synced                                  Int?                          @default(0)
+  mra_approval_status                     branches_mra_approval_status? @default(PENDING)
+  mra_approval_date                       DateTime?
+  status                                  branches_status?              @default(active)
+  created_at                              DateTime?                     @default(now())
+  updated_at                              DateTime?                     @default(now())
+  audit_logs                              audit_logs[]
+  branch_settings                         branch_settings?
+  tenants                                 tenants                       @relation(fields: [tenant_id], references: [tenant_id], onDelete: Cascade, onUpdate: NoAction)
+  categories                              categories[]
+  customers                               customers[]
+  inventory                               inventory[]
+  payment_methods                         payment_methods[]
+  service_provider                        service_provider[]
+  terminals                               terminals[]
+  transactions                            transactions[]
+  user_permissions                        user_permissions[]
+  users_users_branch_idTobranches         users[]                       @relation("users_branch_idTobranches")
+  users_users_current_branch_idTobranches users[]                       @relation("users_current_branch_idTobranches")
+
+  @@unique([tenant_id, branch_code], name: "unique_tenant_branch_code")
+  @@index([branch_code])
+  @@index([tenant_id, is_active])
+  @@index([tenant_id])
+  @@map("branches")
+}
+
+model categories {
+  id          Int         @id @default(autoincrement())
+  category_id String      @unique
+  branch_id   String
+  tenant_id   String
+  user_id     String
+  name        String
+  description String?
+  color       String?
+  is_active   Boolean?    @default(true)
+  sort_order  Int?        @default(0)
+  item_count  Int?
+  synced      Int?        @default(0)
+  created_at  DateTime?   @default(now())
+  updated_at  DateTime?   @default(now())
+  branches    branches    @relation(fields: [branch_id], references: [branch_id], onDelete: Cascade, onUpdate: NoAction)
+  inventory   inventory[]
+
+  @@unique([branch_id, name], name: "unique_branch_category")
+  @@index([branch_id])
+  @@map("categories")
+}
+
+model customers {
+  id          Int       @id @default(autoincrement())
+  customer_id String    @unique
+  tenant_id   String
+  branch_id   String
+  user_id     String?
+  name        String
+  synced      Int?      @default(0)
+  created_at  DateTime? @default(now())
+  updated_at  DateTime? @default(now())
+  branches    branches  @relation(fields: [branch_id], references: [branch_id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([branch_id])
+  @@map("customers")
+}
+
+model inventory {
+  id                                     Int               @id @default(autoincrement())
+  product_id                             String            @unique
+  branch_id                              String
+  tenant_id                              String
+  user_id                                String
+  category_id                            String?
+  barcode                                String
+  sku                                    String?
+  name                                   String
+  description                            String?
+  brand                                  String?
+  unit                                   String?           @default("piece")
+  cost_price                             Decimal           @default(0.00)
+  sell_price                             Decimal           @default(0.00)
+  promo_price                            Decimal?
+  promo_start                            DateTime?
+  promo_end                              DateTime?
+  quantity                               String?           @default("0")
+  reserved_quantity                      Int?              @default(0)
+  min_stock                              Int?              @default(0)
+  original_quantity                      String?           @default("0")
+  max_stock                              Int?
+  stock                                  Int?
+  reorder_level                          Int?
+  weight                                 Decimal?
+  dimensions                             String?
+  color                                  String?
+  size                                   String?
+  status                                 inventory_status? @default(active)
+  track_inventory                        Boolean?          @default(true)
+  allow_negative_stock                   Boolean?          @default(false)
+  is_taxable                             Boolean?          @default(true)
+  expiration_date                        DateTime?
+  manufacture_date                       DateTime?
+  image_urls                             Json?
+  supplier_name                          String?
+  supplier_code                          String?
+  created_by                             String?
+  last_updated_by                        String?
+  synced                                 Int?              @default(0)
+  created_at                             DateTime?         @default(now())
+  updated_at                             DateTime?         @default(now())
+  branches                               branches          @relation(fields: [branch_id], references: [branch_id], onDelete: Cascade, onUpdate: NoAction)
+  categories                             categories?       @relation(fields: [category_id], references: [category_id], onUpdate: NoAction)
+  users_inventory_created_byTousers      users?            @relation("inventory_created_byTousers", fields: [created_by], references: [user_id], onUpdate: NoAction)
+  users_inventory_last_updated_byTousers users?            @relation("inventory_last_updated_byTousers", fields: [last_updated_by], references: [user_id], onUpdate: NoAction)
+
+  @@index([created_by])
+  @@index([barcode])
+  @@index([branch_id])
+  @@index([category_id])
+  @@index([name])
+  @@index([status])
+  @@index([last_updated_by])
+  @@map("inventory")
+}
+
+model orders {
+  id             Int       @id @default(autoincrement())
+  order_id       String    @unique
+  ref_number     String
+  transaction_id String?   @default("1")
+  product_id     String
+  quantity       Decimal   @default(1.000)
+  purchase_price Decimal   @default(0.00)
+  sell_price     Decimal   @default(0.00)
+  synced         Int?      @default(0)
+  created_at     DateTime? @default(now())
+  updated_at     DateTime? @default(now())
+
+  @@index([transaction_id])
+  @@map("orders")
+}
+
+model payment_methods {
+  id         Int       @id @default(autoincrement())
+  method_id  String    @unique
+  branch_id  String
+  tenant_id  String
+  user_id    String
+  name       String
+  is_active  Boolean?  @default(true)
+  icon       String?
+  sort_order Int?      @default(0)
+  synced     Int?      @default(0)
+  created_at DateTime? @default(now())
+  updated_at DateTime? @default(now())
+  branches   branches  @relation(fields: [branch_id], references: [branch_id], onDelete: Cascade, onUpdate: NoAction)
+  tenants    tenants   @relation(fields: [tenant_id], references: [tenant_id], onDelete: Cascade, onUpdate: NoAction)
+  users      users     @relation(fields: [user_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([branch_id, name], name: "unique_branch_payment_method")
+  @@unique([tenant_id, name], name: "unique_tenant_payment_method")
+  @@unique([user_id, name], name: "unique_user_payment_method")
+  @@index([branch_id])
+  @@index([tenant_id])
+  @@index([user_id])
+  @@map("payment_methods")
+}
+
+model permissions {
+  id                   Int                @id @default(autoincrement())
+  permission_id        String             @unique
+  name                 String             @unique
+  display_name         String
+  description          String?
+  category             String
+  scope                permissions_scope? @default(shop)
+  synced               Int?               @default(0)
+  is_system_permission Boolean?           @default(true)
+  created_at           DateTime?          @default(now())
+  updated_at           DateTime?          @default(now())
+  role_permissions     role_permissions[]
+  user_permissions     user_permissions[]
+
+  @@index([category])
+  @@index([name])
+  @@index([scope])
+  @@map("permissions")
+}
+
+model plan_features {
+  feature_category_id Int       @id @default(autoincrement())
+  title               String
+  features            Json
+  display_order       Int?      @default(0)
+  created_at          DateTime? @default(now())
+  updated_at          DateTime? @default(now())
+  
+  @@map("plan_features")
+}
+
+model role_permissions {
+  id                 Int         @id @default(autoincrement())
+  role_permission_id String      @unique
+  role_id            String
+  permission_id      String
+  synced             Int?        @default(0)
+  created_at         DateTime?   @default(now())
+  updated_at         DateTime?   @default(now())
+  roles              roles       @relation(fields: [role_id], references: [role_id], onDelete: Cascade, onUpdate: NoAction)
+  permissions        permissions @relation(fields: [permission_id], references: [permission_id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([role_id, permission_id], name: "unique_role_permission")
+  @@index([permission_id])
+  @@index([role_id])
+  @@map("role_permissions")
+}
+
+model roles {
+  id               Int                @id @default(autoincrement())
+  role_id          String             @unique
+  name             String             @unique
+  display_name     String
+  description      String?
+  synced           Int?               @default(0)
+  is_system_role   Boolean?           @default(false)
+  is_active        Boolean?           @default(true)
+  created_at       DateTime?          @default(now())
+  updated_at       DateTime?          @default(now())
+  role_permissions role_permissions[]
+  users            users[]
+
+  @@index([is_active], name: "idx_active_role")
+  @@index([name], name: "idx_role_name")
+  @@index([is_system_role], name: "idx_system_role")
+  @@map("roles")
+}
+
+model service_provider {
+  id          Int       @id @default(autoincrement())
+  provider_id String    @unique
+  branch_id   String
+  tenant_id   String
+  user_id     String
+  name        String
+  description String?
+  logoUrl     String?
+  is_active   Boolean?  @default(true)
+  sort_order  Int?      @default(0)
+  synced      Int?      @default(0)
+  created_at  DateTime? @default(now())
+  updated_at  DateTime? @default(now())
+  branches    branches  @relation(fields: [branch_id], references: [branch_id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([branch_id, name], name: "unique_branch_service_provider")
+  @@index([branch_id])
+  @@map("service_provider")
+}
+
+model subscription_plans {
+  subscription_plan_id String                 @id @default(uuid())
+  plan_code            String                 @unique
+  name                 String
+  description          String?
+  monthly_price        Decimal                @default(0.00)
+  yearly_price         Decimal                @default(0.00)
+  color                String                 @default("gray")
+  is_popular           Boolean?               @default(false)
+  is_active            Boolean?               @default(true)
+  features             Json
+  limits               Json
+  notes                String?
+  synced               Int?                   @default(0)
+  created_at           DateTime?              @default(now())
+  updated_at           DateTime?              @default(now())
+  tenant_subscriptions tenant_subscriptions[]
+
+  @@map("subscription_plans")
+}
+
+model tenant_subscriptions {
+  tenant_subscription_id String                       @id @default(uuid())
+  tenant_id              String
+  subscription_plan_id   String
+  status                 tenant_subscriptions_status? @default(active)
+  starts_at              DateTime
+  ends_at                DateTime?
+  auto_renew             Boolean?                     @default(true)
+  payment_method         String?
+  max_shops              Int?                         @default(1)
+  synced                 Int?                         @default(0)
+  last_payment_date      DateTime?
+  next_payment_date      DateTime?
+  created_at             DateTime?                    @default(now())
+  updated_at             DateTime?                    @default(now())
+  tenants                tenants                      @relation(fields: [tenant_id], references: [tenant_id], onDelete: Cascade, onUpdate: NoAction)
+  subscription_plans     subscription_plans           @relation(fields: [subscription_plan_id], references: [subscription_plan_id], onUpdate: NoAction)
+
+  @@index([subscription_plan_id])
+  @@index([tenant_id])
+  @@map("tenant_subscriptions")
+}
+
+model tenants {
+  id                    Int                            @id @default(autoincrement())
+  tenant_id             String                         @unique
+  business_name         String
+  tin                   String                         @unique
+  tenant_code           String                         @unique
+  business_type         tenants_business_type
+  phone_number          String
+  email                 String                         @unique
+  mra_portal_username   String?
+  trading_name          String?
+  is_vat_registered     Boolean?                       @default(false)
+  tax_office_code       String?
+  msonkho_online_status tenants_msonkho_online_status? @default(PENDING)
+  subscription_plan     String?
+  subscription_status   tenants_subscription_status?   @default(TRIAL)
+  owner_name            String
+  address               String?
+  country               String?
+  trial_ends_at         DateTime?
+  auth_key              String                         @unique
+  status                tenants_status?                @default(pending)
+  registered_at         DateTime?                      @default(now())
+  activated_at          DateTime?
+  synced                Int?                           @default(0)
+  created_at            DateTime?                      @default(now())
+  updated_at            DateTime?                      @default(now())
+  MRA_API_CONFIG_TABLE  MRA_API_CONFIG_TABLE[]
+  audit_logs            audit_logs[]
+  branches              branches[]
+  payment_methods       payment_methods[]
+  tenant_subscriptions  tenant_subscriptions[]
+  terminals             terminals[]
+  users                 users[]
+
+  @@index([auth_key])
+  @@index([email])
+  @@index([subscription_status])
+  @@index([tenant_code])
+  @@index([tin])
+  @@map("tenants")
+}
+
+model terminals {
+  id                                Int                               @id @default(autoincrement())
+  terminal_id                       String                            @unique
+  tenant_id                         String
+  branch_id                         String
+  mra_terminal_id                   String?                           @unique
+  terminal_code                     String                            @unique
+  terminal_label                    String
+  terminal_position                 Int?
+  device_id                         String?
+  os_name                           String?
+  os_version                        String?
+  os_build                          String?
+  mac_address                       String?
+  pos_product_id                    String?
+  pos_product_version               String?
+  terminal_config_version           Decimal?
+  offline_max_transaction_age_hours Decimal?
+  offline_max_cumulative_amount     Decimal?
+  activation_code                   String?
+  activation_status                 terminals_activation_status?      @default(PENDING)
+  activation_date                   DateTime?
+  is_primary                        Boolean?                          @default(false)
+  is_blocked                        Boolean?                          @default(false)
+  blocking_reason                   String?
+  blocked_at                        DateTime?
+  mra_application_status            terminals_mra_application_status? @default(APPLIED)
+  mra_approval_date                 DateTime?
+  last_activity                     DateTime?
+  last_sync                         DateTime?
+  last_sync_timestamp               DateTime?
+  synced                            Int?                              @default(0)
+  registered_at                     DateTime?                         @default(now())
+  created_at                        DateTime?                         @default(now())
+  updated_at                        DateTime?                         @default(now())
+  audit_logs                        audit_logs[]
+  tenants                           tenants                           @relation(fields: [tenant_id], references: [tenant_id], onDelete: Cascade, onUpdate: NoAction)
+  branches                          branches                          @relation(fields: [branch_id], references: [branch_id], onDelete: Cascade, onUpdate: NoAction)
+  user_sessions                     user_sessions[]
+
+  @@index([activation_status])
+  @@index([branch_id])
+  @@index([tenant_id, branch_id])
+  @@index([tenant_id])
+  @@map("terminals")
+}
+
+model transactions {
+  id                          Int       @id @default(autoincrement())
+  transaction_id              String    @unique
+  ref_number                  String
+  discount                    Decimal?  @default(0.00)
+  customer_id                 String?
+  subtotal                    Decimal?  @default(0.00)
+  tax                         Decimal?  @default(0.00)
+  date                        DateTime?
+  payment_method_id           String?
+  phone_number                String?
+  payment_service_provider_id String?
+  total                       Decimal?  @default(0.00)
+  paid                        Decimal?  @default(0.00)
+  change_amount               Decimal?  @default(0.00)
+  terminal_id                 String?
+  user_id                     String?
+  tenant_id                   String
+  branch_id                   String
+  status                      String?
+  synced                      Int?      @default(0)
+  created_at                  DateTime? @default(now())
+  updated_at                  DateTime? @default(now())
+  branches                    branches  @relation(fields: [branch_id], references: [branch_id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([branch_id])
+  @@map("transactions")
+}
+
+model user_permissions {
+  id                                       Int         @id @default(autoincrement())
+  user_permission_id                       String      @unique
+  user_id                                  String
+  permission_id                            String
+  branch_id                                String?
+  granted                                  Boolean
+  created_at                               DateTime?   @default(now())
+  created_by                               String?
+  synced                                   Int?        @default(0)
+  users_user_permissions_user_idTousers    users       @relation("user_permissions_user_idTousers", fields: [user_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
+  permissions                              permissions @relation(fields: [permission_id], references: [permission_id], onDelete: Cascade, onUpdate: NoAction)
+  branches                                 branches?   @relation(fields: [branch_id], references: [branch_id], onDelete: Cascade, onUpdate: NoAction)
+  users_user_permissions_created_byTousers users?      @relation("user_permissions_created_byTousers", fields: [created_by], references: [user_id], onUpdate: NoAction)
+
+  @@unique([user_id, permission_id, branch_id], name: "unique_user_permission_branch")
+  @@index([created_by])
+  @@index([branch_id])
+  @@index([permission_id])
+  @@index([user_id])
+  @@map("user_permissions")
+}
+
+model user_sessions {
+  id              Int       @id @default(autoincrement())
+  user_session_id String    @unique
+  user_id         String
+  terminal_id     String
+  session_token   String    @unique
+  ip_address      String?
+  user_agent      String?
+  started_at      DateTime? @default(now())
+  last_activity   DateTime? @default(now())
+  ended_at        DateTime?
+  synced          Int?      @default(0)
+  is_active       Boolean?  @default(true)
+  created_at      DateTime? @default(now())
+  updated_at      DateTime? @default(now())
+  users           users     @relation(fields: [user_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
+  terminals       terminals @relation(fields: [terminal_id], references: [terminal_id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([session_token])
+  @@index([terminal_id])
+  @@index([user_id])
+  @@map("user_sessions")
+}
+
+model users {
+  id                                                  Int                @id @default(autoincrement())
+  user_id                                             String             @unique
+  tenant_id                                           String
+  branch_id                                           String
+  username                                            String
+  password                                            String
+  fullname                                            String
+  email                                               String?
+  phone                                               String?
+  role_id                                             String
+  status                                              users_status?      @default(active)
+  accessible_shops                                    Json?
+  allowed_workstations                                Json?
+  max_discount_percent                                Decimal?           @default(0.00)
+  can_override_prices                                 Boolean?           @default(false)
+  pin_code                                            String?
+  current_branch_id                                   String?
+  last_login                                          DateTime?
+  last_logout                                         DateTime?
+  password_changed_at                                 DateTime?          @default(now())
+  force_password_change                               Boolean?           @default(false)
+  synced                                              Int?               @default(0)
+  created_at                                          DateTime?          @default(now())
+  updated_at                                          DateTime?          @default(now())
+  audit_logs                                          audit_logs[]
+  inventory_inventory_created_byTousers               inventory[]        @relation("inventory_created_byTousers")
+  inventory_inventory_last_updated_byTousers          inventory[]        @relation("inventory_last_updated_byTousers")
+  payment_methods                                     payment_methods[]
+  user_permissions_user_permissions_user_idTousers    user_permissions[] @relation("user_permissions_user_idTousers")
+  user_permissions_user_permissions_created_byTousers user_permissions[] @relation("user_permissions_created_byTousers")
+  user_sessions                                       user_sessions[]
+  tenants                                             tenants            @relation(fields: [tenant_id], references: [tenant_id], onDelete: Cascade, onUpdate: NoAction)
+  branches_users_branch_idTobranches                  branches           @relation("users_branch_idTobranches", fields: [branch_id], references: [branch_id], onDelete: Cascade, onUpdate: NoAction)
+  roles                                               roles              @relation(fields: [role_id], references: [role_id], onUpdate: NoAction)
+  branches_users_current_branch_idTobranches          branches?          @relation("users_current_branch_idTobranches", fields: [current_branch_id], references: [branch_id], onUpdate: NoAction)
+
+  @@unique([tenant_id, username], name: "unique_tenant_username")
+  @@index([branch_id])
+  @@index([current_branch_id])
+  @@index([role_id])
+  @@index([tenant_id])
+  @@index([username])
+  @@map("users")
+}
+
+model SyncStatus {
+  tableName    String   @id
+  status       String
+  lastSyncAt   DateTime
+  errorMessage String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  @@map("SyncStatus")
+}
+
+model PaymentServiceProviders {
+  id          Int       @id @default(autoincrement())
+  providerId  String    @unique
+  userId      String
+  name        String
+  description String?
+  logoUrl     String?
+  isActive    Boolean   @default(true)
+  sortOrder   Int       @default(0)
+  synced      Int       @default(0)
+  createdAt   DateTime? @default(now())
+  updatedAt   DateTime? @updatedAt
+
+  @@map("payment_service_providers")
+}
+
+enum MRA_API_CONFIG_TABLE_environment {
+  SANDBOX
+  PRODUCTION
+}
+
+enum tenant_subscriptions_status {
+  active
+  cancelled
+  expired
+  past_due
+}
+
+enum tenants_business_type {
+  PRODUCT_BASED
+  SERVICE_BASED
+}
+
+enum audit_logs_action_type {
+  create
+  update
+  delete
+  login
+  logout
+  access
+  export
+  import
+  backup
+  sync
+}
+
+enum permissions_scope {
+  global
+  workstation
+  self
+  system
+  client
+  shop
+}
+
+enum MRA_API_CONFIG_TABLE_sync_status {
+  SUCCESS
+  FAILED
+  IN_PROGRESS
+}
+
+enum users_status {
+  active
+  inactive
+  suspended
+}
+
+enum tenants_msonkho_online_status {
+  VERIFIED
+  PENDING
+  FAILED
+}
+
+enum tenants_subscription_status {
+  ACTIVE
+  SUSPENDED
+  CANCELLED
+  TRIAL
+}
+
+enum branch_settings_status {
+  active
+  inactive
+  suspended
+}
+
+enum audit_logs_severity {
+  low
+  medium
+  high
+  critical
+}
+
+enum terminals_activation_status {
+  PENDING
+  ACTIVATED
+  DEACTIVATED
+  SUSPENDED
+  BLOCKED
+}
+
+enum tenants_status {
+  pending
+  active
+  suspended
+  cancelled
+}
+
+enum terminals_mra_application_status {
+  APPLIED
+  APPROVED
+  REJECTED
+}
+
+enum branches_mra_approval_status {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum branches_status {
+  active
+  inactive
+  suspended
+}
+
+enum inventory_status {
+  active
+  inactive
+  discontinued
+  out_of_stock
+}

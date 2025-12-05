@@ -1,21 +1,21 @@
 import { v4 as uuidv4 } from 'uuid';
 import { sealDBModel } from '../databases/local';
 import { CATEGORIES_DB } from '../databases/local/tables';
-import { mysqlPool } from '../config/db';
 import { ValidationParams } from 'on-boarding';
 import { Category, CreateCategoryRequest, UpdateCategoryDto } from 'categoty';
+import prisma from '../databases/prisma/client';
 
 export class CategoryModel {
 
-    static async findAllByRDBMS(conditions: ValidationParams): Promise<Array<Category>> {
+    static async findAllByRDBMS(conditions: ValidationParams): Promise<Category[]> {
         try {
-            const connection = await mysqlPool.getConnection();
-            const [rows] = await connection.execute(`SELECT * FROM ${CATEGORIES_DB} WHERE tenant_id=${conditions.tenantId}`);
-            const records = rows as any[];
-
-            return records
+            return await prisma.categories.findMany({
+                where: {
+                    tenant_id: conditions.tenantId,
+                },
+            }) as unknown as Array<Category>;
         } catch (error) {
-            throw new Error(`Error finding roles: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            throw new Error(`Error finding categories: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
     }
 

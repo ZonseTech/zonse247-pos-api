@@ -2,25 +2,28 @@ import { v4 as uuidv4 } from 'uuid';
 import bcrypt from 'bcryptjs';
 import { sealDBModel } from '../databases/local';
 import { USERS_DB } from '../databases/local/tables';
-import { mysqlPool } from '../config/db';
 import { ValidationParams } from 'on-boarding';
 import { PublicUser, User, UserStatus } from 'users';
+import prisma from '../databases/prisma/client';
 
 const saltRounds = 10;
 
 export class UserModel {
 
-    static async findAllByRDBMS(conditions: ValidationParams): Promise<Array<User>> {
+    static async findAllByRDBMS(conditions: ValidationParams): Promise<User[]> {
         try {
-            const connection = await mysqlPool.getConnection();
-            const [rows] = await connection.execute(`SELECT * FROM ${USERS_DB} WHERE tenant_id=${conditions.tenantId}`);
-            const records = rows as any[];
-
-            return records
+            return await prisma.users.findMany({
+                where: {
+                    tenant_id: conditions.tenantId,
+                },
+            }) as unknown as Array<User>
         } catch (error) {
-            throw new Error(`Error finding roles: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            throw new Error(
+                `Error finding users: ${error instanceof Error ? error.message : 'Unknown error'}`
+            );
         }
     }
+
 
     static async findAll(conditions: any = {}): Promise<User[]> {
         try {
@@ -161,6 +164,28 @@ export class UserModel {
             createdAt: now,
             updatedAt: now
         };
+    }
+
+    static async exists(userId: string): Promise<boolean> {
+        try {
+            const result = await sealDBModel.findById(USERS_DB, { userId });
+
+            if (!result || typeof result !== 'object') {
+                return false;
+            }
+
+            const hasKeys = Object.keys(result).length > 0;
+
+            return hasKeys;
+
+        } catch (error) {
+            console.error('Error checking if user exists:', error);
+            return false;
+        }
+    }
+
+    static async insert(data: User): Promise<User> {
+        return await sealDBModel.insert(USERS_DB, data);
     }
 
     static async create(userData: User): Promise<User> {

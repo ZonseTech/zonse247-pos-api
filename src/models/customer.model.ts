@@ -1,21 +1,20 @@
 import { ValidationParams } from 'on-boarding';
-import { mysqlPool } from '../config/db';
 import { sealDBModel } from '../databases/local';
 import { CUSTOMERS_DB } from '../databases/local/tables';
 import { Role } from 'role-permission';
 import { Customer } from 'customer';
+import prisma from '../databases/prisma/client';
 
 export class CustomerModel {
     private static tableName = CUSTOMERS_DB;
 
     static async findAllByRDBMS(conditions: ValidationParams): Promise<Role[]> {
         try {
-            const connection = await mysqlPool.getConnection();
-            const [rows] = await connection.execute(`SELECT * FROM ${CUSTOMERS_DB} WHERE tenant_id=${conditions.tenantId}`);
-            const records = rows as any[];
-
-            return records
+            return await prisma.roles.findMany({
+                where: {},
+            }) as unknown as Array<Role>;
         } catch (error) {
+            conditions
             throw new Error(`Error finding roles: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
     }

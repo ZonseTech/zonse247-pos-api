@@ -14,6 +14,12 @@ export interface ApiResponse<T> {
     subscriptionStatus?: string;
 }
 
+export interface ServiceConfig {
+    baseURL?: string;
+    headers?: Record<string, string>;
+    timeout?: number;
+}
+
 export type APIProps = {
     config: AxiosInstance;
     get: <T>(

@@ -4,10 +4,7 @@ import compression from 'compression';
 import { createServer, Server as HttpServer } from 'http';
 import express, { Request, Response, Application } from 'express';
 import { corsOptions } from './config/cors';
-
 import syncService from './services/sync.service';
-import { initDatabase } from './databases/remote/migrations';
-import { seedDatabase } from './databases/local/seeds';
 import { timeoutHandler } from './middlewares/error.middleware';
 import {
 	apiAnalytics,
@@ -120,8 +117,6 @@ export class Server {
 			console.log(`🚀 Server running on port ${process.env.SERVER_PORT}`);
 			console.log(`📊 Environment: ${process.env.NODE_ENV}`);
 
-			await this.initializeServices();
-
 			if (!this.electron)
 				await initializeEmailService()
 					.then(() => {
@@ -136,51 +131,6 @@ export class Server {
 	public stop() {
 		syncService.stopAutoSync();
 		this.server.close();
-	}
-
-	private async initializeServices() {
-		await this.testDatabaseConnections();
-
-		if (this.electron) {
-			if (process.env.AUTO_SYNC_ENABLED === 'true') {
-				syncService.startAutoSync(parseInt(process.env.SYNC_INTERVAL));
-				console.log(`🔄 Auto sync enabled (interval: ${process.env.SYNC_INTERVAL}ms)`);
-			}
-		}
-
-		if (process.env.DB_SEED === 'true') {
-			try {
-				await seedDatabase();
-				console.log('✅ Database seeding completed successfully');
-			} catch (err) {
-				console.error('❌ Error running seeds:', err);
-			}
-		}
-
-		if (process.env.DB_MIGRATE === 'true') {
-			try {
-				await initDatabase();
-				console.log('✅ Database migrations completed successfully');
-			} catch (err) {
-				console.error('❌ Error running migrations:', err);
-			}
-		}
-	}
-
-	private async testDatabaseConnections() {
-		try {
-			const connections = await syncService.testConnections(this.electron);
-			console.log('🔗 Database connections:', connections);
-
-			if (!connections.mysql) {
-				console.warn('⚠️  Warning: MySQL connection failed');
-			}
-			if (!connections.sealdb) {
-				console.error('❌ Error: SealDB connection failed');
-			}
-		} catch (error) {
-			console.error('❌ Error testing database connections.');
-		}
 	}
 }
 

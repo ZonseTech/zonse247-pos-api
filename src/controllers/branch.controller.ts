@@ -19,12 +19,13 @@ export class BranchController extends BaseController {
         }
     }
 
-    static async getBranchTerminals(req: Request<{ branchId: string }, ApiResponse<Array<Terminal>>>, res: Response): Promise<void> {
+    static async getBranchTerminals(req: Request<{ branchId: string, isLive: boolean }, ApiResponse<Array<Terminal>>>, res: Response): Promise<void> {
 
         try {
+            const query = req.query;
             const { branchId } = req.params;
 
-            const terminal = await TerminalService.getTerminalsByBranchId(branchId);
+            const terminal = await TerminalService.getTerminalsByBranchId(branchId, Boolean(query.isLive));
 
             BaseController.sendResponse(
                 res, 200, true,

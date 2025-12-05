@@ -37,7 +37,7 @@ export class SealDBModel {
 	}
 
 	private getAppDataPath(): string {
-		return path.join(process.env.DATABASE_URL || './.data/zonse247-pos');
+		return path.join(process.env.LOCAL_STORAGE_URL || './.data/zonse247-pos');
 	}
 
 	private initializeDatabases() {

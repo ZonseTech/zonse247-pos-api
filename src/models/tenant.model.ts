@@ -62,6 +62,26 @@ export class TenantModel {
         return sealDBModel.findById(TENANT_TABLE, { tenantId });
     }
 
+    static async exists(tenantId: string): Promise<boolean> {
+        try {
+            const result = await sealDBModel.findById(TENANT_TABLE, { tenantId });
+
+            if (!result || typeof result !== 'object') {
+                return false;
+            }
+
+            const hasKeys = Object.keys(result).length > 0;
+
+            const hasTenantId = result.tenantId === tenantId || result._id === tenantId || result.id === tenantId;
+
+            return hasKeys && hasTenantId;
+
+        } catch (error) {
+            console.error('Error checking if tenant exists:', error);
+            return false;
+        }
+    }
+
     static async findByTenantCode(tenantCode: string): Promise<Tenant | null> {
         const results = await sealDBModel.find(TENANT_TABLE, { tenantCode });
         return results.length > 0 ? results[0] : null;
@@ -69,6 +89,10 @@ export class TenantModel {
 
     static async findByCredentials(verificationToken: string): Promise<Tenant | null> {
         return await sealDBModel.findOne(TENANT_TABLE, { verificationToken });
+    }
+
+    static async insert(data: TenantFormValues): Promise<Tenant> {
+        return await sealDBModel.insert(TENANT_TABLE, data);
     }
 
     static async create(data: TenantFormValues): Promise<Tenant> {

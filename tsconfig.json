@@ -24,7 +24,7 @@
     "strict": false,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["src/**/*"],
+  "include": ["src/databases/prisma/**/*", "src/**/*"],
   "exclude": [
     "node_modules",
     "dist",
