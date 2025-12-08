@@ -39,7 +39,7 @@ export class RolePermissionService {
             throw new Error('Role not found');
         }
 
-        const permission = await PermissionModel.findByUuid(data.permissionId);
+        const permission = await PermissionModel.findById(data.permissionId);
         if (!permission) {
             throw new Error('Permission not found');
         }
@@ -89,7 +89,7 @@ export class RolePermissionService {
         let skippedCount = 0;
 
         for (const permissionId of data.permissionIds) {
-            const permission = await PermissionModel.findByUuid(permissionId);
+            const permission = await PermissionModel.findById(permissionId);
             if (!permission) {
                 throw new Error(`Permission with UUID ${permissionId} not found`);
             }
@@ -175,7 +175,7 @@ export class RolePermissionService {
 
         for (const rp of rolePermissions) {
             const role = await RoleModel.findById(rp.roleId);
-            const permission = await PermissionModel.findByUuid(rp.permissionId);
+            const permission = await PermissionModel.findById(rp.permissionId);
 
             detailedRolePermissions.push({
                 ...rp,
@@ -197,7 +197,7 @@ export class RolePermissionService {
 
         for (const rp of rolePermissions) {
             const role = await RoleModel.findById(rp.roleId);
-            const permission = await PermissionModel.findByUuid(rp.permissionId);
+            const permission = await PermissionModel.findById(rp.permissionId);
 
             detailedRolePermissions.push({
                 ...rp,

@@ -1,11 +1,22 @@
 import { v4 as uuidv4 } from 'uuid';
-import { sealDBModel } from '../databases/local';
-import { CATEGORIES_DB } from '../databases/local/tables';
 import { ValidationParams } from 'on-boarding';
-import { Category, CreateCategoryRequest, UpdateCategoryDto } from 'categoty';
+import { Category, CreateCategoryRequest, UpdateCategoryDto, CategoryFilters } from 'categoty';
 import prisma from '../databases/prisma/client';
 
 export class CategoryModel {
+
+    static async findAll(conditions: CategoryFilters): Promise<Category[]> {
+        try {
+            return await prisma.category.findMany({
+                where: {
+                    tenantId: conditions.tenantId,
+                    branchId: conditions.branchId,
+                },
+            }) as unknown as Category[];
+        } catch (error) {
+            throw new Error(`Error finding categories: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+    }
 
     static async findAllByRDBMS(conditions: ValidationParams): Promise<Category[]> {
         try {
@@ -13,15 +24,7 @@ export class CategoryModel {
                 where: {
                     tenantId: conditions.tenantId,
                 },
-            }) as unknown as Array<Category>;
-        } catch (error) {
-            throw new Error(`Error finding categories: ${error instanceof Error ? error.message : 'Unknown error'}`);
-        }
-    }
-
-    static async findAll(conditions: any = {}): Promise<Category[]> {
-        try {
-            return await sealDBModel.find(CATEGORIES_DB, conditions);
+            }) as unknown as Category[];
         } catch (error) {
             throw new Error(`Error finding categories: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
@@ -29,7 +32,9 @@ export class CategoryModel {
 
     static async findById(id: string): Promise<Category | null> {
         try {
-            return await sealDBModel.findById<Category>(CATEGORIES_DB, id);
+            return await prisma.category.findUnique({
+                where: { categoryId: id },
+            }) as unknown as Category | null;
         } catch (error) {
             throw new Error(`Error finding category by ID: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
@@ -37,7 +42,9 @@ export class CategoryModel {
 
     static async findByTenantId(tenantId: string): Promise<Category[]> {
         try {
-            return await sealDBModel.find(CATEGORIES_DB, { tenantId: tenantId });
+            return await prisma.category.findMany({
+                where: { tenantId },
+            }) as unknown as Category[];
         } catch (error) {
             throw new Error(`Error finding categories by tenant ID: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
@@ -45,7 +52,9 @@ export class CategoryModel {
 
     static async findByBranchId(branchId: string): Promise<Category[]> {
         try {
-            return await sealDBModel.find(CATEGORIES_DB, { branchId: branchId });
+            return await prisma.category.findMany({
+                where: { branchId },
+            }) as unknown as Category[];
         } catch (error) {
             throw new Error(`Error finding categories by branch ID: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
@@ -53,10 +62,12 @@ export class CategoryModel {
 
     static async findByTenantIdAndBranchId(tenantId: string, branchId: string): Promise<Category[]> {
         try {
-            return await sealDBModel.find(CATEGORIES_DB, {
-                tenantId,
-                branchId
-            });
+            return await prisma.category.findMany({
+                where: {
+                    tenantId,
+                    branchId,
+                },
+            }) as unknown as Category[];
         } catch (error) {
             throw new Error(`Error finding categories by tenant ID and branch ID: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
@@ -64,7 +75,9 @@ export class CategoryModel {
 
     static async findByName(name: string): Promise<Category[]> {
         try {
-            return await sealDBModel.find(CATEGORIES_DB, { name: name });
+            return await prisma.category.findMany({
+                where: { name },
+            }) as unknown as Category[];
         } catch (error) {
             throw new Error(`Error finding categories by name: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
@@ -72,10 +85,12 @@ export class CategoryModel {
 
     static async findByTenantIdAndName(tenantId: string, name: string): Promise<Category[]> {
         try {
-            return await sealDBModel.find(CATEGORIES_DB, {
-                tenantId: tenantId,
-                name: name
-            });
+            return await prisma.category.findMany({
+                where: {
+                    tenantId,
+                    name,
+                },
+            }) as unknown as Category[];
         } catch (error) {
             throw new Error(`Error finding category by tenant ID and name: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
@@ -83,7 +98,9 @@ export class CategoryModel {
 
     static async findByDescription(description: string): Promise<Category[]> {
         try {
-            return await sealDBModel.find(CATEGORIES_DB, { description: description });
+            return await prisma.category.findMany({
+                where: { description },
+            }) as unknown as Category[];
         } catch (error) {
             throw new Error(`Error finding categories by description: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
@@ -91,7 +108,9 @@ export class CategoryModel {
 
     static async findByColor(color: string): Promise<Category[]> {
         try {
-            return await sealDBModel.find(CATEGORIES_DB, { color: color });
+            return await prisma.category.findMany({
+                where: { color },
+            }) as unknown as Category[];
         } catch (error) {
             throw new Error(`Error finding categories by color: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
@@ -99,7 +118,9 @@ export class CategoryModel {
 
     static async findBySynced(synced: number): Promise<Category[]> {
         try {
-            return await sealDBModel.find(CATEGORIES_DB, { synced: synced });
+            return await prisma.category.findMany({
+                where: { synced },
+            }) as unknown as Category[];
         } catch (error) {
             throw new Error(`Error finding categories by sync status: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
@@ -107,10 +128,12 @@ export class CategoryModel {
 
     static async findUnsyncedByTenant(tenantId: string): Promise<Category[]> {
         try {
-            return await sealDBModel.find(CATEGORIES_DB, {
-                tenantId: tenantId,
-                synced: 0
-            });
+            return await prisma.category.findMany({
+                where: {
+                    tenantId,
+                    synced: 0,
+                },
+            }) as unknown as Category[];
         } catch (error) {
             throw new Error(`Error finding unsynced categories by tenant: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
@@ -118,11 +141,19 @@ export class CategoryModel {
 
     static async findByItemCountRange(minCount: number, maxCount?: number): Promise<Category[]> {
         try {
-            const allCategories = await sealDBModel.find(CATEGORIES_DB, {});
-            return allCategories.filter(category => {
-                const itemCount = category.itemCount || 0;
-                return itemCount >= minCount && (maxCount === undefined || itemCount <= maxCount);
-            });
+            const where: any = {
+                itemCount: {
+                    gte: minCount,
+                },
+            };
+
+            if (maxCount !== undefined) {
+                where.itemCount.lte = maxCount;
+            }
+
+            return await prisma.category.findMany({
+                where,
+            }) as unknown as Category[];
         } catch (error) {
             throw new Error(`Error finding categories by item count range: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
@@ -140,13 +171,15 @@ export class CategoryModel {
             userId: data.userId,
             createdAt: now,
             updatedAt: now,
-            synced: 0
+            synced: 0,
         };
     }
 
     static async create(categoryData: Category): Promise<Category> {
         try {
-            return await sealDBModel.insert(CATEGORIES_DB, categoryData);
+            return await prisma.category.create({
+                data: categoryData,
+            }) as unknown as Category;
         } catch (error) {
             throw new Error(`Error creating category: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
@@ -157,9 +190,15 @@ export class CategoryModel {
             const dataWithTimestamp = {
                 ...updateData,
                 updatedAt: new Date(),
-                synced: updateData.synced !== undefined ? updateData.synced : 0
+                synced: updateData.synced !== undefined ? updateData.synced : 0,
             };
-            return await sealDBModel.update(CATEGORIES_DB, id, dataWithTimestamp);
+
+            await prisma.category.update({
+                where: { categoryId: id },
+                data: dataWithTimestamp,
+            });
+
+            return 1; // Return 1 to indicate successful update
         } catch (error) {
             throw new Error(`Error updating category: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
@@ -167,15 +206,21 @@ export class CategoryModel {
 
     static async delete(id: string): Promise<number> {
         try {
-            return await sealDBModel.delete(CATEGORIES_DB, id);
+            await prisma.category.delete({
+                where: { categoryId: id },
+            });
+
+            return 1; // Return 1 to indicate successful deletion
         } catch (error) {
             throw new Error(`Error deleting category: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
     }
 
-    static async count(conditions: any = {}): Promise<number> {
+    static async count(conditions: Partial<Category> = {}): Promise<number> {
         try {
-            return await sealDBModel.count(CATEGORIES_DB, conditions);
+            return await prisma.category.count({
+                where: conditions,
+            });
         } catch (error) {
             throw new Error(`Error counting categories: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }

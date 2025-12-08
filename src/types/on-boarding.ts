@@ -16,7 +16,7 @@ export type ValidationParams = {
 }
 
 export interface OnboardingStatus {
-    tenant: Omit<Tenant, 'verificationToken'>;
+    tenant: Omit<Tenant, 'verificationToken' | 'authKey'>;
     subscription: any;
     shops: any[];
     workstations: any[];

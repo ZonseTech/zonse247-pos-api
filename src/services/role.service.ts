@@ -63,11 +63,6 @@ export class RoleService {
             throw new Error('Role name must contain only lowercase letters and underscores');
         }
 
-        const existingRoles = await RoleModel.findByClientUuidAndName(data.tenantId, data.name);
-        if (existingRoles.length > 0) {
-            throw new Error('Role name already exists for this client');
-        }
-
         const roleData = RoleModel.buildRoleData(data);
         return RoleModel.create(roleData);
     }
@@ -86,7 +81,7 @@ export class RoleService {
             throw new Error('System roles cannot be modified');
         }
 
-        const protectedFields = ['uuid', 'clientUuid', 'isSystemRole', 'createdAt'];
+        const protectedFields = ['uuid', 'tenantId', 'isSystemRole', 'createdAt'];
         const updateData = { ...data };
 
         protectedFields.forEach(field => {
@@ -97,13 +92,6 @@ export class RoleService {
 
         if (updateData.name && !/^[a-z_]+$/.test(updateData.name)) {
             throw new Error('Role name must contain only lowercase letters and underscores');
-        }
-
-        if (updateData.name && updateData.name !== existingRole.name) {
-            const existingRoles = await RoleModel.findByClientUuidAndName(existingRole.tenantId, updateData.name);
-            if (existingRoles.length > 0) {
-                throw new Error('Role name already exists for this client');
-            }
         }
 
         const numUpdated = await RoleModel.update(id, updateData);
@@ -141,22 +129,6 @@ export class RoleService {
         }
 
         return { status: true };
-    }
-
-    static async getRolesByClientUuid(clientUuid: string): Promise<Role[]> {
-        if (!clientUuid) {
-            throw new Error('Client ID is required');
-        }
-
-        return await RoleModel.findByClientUuid(clientUuid);
-    }
-
-    static async getRolesByShopUuid(shopUuid: string): Promise<Role[]> {
-        if (!shopUuid) {
-            throw new Error('Shop ID is required');
-        }
-
-        return await RoleModel.findByBranchId(shopUuid);
     }
 
     static async getSystemRoles(): Promise<Role[]> {
@@ -259,14 +231,5 @@ export class RoleService {
         }
 
         return { status: true };
-    }
-
-    static async getRoleByName(clientUuid: string, name: string): Promise<Role | null> {
-        if (!clientUuid || !name) {
-            throw new Error('Client ID and role name are required');
-        }
-
-        const roles = await RoleModel.findByClientUuidAndName(clientUuid, name);
-        return roles.length > 0 ? roles[0] : null;
     }
 }

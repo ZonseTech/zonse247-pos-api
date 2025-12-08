@@ -7,7 +7,7 @@ router.get('/', SubscriptionController.list);
 router.get('/stats', SubscriptionController.getStats);
 router.get('/expiring', SubscriptionController.getExpiring);
 router.get('/status/:status', SubscriptionController.getByStatus);
-router.get('/client/:clientUuid', SubscriptionController.getByClient);
+router.get('/client/:tenantId', SubscriptionController.getByClient);
 router.get('/plan/:planId', SubscriptionController.getByPlan);
 router.get('/:id', SubscriptionController.show);
 router.post('/', SubscriptionController.store);

@@ -20,13 +20,13 @@ export interface Branch {
     email?: string | null;
     currencyCode?: string;
     currencySymbol?: string;
-    taxRate?: number;
+    taxRate: any;
     chargeTax?: boolean;
     receiptFooter?: string | null;
     logoUrl?: string | null;
     isVirtualWarehouse?: boolean;
     isActive?: boolean;
-    synced?: boolean;
+    synced: number;
     mraApprovalStatus?: MraApprovalStatus;
     mraApprovalDate?: Date | null;
     status?: BranchStatus;

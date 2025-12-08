@@ -156,8 +156,8 @@ export class BranchService {
 			}
 		}
 
-		const numUpdated = await BranchModel.update(branchId, updateData);
-		if (numUpdated === 0) {
+		const isUpdated = await BranchModel.update(branchId, updateData);
+		if (isUpdated) {
 			throw new Error('Failed to update branch');
 		}
 
@@ -179,8 +179,8 @@ export class BranchService {
 			throw new Error('Branch not found');
 		}
 
-		const numDeleted = await BranchModel.delete(branchId);
-		if (numDeleted === 0) {
+		const isDeleted = await BranchModel.delete(branchId);
+		if (isDeleted) {
 			throw new Error('Failed to delete branch');
 		}
 

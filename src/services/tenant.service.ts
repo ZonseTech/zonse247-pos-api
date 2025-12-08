@@ -95,7 +95,7 @@ export class TenantService {
                 });
 
                 if (tenant.tenantId) {
-                    await TenantModel.update(tenant.tenantId, { synced: false });
+                    await TenantModel.update(tenant.tenantId, { synced: 0 });
                 }
             }
         }
@@ -103,7 +103,7 @@ export class TenantService {
         return tenant;
     }
 
-    static async getAllTenants(query: any = {}): Promise<Omit<Tenant, 'verificationToken'>[]> {
+    static async getAllTenants(query: any = {}): Promise<Omit<Tenant, 'verificationToken' | 'authKey'>[]> {
         try {
             const tenants = await TenantModel.findAll(query);
             return tenants.map(tenant => TenantModel.sanitizeTenant(tenant));
@@ -112,7 +112,7 @@ export class TenantService {
         }
     }
 
-    static async getTenantById(tenantId: string): Promise<Omit<Tenant, 'verificationToken'>> {
+    static async getTenantById(tenantId: string): Promise<Omit<Tenant, 'verificationToken' | 'authKey'>> {
         const tenant = await TenantModel.findById(tenantId);
         if (!tenant) {
             throw new Error('Tenant not found');
@@ -120,7 +120,7 @@ export class TenantService {
         return TenantModel.sanitizeTenant(tenant);
     }
 
-    static async getTenantByCode(tenantCode: string): Promise<Omit<Tenant, 'verificationToken'>> {
+    static async getTenantByCode(tenantCode: string): Promise<Omit<Tenant, 'verificationToken' | 'authKey'>> {
         const tenant = await TenantModel.findByTenantCode(tenantCode);
         if (!tenant) {
             throw new Error('Tenant not found');
@@ -142,42 +142,17 @@ export class TenantService {
             throw new Error('Cannot delete tenant with existing subscriptions, shops, or workstations');
         }
 
-        const deletedCount = await TenantModel.delete(tenantId);
-        if (deletedCount === 0) {
+        const isDeleted = await TenantModel.delete(tenantId);
+        if (isDeleted) {
             throw new Error('Failed to delete tenant');
         }
 
         return { status: true };
     }
 
-    static async verifyTenant(verificationToken: string, isLive = false): Promise<Omit<Tenant, 'verificationToken'>> {
-        if (isLive) {
-            const { tenantId } = await SecureSettingsService.decryptTenantId(verificationToken);
-
-            const tenant = await TenantModel.findById(tenantId);
-
-            if (!tenant) {
-                throw new Error('Invalid tenant credentials');
-            }
-
-            const now = new Date();
-            await TenantModel.update(tenantId, {
-                status: 'active',
-                activatedAt: now
-            });
-
-            const updatedTenant = {
-                ...tenant,
-                status: 'active' as TenantStatus,
-                activatedAt: now
-            };
-
-            return updatedTenant;
-        }
-
-        const response = await BaseService.post<TenantFormValues>('/on-boarding/verify-tenant', {
+    static async verifyTenant(verificationToken: string): Promise<Omit<Tenant, 'verificationToken' | 'authKey'>> {
+        const response = await BaseService.post<TenantFormValues>('/on-boarding/live/verify-account', {
             verificationToken,
-            isLive: true,
         });
 
         if (!response.success) {
@@ -200,7 +175,31 @@ export class TenantService {
         return TenantModel.sanitizeTenant(localTenant);
     }
 
-    static async updateTenant(tenantId: string, updateData: Partial<TenantFormValues>): Promise<Omit<Tenant, 'verificationToken'>> {
+    static async verifyTenantAccount(verificationToken: string): Promise<Omit<Tenant, 'verificationToken' | 'authKey'>> {
+        const { tenantId } = await SecureSettingsService.decryptTenantId(verificationToken);
+
+        const tenant = await TenantModel.findById(tenantId);
+
+        if (!tenant) {
+            throw new Error('Invalid tenant credentials');
+        }
+
+        const now = new Date();
+        await TenantModel.update(tenantId, {
+            status: 'active',
+            activatedAt: now
+        });
+
+        const updatedTenant = {
+            ...tenant,
+            status: 'active' as TenantStatus,
+            activatedAt: now
+        };
+
+        return updatedTenant;
+    }
+
+    static async updateTenant(tenantId: string, updateData: Partial<TenantFormValues>): Promise<Omit<Tenant, 'verificationToken' | 'authKey'>> {
         const tenant = await TenantModel.findById(tenantId);
         if (!tenant) {
             throw new Error('Tenant not found');
@@ -221,7 +220,7 @@ export class TenantService {
         }
 
         const numUpdated = await TenantModel.update(tenantId, updateData as Partial<any>);
-        if (numUpdated === 0) {
+        if (numUpdated) {
             throw new Error('Failed to update tenant');
         }
 
@@ -310,14 +309,14 @@ export class TenantService {
         }
     }
 
-    static async updateMsonkhoStatus(tenantId: string, status: MsonkhoOnlineStatus): Promise<Omit<Tenant, 'verificationToken'>> {
+    static async updateMsonkhoStatus(tenantId: string, status: MsonkhoOnlineStatus): Promise<Omit<Tenant, 'authKey' | 'verificationToken'>> {
         const tenant = await TenantModel.findById(tenantId);
         if (!tenant) {
             throw new Error('Tenant not found');
         }
 
-        const numUpdated = await TenantModel.update(tenantId, { msonkhoOnlineStatus: status });
-        if (numUpdated === 0) {
+        const isUpdated = await TenantModel.update(tenantId, { msonkhoOnlineStatus: status });
+        if (isUpdated) {
             throw new Error('Failed to update Msonkho status');
         }
 

@@ -5,6 +5,7 @@ import { RolePermissionModel } from '../models/role-permission.model';
 import { PermissionModel } from '../models/permission.model';
 import type { PublicUser, User } from 'users';
 import type { Permission } from 'role-permission';
+import { UserUncheckedCreateInput } from 'src/databases/prisma/generated/prisma/models';
 
 export class UserService {
 
@@ -68,7 +69,7 @@ export class UserService {
 		const newUserData = await UserModel.buildUserData({
 			...userData,
 			status: userData.status || 'active'
-		});
+		} as unknown as UserUncheckedCreateInput) as unknown as UserUncheckedCreateInput;
 
 		const user = await UserModel.create(newUserData);
 		return UserModel.getPublicUser(user);

@@ -9,8 +9,6 @@ router.post('/post', RoleController.create);
 router.put('/update/:id', RoleController.update);
 router.get('/role/:id', RoleController.show);
 router.delete('/role/:id', RoleController.delete);
-router.get('/client/:clientUuid', RoleController.getByClientUuid);
-router.get('/shop/:shopUuid', RoleController.getByShopUuid);
 router.get('/system', RoleController.getSystemRoles);
 router.get('/active', RoleController.getActiveRoles);
 router.put('/activate/:id', RoleController.activate);

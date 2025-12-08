@@ -17,13 +17,13 @@ export class SubscriptionController extends BaseController {
 
     static async list(req: Request, res: Response): Promise<void> {
         try {
-            const { status, clientUuid, planId } = req.query;
+            const { status, tenantId, planId } = req.query;
             let subscriptions;
 
             if (status) {
                 subscriptions = await SubscriptionService.getByStatus(status as string);
-            } else if (clientUuid) {
-                subscriptions = await SubscriptionService.getByClientUuid(clientUuid as string);
+            } else if (tenantId) {
+                subscriptions = await SubscriptionService.getBytenantId(tenantId as string);
             } else if (planId) {
                 subscriptions = await SubscriptionService.getByPlanId(planId as string);
             } else {
@@ -271,8 +271,8 @@ export class SubscriptionController extends BaseController {
 
     static async getByClient(req: Request, res: Response): Promise<void> {
         try {
-            const { clientUuid } = req.params;
-            const subscriptions = await SubscriptionService.getByClientUuid(clientUuid);
+            const { tenantId } = req.params;
+            const subscriptions = await SubscriptionService.getBytenantId(tenantId);
             BaseController.sendResponse(res, 200, true, 'Subscriptions retrieved by client', subscriptions);
         } catch (error: any) {
             console.error('Error fetching subscriptions by client:', error);

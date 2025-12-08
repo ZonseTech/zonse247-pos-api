@@ -2,7 +2,7 @@ import { User } from "users";
 
 export interface AccountActivationProps {
 	authToken: string;
-	clientUuid: string;
+	tenantId: string;
 }
 
 export interface AccountActivationResponse {

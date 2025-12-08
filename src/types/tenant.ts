@@ -17,6 +17,8 @@ export interface Tenant extends BaseTimestamps {
     businessType: BusinessType;
     ownerName: string;
     phoneNumber: string;
+    verificationToken: string;
+    authKey: string;
     email: string;
     mraPortalUsername?: string | null;
     isVatRegistered?: boolean;
@@ -27,11 +29,10 @@ export interface Tenant extends BaseTimestamps {
     address?: string | null;
     country?: string | null;
     trialEndsAt?: Date | null;
-    verificationToken: string;
     status: TenantStatus;
     registeredAt?: Date | null;
     activatedAt?: Date | null;
-    synced?: boolean;
+    synced: number;
 }
 
 export type TenantFormValues = Omit<
@@ -45,4 +46,13 @@ export type TenantFormValues = Omit<
 
 export interface VerifyTenantRequest {
     verificationToken: string;
+}
+
+export interface TenantQueryParams {
+    status?: TenantStatus;
+    subscriptionStatus?: SubscriptionStatus;
+    businessType?: BusinessType;
+    country?: string;
+    msonkhoOnlineStatus?: MsonkhoOnlineStatus;
+    search?: string;
 }
