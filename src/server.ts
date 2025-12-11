@@ -3,8 +3,6 @@ import cors from 'cors';
 import compression from 'compression';
 import { createServer, Server as HttpServer } from 'http';
 import express, { Request, Response, Application } from 'express';
-import swaggerJsdoc from 'swagger-jsdoc';
-import swaggerUi from 'swagger-ui-express';
 import { corsOptions } from './config/cors';
 import syncService from './services/sync.service';
 import { timeoutHandler } from './middlewares/error.middleware';
@@ -21,16 +19,15 @@ import {
 } from './middlewares/security.middleware';
 import ApiRoutes from './routes';
 import { initializeEmailService } from './config/email.config';
-import { swaggerOptions, swaggerUiOptions } from './config/swagger';
 
 export class Server {
 	private server: HttpServer;
 	private app: Application;
 	private electron: any | null;
 
-	constructor(electronApp: any) {
+	constructor(electronApp?: any) {
 		this.app = express();
-		this.electron = electronApp;
+		this.electron = electronApp || null;
 
 		if (this.electron) {
 			process.env.APPDATA = this.electron.getPath('appData');
@@ -38,7 +35,6 @@ export class Server {
 
 		this.server = createServer(this.app);
 		this.setupMiddleware();
-		this.setupSwagger();
 		this.setupRoutes();
 		this.setupErrorHandling();
 	}
@@ -60,7 +56,9 @@ export class Server {
 		this.app.use(compression());
 		this.app.use(limitRequestSize(process.env.CORS_REQUEST_SIZE_LIMIT));
 		this.app.use(securityLogger);
-		this.app.use(express.json({ limit: process.env.CORS_REQUEST_SIZE_LIMIT }));
+		this.app.use(
+			express.json({ limit: process.env.CORS_REQUEST_SIZE_LIMIT })
+		);
 		this.app.use(
 			express.urlencoded({
 				extended: true,
@@ -69,38 +67,7 @@ export class Server {
 		);
 	}
 
-	private setupSwagger() {
-		const swaggerSpec = swaggerJsdoc(swaggerOptions);
-
-		this.app.use(
-			'/api-docs',
-			swaggerUi.serve,
-			swaggerUi.setup(swaggerSpec, swaggerUiOptions)
-		);
-
-		this.app.get('/api-docs.json', (req: Request, res: Response) => {
-			res.setHeader('Content-Type', 'application/json');
-			res.send(swaggerSpec);
-		});
-	}
-
 	private setupRoutes() {
-		/**
-		 * @swagger
-		 * /health:
-		 *   get:
-		 *     summary: Health check endpoint
-		 *     description: Returns the health status of the server
-		 *     tags:
-		 *       - Health
-		 *     responses:
-		 *       200:
-		 *         description: Server is running
-		 *         content:
-		 *           application/json:
-		 *             schema:
-		 *               $ref: '#/components/schemas/HealthCheck'
-		 */
 		this.app.get('/api/v1/health', (req: Request, res: Response) => {
 			res.json({
 				success: true,
@@ -146,29 +113,34 @@ export class Server {
 	}
 
 	public async start() {
-		this.server.listen(
-			parseInt(process.env.SERVER_PORT || '3000'),
-			'0.0.0.0',
-			async () => {
-				console.log(`🚀 Server running on port ${process.env.SERVER_PORT}`);
-				console.log(`📊 Environment: ${process.env.NODE_ENV}`);
-				console.log(
-					`📚 Swagger docs available at http://0.0.0.0:${process.env.SERVER_PORT}/api-docs`
-				);
-				console.log(
-					`📄 Swagger JSON available at http://0.0.0.0:${process.env.SERVER_PORT}/api-docs.json`
-				);
+		try {
+			this.server.listen(
+				parseInt(process.env.SERVER_PORT || '3000'),
+				'0.0.0.0',
+				async () => {
+					console.log(
+						`🚀 Server running on port ${process.env.SERVER_PORT}`
+					);
+					console.log(`📊 Environment: ${process.env.NODE_ENV}`);
 
-				if (!this.electron)
-					await initializeEmailService()
-						.then(() => {
-							console.log('✅ Email service ready');
-						})
-						.catch((error) => {
-							console.error('❌ Email service initialization failed:', error);
-						});
-			}
-		);
+					if (!this.electron) {
+						await initializeEmailService()
+							.then(() => {
+								console.log('✅ Email service ready');
+							})
+							.catch((error) => {
+								console.error(
+									'❌ Email service initialization failed:',
+									error
+								);
+							});
+					}
+				}
+			);
+		} catch (error) {
+			console.error('Failed to start server:', error);
+			throw error;
+		}
 	}
 
 	public stop() {
@@ -176,3 +148,5 @@ export class Server {
 		this.server.close();
 	}
 }
+
+export default Server;
