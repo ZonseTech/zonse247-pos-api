@@ -1,12 +1,11 @@
 import crypto from 'crypto';
 import path from 'path';
 import fs from 'fs/promises';
-import { sealDBModel } from '../databases/local';
-import { APP_SETUP_DB } from '../databases/local/tables';
 import { SyncService } from './sync.service';
 import { NodeStorageAdapter } from '../lib/security-adapter.lib';
-import os from 'os'
-import type { EncryptionResult, SetupData, SetupParams, StorageAdapter } from 'security';
+import os from 'os';
+import type { EncryptionResult, SetupParams, StorageAdapter } from 'security';
+import prisma from '../databases/prisma/client';
 
 export class SecureSettingsService {
     private static initialized = false;
@@ -23,7 +22,6 @@ export class SecureSettingsService {
         }
 
         try {
-
             this.storageAdapter = new NodeStorageAdapter(path.join(__dirname, '../.secure-data'));
 
             const dataPath = storagePath || this.storageAdapter.getUserDataPath();
@@ -138,25 +136,30 @@ export class SecureSettingsService {
             );
 
             const now = new Date();
-            const encryptedSetup: SetupData = {
-                setupId: '-1',
-                tenantId: params.tenantId,
-                branchId: params.branchId,
-                terminalId: params.terminalId,
-                encryptedVerificationToken: encrypted,
-                iv: iv,
-                dataSignature: signature,
-                createdAt: now,
-                updatedAt: now,
-            };
 
-            try {
-                await sealDBModel.delete(APP_SETUP_DB, '-1');
-            } catch (error) {
-                // Ignore if doesn't exist
-            }
-
-            await sealDBModel.insert(APP_SETUP_DB, encryptedSetup);
+            await prisma.appSetup.upsert({
+                where: { setupId: '-1' },
+                update: {
+                    tenantId: params.tenantId,
+                    branchId: params.branchId,
+                    terminalId: params.terminalId,
+                    encryptedVerificationToken: encrypted,
+                    iv: iv,
+                    dataSignature: signature,
+                    updatedAt: now,
+                },
+                create: {
+                    setupId: '-1',
+                    tenantId: params.tenantId,
+                    branchId: params.branchId,
+                    terminalId: params.terminalId,
+                    encryptedVerificationToken: encrypted,
+                    iv: iv,
+                    dataSignature: signature,
+                    createdAt: now,
+                    updatedAt: now,
+                }
+            });
 
             const syncService = new SyncService();
             await syncService.syncTable('users', 'pull');
@@ -173,10 +176,9 @@ export class SecureSettingsService {
                 await this.initialize();
             }
 
-            const encryptedSetup = await sealDBModel.findById<any>(
-                APP_SETUP_DB,
-                { setupId: '-1' }
-            );
+            const encryptedSetup = await prisma.appSetup.findUnique({
+                where: { setupId: '-1' }
+            });
 
             if (!encryptedSetup) {
                 return null;
@@ -216,9 +218,10 @@ export class SecureSettingsService {
 
     static async hasAppSetup(): Promise<boolean> {
         try {
-            const setup = await sealDBModel.findById(APP_SETUP_DB, { setupId: '-1' });
+            const setup = await prisma.appSetup.findUnique({
+                where: { setupId: '-1' }
+            });
             return setup !== null;
-            return false
         } catch (error) {
             return false;
         }
@@ -226,7 +229,9 @@ export class SecureSettingsService {
 
     static async clearAppSetup(): Promise<void> {
         try {
-            await sealDBModel.delete(APP_SETUP_DB, '-1');
+            await prisma.appSetup.delete({
+                where: { setupId: '-1' }
+            });
             console.log('App setup cleared');
         } catch (error) {
             console.error('Error clearing app setup:', error);
@@ -340,5 +345,12 @@ export class SecureSettingsService {
         const tenantId = this.decrypt(encrypted, iv);
 
         return { tenantId };
+    }
+
+    // Cleanup method to disconnect Prisma when needed
+    static async disconnect(): Promise<void> {
+        if (prisma) {
+            await prisma.$disconnect();
+        }
     }
 }

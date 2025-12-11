@@ -654,7 +654,25 @@ model PaymentServiceProvider {
   @@map("payment_service_providers")
 }
 
-// Enums with camelCase names
+model AppSetup {
+  setupId                  String   @id @default("-1") @map("setup_id")
+  tenantId                 String   @map("tenant_id")
+  branchId                 String   @map("branch_id")
+  terminalId               String   @map("terminal_id")
+  encryptedVerificationToken String @map("encrypted_verification_token")
+  iv                       String   @map("iv")
+  dataSignature            String   @map("data_signature")
+  createdAt                DateTime @default(now()) @map("created_at")
+  updatedAt                DateTime @updatedAt @map("updated_at")
+
+  @@index([tenantId])
+  @@index([branchId])
+  @@index([terminalId])
+  @@index([createdAt])
+  @@unique([tenantId, branchId, terminalId])
+  @@map("app_setups")
+}
+
 enum MRA_API_CONFIG_TABLE_environment {
   SANDBOX
   PRODUCTION
