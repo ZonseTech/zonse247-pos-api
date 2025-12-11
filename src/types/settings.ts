@@ -1,3 +1,6 @@
+import { TerminalStatus } from "../databases/prisma/generated/prisma/enums";
+import { Decimal } from "../databases/prisma/generated/prisma/internal/prismaNamespace";
+
 export interface TerminalSettings {
     settingId: string;
     app: string;
@@ -9,14 +12,14 @@ export interface TerminalSettings {
     country?: string;
     city?: string;
     contact: string;
-    tax: string | number;
+    tax: Decimal;
     symbol: string;
     chargeTax?: boolean;
     footer: string;
     img?: string | null;
     tillName?: string;
-    status: "active" | "inactive" | "suspended",
-    synced?: 1 | 0;
+    status: TerminalStatus,
+    synced: boolean;
     tenantId: string;
     branchId: string;
     terminalId: string;

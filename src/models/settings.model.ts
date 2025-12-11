@@ -1,25 +1,20 @@
 import { v4 as uuidv4 } from 'uuid';
-import { sealDBModel } from "../databases/local";
-import {
-    TERMINAL_SETTINGS_DB,
-    BRANCHES_TABLE,
-} from "../databases/local/tables";
-import { SecureSettingsService } from '../services/secure-settings.service';
-import { CreateSettingRequest, Setting, TerminalSettings, UpdateSettingRequest } from 'settings';
 import { SetupParams } from 'security';
-import { Branch } from 'branch';
+import prisma from '../databases/prisma/client';
+import { SecureSettingsService } from '../services/secure-settings.service';
+import { CreateSettingRequest, TerminalSettings, UpdateSettingRequest } from 'settings';
 
 export class SettingsModel {
-    static async findByContext(tenantId: string, branchId: string, terminalId: string): Promise<Setting[]> {
+    static async findByContext(tenantId: string, branchId: string, terminalId: string): Promise<TerminalSettings[]> {
         try {
-            const conditions = {
-                tenantId,
-                branchId,
-                terminalId,
-                status: 'active'
-            };
-
-            return await sealDBModel.find<Setting[]>(TERMINAL_SETTINGS_DB, conditions);
+            return await prisma.terminalSetting.findMany({
+                where: {
+                    tenantId,
+                    branchId,
+                    terminalId,
+                    status: 'active',
+                },
+            });
         } catch (error) {
             console.error('Error finding settings by context:', error);
             throw error;
@@ -30,33 +25,30 @@ export class SettingsModel {
         tenantId: string,
         branchId: string,
         terminalId: string,
-        key: string
-    ): Promise<Setting | null> {
+    ): Promise<TerminalSettings | null> {
         try {
-            const conditions = {
-                tenantId,
-                branchId,
-                terminalId,
-                key,
-                status: 'active'
-            };
-
-            return await sealDBModel.findById<Setting>(TERMINAL_SETTINGS_DB, conditions);
+            return await prisma.terminalSetting.findFirst({
+                where: {
+                    tenantId,
+                    branchId,
+                    terminalId,
+                    status: 'active',
+                },
+            });
         } catch (error) {
             console.error('Error finding setting by key:', error);
             throw error;
         }
     }
 
-    static async findAll(): Promise<Setting[]> {
+    static async findAll(): Promise<TerminalSettings[]> {
         try {
-            return await sealDBModel.findAll(TERMINAL_SETTINGS_DB);
+            return await prisma.terminalSetting.findMany();
         } catch (error) {
             console.error('Error finding all settings:', error);
             throw error;
         }
     }
-
 
     static async getAppSetup(): Promise<SetupParams | null> {
         try {
@@ -93,57 +85,70 @@ export class SettingsModel {
                 throw new Error('Settings params do not match configured setup');
             }
 
-            const branch = await sealDBModel.findById<Branch>(BRANCHES_TABLE, params.branchId);
+            const branch = await prisma.branch.findUnique({
+                where: { branchId: params.branchId },
+            });
 
-            const setting = {
-                uuid: uuidv4(),
-                tenantId: params.tenantId,
-                branchId: params.branchId,
-                terminalId: params.terminalId,
-                addressLine1: branch?.addressLine1,
-                addressLine2: branch?.addressLine2,
-                city: branch?.city,
-                tax: branch?.taxRate,
-                symbol: branch?.currencySymbol,
-                chargeTax: branch?.chargeTax,
-                footer: branch?.receiptFooter,
-                img: branch?.logoUrl,
-                status: branch?.status,
-                createdAt: now,
-                updatedAt: now
-            };
+            if (!branch) {
+                throw new Error('Branch not found');
+            }
 
-            return await sealDBModel.insert(TERMINAL_SETTINGS_DB, setting);
+            const setting = await prisma.terminalSetting.create({
+                data: {
+                    settingId: uuidv4(),
+                    tenantId: params.tenantId,
+                    branchId: params.branchId,
+                    terminalId: params.terminalId,
+                    addressLine1: branch.addressLine1 || null,
+                    addressLine2: branch.addressLine2 || null,
+                    city: branch.city || null,
+                    tax: branch.taxRate || null,
+                    symbol: branch.currencySymbol || null,
+                    chargeTax: branch.chargeTax || null,
+                    footer: branch.receiptFooter || null,
+                    img: branch.logoUrl || null,
+                    status: branch.status || 'active',
+                    createdAt: now,
+                    updatedAt: now,
+                } as any,
+            });
+
+            return setting as TerminalSettings;
         } catch (error) {
             console.error('Error creating setting:', error);
             throw error;
         }
     }
 
-    static async update(uuid: string, updateData: UpdateSettingRequest): Promise<boolean> {
+    static async update(settingId: string, updateData: UpdateSettingRequest): Promise<boolean> {
         try {
-            const numUpdated = await sealDBModel.update(TERMINAL_SETTINGS_DB, uuid, updateData);
-            return numUpdated > 0;
+            const result = await prisma.terminalSetting.update({
+                where: { settingId },
+                data: updateData,
+            });
+            return !!result;
         } catch (error) {
             console.error('Error updating setting:', error);
             throw error;
         }
     }
 
-    static async delete(uuid: string): Promise<boolean> {
+    static async delete(settingId: string): Promise<boolean> {
         try {
-            const numDeleted = await sealDBModel.delete(TERMINAL_SETTINGS_DB, uuid);
-            return numDeleted > 0;
+            const result = await prisma.terminalSetting.delete({
+                where: { settingId },
+            });
+            return !!result;
         } catch (error) {
             console.error('Error deleting setting:', error);
             throw error;
         }
     }
 
-    static async getSettingsGroup(): Promise<TerminalSettings> {
+    static async getSettingsGroup(): Promise<TerminalSettings | null> {
         try {
-            const settings = await sealDBModel.findAll(TERMINAL_SETTINGS_DB);
-            return settings[0];
+            const setting = await prisma.terminalSetting.findFirst();
+            return setting as TerminalSettings | null;
         } catch (error) {
             console.error('Error getting settings group:', error);
             throw error;
@@ -154,18 +159,16 @@ export class SettingsModel {
         tenantId: string,
         branchId: string,
         terminalId: string,
-        category: string
-    ): Promise<Setting[]> {
+    ): Promise<TerminalSettings[]> {
         try {
-            const conditions = {
-                tenantId,
-                branchId,
-                terminalId,
-                category,
-                status: 'active'
-            };
-
-            return await sealDBModel.find<Setting[]>(TERMINAL_SETTINGS_DB, conditions);
+            return await prisma.terminalSetting.findMany({
+                where: {
+                    tenantId,
+                    branchId,
+                    terminalId,
+                    status: 'active',
+                },
+            });
         } catch (error) {
             console.error('Error getting settings by category:', error);
             throw error;
