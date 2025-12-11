@@ -1,5 +1,5 @@
-import { PermissionCategory, PermissionScope } from "src/utils/enums";
 import { PrismaClient } from "../generated/prisma/client";
+import { PermissionCategory, PermissionScope } from "../../../utils/enums";
 
 const APP_PERMISSIONS = [
     // ===== SALES PERMISSIONS =====

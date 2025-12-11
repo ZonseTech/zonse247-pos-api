@@ -18,7 +18,7 @@ let isInitialized = false;
 
 const initializeLocalClient = () => {
     if (!localClient) {
-        const adapter = new PrismaBetterSqlite3({ url: DATABASE_URL || 'file:local.db' });
+        const adapter = new PrismaBetterSqlite3({ url: DATABASE_URL || 'file:./local.db' });
         localClient = new PrismaClient({
             adapter,
             log: ['error', 'warn']
