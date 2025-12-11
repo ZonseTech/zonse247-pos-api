@@ -214,7 +214,7 @@ export class SyncController {
 					: 'Some connections failed',
 				details: {
 					mysql: connections.api ? 'Connected' : 'Failed',
-					sealdb: connections.prisma ? 'Connected' : 'Failed',
+					sqlite: connections.prisma ? 'Connected' : 'Failed',
 				},
 			});
 		} catch (error: any) {
