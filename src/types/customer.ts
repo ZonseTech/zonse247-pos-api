@@ -7,7 +7,7 @@ export interface Customer {
     phone?: string;
     email?: string;
     address?: string;
-    synced?: 0 | 1;
+    synced: number;
 }
 
 export interface CreateCustomerData {
