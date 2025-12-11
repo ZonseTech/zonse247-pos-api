@@ -1,21 +1,30 @@
-import { sealDBModel } from '../databases/local';
 import { ProductModel } from './product.model';
-import { INVENTORY_DB } from '../databases/local/tables';
 import { AuthenticatedUser } from 'auth';
 import { Product } from 'product';
 import { CartItem } from 'order';
+import prisma from '../databases/prisma/client';
+import { InventoryStatus } from '../databases/prisma/generated/prisma/enums';
 
 export class InventoryModel {
+
     static async findById(productId: string, auth: AuthenticatedUser): Promise<Product | null> {
-        return await sealDBModel.findById(INVENTORY_DB, {
-            productId,
-            tenantId: auth.tenantId,
-            branchId: auth.branchId
+        const product = await prisma.inventory.findFirst({
+            where: {
+                productId: productId,
+                tenantId: auth.tenantId,
+                branchId: auth.branchId
+            }
         });
+
+        return this.mapPrismaToProduct(product);
     }
 
-    static async findByUuid(productId: string): Promise<Product | null> {
-        return await sealDBModel.findById(INVENTORY_DB, productId);
+    static async findByUuid(uuid: string): Promise<Product | null> {
+        const product = await prisma.inventory.findUnique({
+            where: { productId: uuid }
+        });
+
+        return this.mapPrismaToProduct(product);
     }
 
     static async find(criteria: Record<string, any>, auth: AuthenticatedUser): Promise<Product[]> {
@@ -25,15 +34,25 @@ export class InventoryModel {
             branchId: auth.branchId
         };
 
-        return await sealDBModel.find(INVENTORY_DB, baseCriteria);
+        const whereClause = this.buildWhereClause(baseCriteria);
+
+        const products = await prisma.inventory.findMany({
+            where: whereClause
+        });
+
+        return products.map(p => this.mapPrismaToProduct(p));
     }
 
     static async findActive(auth: AuthenticatedUser): Promise<Product[]> {
-        return await sealDBModel.find(INVENTORY_DB, {
-            status: { $ne: 'void' },
-            tenantId: auth.tenantId,
-            branchId: auth.branchId
+        const products = await prisma.inventory.findMany({
+            where: {
+                tenantId: auth.tenantId,
+                branchId: auth.branchId,
+                NOT: { status: InventoryStatus.inactive }
+            }
         });
+
+        return products.map(p => this.mapPrismaToProduct(p));
     }
 
     static async findActiveWithPagination(
@@ -44,44 +63,51 @@ export class InventoryModel {
         filter = 'all',
         categoryId?: number
     ): Promise<Product[]> {
-        const query: any = {
+        const whereClause: any = {
             tenantId: auth.tenantId,
             branchId: auth.branchId
         };
 
         if (filter === 'all') {
-            query.status = { $ne: 'void' };
+            whereClause.NOT = { status: InventoryStatus.inactive };
         } else if (filter === 'new') {
             const oneWeekAgo = new Date();
             oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-            query.createdAt = { $gte: oneWeekAgo.toISOString() };
-            query.status = { $ne: 'void' };
+            whereClause.createdAt = { gte: oneWeekAgo };
+            whereClause.NOT = { status: InventoryStatus.inactive };
         } else if (filter === 'expiring') {
             const now = new Date();
             const thirtyDaysLater = new Date();
             thirtyDaysLater.setDate(thirtyDaysLater.getDate() + 30);
-            query.expirationDate = {
-                $gt: now.toISOString(),
-                $lte: thirtyDaysLater.toISOString()
+            whereClause.expirationDate = {
+                gt: now,
+                lte: thirtyDaysLater
             };
-            query.status = { $ne: 'void' };
+            whereClause.NOT = { status: InventoryStatus.inactive };
         } else if (filter === 'expired') {
             const now = new Date();
-            query.expirationDate = { $lte: now.toISOString() };
+            whereClause.expirationDate = { lte: now };
         }
 
         if (categoryId) {
-            query.categoryUuid = categoryId.toString();
+            whereClause.categoryUuid = categoryId.toString();
         }
 
         if (search) {
-            query.$or = [
-                { name: { $regex: search, $options: 'i' } },
-                { barcode: { $regex: search, $options: 'i' } }
+            whereClause.OR = [
+                { name: { contains: search, mode: 'insensitive' as const } },
+                { barcode: { contains: search, mode: 'insensitive' as const } }
             ];
         }
 
-        return await sealDBModel.findWithPagination(INVENTORY_DB, query, skip, limit);
+        const products = await prisma.inventory.findMany({
+            where: whereClause,
+            skip: skip,
+            take: limit,
+            orderBy: { createdAt: 'desc' }
+        });
+
+        return products.map(p => this.mapPrismaToProduct(p));
     }
 
     static async getFilteredCount(
@@ -90,63 +116,73 @@ export class InventoryModel {
         filter = 'all',
         categoryId?: number
     ): Promise<number> {
-        const query: any = {
+        const whereClause: any = {
             tenantId: auth.tenantId,
             branchId: auth.branchId
         };
 
         if (categoryId) {
-            query.categoryUuid = categoryId.toString();
+            whereClause.categoryUuid = categoryId.toString();
         }
 
         if (filter === 'all') {
-            query.status = { $ne: 'void' };
+            whereClause.NOT = { status: InventoryStatus.inactive };
         } else if (filter === 'new') {
             const oneWeekAgo = new Date();
             oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-            query.createdAt = { $gte: oneWeekAgo.toISOString() };
-            query.status = { $ne: 'void' };
+            whereClause.createdAt = { gte: oneWeekAgo };
+            whereClause.NOT = { status: InventoryStatus.inactive };
         } else if (filter === 'expiring') {
             const now = new Date();
             const thirtyDaysLater = new Date();
             thirtyDaysLater.setDate(thirtyDaysLater.getDate() + 30);
-            query.expirationDate = {
-                $gt: now.toISOString(),
-                $lte: thirtyDaysLater.toISOString()
+            whereClause.expirationDate = {
+                gt: now,
+                lte: thirtyDaysLater
             };
-            query.status = { $ne: 'void' };
+            whereClause.NOT = { status: InventoryStatus.inactive };
         } else if (filter === 'expired') {
             const now = new Date();
-            query.expirationDate = { $lte: now.toISOString() };
+            whereClause.expirationDate = { lte: now };
         }
 
         if (search) {
-            query.$or = [
-                { name: { $regex: search, $options: 'i' } },
-                { barcode: { $regex: search, $options: 'i' } }
+            whereClause.OR = [
+                { name: { contains: search, mode: 'insensitive' as const } },
+                { barcode: { contains: search, mode: 'insensitive' as const } }
             ];
         }
 
-        const products = await sealDBModel.find(INVENTORY_DB, query);
-        return Array.isArray(products) ? products.length : 0;
+        return await prisma.inventory.count({
+            where: whereClause
+        });
     }
 
     static async findBySku(sku: string, auth: AuthenticatedUser): Promise<Product | null> {
-        const products = await sealDBModel.find(INVENTORY_DB, {
-            barcode: parseInt(sku),
-            tenantId: auth.tenantId,
-            branchId: auth.branchId
+        const product = await prisma.inventory.findFirst({
+            where: {
+                barcode: sku,
+                tenantId: auth.tenantId,
+                branchId: auth.branchId
+            }
         });
 
-        return products.length > 0 ? products[0] : null;
+        return this.mapPrismaToProduct(product);
     }
 
     static async insert(productData: Record<string, any>): Promise<void> {
-        await sealDBModel.insert(INVENTORY_DB, productData);
+        await prisma.inventory.create({
+            data: this.prepareProductData(productData)
+        });
     }
 
     static async update(productId: string, updateData: Record<string, any>): Promise<number> {
-        return await sealDBModel.update(INVENTORY_DB, productId, updateData);
+        const result = await prisma.inventory.update({
+            where: { productId: productId },
+            data: this.prepareProductData(updateData)
+        });
+
+        return result ? 1 : 0;
     }
 
     static async updateWithUser(productId: string, updateData: Record<string, any>, auth: AuthenticatedUser): Promise<number> {
@@ -155,25 +191,50 @@ export class InventoryModel {
             userId: auth.userId
         };
 
-        return await sealDBModel.update(INVENTORY_DB, productId, dataWithUser);
+        const result = await prisma.inventory.update({
+            where: { productId: productId },
+            data: this.prepareProductData(dataWithUser)
+        });
+
+        return result ? 1 : 0;
     }
 
     static async void(productId: string, auth: AuthenticatedUser): Promise<number> {
-        return await sealDBModel.update(INVENTORY_DB, productId, {
-            status: 'void',
-            userId: auth.userId
+        const result = await prisma.inventory.update({
+            where: { productId: productId },
+            data: {
+                status: InventoryStatus.inactive,
+                userId: auth.userId,
+                updatedAt: new Date()
+            }
         });
+
+        return result ? 1 : 0;
     }
 
     static async delete(productId: string): Promise<number> {
-        return await sealDBModel.delete(INVENTORY_DB, productId);
+        try {
+            await prisma.inventory.delete({
+                where: { productId: productId }
+            });
+            return 1;
+        } catch (error) {
+            console.error('Error deleting product:', error);
+            return 0;
+        }
     }
 
     static async updateQuantity(productId: string, quantity: number, auth: AuthenticatedUser): Promise<number> {
-        return await sealDBModel.update(INVENTORY_DB, productId, {
-            quantity: quantity,
-            userId: auth.userId
+        const result = await prisma.inventory.update({
+            where: { productId: productId },
+            data: {
+                quantity: quantity.toString(),
+                userId: auth.userId,
+                updatedAt: new Date()
+            }
         });
+
+        return result ? 1 : 0;
     }
 
     static async decrementInventory(
@@ -181,30 +242,76 @@ export class InventoryModel {
         auth: AuthenticatedUser
     ): Promise<void> {
         try {
-            const inventoryUpdates = products.map(item => ({
-                productId: item.productId,
-                quantityToDecrement: item.quantity,
-                userId: auth.userId
-            }));
+            const successful: string[] = [];
+            const failed: Array<{ productId: string; error: string }> = [];
+            const skipped: Array<{ productId: string; reason: string }> = [];
 
-            const result = await sealDBModel.bulkInventoryUpdate(
-                INVENTORY_DB,
-                inventoryUpdates,
-                {
-                    tenantId: auth.tenantId,
-                    branchId: auth.branchId
+            // Process each product update in a transaction
+            for (const item of products) {
+                try {
+                    // Check if product exists and has sufficient quantity
+                    const existingProduct = await prisma.inventory.findFirst({
+                        where: {
+                            productId: item.productId,
+                            tenantId: auth.tenantId,
+                            branchId: auth.branchId
+                        }
+                    });
+
+                    if (!existingProduct) {
+                        skipped.push({
+                            productId: item.productId,
+                            reason: 'Product not found'
+                        });
+                        continue;
+                    }
+
+                    if (existingProduct.status === InventoryStatus.inactive) {
+                        skipped.push({
+                            productId: item.productId,
+                            reason: 'Product is voided'
+                        });
+                        continue;
+                    }
+
+                    // Check if sufficient quantity
+                    const newQuantity = parseInt(existingProduct.quantity) - item.quantity;
+                    if (newQuantity < 0) {
+                        failed.push({
+                            productId: item.productId,
+                            error: 'Insufficient quantity'
+                        });
+                        continue;
+                    }
+
+                    // Update the product
+                    await prisma.inventory.update({
+                        where: { productId: item.productId },
+                        data: {
+                            quantity: newQuantity.toString(),
+                            userId: auth.userId,
+                            updatedAt: new Date()
+                        }
+                    });
+
+                    successful.push(item.productId);
+                } catch (error) {
+                    failed.push({
+                        productId: item.productId,
+                        error: error instanceof Error ? error.message : 'Unknown error'
+                    });
                 }
-            );
+            }
 
             console.log('Inventory Update Results:', {
-                successful: result.successful,
-                failed: result.failed.length,
-                skipped: result.skipped.length
+                successful: successful.length,
+                failed: failed.length,
+                skipped: skipped.length
             });
 
-            if (result.failed.length > 0) {
-                console.error('Failed inventory updates:', result.failed);
-                throw new Error(`${result.failed.length} inventory updates failed`);
+            if (failed.length > 0) {
+                console.error('Failed inventory updates:', failed);
+                throw new Error(`${failed.length} inventory updates failed`);
             }
 
         } catch (error) {
@@ -221,20 +328,67 @@ export class InventoryModel {
         failed: Array<{ productId: string; error: string }>;
         skipped: Array<{ productId: string; reason: string }>;
     }> {
-        const inventoryUpdates = products.map(item => ({
-            productId: item.productId,
-            quantityToDecrement: item.quantity,
-            userId: auth.userId
-        }));
+        const successful: string[] = [];
+        const failed: Array<{ productId: string; error: string }> = [];
+        const skipped: Array<{ productId: string; reason: string }> = [];
 
-        return await sealDBModel.bulkInventoryUpdate(
-            INVENTORY_DB,
-            inventoryUpdates,
-            {
-                tenantId: auth.tenantId,
-                branchId: auth.branchId
+        // Use transaction for atomic updates
+        await prisma.$transaction(async (tx) => {
+            for (const item of products) {
+                try {
+                    // Check product existence and status
+                    const existingProduct = await tx.inventory.findFirst({
+                        where: {
+                            productId: item.productId,
+                            tenantId: auth.tenantId,
+                            branchId: auth.branchId,
+                            NOT: { status: InventoryStatus.inactive }
+                        }
+                    });
+
+                    if (!existingProduct) {
+                        skipped.push({
+                            productId: item.productId,
+                            reason: 'Product not found or voided'
+                        });
+                        continue;
+                    }
+
+                    // Check quantity
+                    const newQuantity = parseInt(existingProduct.quantity) - item.quantity;
+                    if (newQuantity < 0) {
+                        failed.push({
+                            productId: item.productId,
+                            error: 'Insufficient quantity'
+                        });
+                        continue;
+                    }
+
+                    // Update quantity
+                    await tx.inventory.update({
+                        where: { productId: item.productId },
+                        data: {
+                            quantity: newQuantity.toString(),
+                            userId: auth.userId,
+                            updatedAt: new Date()
+                        }
+                    });
+
+                    successful.push(item.productId);
+                } catch (error) {
+                    failed.push({
+                        productId: item.productId,
+                        error: error instanceof Error ? error.message : 'Unknown error'
+                    });
+                }
             }
-        );
+        });
+
+        return {
+            successful: successful.length,
+            failed,
+            skipped
+        };
     }
 
     static async create(productData: Record<string, any>, auth: AuthenticatedUser): Promise<void> {
@@ -271,9 +425,6 @@ export class InventoryModel {
         return await this.void(productId, auth);
     }
 
-    /**
-     * Delete product with existence check
-     */
     static async deleteWithCheck(productId: string, auth: AuthenticatedUser): Promise<number> {
         const existingProduct = await this.findById(productId, auth);
         if (!existingProduct) {
@@ -283,28 +434,113 @@ export class InventoryModel {
         return await this.delete(productId);
     }
 
-    /**
-     * Check if product exists and user has access
-     */
     static async exists(productId: string, auth: AuthenticatedUser): Promise<boolean> {
         const product = await this.findById(productId, auth);
         return product !== null;
     }
 
-    /**
-     * Get product count for a shop
-     */
     static async getCount(auth: AuthenticatedUser, includeVoided = false): Promise<number> {
-        const criteria: Record<string, any> = {
+        const whereClause: any = {
             tenantId: auth.tenantId,
             branchId: auth.branchId
         };
 
         if (!includeVoided) {
-            criteria.status = { $ne: 'void' };
+            whereClause.NOT = { status: InventoryStatus.inactive };
         }
 
-        const products = await this.find(criteria, auth);
-        return products.length;
+        return await prisma.inventory.count({
+            where: whereClause
+        });
+    }
+
+    // Helper methods
+    private static buildWhereClause(criteria: Record<string, any>): any {
+        const where: any = {};
+
+        for (const [key, value] of Object.entries(criteria)) {
+            if (key === '$or') {
+                where.OR = value;
+            } else if (key === '$ne') {
+                // Handle not equals - assuming criteria like { status: { $ne: 'void' } }
+                where.NOT = value;
+            } else if (typeof value === 'object' && value !== null) {
+                // Handle operators like $gte, $lte, etc.
+                const operators: Record<string, string> = {
+                    '$gte': 'gte',
+                    '$lte': 'lte',
+                    '$gt': 'gt',
+                    '$lt': 'lt',
+                    '$regex': 'contains',
+                    '$options': 'mode'
+                };
+
+                const prismaOperators: any = {};
+                for (const [op, val] of Object.entries(value)) {
+                    if (op === '$regex') {
+                        prismaOperators.contains = val;
+                        if (value.$options === 'i') {
+                            prismaOperators.mode = 'insensitive';
+                        }
+                    } else if (op in operators) {
+                        prismaOperators[operators[op]] = val;
+                    }
+                }
+
+                where[key] = prismaOperators;
+            } else {
+                where[key] = value;
+            }
+        }
+
+        return where;
+    }
+
+    private static prepareProductData(data: Record<string, any>): any {
+        // Convert data types and handle special fields
+        const preparedData: any = { ...data };
+
+        // Handle decimal fields
+        if (preparedData.price) {
+            preparedData.price = parseFloat(preparedData.price);
+        }
+        if (preparedData.cost) {
+            preparedData.cost = parseFloat(preparedData.cost);
+        }
+
+        // Handle integer fields
+        if (preparedData.quantity) {
+            preparedData.quantity = parseInt(preparedData.quantity);
+        }
+        if (preparedData.minStock) {
+            preparedData.minStock = parseInt(preparedData.minStock);
+        }
+        if (preparedData.maxStock) {
+            preparedData.maxStock = parseInt(preparedData.maxStock);
+        }
+
+        // Ensure timestamps
+        if (!preparedData.updatedAt) {
+            preparedData.updatedAt = new Date();
+        }
+
+        return preparedData;
+    }
+
+    private static mapPrismaToProduct(prismaProduct): Product | null {
+        if (!prismaProduct) return null;
+
+        return {
+            ...prismaProduct,
+            // Convert Decimal to number if needed
+            price: prismaProduct.price ? Number(prismaProduct.price) : 0,
+            cost: prismaProduct.cost ? Number(prismaProduct.cost) : 0,
+            // Add any other transformations here
+        } as Product;
+    }
+
+    // Cleanup method
+    static async disconnect(): Promise<void> {
+        await prisma.$disconnect();
     }
 }
