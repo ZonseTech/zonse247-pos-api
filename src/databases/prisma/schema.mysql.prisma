@@ -673,6 +673,74 @@ model AppSetup {
   @@map("app_setups")
 }
 
+model TerminalSetting {
+  // Common primary key that works for both
+  id        String   @id @default(cuid()) @map("id")
+ 
+  // Your business ID
+  settingId String   @unique @map("setting_id")
+ 
+  app       String   @map("app")
+  store     String   @map("store")
+  verificationToken String @map("verification_token")
+ 
+  // Optional fields with proper null handling
+  addressLine1 String? @map("address_line1")
+  addressLine2 String? @map("address_line2")
+ 
+  tenantSignature String @map("tenant_signature")
+ 
+  country   String?  @map("country")
+  city      String?  @map("city")
+  contact   String   @map("contact")
+ 
+  // Tax handling
+  tax       Decimal? @map("tax")
+  taxString String?  @map("tax_string")
+ 
+  symbol    String   @map("symbol")
+  chargeTax Boolean  @default(false) @map("charge_tax")
+  footer    String   @map("footer")
+  img       String?  @map("img")
+  tillName  String?  @map("till_name")
+ 
+  // Status with enum type
+  status    TerminalStatus @default(active) @map("status")
+ 
+  // Synced as boolean
+  synced    Boolean @default(false) @map("synced")
+ 
+  // Tenant context
+  tenantId  String   @map("tenant_id")
+  branchId  String   @map("branch_id")
+  terminalId String  @map("terminal_id")
+ 
+  // Timestamps
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+ 
+  // Indexes (automatically use mapped column names)
+  @@index([settingId])
+  @@index([tenantId])
+  @@index([branchId])
+  @@index([terminalId])
+  @@index([status])
+  @@index([synced])
+  @@index([createdAt])
+ 
+  // Unique constraint for tenant/branch/terminal combination
+  @@unique([tenantId, branchId, terminalId])
+ 
+  // Map the table name to snake_case
+  @@map("terminal_settings")
+}
+
+enum TerminalStatus {
+  active
+  inactive
+  suspended
+}
+
 enum MRA_API_CONFIG_TABLE_environment {
   SANDBOX
   PRODUCTION
