@@ -2,7 +2,7 @@ import 'dotenv/config';
 
 export const NODE_ENV = process.env.NODE_ENV || "development";
 export const DATABASE_PROVIDER = process.env.DATABASE_PROVIDER || "sqlite";
-export const DATABASE_URL = process.env.DATABASE_URL || "file:./offline.db";
+export const DATABASE_URL = process.env.DATABASE_URL || "file:./local.db";
 export const MYSQL_URL = process.env.MYSQL_URL || process.env.DATABASE_URL;
 
 export const OFFLINE_MODE = (process.env.OFFLINE_MODE || "false").toLowerCase() === "true";

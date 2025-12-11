@@ -6,9 +6,16 @@
   "types": "dist/index.d.ts",
   "files": [
     "dist/**/*",
+    "src/databases/prisma/migrations-sqlite",
+    "src/databases/prisma/schema.sqlite.prisma",
+    "src/databases/prisma/prisma.config.ts.example",
     "README.md",
     "LICENSE"
   ],
+  "prisma": {
+    "schema": "src/databases/prisma/schema.prisma",
+    "seed": "tsx src/databases/prisma/seed.ts"
+  },
   "scripts": {
     "task": "task",
     "task:list": "task --list-all",
