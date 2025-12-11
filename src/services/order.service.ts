@@ -33,10 +33,10 @@ export class OrderService {
             const orderItem: Partial<OrderItem> = {
                 transactionId,
                 productId: item.productId,
-                quantity: item.quantity,
-                purchasePrice: item.purchasePrice,
-                sellPrice: item.sellPrice,
-                itemId: uuidv4(),
+                quantity: item.quantity as any,
+                purchasePrice: item.purchasePrice as any,
+                sellPrice: item.sellPrice as any,
+                orderId: uuidv4(),
             };
 
             const savedItem = await OrderModel.create(orderItem);
@@ -56,10 +56,10 @@ export class OrderService {
                 refNumber,
                 transactionId,
                 productId: item.productId,
-                quantity: item.quantity,
-                purchasePrice: item.purchasePrice,
-                sellPrice: item.sellPrice,
-                itemId: uuidv4(),
+                quantity: item.quantity as any,
+                purchasePrice: item.purchasePrice as any,
+                sellPrice: item.sellPrice as any,
+                orderId: uuidv4(),
             };
 
             return await OrderModel.create(orderItem);
@@ -88,7 +88,7 @@ export class OrderService {
 
         let deletedCount = 0;
         for (const order of orders) {
-            await OrderModel.delete(order.itemId);
+            await OrderModel.delete(order.orderId);
             deletedCount++;
         }
 
@@ -109,13 +109,13 @@ export class OrderService {
         const summary: OrderSummary = {
             refNumber,
             itemCount: orders.length,
-            totalQuantity: orders.reduce((sum, order) => sum + order.quantity, 0),
+            totalQuantity: orders.reduce((sum, order) => sum + parseInt(order.quantity?.toString()), 0),
             totalPurchasePrice: orders.reduce(
-                (sum, order) => sum + order.purchasePrice * order.quantity,
+                (sum, order) => sum + parseFloat(order.purchasePrice.toString()) * parseInt(order.quantity?.toString()),
                 0
             ),
             totalSellPrice: orders.reduce(
-                (sum, order) => sum + order.sellPrice * order.quantity,
+                (sum, order) => sum + parseFloat(order.sellPrice.toString()) * parseInt(order.quantity?.toString()),
                 0
             ),
             totalProfit: 0,
