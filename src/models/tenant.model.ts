@@ -208,8 +208,8 @@ export class TenantModel {
     }
 
     static async buildTenantData(data: TenantFormValues): Promise<Omit<Tenant, 'createdAt' | 'updatedAt'>> {
-        const tenantId = uuidv4();
         const trialEndDate = new Date();
+        const tenantId = data.tenantId || uuidv4();
         trialEndDate.setDate(trialEndDate.getDate() + 30);
         const verificationToken = await this.generateVerificationToken(tenantId);
 

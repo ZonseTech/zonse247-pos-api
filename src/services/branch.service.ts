@@ -53,19 +53,12 @@ export class BranchService {
 		}
 	}
 
-	static async getBranchesByTenantId(tenantId: string, isLive = false): Promise<Branch[]> {
+	static async getBranchesByTenantId(tenantId: string): Promise<Branch[]> {
 		if (!tenantId) {
 			throw new Error('Tenant ID is required');
 		}
 
-		if (isLive) {
-			const branches = await BranchModel.findByTenantId(tenantId);
-			return branches;
-		}
-
-		const response = await BaseService.get<Array<Branch>>(`/on-boarding/tenant/${tenantId}/branches`, {
-			isLive: true,
-		});
+		const response = await BaseService.get<Array<Branch>>(`/on-boarding/live/tenant/${tenantId}/branches`);
 
 		if (!response.success) {
 			throw new Error(response.message || 'Failed to fetch branches. External application down');
@@ -83,6 +76,14 @@ export class BranchService {
 		}
 
 		return branches;
+	}
+
+	static async getAccountBranchesByTenantId(tenantId: string): Promise<Branch[]> {
+		if (!tenantId) {
+			throw new Error('Tenant ID is required');
+		}
+
+		return await BranchModel.findByTenantId(tenantId);
 	}
 
 	static async getBranchById(branchId: string): Promise<Branch> {

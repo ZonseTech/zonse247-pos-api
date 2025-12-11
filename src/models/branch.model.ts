@@ -15,28 +15,24 @@ export class BranchModel {
         });
     }
 
-    // Find branch by branch code
     static async findByBranchCode(branchCode: string): Promise<Branch | null> {
         return await prisma.branch.findFirst({
             where: { branchCode }
         });
     }
 
-    // Find branches by tenant ID and branch code
     static async findByTenantIdAndBranchCode(tenantId: string, branchCode: string): Promise<Branch[]> {
         return await prisma.branch.findMany({
             where: { tenantId, branchCode }
         });
     }
 
-    // Find branch by ID
     static async findById(branchId: string): Promise<Branch | null> {
         return await prisma.branch.findUnique({
             where: { branchId }
         });
     }
 
-    // Check if branch exists
     static async exists(branchId: string, tenantId: string): Promise<boolean> {
         const branch = await prisma.branch.findFirst({
             where: { branchId, tenantId }
@@ -44,12 +40,11 @@ export class BranchModel {
         return !!branch;
     }
 
-    // Create new branch
-    static async create(branchData: Omit<Branch, 'branchId' | 'createdAt' | 'updatedAt'>): Promise<Branch> {
+    static async create(branchData: Omit<Branch, 'createdAt' | 'updatedAt'>): Promise<Branch> {
         return await prisma.branch.create({
             data: {
                 ...branchData,
-                branchId: uuidv4(),
+                branchId: branchData.branchId || uuidv4(),
                 createdAt: new Date(),
                 updatedAt: new Date()
             }

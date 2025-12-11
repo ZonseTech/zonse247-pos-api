@@ -19,13 +19,30 @@ export class BranchController extends BaseController {
         }
     }
 
-    static async getBranchTerminals(req: Request<{ branchId: string, isLive: boolean }, ApiResponse<Array<Terminal>>>, res: Response): Promise<void> {
+    static async getBranchTerminals(req: Request<{ branchId: string }, ApiResponse<Array<Terminal>>>, res: Response): Promise<void> {
 
         try {
-            const query = req.query;
             const { branchId } = req.params;
 
-            const terminal = await TerminalService.getTerminalsByBranchId(branchId, Boolean(query.isLive));
+            const terminal = await TerminalService.getTerminalsByBranchId(branchId);
+
+            BaseController.sendResponse(
+                res, 200, true,
+                'Terminal retrieved successfully',
+                terminal
+            );
+        } catch (error: any) {
+            console.error('Error fetching branch Terminal:', error);
+            BaseController.sendResponse(res, 500, false, error.message, undefined, error.message);
+        }
+    }
+
+    static async getTenantBranchAccountTerminals(req: Request<{ branchId: string }, ApiResponse<Array<Terminal>>>, res: Response): Promise<void> {
+
+        try {
+            const { branchId } = req.params;
+
+            const terminal = await TerminalService.getAccountTerminalsByBranchId(branchId);
 
             BaseController.sendResponse(
                 res, 200, true,

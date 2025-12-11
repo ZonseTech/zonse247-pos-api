@@ -29,9 +29,21 @@ router.get(
 );
 
 router.get(
+    '/live/tenant/:tenantId/branches',
+    validateParams(tenantValidationSchemas.tenantId),
+    asyncHandler(TenantController.getTenantAccountBranches)
+);
+
+router.get(
     '/branch/:branchId/terminals',
     validateParams(branchValidationSchemas.branchId),
     asyncHandler(BranchController.getBranchTerminals)
+);
+
+router.get(
+    '/live/branch/:branchId/terminals',
+    validateParams(branchValidationSchemas.branchId),
+    asyncHandler(BranchController.getTenantBranchAccountTerminals)
 );
 
 router.use(

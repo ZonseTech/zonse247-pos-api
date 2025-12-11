@@ -37,6 +37,7 @@ export interface Terminal {
 }
 
 export interface CreateTerminalRequest {
+    terminalId?: string;
     tenantId: string;
     branchId: string;
     terminalCode: string;

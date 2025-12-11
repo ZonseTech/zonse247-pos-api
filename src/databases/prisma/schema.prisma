@@ -4,7 +4,7 @@ generator client {
 }
 
 datasource db {
-  provider = "mysql"
+  provider = "sqlite"
 }
 
 model MRA_API_CONFIG_TABLE {
@@ -392,22 +392,22 @@ model SubscriptionPlan {
 }
 
 model TenantSubscription {
-  tenantSubscriptionId String                       @id @default(uuid()) @map("tenant_subscription_id")
-  tenantId             String                       @map("tenant_id")
-  subscriptionPlanId   String                       @map("subscription_plan_id")
-  status               TenantSubscriptionStatus?    @default(active) @map("status")
-  startsAt             DateTime                     @map("starts_at")
-  endsAt               DateTime?                    @map("ends_at")
-  autoRenew            Boolean?                     @default(true) @map("auto_renew")
-  paymentMethod        String?                      @map("payment_method")
-  maxShops             Int?                         @default(1) @map("max_shops")
-  synced               Int?                         @default(0) @map("synced")
-  lastPaymentDate      DateTime?                    @map("last_payment_date")
-  nextPaymentDate      DateTime?                    @map("next_payment_date")
-  createdAt            DateTime?                    @default(now()) @map("created_at")
-  updatedAt            DateTime?                    @default(now()) @map("updated_at")
-  tenant               Tenant                       @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade, onUpdate: NoAction)
-  subscriptionPlan     SubscriptionPlan             @relation(fields: [subscriptionPlanId], references: [subscriptionPlanId], onUpdate: NoAction)
+  tenantSubscriptionId String                 @id @default(uuid()) @map("tenant_subscription_id")
+  tenantId             String                 @map("tenant_id")
+  subscriptionPlanId   String                 @map("subscription_plan_id")
+  status               TenantSubscriptionStatus? @default(active) @map("status")
+  startsAt             DateTime               @map("starts_at")
+  endsAt               DateTime?              @map("ends_at")
+  autoRenew            Boolean?               @default(true) @map("auto_renew")
+  paymentMethod        String?                @map("payment_method")
+  maxShops             Int?                   @default(1) @map("max_shops")
+  synced               Int?                   @default(0) @map("synced")
+  lastPaymentDate      DateTime?              @map("last_payment_date")
+  nextPaymentDate      DateTime?              @map("next_payment_date")
+  createdAt            DateTime?              @default(now()) @map("created_at")
+  updatedAt            DateTime?              @default(now()) @map("updated_at")
+  tenant               Tenant                 @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade, onUpdate: NoAction)
+  subscriptionPlan     SubscriptionPlan       @relation(fields: [subscriptionPlanId], references: [subscriptionPlanId], onUpdate: NoAction)
 
   @@index([subscriptionPlanId])
   @@index([tenantId])
@@ -430,10 +430,10 @@ model Tenant {
   msonkhoOnlineStatus   TenantMsonkhoOnlineStatus?     @default(PENDING) @map("msonkho_online_status")
   subscriptionPlan      String?                        @map("subscription_plan")
   subscriptionStatus    TenantSubscriptionPlanStatus?  @default(TRIAL) @map("subscription_status")
-  verificationToken     String                        @map("verification_token")
   ownerName             String                         @map("owner_name")
   address               String?                        @map("address")
   country               String?                        @map("country")
+  verificationToken     String                        @map("verification_token")
   trialEndsAt           DateTime?                      @map("trial_ends_at")
   authKey               String                         @unique @map("auth_key")
   status                TenantStatus?                  @default(pending) @map("status")

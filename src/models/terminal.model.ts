@@ -27,7 +27,6 @@ export class TerminalModel {
     }
 
     static async findByBranchCode(branchId: string): Promise<Terminal[]> {
-        // Assuming branchCode refers to branchId
         return await this.findByBranchId(branchId);
     }
 
@@ -349,7 +348,7 @@ export class TerminalModel {
     static buildTerminalData(data: CreateTerminalRequest): Terminal {
         const now = new Date();
         return {
-            terminalId: uuidv4(),
+            terminalId: data.terminalId || uuidv4(),
             tenantId: data.tenantId,
             branchId: data.branchId,
             mraTerminalId: null,

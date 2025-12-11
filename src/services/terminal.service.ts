@@ -52,23 +52,12 @@ export class TerminalService {
         }
     }
 
-    static async getTerminalsByBranchId(branchId: string, isLive = false): Promise<Terminal[]> {
+    static async getTerminalsByBranchId(branchId: string): Promise<Terminal[]> {
         if (!branchId) {
             throw new Error('Branch ID is required');
         }
 
-        if (isLive) {
-            try {
-                const terminals = await TerminalModel.findByBranchId(branchId);
-                return terminals;
-            } catch (error) {
-                throw new Error(`Failed to retrieve terminals: ${error}`);
-            }
-        }
-
-        const response = await BaseService.get<Array<Terminal>>(`/on-boarding/branch/${branchId}/terminals`, {
-            isLive: true,
-        });
+        const response = await BaseService.get<Array<Terminal>>(`/on-boarding/live/branch/${branchId}/terminals`);
 
         if (!response.success) {
             throw new Error(response.message || 'Failed to fetch terminals. External application down');
@@ -86,6 +75,19 @@ export class TerminalService {
         }
 
         return terminals;
+    }
+
+    static async getAccountTerminalsByBranchId(branchId: string): Promise<Terminal[]> {
+        if (!branchId) {
+            throw new Error('Branch ID is required');
+        }
+
+        try {
+            const terminals = await TerminalModel.findByBranchId(branchId);
+            return terminals;
+        } catch (error) {
+            throw new Error(`Failed to retrieve terminals: ${error}`);
+        }
     }
 
     static async getTerminalById(terminalId: string): Promise<Terminal | null> {
