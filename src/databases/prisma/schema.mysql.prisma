@@ -735,6 +735,66 @@ model TerminalSetting {
   @@map("terminal_settings")
 }
 
+model HoldOrder {
+  id           String       @id @default(cuid())
+  itemId       String       @unique
+  reference    String       @unique
+  total        Decimal      @default(0)
+  totalItems   Int          @default(0)
+  date         DateTime
+  status       HoldOrderStatus @default(hold)
+  userId       String?
+  till         String?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  tenantId     String?
+  branchId     String?
+  
+  // Relationship to hold order items
+  items        HoldOrderItem[]
+  
+  @@index([itemId])
+  @@index([reference])
+  @@index([date])
+  @@index([status])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model HoldOrderItem {
+  id             String    @id @default(cuid())
+  holdOrderId    String
+  holdOrder      HoldOrder @relation(fields: [holdOrderId], references: [id], onDelete: Cascade)
+  
+  // CartItem fields (adjust based on your CartItem interface)
+  productId      String
+  productName    String
+  quantity       Int       @default(1)
+  price          Decimal   @default(0)
+  subtotal       Decimal   @default(0)
+  
+  // Additional fields as needed
+  sku            String?
+  barcode        String?
+  unit           String?
+  discount       Decimal?  @default(0)
+  tax            Decimal?  @default(0)
+  
+  createdAt      DateTime  @default(now())
+  
+  @@index([holdOrderId])
+  @@index([productId])
+}
+
+// Enum for better type safety
+enum HoldOrderStatus {
+  hold
+  resumed
+  cancelled
+  completed
+  expired
+}
+
 enum TerminalStatus {
   active
   inactive
