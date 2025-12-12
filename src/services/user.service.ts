@@ -10,7 +10,9 @@ import { UserUncheckedCreateInput } from 'src/databases/prisma/generated/prisma/
 export class UserService {
 
 	static async selectAll(params): Promise<Array<User>> {
-		return await UserModel.findAllByRDBMS(params);
+		return await UserModel.findAll({
+			tenantId: params.tenantId,
+		});
 	}
 
 	static async getUserById(userId: string): Promise<any> {

@@ -1,7 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
-import { ValidationParams } from 'on-boarding';
-import { Category, CreateCategoryRequest, UpdateCategoryDto, CategoryFilters } from 'categoty';
 import prisma from '../databases/prisma/client';
+import { Category, CreateCategoryRequest, UpdateCategoryDto, CategoryFilters } from 'categoty';
+import { CategoryUncheckedCreateInput } from 'src/databases/prisma/generated/prisma/models';
 
 export class CategoryModel {
 
@@ -11,18 +11,6 @@ export class CategoryModel {
                 where: {
                     tenantId: conditions.tenantId,
                     branchId: conditions.branchId,
-                },
-            }) as unknown as Category[];
-        } catch (error) {
-            throw new Error(`Error finding categories: ${error instanceof Error ? error.message : 'Unknown error'}`);
-        }
-    }
-
-    static async findAllByRDBMS(conditions: ValidationParams): Promise<Category[]> {
-        try {
-            return await prisma.category.findMany({
-                where: {
-                    tenantId: conditions.tenantId,
                 },
             }) as unknown as Category[];
         } catch (error) {
@@ -159,10 +147,10 @@ export class CategoryModel {
         }
     }
 
-    static buildCategoryData(data: CreateCategoryRequest): Category {
+    static buildCategoryData(data: CategoryUncheckedCreateInput): Category {
         const now = new Date();
         return {
-            categoryId: uuidv4(),
+            categoryId: data.categoryId || uuidv4(),
             name: data.name,
             description: data.description,
             color: data.color,

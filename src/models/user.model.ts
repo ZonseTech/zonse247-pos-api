@@ -1,29 +1,12 @@
-import { v4 as uuidv4 } from 'uuid';
 import bcrypt from 'bcryptjs';
-import { ValidationParams } from 'on-boarding';
-import type { PublicUser, User, UserQueryParams, UserStatus } from 'users';
+import { v4 as uuidv4 } from 'uuid';
 import prisma from '../databases/prisma/client';
-import { UserUncheckedCreateInput } from '../databases/prisma/generated/prisma/models';
+import type { PublicUser, User, UserQueryParams, UserStatus } from 'users';
+import { UserCreateManyInput } from '../databases/prisma/generated/prisma/models';
 
 const saltRounds = 10;
 
 export class UserModel {
-
-    static async findAllByRDBMS(conditions: ValidationParams): Promise<User[]> {
-        try {
-            return await prisma.user.findMany({
-                where: {
-                    tenantId: conditions.tenantId,
-                },
-                orderBy: { createdAt: 'desc' }
-            }) as unknown as User[];
-        } catch (error) {
-            throw new Error(
-                `Error finding users: ${error instanceof Error ? error.message : 'Unknown error'}`
-            );
-        }
-    }
-
     static async findAll(conditions: UserQueryParams = {}): Promise<User[]> {
         try {
             return await prisma.user.findMany({
@@ -45,9 +28,8 @@ export class UserModel {
         }
     }
 
-    static async findByUuid(uuid: string): Promise<User | null> {
-        // Assuming uuid is the same as userId
-        return await this.findById(uuid);
+    static async findByUuid(userId: string): Promise<User | null> {
+        return await this.findById(userId);
     }
 
     static async findByUsername(username: string): Promise<User | null> {
@@ -178,32 +160,19 @@ export class UserModel {
         }
     }
 
-    static async buildUserData(data: UserUncheckedCreateInput) {
+    static async buildUserData(data: UserCreateManyInput) {
         const now = new Date();
         const hashedPassword = await bcrypt.hash(data.password, saltRounds);
 
         return {
-            userId: uuidv4(),
-            tenantId: data.tenantId,
-            branchId: data.branchId,
-            username: data.username,
+            ...data,
+            userId: data.userId || uuidv4(),
             password: hashedPassword,
-            fullname: data.fullname,
-            email: data.email || null,
-            phone: data.phone || null,
-            role: data.roleId,
             status: data.status || 'active',
-            accessibleShops: (data.accessibleShops || null) as unknown as any,
-            allowedWorkstations: (data.allowedWorkstations || null) as unknown as any,
-            maxDiscountPercent: parseFloat((data.maxDiscountPercent || 0).toString()),
-            canOverridePrices: data.canOverridePrices || false,
-            pinCode: data.pinCode || null,
-            currentBranchId: data.currentBranchId || null,
             passwordChangedAt: now,
-            forcePasswordChange: data.forcePasswordChange || false,
             synced: 0,
             createdAt: now,
-            updatedAt: now
+            updatedAt: now,
         };
     }
 
@@ -229,7 +198,7 @@ export class UserModel {
         }
     }
 
-    static async create(userData: UserUncheckedCreateInput): Promise<User> {
+    static async create(userData: UserCreateManyInput): Promise<User> {
         try {
             const user = await this.buildUserData(userData);
             return await prisma.user.create({

@@ -1,12 +1,13 @@
-import { Category, CategoryFilters, CreateCategoryRequest, UpdateCategoryDto } from "categoty";
+import { Category, CategoryFilters, UpdateCategoryDto } from "categoty";
 import { CategoryModel } from "../models/category.model";
 import { InventoryModel } from "../models/inventory.model";
 import { AuthenticatedUser } from "auth";
+import { CategoryUncheckedCreateInput } from "src/databases/prisma/generated/prisma/models";
 
 export class CategoryService {
 
     static async selectAll(params): Promise<Array<Category>> {
-        return await CategoryModel.findAllByRDBMS(params)
+        return await CategoryModel.findAll(params)
     }
 
     static async getAllCategories(filters: CategoryFilters): Promise<Category[]> {
@@ -28,7 +29,7 @@ export class CategoryService {
         user: AuthenticatedUser
     ): Promise<Category> {
         try {
-            const createRequest: CreateCategoryRequest = {
+            const createRequest = {
                 name: categoryData.name,
                 description: categoryData.description,
                 color: categoryData.color,
@@ -52,7 +53,7 @@ export class CategoryService {
                 throw new Error('Category with this name already exists in the branch');
             }
 
-            const newCategory = CategoryModel.buildCategoryData(createRequest);
+            const newCategory = CategoryModel.buildCategoryData(createRequest as CategoryUncheckedCreateInput);
             return await CategoryModel.create(newCategory);
         } catch (error) {
             console.error('Error creating category:', error);
