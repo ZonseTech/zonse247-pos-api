@@ -1,11 +1,10 @@
-import crypto from 'crypto';
-import path from 'path';
-import fs from 'fs/promises';
-import { SyncService } from './sync.service';
-import { NodeStorageAdapter } from '../lib/security-adapter.lib';
 import os from 'os';
-import type { EncryptionResult, SetupParams, StorageAdapter } from 'security';
+import path from 'path';
+import crypto from 'crypto';
+import fs from 'fs/promises';
 import prisma from '../databases/prisma/client';
+import { NodeStorageAdapter } from '../lib/security-adapter.lib';
+import type { EncryptionResult, SetupParams, StorageAdapter } from 'security';
 
 export class SecureSettingsService {
     private static initialized = false;
@@ -162,10 +161,6 @@ export class SecureSettingsService {
                     updatedAt: now,
                 }
             });
-
-            const syncService = new SyncService();
-            await syncService.syncTable('users', 'pull');
-
         } catch (error) {
             console.error('Error saving app setup:', error);
             throw error;
@@ -224,7 +219,6 @@ export class SecureSettingsService {
                 await this.initialize();
             }
 
-            // Ensure database is ready before querying
             const isReady = await this.ensureDatabaseReady();
             if (!isReady) {
                 console.warn('Database not ready, returning false');
