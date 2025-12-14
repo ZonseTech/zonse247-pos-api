@@ -4,8 +4,6 @@ import prisma from '../databases/prisma/client';
 import type { PublicUser, User, UserQueryParams, UserStatus } from 'users';
 import { UserCreateManyInput } from '../databases/prisma/generated/prisma/models';
 
-const saltRounds = 10;
-
 export class UserModel {
     static async findAll(conditions: UserQueryParams = {}): Promise<User[]> {
         try {
@@ -162,17 +160,30 @@ export class UserModel {
 
     static async buildUserData(data: UserCreateManyInput) {
         const now = new Date();
-        const hashedPassword = await bcrypt.hash(data.password, saltRounds);
+        const hashedPassword = await bcrypt.hash(data.password, parseInt(process.env.BCRYPT_SALT_ROUNDS));
 
         return {
-            ...data,
             userId: data.userId || uuidv4(),
+            branchId: data.branchId,
+            tenantId: data.tenantId,
+            username: data.username,
             password: hashedPassword,
+            fullname: data.fullname,
+            email: data.email || null,
+            phone: data.phone || null,
+            roleId: data.roleId,
             status: data.status || 'active',
+            accessibleShops: (data.accessibleShops || null) as unknown as any,
+            allowedWorkstations: (data.allowedWorkstations || null) as unknown as any,
+            maxDiscountPercent: parseFloat((data.maxDiscountPercent || 0).toString()),
+            canOverridePrices: data.canOverridePrices || false,
+            pinCode: data.pinCode || null,
+            currentBranchId: data.currentBranchId || null,
             passwordChangedAt: now,
+            forcePasswordChange: data.forcePasswordChange || false,
             synced: 0,
             createdAt: now,
-            updatedAt: now,
+            updatedAt: now
         };
     }
 
@@ -220,7 +231,7 @@ export class UserModel {
             delete updateDataWithTimestamp.createdAt;
 
             if (updateData.password && updateData.password !== '') {
-                updateDataWithTimestamp.password = await bcrypt.hash(updateData.password, saltRounds);
+                updateDataWithTimestamp.password = await bcrypt.hash(updateData.password, parseInt(process.env.BCRYPT_SALT_ROUNDS));
                 updateDataWithTimestamp.passwordChangedAt = new Date();
             }
 
@@ -265,7 +276,7 @@ export class UserModel {
 
     static async updatePassword(id: string, newPassword: string): Promise<number> {
         try {
-            const hashedPassword = await bcrypt.hash(newPassword, saltRounds);
+            const hashedPassword = await bcrypt.hash(newPassword, parseInt(process.env.BCRYPT_SALT_ROUNDS));
             return await this.update(id, {
                 password: hashedPassword,
                 passwordChangedAt: new Date(),

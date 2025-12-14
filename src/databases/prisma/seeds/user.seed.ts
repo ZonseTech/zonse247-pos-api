@@ -4,7 +4,7 @@ import bcrypt from 'bcryptjs';
 export async function seedUser(prisma: PrismaClient) {
     console.log('📝 Seeding user...');
 
-    const hashedPassword = await bcrypt.hash('admin', 10);
+    const hashedPassword = await bcrypt.hash('admin', parseInt(process.env.BCRYPT_SALT_ROUNDS));
 
     await prisma.user.upsert({
         where: { userId: '-1' },
