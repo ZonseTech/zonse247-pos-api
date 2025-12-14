@@ -9,7 +9,9 @@ import {
     seedRoles,
     seedTenant,
     seedTerminal,
-    seedUser
+    seedUser,
+    seedSubscriptionPlans,
+    seedPlanFeatures
 } from "./seeds";
 
 async function main() {
@@ -17,6 +19,8 @@ async function main() {
     const prisma = await getPrisma();
 
     try {
+        await seedPlanFeatures(prisma);
+        await seedSubscriptionPlans(prisma);
         await seedRoles(prisma);
         await seedPermissions(prisma);
         await seedRolePermissions(prisma);

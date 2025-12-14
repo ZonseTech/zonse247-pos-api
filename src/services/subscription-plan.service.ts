@@ -1,11 +1,10 @@
-import type { Role } from 'role-permission';
+import type { SubscriptionPlan } from 'subscription';
 import { SubscriptionPlanModel } from '../models/subscription-plan.model';
-import { SubscriptionPlan } from 'subscription';
 import { SubscriptionPlanCreateInput, SubscriptionPlanUpdateInput } from '../databases/prisma/generated/prisma/models';
 
 export class SubscriptionPlanService {
 
-    static async selectAll(params): Promise<Array<Role>> {
+    static async selectAll(params): Promise<Array<SubscriptionPlan>> {
         return await SubscriptionPlanModel.findAllByRDBMS(params);
     }
 

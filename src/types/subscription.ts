@@ -6,6 +6,15 @@ export interface SubscriptionResponse {
 	success: boolean;
 }
 
+export interface PlanFeatureCategory {
+	featureCategoryId?: number;
+	title: string;
+	features: string[];
+	displayOrder?: number;
+	createdAt?: Date;
+	updatedAt?: Date;
+}
+
 export interface TenantSubscription {
 	subscriptionId: string;
 	tenantId: string;

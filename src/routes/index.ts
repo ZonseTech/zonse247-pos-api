@@ -14,6 +14,7 @@ import UsersRoutes from './users.routes'
 import TenantsRoutes from './tenant.routes'
 import SubscriptionsRoutes from './subscription.routes'
 import SubscriptionPlanRoutes from './subscription-plan.routes'
+import PlanFeaturesRoutes from './plan-features.routes'
 import BranchesRoutes from './branch.routes'
 import WorkStationRoutes from './terminal.routes'
 import RoleRoutes from './role.routes'
@@ -54,6 +55,8 @@ router.post(
     validateBody(userValidationSchemas.loginUser),
     asyncHandler(AuthController.initiateLoginAccount)
 );
+
+router.use('/plan-features', PlanFeaturesRoutes);
 
 router.use(authMiddleware.verifyRequestHeaders)
 

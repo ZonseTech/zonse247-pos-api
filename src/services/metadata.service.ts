@@ -11,6 +11,7 @@ import { UserModel } from '../models/user.model';
 import { CustomerModel } from '../models/customer.model';
 import { CategoryModel } from '../models/category.model';
 import { ValidationParams } from 'on-boarding';
+import { SubscriptionPlan } from '../databases/prisma/generated/prisma/browser';
 
 const API_TIMEOUT = 30000;
 
@@ -421,7 +422,7 @@ export class MetadataService {
 
         try {
             const response = await this.fetchFromExternalAPI('/account-seeds/subscription-plans', params);
-            const subscriptionPlans = response.data || response;
+            const subscriptionPlans: Array<SubscriptionPlan> = response.data || response;
 
             if (!Array.isArray(subscriptionPlans)) {
                 throw new Error('Invalid response format - expected array of subscription plans');
@@ -431,10 +432,10 @@ export class MetadataService {
 
             for (const planData of subscriptionPlans) {
                 try {
-                    const existingPlan = await SubscriptionPlanModel.findById(planData.planId);
+                    const existingPlan = await SubscriptionPlanModel.findById(planData.subscriptionPlanId);
 
                     if (existingPlan) {
-                        await SubscriptionPlanModel.update(planData.planId, {
+                        await SubscriptionPlanModel.update(planData.subscriptionPlanId, {
                             ...planData,
                             updatedAt: new Date()
                         });
@@ -448,7 +449,7 @@ export class MetadataService {
                         result.recordsInserted++;
                     }
                 } catch (error: any) {
-                    result.errors.push(`Subscription plan ${planData.planId}: ${error.message}`);
+                    result.errors.push(`Subscription plan ${planData.subscriptionPlanId}: ${error.message}`);
                 }
             }
 
