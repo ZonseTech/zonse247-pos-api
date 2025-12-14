@@ -33,6 +33,7 @@ export interface Tenant extends BaseTimestamps {
     registeredAt?: Date | null;
     activatedAt?: Date | null;
     synced: number;
+    apiBaseUrl?: string | null;
 }
 
 export type TenantFormValues = Omit<
