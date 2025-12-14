@@ -1,7 +1,7 @@
 import { PrismaMariaDb } from '@prisma/adapter-mariadb';
 import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
 import {
-    OFFLINE_MODE,
+    DATABASE_OFFLINE_MODE,
     DATABASE_URL,
     DATABASE_HOST,
     DATABASE_USER,
@@ -54,7 +54,7 @@ const initializeRemoteClient = async () => {
 const initializePrisma = async (): Promise<PrismaClient> => {
     if (prismaInstance) return prismaInstance;
 
-    if (!OFFLINE_MODE) {
+    if (!DATABASE_OFFLINE_MODE) {
         try {
             console.log('🌐 Attempting to connect to remote MySQL database...');
             prismaInstance = await initializeRemoteClient();
@@ -183,7 +183,7 @@ export const getConnectionStatus = () => {
         isInitialized,
         isLocal: prismaInstance === localClient,
         isRemote: prismaInstance === remoteClient,
-        offlineMode: OFFLINE_MODE
+        offlineMode: DATABASE_OFFLINE_MODE
     };
 };
 
