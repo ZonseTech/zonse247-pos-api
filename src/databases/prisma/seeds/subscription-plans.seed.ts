@@ -157,7 +157,7 @@ export async function seedSubscriptionPlans(prisma: PrismaClient) {
             }
         }
 
-        console.log('✅ Subscription plans seeded successfully!');
+        console.log('✓ Subscription plans seeded successfully!');
     } catch (error) {
         console.error('❌ Error seeding subscription plans:', error);
         throw error;

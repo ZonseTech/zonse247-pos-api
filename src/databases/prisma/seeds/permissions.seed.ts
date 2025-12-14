@@ -450,5 +450,5 @@ export async function seedPermissions(prisma: PrismaClient) {
         });
     }
 
-    console.log('✅ Permissions seeded');
+    console.log('✓ Permissions seeded');
 }

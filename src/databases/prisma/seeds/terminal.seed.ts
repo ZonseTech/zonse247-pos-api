@@ -20,5 +20,5 @@ export async function seedTerminal(prisma: PrismaClient) {
         },
     });
 
-    console.log('✅ Terminal seeded');
+    console.log('✓ Terminal seeded');
 }

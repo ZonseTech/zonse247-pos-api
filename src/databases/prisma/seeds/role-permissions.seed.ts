@@ -235,5 +235,5 @@ export async function seedRolePermissions(prisma: PrismaClient) {
         }
     }
 
-    console.log('✅ Role permissions seeded');
+    console.log('✓ Role permissions seeded');
 }

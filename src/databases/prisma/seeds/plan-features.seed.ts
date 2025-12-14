@@ -56,7 +56,7 @@ export async function seedPlanFeatures(prisma: PrismaClient) {
             console.log(`✓ Created feature category: ${category.title}`);
         }
 
-        console.log('✅ Plan features seeded successfully!');
+        console.log('✓ Plan features seeded successfully!');
     } catch (error) {
         console.error('❌ Error seeding plan features:', error);
         throw error;

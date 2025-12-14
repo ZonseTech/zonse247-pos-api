@@ -20,5 +20,5 @@ export async function seedBranch(prisma: PrismaClient) {
         },
     });
 
-    console.log('✅ Branch seeded');
+    console.log('✓ Branch seeded');
 }

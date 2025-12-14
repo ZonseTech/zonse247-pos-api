@@ -58,7 +58,7 @@ const initializePrisma = async (): Promise<PrismaClient> => {
         try {
             console.log('🌐 Attempting to connect to remote MySQL database...');
             prismaInstance = await initializeRemoteClient();
-            console.log('✅ Connected to remote MySQL database');
+            console.log('✓ Connected to remote MySQL database');
             isInitialized = true;
             return prismaInstance;
         } catch (error) {
@@ -72,7 +72,7 @@ const initializePrisma = async (): Promise<PrismaClient> => {
     console.log('📦 Using local SQLite database');
     prismaInstance = initializeLocalClient();
     isInitialized = true;
-    console.log('✅ Connected to remote SQLite database');
+    console.log('✓ Connected to remote SQLite database');
     return prismaInstance;
 };
 
