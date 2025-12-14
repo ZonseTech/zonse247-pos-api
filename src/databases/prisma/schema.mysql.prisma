@@ -146,6 +146,7 @@ model Category {
   branchId    String      @map("branch_id")
   tenantId    String      @map("tenant_id")
   userId      String      @map("user_id")
+  terminalId  String      @map("terminal_id")
   name        String      @map("name")
   description String?     @map("description")
   color       String?     @map("color")
@@ -156,10 +157,12 @@ model Category {
   createdAt   DateTime?   @default(now()) @map("created_at")
   updatedAt   DateTime?   @default(now()) @map("updated_at")
   branch      Branch      @relation(fields: [branchId], references: [branchId], onDelete: Cascade, onUpdate: NoAction)
+  terminal    Terminal    @relation(fields: [terminalId], references: [terminalId], onDelete: Cascade, onUpdate: NoAction)
   inventory   Inventory[]
 
   @@unique([branchId, name], name: "unique_branch_category")
   @@index([branchId])
+  @@index([terminalId])
   @@map("categories")
 }
 
@@ -494,6 +497,7 @@ model Terminal {
   createdAt                         DateTime?                         @default(now()) @map("created_at")
   updatedAt                         DateTime?                         @default(now()) @map("updated_at")
   auditLogs                         AuditLog[]
+  categories                        Category[]
   tenant                            Tenant                            @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade, onUpdate: NoAction)
   branch                            Branch                            @relation(fields: [branchId], references: [branchId], onDelete: Cascade, onUpdate: NoAction)
   userSessions                      UserSession[]

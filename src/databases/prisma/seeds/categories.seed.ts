@@ -10,6 +10,7 @@ export async function seedCategories(prisma: PrismaClient) {
             categoryId: '-1',
             tenantId: '-1',
             branchId: '-1',
+            terminalId: '-1',
             userId: '-1',
             name: 'Consumables',
         },
