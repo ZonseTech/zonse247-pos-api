@@ -26,7 +26,6 @@ export async function seedTenant(prisma: PrismaClient) {
             phoneNumber: '+1234567890',
             address: '123 Business Street',
             country: 'MW',
-            authKey: `default-auth-key-${Date.now()}`,
             status: 'active',
             subscriptionStatus: 'TRIAL',
             verificationToken: 'invalid',
@@ -50,7 +49,7 @@ export async function seedTenant(prisma: PrismaClient) {
                 startsAt: new Date(),
                 endsAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), // 1 year from now
                 autoRenew: true,
-                maxShops: 1,
+                maxBranches: 1,
             }
         });
         console.log('✓ Created tenant subscription (Offline Plan)');
