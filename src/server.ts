@@ -126,7 +126,7 @@ export class Server {
 					if (!this.electron) {
 						await initializeEmailService()
 							.then(() => {
-								console.log('✅ Email service ready');
+								console.log('✓ Email service ready');
 							})
 							.catch((error) => {
 								console.error(

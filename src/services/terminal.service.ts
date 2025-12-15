@@ -188,25 +188,42 @@ export class TerminalService {
         tenantId: string,
         branchId: string,
     }): Promise<Terminal> {
+        const existingTerminals = await TerminalModel.findByBranchId(params.branchId);
+
+        const timestamp = Date.now().toString().slice(-6);
+        const random = Math.random().toString(36).substring(2, 5).toUpperCase();
+        const terminalCode = `TERM-${timestamp}-${random}`;
+
+        const terminalNumber = existingTerminals.length + 1;
+        const appVersion = process.env.npm_package_version || '1.4.1';
+
+        const deviceId = `DEVICE_${Date.now()}_${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
+
+        const macAddress = Array.from({ length: 6 }, () =>
+            Math.floor(Math.random() * 256).toString(16).padStart(2, '0')
+        ).join(':').toUpperCase();
+
+        const activationCode = `ACT_${Date.now()}_${Math.random().toString(36).substring(2, 11).toUpperCase()}`;
+
         const data = {
             mraTerminalId: null,
-            terminalCode: 'TERM001',
-            terminalLabel: 'Main Terminal',
-            terminalPosition: 1,
-            deviceId: 'DEFAULT_DEVICE',
-            osName: 'Linux',
+            terminalCode,
+            terminalLabel: `Terminal ${terminalNumber}`,
+            terminalPosition: terminalNumber,
+            deviceId,
+            osName: 'Win',
             osVersion: '1.0',
             osBuild: 'build-001',
-            macAddress: '00:00:00:00:00:00',
+            macAddress,
             posProductId: 'POS001',
-            posProductVersion: '1.0.0',
+            posProductVersion: appVersion,
             terminalConfigVersion: 1,
             offlineMaxTransactionAgeHours: 24,
             offlineMaxCumulativeAmount: 100000,
-            activationCode: 'DEFAULT',
+            activationCode,
             activationStatus: 'ACTIVATED',
             activationDate: new Date(),
-            isPrimary: true,
+            isPrimary: existingTerminals.length === 0,
             isBlocked: false,
             blockingReason: null,
             blockedAt: null,

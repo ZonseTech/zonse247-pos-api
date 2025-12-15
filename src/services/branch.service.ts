@@ -117,7 +117,7 @@ export class BranchService {
 
 		const subscription = await SubscriptionModel.findActiveByTenantId(data.tenantId);
 		if (subscription) {
-			const plan = await SubscriptionModel.findById(subscription.planId);
+			const plan = await SubscriptionModel.findById(subscription.subscriptionPlanId);
 
 			if (plan) {
 				const existingBranchesCount = await BranchModel.findByTenantId(data.tenantId);

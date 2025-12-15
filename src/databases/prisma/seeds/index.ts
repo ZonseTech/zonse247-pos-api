@@ -8,3 +8,5 @@ export { seedUser } from './user.seed';
 export { seedCategories } from './categories.seed';
 export { seedCustomers } from './customers.seed';
 export { seedPaymentMethods } from './payment-methods.seed';
+export { seedSubscriptionPlans } from './subscription-plans.seed';
+export { seedPlanFeatures } from './plan-features.seed';

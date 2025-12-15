@@ -287,7 +287,7 @@ export class SecureSettingsService {
                     let schemaFileReady = false;
                     try {
                         await fs.copyFile(schemaSqlitePath, schemaDestPath);
-                        console.log('✅ Copied schema.sqlite.prisma to schema.prisma');
+                        console.log('✓ Copied schema.sqlite.prisma to schema.prisma');
                         schemaFileReady = true;
                     } catch (err) {
                         // Check if schema.prisma already exists and is valid
@@ -325,7 +325,7 @@ export class SecureSettingsService {
                             try {
                                 await fs.access(configSource);
                                 await fs.copyFile(configSource, prismaConfigPath);
-                                console.log(`✅ Copied prisma.config.ts from ${path.basename(configSource)} to project root`);
+                                console.log(`✓ Copied prisma.config.ts from ${path.basename(configSource)} to project root`);
                                 configFileReady = true;
                                 break;
                             } catch {
@@ -358,7 +358,7 @@ export class SecureSettingsService {
 
                         // Rename migrations-sqlite to migrations
                         await fs.rename(migrationsSqliteDir, migrationsDir);
-                        console.log('✅ Configured migrations-sqlite as active migrations directory');
+                        console.log('✓ Configured migrations-sqlite as active migrations directory');
                         migrationsReady = true;
                     } catch (err) {
                         // Check if migrations directory already exists
@@ -392,7 +392,7 @@ export class SecureSettingsService {
                         }
                     }
 
-                    console.log('✅ All required files are in place\n');
+                    console.log('✓ All required files are in place\n');
 
                     // Step 6: Generate Prisma client
                     console.log('🔨 Generating Prisma client...');
@@ -401,7 +401,7 @@ export class SecureSettingsService {
                             stdio: 'pipe',
                             cwd: process.cwd()
                         });
-                        console.log('✅ Prisma client generated successfully');
+                        console.log('✓ Prisma client generated successfully');
                     } catch (genError) {
                         throw new Error(`❌ Failed to generate Prisma client: ${genError.message}`);
                     }
@@ -413,7 +413,7 @@ export class SecureSettingsService {
                         cwd: process.cwd()
                     });
 
-                    console.log('✅ Database setup completed successfully\n');
+                    console.log('✓ Database setup completed successfully\n');
                     return true;
                 } catch (migrationError) {
                     console.error('\n❌ Failed to set up database:', migrationError.message);

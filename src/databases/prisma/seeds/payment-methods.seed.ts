@@ -21,5 +21,5 @@ export async function seedPaymentMethods(prisma: PrismaClient) {
         });
     }
 
-    console.log('✅ Payment methods seeded');
+    console.log('✓ Payment methods seeded');
 }

@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import type { Tenant, TenantFormValues, TenantStatus, SubscriptionStatus, MsonkhoOnlineStatus, TenantQueryParams } from 'tenant';
 import prisma from '../databases/prisma/client';
+import { TenantCreateInput } from '../databases/prisma/generated/prisma/models';
 
 export class TenantModel {
     static generateTenantCode(): string {
@@ -9,7 +10,6 @@ export class TenantModel {
     }
 
     static async generateVerificationToken(tenantId: string): Promise<string> {
-        // tenantId can be used for logging or audit purposes if needed
         tenantId
         return crypto.randomBytes(32).toString('hex');
     }
@@ -100,15 +100,15 @@ export class TenantModel {
         return await this.findByCredentials(verificationToken);
     }
 
-    static async insert(data: TenantFormValues): Promise<Tenant> {
+    static async insert(data: TenantCreateInput): Promise<Tenant> {
         return await this.create(data);
     }
 
-    static async create(data: TenantFormValues): Promise<Tenant> {
+    static async create(data: TenantCreateInput): Promise<Tenant> {
         const tenantData = await this.buildTenantData(data);
 
         return await prisma.tenant.create({
-            data: tenantData as any
+            data: tenantData
         }) as unknown as Tenant;
     }
 
@@ -207,7 +207,8 @@ export class TenantModel {
         return await prisma.tenant.count({ where });
     }
 
-    static async buildTenantData(data: TenantFormValues): Promise<Omit<Tenant, 'createdAt' | 'updatedAt'>> {
+    static async buildTenantData(data: TenantCreateInput): Promise<TenantCreateInput> {
+        const now = new Date();
         const trialEndDate = new Date();
         const tenantId = data.tenantId || uuidv4();
         trialEndDate.setDate(trialEndDate.getDate() + 30);
@@ -233,19 +234,19 @@ export class TenantModel {
             country: data.country || null,
             trialEndsAt: trialEndDate,
             verificationToken: data.verificationToken || verificationToken,
-            authKey: data.authKey,
             status: data.status || 'pending',
-            registeredAt: new Date(),
+            registeredAt: now,
+            createdAt: now,
+            updatedAt: now,
             activatedAt: null,
             synced: 0
         };
     }
 
-    static sanitizeTenant(tenant: Tenant): Omit<Tenant, 'verificationToken' | 'authKey'> {
+    static sanitizeTenant(tenant: Tenant): Omit<Tenant, 'verificationToken'> {
         const { ...safeTenant } = tenant;
 
         delete safeTenant.verificationToken
-        delete safeTenant.authKey
 
         return safeTenant as any;
     }
@@ -287,10 +288,6 @@ export class TenantModel {
 
         if (data.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) {
             errors.push('Email must be a valid email address');
-        }
-
-        if (!data.authKey || data.authKey.trim().length === 0) {
-            errors.push('Auth key is required');
         }
 
         return errors;

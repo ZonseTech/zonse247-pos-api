@@ -46,5 +46,5 @@ export async function seedRoles(prisma: PrismaClient) {
         });
     }
 
-    console.log('✅ Roles seeded');
+    console.log('✓ Roles seeded');
 }

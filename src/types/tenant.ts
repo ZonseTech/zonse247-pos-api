@@ -18,7 +18,6 @@ export interface Tenant extends BaseTimestamps {
     ownerName: string;
     phoneNumber: string;
     verificationToken: string;
-    authKey: string;
     email: string;
     mraPortalUsername?: string | null;
     isVatRegistered?: boolean;

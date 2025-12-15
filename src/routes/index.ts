@@ -14,6 +14,7 @@ import UsersRoutes from './users.routes'
 import TenantsRoutes from './tenant.routes'
 import SubscriptionsRoutes from './subscription.routes'
 import SubscriptionPlanRoutes from './subscription-plan.routes'
+import PlanFeaturesRoutes from './plan-features.routes'
 import BranchesRoutes from './branch.routes'
 import WorkStationRoutes from './terminal.routes'
 import RoleRoutes from './role.routes'
@@ -33,6 +34,7 @@ import { validateBody } from '../middlewares/validation.middleware'
 import { userValidationSchemas } from '../validations/user.schemas'
 import { asyncHandler } from '../middlewares/error.middleware'
 import { AuthController } from '../controllers/auth.controller'
+import { SubscriptionController } from '../controllers/subscription.controller'
 
 const router = Router();
 const authMiddleware = new AuthMiddleware();
@@ -49,11 +51,15 @@ router.use('/on-boarding', OnboardingRoutes);
 router.use('/account-seeds', AccountSeedsRoutes)
 router.use('/metadata', MetadataMiddleware.validateKey, MetadataRoutes);
 
+router.get('/subscriptions/live/tenant/:tenantId', SubscriptionController.getSubscriptionByTenantId);
+
 router.post(
     '/auth/live/login',
     validateBody(userValidationSchemas.loginUser),
     asyncHandler(AuthController.initiateLoginAccount)
 );
+
+router.use('/plan-features', PlanFeaturesRoutes);
 
 router.use(authMiddleware.verifyRequestHeaders)
 

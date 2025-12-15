@@ -403,7 +403,7 @@ model TenantSubscription {
   endsAt               DateTime?                    @map("ends_at")
   autoRenew            Boolean?                     @default(true) @map("auto_renew")
   paymentMethod        String?                      @map("payment_method")
-  maxShops             Int?                         @default(1) @map("max_shops")
+  maxBranches          Int?                         @default(1) @map("max_branches")
   synced               Int?                         @default(0) @map("synced")
   lastPaymentDate      DateTime?                    @map("last_payment_date")
   nextPaymentDate      DateTime?                    @map("next_payment_date")
@@ -438,7 +438,6 @@ model Tenant {
   address               String?                        @map("address")
   country               String?                        @map("country")
   trialEndsAt           DateTime?                      @map("trial_ends_at")
-  authKey               String                         @unique @map("auth_key")
   status                TenantStatus?                  @default(pending) @map("status")
   registeredAt          DateTime?                      @default(now()) @map("registered_at")
   activatedAt           DateTime?                      @map("activated_at")
@@ -453,7 +452,6 @@ model Tenant {
   terminals             Terminal[]
   users                 User[]
 
-  @@index([authKey])
   @@index([email])
   @@index([subscriptionStatus])
   @@index([tenantCode])

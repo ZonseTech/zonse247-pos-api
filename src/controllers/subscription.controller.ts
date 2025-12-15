@@ -23,7 +23,7 @@ export class SubscriptionController extends BaseController {
             if (status) {
                 subscriptions = await SubscriptionService.getByStatus(status as string);
             } else if (tenantId) {
-                subscriptions = await SubscriptionService.getBytenantId(tenantId as string);
+                subscriptions = await SubscriptionService.getByTenantId(tenantId as string);
             } else if (planId) {
                 subscriptions = await SubscriptionService.getByPlanId(planId as string);
             } else {
@@ -269,18 +269,29 @@ export class SubscriptionController extends BaseController {
         }
     }
 
-    static async getByClient(req: Request, res: Response): Promise<void> {
+    static async getByTenantId(req: Request, res: Response): Promise<void> {
         try {
             const { tenantId } = req.params;
-            const subscriptions = await SubscriptionService.getBytenantId(tenantId);
-            BaseController.sendResponse(res, 200, true, 'Subscriptions retrieved by client', subscriptions);
+            const subscription = await SubscriptionService.getByTenantId(tenantId);
+
+            BaseController.sendResponse(res, 200, true, 'Subscription retrieved by tenant', subscription);
         } catch (error: any) {
-            console.error('Error fetching subscriptions by client:', error);
-            BaseController.sendResponse(res, 500, false, 'Failed to fetch subscriptions by client', undefined, error.message);
+            BaseController.sendResponse(res, 500, false, 'Failed to fetch subscription by tenant', undefined, error.message);
         }
     }
 
-    static async getByPlan(req: Request, res: Response): Promise<void> {
+    static async getSubscriptionByTenantId(req: Request, res: Response): Promise<void> {
+        try {
+            const { tenantId } = req.params;
+            const subscription = await SubscriptionService.getActiveSubscriptionByTenantId(tenantId);
+            BaseController.sendResponse(res, 200, true, 'Subscription retrieved by tenant', subscription);
+        } catch (error: any) {
+            console.error('Error fetching subscription by tenant:', error);
+            BaseController.sendResponse(res, 500, false, 'Failed to fetch subscription by tenant', undefined, error.message);
+        }
+    }
+
+    static async getByPlanId(req: Request, res: Response): Promise<void> {
         try {
             const { planId } = req.params;
             const subscriptions = await SubscriptionService.getByPlanId(planId);

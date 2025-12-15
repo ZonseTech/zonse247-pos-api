@@ -15,5 +15,5 @@ export async function seedCustomers(prisma: PrismaClient) {
         },
     });
 
-    console.log('✅ Customers seeded');
+    console.log('✓ Customers seeded');
 }

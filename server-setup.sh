@@ -90,7 +90,7 @@ sudo ufw --force enable
 echo "🛡️ Installing Fail2Ban..."
 sudo apt install -y fail2ban
 
-echo "✅ Server setup completed!"
+echo "✓ Server setup completed!"
 echo "📝 Next steps:"
 echo "   1. Update /etc/nginx/sites-available/zonse247-pos-api with your domain"
 echo "   2. Setup SSL with Certbot: sudo certbot --nginx"

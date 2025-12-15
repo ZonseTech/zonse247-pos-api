@@ -1,17 +1,16 @@
 import { v4 as uuidv4 } from 'uuid';
-import type { Role } from 'role-permission';
 import { ValidationParams } from 'on-boarding';
 import prisma from '../databases/prisma/client';
-import { PlanFeature, SubscriptionPlan } from 'subscription';
+import type { PlanFeature, SubscriptionPlan } from 'subscription';
 import { SubscriptionPlanCreateInput, SubscriptionPlanUpdateInput } from '../databases/prisma/generated/prisma/models';
 
 export class SubscriptionPlanModel {
-	static async findAllByRDBMS(_: ValidationParams): Promise<Role[]> {
+	static async findAllByRDBMS(_: ValidationParams): Promise<SubscriptionPlan[]> {
 		try {
-			return await prisma.subscriptionPlan.findMany() as unknown as Role[];
+			return await prisma.subscriptionPlan.findMany() as unknown as SubscriptionPlan[];
 		} catch (error) {
 			throw new Error(
-				`Error finding roles: ${error instanceof Error ? error.message : 'Unknown error'}`
+				`Error finding subscription plans: ${error instanceof Error ? error.message : 'Unknown error'}`
 			);
 		}
 	}
@@ -54,7 +53,7 @@ export class SubscriptionPlanModel {
 		try {
 			const planWithId = {
 				...planData,
-				subscriptionPlanId: uuidv4()
+				subscriptionPlanId: planData.subscriptionPlanId || uuidv4()
 			};
 
 			return await prisma.subscriptionPlan.create({

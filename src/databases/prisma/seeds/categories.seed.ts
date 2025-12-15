@@ -16,5 +16,5 @@ export async function seedCategories(prisma: PrismaClient) {
         },
     });
 
-    console.log('✅ Categories seeded');
+    console.log('✓ Categories seeded');
 }

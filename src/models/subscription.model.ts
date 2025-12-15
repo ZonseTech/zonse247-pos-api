@@ -1,10 +1,10 @@
 import { v4 as uuidv4 } from 'uuid';
-import { ValidationParams } from 'on-boarding';
 import type { Role } from 'role-permission';
-import { CreateSubscriptionRequest, TenantSubscription } from 'subscription';
+import { ValidationParams } from 'on-boarding';
 import prisma from '../databases/prisma/client';
-import { EnumTenantSubscriptionStatusNullableFilter } from 'src/databases/prisma/generated/prisma/commonInputTypes';
-import { TenantSubscriptionCreateInput } from 'src/databases/prisma/generated/prisma/models';
+import { TenantSubscription } from 'subscription';
+import { TenantSubscriptionCreateInput } from '../databases/prisma/generated/prisma/models';
+import { EnumTenantSubscriptionStatusNullableFilter } from '../databases/prisma/generated/prisma/commonInputTypes';
 
 export class SubscriptionModel {
 	static async findAllByRDBMS(conditions: ValidationParams): Promise<Role[]> {
@@ -224,8 +224,8 @@ export class SubscriptionModel {
 	}
 
 	static buildSubscriptionData(
-		data: CreateSubscriptionRequest
-	): Omit<TenantSubscription, 'id'> {
+		data: any
+	) {
 		const now = new Date();
 		let endDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
 		let nextPaymentDate = new Date(endDate);
@@ -241,14 +241,18 @@ export class SubscriptionModel {
 		}
 
 		return {
-			...data,
+			tenantId: data.tenantId,
+			subscriptionPlanId: data.subscriptionPlanId,
+			autoRenew: data.autoRenew || false,
+			paymentMethod: data.paymentMethod || '',
 			status: 'active',
 			startsAt: now.toISOString(),
 			endsAt: endDate.toISOString() || undefined,
 			lastPaymentDate: now.toISOString(),
 			nextPaymentDate: nextPaymentDate.toISOString() || undefined,
 			maxBranches: 1,
-			subscriptionId: uuidv4(),
+			tenantSubscriptionId: uuidv4(),
+
 		};
 	}
 
