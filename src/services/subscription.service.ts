@@ -5,7 +5,7 @@ import { SubscriptionPlanService } from './subscription-plan.service';
 import { BaseService } from './base.service';
 import type { Role } from 'role-permission';
 import type { CreateSubscriptionRequest, TenantSubscription } from 'subscription';
-import { EnumTenantSubscriptionStatusNullableFilter } from 'src/databases/prisma/generated/prisma/commonInputTypes';
+import { EnumTenantSubscriptionStatusNullableFilter } from '../databases/prisma/generated/prisma/commonInputTypes';
 import { TenantSubscriptionCreateInput } from '../databases/prisma/generated/prisma/models';
 
 export class SubscriptionService {
@@ -40,7 +40,7 @@ export class SubscriptionService {
 	}
 
 	static async create(
-		data: CreateSubscriptionRequest
+		data: CreateSubscriptionRequest & { tenantSubscriptionId?: string }
 	): Promise<TenantSubscription> {
 		const validationError = TenantService.validateRequired(data, [
 			'tenantId',
@@ -64,10 +64,10 @@ export class SubscriptionService {
 			throw new Error('Tenant already subscribe to this plan.');
 		}
 
-		const existingSubscription = await SubscriptionModel.findActiveByTenantId(data.tenantId);
+		const existingSubscription = await SubscriptionModel.findById(data?.tenantSubscriptionId);
 
-		if (existingSubscription.subscriptionPlanId) {
-			await SubscriptionModel.update(existingSubscription.subscriptionPlanId, {
+		if (existingSubscription?.tenantSubscriptionId) {
+			await SubscriptionModel.update(existingSubscription.tenantSubscriptionId, {
 				status: 'cancelled',
 			})
 		}

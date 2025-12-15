@@ -10,6 +10,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { MsonkhoOnlineStatus, Tenant, TenantFormValues, TenantStatus } from "tenant";
 import { OnboardingStatus } from "on-boarding";
 import { BaseService } from "./base.service";
+import { TenantCreateInput } from "../databases/prisma/generated/prisma/models";
 
 export class TenantService {
     static validateEmail(email: string): boolean {
@@ -62,7 +63,7 @@ export class TenantService {
             throw new Error('Tenant with this TIN already exists');
         }
 
-        const tenant = await TenantModel.create(data);
+        const tenant = await TenantModel.create(data as unknown as TenantCreateInput);
         const verificationToken = await SecureSettingsService.encryptTenantId(tenant.tenantId)
 
         const defaultBranch = await BranchService.createDefault({
@@ -84,9 +85,6 @@ export class TenantService {
                     tenantCode: tenant.tenantCode,
                     verificationToken,
                 });
-
-                console.log(`Welcome email sent successfully to ${tenant.email} for business: ${tenant.businessName}`);
-
             } catch (emailError) {
                 console.error('Failed to send welcome email:', {
                     tenantCode: tenant.tenantCode,
@@ -103,7 +101,7 @@ export class TenantService {
         return tenant;
     }
 
-    static async getAllTenants(query: any = {}): Promise<Omit<Tenant, 'verificationToken' | 'authKey'>[]> {
+    static async getAllTenants(query: any = {}): Promise<Omit<Tenant, 'verificationToken'>[]> {
         try {
             const tenants = await TenantModel.findAll(query);
             return tenants.map(tenant => TenantModel.sanitizeTenant(tenant));
@@ -112,7 +110,7 @@ export class TenantService {
         }
     }
 
-    static async getTenantById(tenantId: string): Promise<Omit<Tenant, 'verificationToken' | 'authKey'>> {
+    static async getTenantById(tenantId: string): Promise<Omit<Tenant, 'verificationToken'>> {
         const tenant = await TenantModel.findById(tenantId);
         if (!tenant) {
             throw new Error('Tenant not found');
@@ -120,7 +118,7 @@ export class TenantService {
         return TenantModel.sanitizeTenant(tenant);
     }
 
-    static async getTenantByCode(tenantCode: string): Promise<Omit<Tenant, 'verificationToken' | 'authKey'>> {
+    static async getTenantByCode(tenantCode: string): Promise<Omit<Tenant, 'verificationToken'>> {
         const tenant = await TenantModel.findByTenantCode(tenantCode);
         if (!tenant) {
             throw new Error('Tenant not found');
@@ -150,7 +148,7 @@ export class TenantService {
         return { status: true };
     }
 
-    static async verifyTenant(verificationToken: string): Promise<Omit<Tenant, 'verificationToken' | 'authKey'>> {
+    static async verifyTenant(verificationToken: string): Promise<Omit<Tenant, 'verificationToken'>> {
         const response = await BaseService.post<TenantFormValues>('/on-boarding/live/verify-account', {
             verificationToken,
         });
@@ -166,7 +164,7 @@ export class TenantService {
         if (tenantExists)
             return TenantModel.sanitizeTenant(tenant as unknown as Tenant);
 
-        const localTenant = await TenantModel.insert(tenant);
+        const localTenant = await TenantModel.insert(tenant as undefined);
 
         if (!localTenant) {
             throw new Error('Something went wrong. External server down');
@@ -175,7 +173,7 @@ export class TenantService {
         return TenantModel.sanitizeTenant(localTenant);
     }
 
-    static async verifyTenantAccount(verificationToken: string): Promise<Omit<Tenant, 'verificationToken' | 'authKey'>> {
+    static async verifyTenantAccount(verificationToken: string): Promise<Omit<Tenant, 'verificationToken'>> {
         const { tenantId } = await SecureSettingsService.decryptTenantId(verificationToken);
 
         const tenant = await TenantModel.findById(tenantId);
@@ -199,7 +197,7 @@ export class TenantService {
         return updatedTenant;
     }
 
-    static async updateTenant(tenantId: string, updateData: Partial<TenantFormValues>): Promise<Omit<Tenant, 'verificationToken' | 'authKey'>> {
+    static async updateTenant(tenantId: string, updateData: Partial<TenantFormValues>): Promise<Omit<Tenant, 'verificationToken'>> {
         const tenant = await TenantModel.findById(tenantId);
         if (!tenant) {
             throw new Error('Tenant not found');
@@ -309,7 +307,7 @@ export class TenantService {
         }
     }
 
-    static async updateMsonkhoStatus(tenantId: string, status: MsonkhoOnlineStatus): Promise<Omit<Tenant, 'authKey' | 'verificationToken'>> {
+    static async updateMsonkhoStatus(tenantId: string, status: MsonkhoOnlineStatus): Promise<Omit<Tenant, 'verificationToken'>> {
         const tenant = await TenantModel.findById(tenantId);
         if (!tenant) {
             throw new Error('Tenant not found');
