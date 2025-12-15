@@ -1,6 +1,8 @@
 import { v4 as uuidv4 } from 'uuid';
 import prisma from '../databases/prisma/client';
 import { Branch, BranchStatus, CreateBranchRequest, MraApprovalStatus } from 'branch';
+import { BranchMRAApprovalStatus } from '../databases/prisma/generated/prisma/enums';
+import { BranchCreateInput } from 'src/databases/prisma/generated/prisma/models';
 
 export class BranchModel {
     static async findAll(conditions = {}): Promise<Branch[]> {
@@ -40,7 +42,7 @@ export class BranchModel {
         return !!branch;
     }
 
-    static async create(branchData: Omit<Branch, 'createdAt' | 'updatedAt'>): Promise<Branch> {
+    static async create(branchData: BranchCreateInput) {
         return await prisma.branch.create({
             data: {
                 ...branchData,
@@ -62,7 +64,6 @@ export class BranchModel {
         }) as unknown as Branch;
     }
 
-    // Update branch
     static async update(branchId: string, data: Partial<Branch>): Promise<Branch> {
         const updateData = this.buildUpdateData(data);
 
@@ -72,21 +73,18 @@ export class BranchModel {
         }) as unknown as Branch;
     }
 
-    // Delete branch
     static async delete(branchId: string): Promise<Branch> {
         return await prisma.branch.delete({
             where: { branchId }
         }) as unknown as Branch;
     }
 
-    // Count branches with conditions
     static async count(conditions = {}): Promise<number> {
         return await prisma.branch.count({
             where: conditions
         });
     }
 
-    // Find branches by status
     static async findByStatus(status: BranchStatus): Promise<Branch[]> {
         return await prisma.branch.findMany({
             where: { status }
@@ -238,12 +236,13 @@ export class BranchModel {
         });
     }
 
-    // Build branch data from CreateBranchRequest
-    static buildBranchData(data: CreateBranchRequest): Omit<Branch, 'createdAt' | 'updatedAt'> {
+    static buildBranchData(data: CreateBranchRequest) {
+        const now = new Date();
+
         return {
-            branchId: uuidv4(),
+            branchId: data.branchId || uuidv4(),
             tenantId: data.tenantId,
-            branchCode: data.branchCode,
+            branchCode: data.branchCode || 'BR001',
             branchName: data.branchName,
             siteId: data.siteId || null,
             siteName: data.siteName || null,
@@ -262,12 +261,14 @@ export class BranchModel {
             receiptFooter: data.receiptFooter || null,
             logoUrl: data.logoUrl || null,
             currencyCode: data.currencyCode || 'MWK',
-            currencySymbol: data.currencySymbol || 'MK',
+            currencySymbol: data.currencySymbol || 'K',
             isVirtualWarehouse: data.isVirtualWarehouse || false,
-            isActive: true,
-            status: 'active',
-            mraApprovalStatus: 'PENDING',
-            synced: 0,
+            isActive: data.isActive !== undefined ? data.isActive : true,
+            status: (data.status as BranchStatus) || 'active',
+            mraApprovalStatus: data.mraApprovalStatus || BranchMRAApprovalStatus.PENDING,
+            synced: data.synced || 0,
+            createdAt: now,
+            updatedAt: now,
             mraApprovalDate: null
         };
     }

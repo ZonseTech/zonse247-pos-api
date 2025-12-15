@@ -39,11 +39,11 @@ export class TenantModel {
 
         if (query.search) {
             where.OR = [
-                { businessName: { contains: query.search, mode: 'insensitive' } },
-                { tradingName: { contains: query.search, mode: 'insensitive' } },
-                { ownerName: { contains: query.search, mode: 'insensitive' } },
-                { email: { contains: query.search, mode: 'insensitive' } },
-                { tenantCode: { contains: query.search, mode: 'insensitive' } }
+                { businessName: { contains: query.search } },
+                { tradingName: { contains: query.search } },
+                { ownerName: { contains: query.search } },
+                { email: { contains: query.search } },
+                { tenantCode: { contains: query.search } }
             ];
         }
 
