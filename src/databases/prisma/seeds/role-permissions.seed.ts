@@ -1,7 +1,8 @@
-import { RolePermission } from 'role-permission';
 import { v4 as uuidv4 } from 'uuid';
+import { PrismaClient } from "../generated/prisma/client";
+import { RolePermission } from 'role-permission';
 
-export const DEFAULT_ROLE_PERMISSIONS: Array<RolePermission> = [
+const DEFAULT_ROLE_PERMISSIONS: Array<RolePermission> = [
     // ===== SUPER ADMIN - Full system access =====
     { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'system.admin' },
     { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'system.backup' },
@@ -204,3 +205,35 @@ export const DEFAULT_ROLE_PERMISSIONS: Array<RolePermission> = [
     { rolePermissionId: uuidv4(), roleId: 'cashier', permissionId: 'cash.drawer.open' },
     { rolePermissionId: uuidv4(), roleId: 'cashier', permissionId: 'cash.count' },
 ];
+
+export async function seedRolePermissions(prisma: PrismaClient) {
+    console.log('📝 Seeding role permissions...');
+
+    const permissionsByRole: Record<string, string[]> = {};
+
+    DEFAULT_ROLE_PERMISSIONS.forEach(rolePermission => {
+        const { roleId, permissionId } = rolePermission;
+        if (!permissionsByRole[roleId]) {
+            permissionsByRole[roleId] = [];
+        }
+        permissionsByRole[roleId].push(permissionId);
+    });
+
+    for (const [roleId, permissionIds] of Object.entries(permissionsByRole)) {
+        for (const permissionId of permissionIds) {
+            const rolePermissionId = `${roleId}-${permissionId}`;
+
+            await prisma.rolePermission.upsert({
+                where: { rolePermissionId },
+                update: {},
+                create: {
+                    rolePermissionId,
+                    roleId: roleId,
+                    permissionId: permissionId,
+                },
+            });
+        }
+    }
+
+    console.log('✅ Role permissions seeded');
+}

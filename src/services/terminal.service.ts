@@ -2,6 +2,7 @@ import { TenantService } from "./tenant.service";
 import { BranchModel } from "../models/branch.model";
 import { TerminalModel } from "../models/terminal.model";
 import { CreateTerminalRequest, Terminal } from "terminal";
+import { BaseService } from "./base.service";
 
 export class TerminalService {
 
@@ -52,8 +53,38 @@ export class TerminalService {
     }
 
     static async getTerminalsByBranchId(branchId: string): Promise<Terminal[]> {
+        if (!branchId) {
+            throw new Error('Branch ID is required');
+        }
+
+        const response = await BaseService.get<Array<Terminal>>(`/on-boarding/live/branch/${branchId}/terminals`);
+
+        if (!response.success) {
+            throw new Error(response.message || 'Failed to fetch terminals. External application down');
+        }
+
+        const terminals = response.data;
+
+        if (terminals && terminals.length > 0) {
+            for (const terminal of terminals) {
+                const terminalExists = await TerminalModel.exists(terminal.terminalId);
+                if (!terminalExists) {
+                    await TerminalModel.insert(terminal);
+                }
+            }
+        }
+
+        return terminals;
+    }
+
+    static async getAccountTerminalsByBranchId(branchId: string): Promise<Terminal[]> {
+        if (!branchId) {
+            throw new Error('Branch ID is required');
+        }
+
         try {
-            return await TerminalModel.findByBranchId(branchId);
+            const terminals = await TerminalModel.findByBranchId(branchId);
+            return terminals;
         } catch (error) {
             throw new Error(`Failed to retrieve terminals: ${error}`);
         }

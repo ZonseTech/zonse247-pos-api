@@ -1,17 +1,18 @@
 import { Category } from "categoty";
 import { Product } from "product";
+import { Decimal } from "../databases/prisma/generated/prisma/internal/prismaNamespace";
 
 export interface OrderItem {
-    itemId: string;
+    orderId: string;
     refNumber?: string;
     transactionId: string;
     productId: string;
-    quantity: number;
-    purchasePrice: number;
-    sellPrice: number;
-    createdAt?: string;
-    updatedAt?: string;
-    synced?: number;
+    quantity: Decimal;
+    purchasePrice: Decimal;
+    sellPrice: Decimal;
+    createdAt?: Date;
+    updatedAt?: Date;
+    synced: number;
 }
 
 export interface OrderSummary {

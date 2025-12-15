@@ -4,10 +4,7 @@ import compression from 'compression';
 import { createServer, Server as HttpServer } from 'http';
 import express, { Request, Response, Application } from 'express';
 import { corsOptions } from './config/cors';
-
 import syncService from './services/sync.service';
-import { initDatabase } from './databases/remote/migrations';
-import { seedDatabase } from './databases/local/seeds';
 import { timeoutHandler } from './middlewares/error.middleware';
 import {
 	apiAnalytics,
@@ -28,16 +25,15 @@ export class Server {
 	private app: Application;
 	private electron: any | null;
 
-	constructor(electronApp: any) {
+	constructor(electronApp?: any) {
 		this.app = express();
-		this.electron = electronApp
+		this.electron = electronApp || null;
 
 		if (this.electron) {
 			process.env.APPDATA = this.electron.getPath('appData');
 		}
 
 		this.server = createServer(this.app);
-
 		this.setupMiddleware();
 		this.setupRoutes();
 		this.setupErrorHandling();
@@ -60,8 +56,9 @@ export class Server {
 		this.app.use(compression());
 		this.app.use(limitRequestSize(process.env.CORS_REQUEST_SIZE_LIMIT));
 		this.app.use(securityLogger);
-
-		this.app.use(express.json({ limit: process.env.CORS_REQUEST_SIZE_LIMIT }));
+		this.app.use(
+			express.json({ limit: process.env.CORS_REQUEST_SIZE_LIMIT })
+		);
 		this.app.use(
 			express.urlencoded({
 				extended: true,
@@ -116,71 +113,40 @@ export class Server {
 	}
 
 	public async start() {
-		this.server.listen(parseInt(process.env.SERVER_PORT || '3000'), '0.0.0.0', async () => {
-			console.log(`🚀 Server running on port ${process.env.SERVER_PORT}`);
-			console.log(`📊 Environment: ${process.env.NODE_ENV}`);
+		try {
+			this.server.listen(
+				parseInt(process.env.SERVER_PORT || '3000'),
+				'0.0.0.0',
+				async () => {
+					console.log(
+						`🚀 Server running on port ${process.env.SERVER_PORT}`
+					);
+					console.log(`📊 Environment: ${process.env.NODE_ENV}`);
 
-			await this.initializeServices();
-
-			if (!this.electron)
-				await initializeEmailService()
-					.then(() => {
-						console.log('✅ Email service ready');
-					})
-					.catch((error) => {
-						console.error('❌ Email service initialization failed:', error);
-					});
-		});
+					if (!this.electron) {
+						await initializeEmailService()
+							.then(() => {
+								console.log('✅ Email service ready');
+							})
+							.catch((error) => {
+								console.error(
+									'❌ Email service initialization failed:',
+									error
+								);
+							});
+					}
+				}
+			);
+		} catch (error) {
+			console.error('Failed to start server:', error);
+			throw error;
+		}
 	}
 
 	public stop() {
 		syncService.stopAutoSync();
 		this.server.close();
 	}
-
-	private async initializeServices() {
-		await this.testDatabaseConnections();
-
-		if (this.electron) {
-			if (process.env.AUTO_SYNC_ENABLED === 'true') {
-				syncService.startAutoSync(parseInt(process.env.SYNC_INTERVAL));
-				console.log(`🔄 Auto sync enabled (interval: ${process.env.SYNC_INTERVAL}ms)`);
-			}
-		}
-
-		if (process.env.DB_SEED === 'true') {
-			try {
-				await seedDatabase();
-				console.log('✅ Database seeding completed successfully');
-			} catch (err) {
-				console.error('❌ Error running seeds:', err);
-			}
-		}
-
-		if (process.env.DB_MIGRATE === 'true') {
-			try {
-				await initDatabase();
-				console.log('✅ Database migrations completed successfully');
-			} catch (err) {
-				console.error('❌ Error running migrations:', err);
-			}
-		}
-	}
-
-	private async testDatabaseConnections() {
-		try {
-			const connections = await syncService.testConnections(this.electron);
-			console.log('🔗 Database connections:', connections);
-
-			if (!connections.mysql) {
-				console.warn('⚠️  Warning: MySQL connection failed');
-			}
-			if (!connections.sealdb) {
-				console.error('❌ Error: SealDB connection failed');
-			}
-		} catch (error) {
-			console.error('❌ Error testing database connections.');
-		}
-	}
 }
 
+export default Server;

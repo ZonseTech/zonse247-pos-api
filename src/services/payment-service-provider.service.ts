@@ -8,15 +8,6 @@ export class PaymentServiceProviderService {
         return await PaymentServiceProviderModel.findAllByRDBMS(params);
     }
 
-    static async getAllPaymentServiceProviders(filters: PaymentServiceProviderFilters): Promise<PaymentServiceProvider[]> {
-        try {
-            return await PaymentServiceProviderModel.findByTenantIdAndBranchId(filters.tenantId, filters.branchId);
-        } catch (error) {
-            console.error('Error fetching payment service providers:', error);
-            throw new Error('Failed to fetch payment service providers');
-        }
-    }
-
     static async createPaymentServiceProvider(
         pspData: { name: string; logoUrl: string },
         user: AuthenticatedUser
@@ -144,52 +135,6 @@ export class PaymentServiceProviderService {
         } catch (error) {
             console.error('Error fetching payment service provider by ID:', error);
             throw new Error('Failed to fetch payment service provider');
-        }
-    }
-
-    static async getPaymentServiceProvidersByTenant(tenantId: string): Promise<PaymentServiceProvider[]> {
-        try {
-            return await PaymentServiceProviderModel.findByTenantId(tenantId);
-        } catch (error) {
-            console.error('Error fetching payment service providers by tenant:', error);
-            throw new Error('Failed to fetch payment service providers by tenant');
-        }
-    }
-
-    static async getPaymentServiceProvidersByBranch(branchId: string): Promise<PaymentServiceProvider[]> {
-        try {
-            return await PaymentServiceProviderModel.findByBranchId(branchId);
-        } catch (error) {
-            console.error('Error fetching payment service providers by branch:', error);
-            throw new Error('Failed to fetch payment service providers by branch');
-        }
-    }
-
-    static async searchPaymentServiceProvidersByName(
-        name: string,
-        filters: PaymentServiceProviderFilters
-    ): Promise<PaymentServiceProvider[]> {
-        try {
-            const allPSPs = await PaymentServiceProviderModel.findByTenantIdAndBranchId(
-                filters.tenantId,
-                filters.branchId
-            );
-
-            return allPSPs.filter(psp =>
-                psp.name.toLowerCase().includes(name.toLowerCase())
-            );
-        } catch (error) {
-            console.error('Error searching payment service providers by name:', error);
-            throw new Error('Failed to search payment service providers');
-        }
-    }
-
-    static async getUnsyncedPaymentServiceProviders(tenantId: string): Promise<PaymentServiceProvider[]> {
-        try {
-            return await PaymentServiceProviderModel.findUnsyncedByTenant(tenantId);
-        } catch (error) {
-            console.error('Error fetching unsynced payment service providers:', error);
-            throw new Error('Failed to fetch unsynced payment service providers');
         }
     }
 

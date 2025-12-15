@@ -1,7 +1,5 @@
 import { Request, Response } from 'express';
 import syncService from '../services/sync.service';
-import { hasAnyPermission, hasRole } from '../utils';
-import tables from '../databases/local/seeds/sync-tables';
 import { AuthRequest } from '../lib/express.type';
 
 export class SyncController {
@@ -9,18 +7,18 @@ export class SyncController {
 		try {
 			const syncStatuses = await syncService.getSyncStatus();
 
-			const user = req.auth
+			// const user = req.auth
 
-			const dataTables = tables.filter(table => {
+			// const dataTables = tables.filter(table => {
 
-				if (user.roleName === 'super_admin') return true;
+			// 	if (user.roleName === 'super_admin') return true;
 
-				if (table.permissions) return hasAnyPermission(user, table.permissions)
+			// 	if (table.permissions) return hasAnyPermission(user, table.permissions)
 
-				return hasRole(user, table.role)
-			})
+			// 	return hasRole(user, table.role)
+			// })
 
-			const tablesWithStatus = dataTables.map((table) => {
+			const tablesWithStatus = [].map((table) => {
 				const syncStatus = Array.isArray(syncStatuses)
 					? syncStatuses.find((s: any) => s.tableName === table.id)
 					: syncStatuses;
@@ -60,7 +58,7 @@ export class SyncController {
 				return;
 			}
 
-			const result = await syncService.pullDataFromMySQL(tableName);
+			const result = await syncService.pullDataFromAPI(tableName);
 
 			res.json({
 				success: result.success,
@@ -92,7 +90,7 @@ export class SyncController {
 				});
 			}
 
-			const result = await syncService.pushDataToMySQL(tableName);
+			const result = await syncService.pullDataFromAPI(tableName);
 
 			res.json({
 				success: result.success,
@@ -213,8 +211,8 @@ export class SyncController {
 					? 'All connections successful'
 					: 'Some connections failed',
 				details: {
-					mysql: connections.mysql ? 'Connected' : 'Failed',
-					sealdb: connections.sealdb ? 'Connected' : 'Failed',
+					mysql: connections.api ? 'Connected' : 'Failed',
+					sqlite: connections.prisma ? 'Connected' : 'Failed',
 				},
 			});
 		} catch (error: any) {

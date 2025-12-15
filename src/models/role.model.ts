@@ -1,26 +1,24 @@
 import { v4 as uuidv4 } from 'uuid';
-import { sealDBModel } from '../databases/local';
-import { ROLES_DB } from '../databases/local/tables';
-import { mysqlPool } from '../config/db';
 import { ValidationParams } from 'on-boarding';
 import type { CreateRoleRequest, Role } from 'role-permission';
+import prisma from '../databases/prisma/client';
 
 export class RoleModel {
-    static async findAllByRDBMS(conditions: ValidationParams): Promise<Role[]> {
+    static async findAllByRDBMS(_: ValidationParams): Promise<Role[]> {
         try {
-            const connection = await mysqlPool.getConnection();
-            const [rows] = await connection.execute(`SELECT * FROM ${ROLES_DB} WHERE tenant_id=${conditions.tenantId}`);
-            const records = rows as any[];
-
-            return records
+            return await prisma.role.findMany() as unknown as Role[];
         } catch (error) {
-            throw new Error(`Error finding roles: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            throw new Error(
+                `Error finding roles: ${error instanceof Error ? error.message : 'Unknown error'}`
+            );
         }
     }
 
     static async selectAll(conditions: any = {}): Promise<Role[]> {
         try {
-            return await sealDBModel.find(ROLES_DB, conditions);
+            return await prisma.role.findMany({
+                where: conditions
+            }) as unknown as Role[];
         } catch (error) {
             throw new Error(`Error finding roles: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
@@ -28,7 +26,9 @@ export class RoleModel {
 
     static async findAll(conditions: any = {}): Promise<Role[]> {
         try {
-            return await sealDBModel.find(ROLES_DB, conditions);
+            return await prisma.role.findMany({
+                where: conditions
+            }) as unknown as Role[];
         } catch (error) {
             throw new Error(`Error finding roles: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
@@ -36,42 +36,19 @@ export class RoleModel {
 
     static async findById(roleId: string): Promise<Role | null> {
         try {
-            return await sealDBModel.findById<Role>(ROLES_DB, { roleId });
+            return await prisma.role.findUnique({
+                where: { roleId }
+            }) as unknown as Role | null;
         } catch (error) {
             throw new Error(`Error finding role by ID: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
     }
 
-    static async findByClientUuid(clientUuid: string): Promise<Role[]> {
-        try {
-            return await sealDBModel.find(ROLES_DB, { clientUuid: clientUuid });
-        } catch (error) {
-            throw new Error(`Error finding roles by client ID: ${error instanceof Error ? error.message : 'Unknown error'}`);
-        }
-    }
-
-    static async findByBranchId(shopUuid: string): Promise<Role[]> {
-        try {
-            return await sealDBModel.find(ROLES_DB, { shopUuid: shopUuid });
-        } catch (error) {
-            throw new Error(`Error finding roles by shop ID: ${error instanceof Error ? error.message : 'Unknown error'}`);
-        }
-    }
-
-    static async findByClientUuidAndName(clientUuid: string, name: string): Promise<Role[]> {
-        try {
-            return await sealDBModel.find(ROLES_DB, {
-                clientUuid: clientUuid,
-                name: name
-            });
-        } catch (error) {
-            throw new Error(`Error finding role by client ID and name: ${error instanceof Error ? error.message : 'Unknown error'}`);
-        }
-    }
-
     static async findBySystemRole(isSystemRole: boolean): Promise<Role[]> {
         try {
-            return await sealDBModel.find(ROLES_DB, { isSystemRole: isSystemRole });
+            return await prisma.role.findMany({
+                where: { isSystemRole }
+            }) as unknown as Role[];
         } catch (error) {
             throw new Error(`Error finding system roles: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
@@ -79,7 +56,9 @@ export class RoleModel {
 
     static async findByActive(isActive: boolean): Promise<Role[]> {
         try {
-            return await sealDBModel.find(ROLES_DB, { isActive: isActive });
+            return await prisma.role.findMany({
+                where: { isActive }
+            }) as unknown as Role[];
         } catch (error) {
             throw new Error(`Error finding active roles: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
@@ -103,7 +82,9 @@ export class RoleModel {
 
     static async create(roleData: Role): Promise<Role> {
         try {
-            return await sealDBModel.insert(ROLES_DB, roleData);
+            return await prisma.role.create({
+                data: roleData
+            }) as unknown as Role;
         } catch (error) {
             throw new Error(`Error creating role: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
@@ -111,7 +92,14 @@ export class RoleModel {
 
     static async update(id: string, updateData: Partial<Role>): Promise<number> {
         try {
-            return await sealDBModel.update(ROLES_DB, id, updateData);
+            await prisma.role.update({
+                where: { roleId: id },
+                data: {
+                    ...updateData,
+                    updatedAt: new Date()
+                }
+            });
+            return 1; // Return 1 to indicate successful update
         } catch (error) {
             throw new Error(`Error updating role: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
@@ -119,7 +107,10 @@ export class RoleModel {
 
     static async delete(id: string): Promise<number> {
         try {
-            return await sealDBModel.delete(ROLES_DB, id);
+            await prisma.role.delete({
+                where: { roleId: id }
+            });
+            return 1; // Return 1 to indicate successful deletion
         } catch (error) {
             throw new Error(`Error deleting role: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
@@ -127,7 +118,9 @@ export class RoleModel {
 
     static async count(conditions: any = {}): Promise<number> {
         try {
-            return await sealDBModel.count(ROLES_DB, conditions);
+            return await prisma.role.count({
+                where: conditions
+            });
         } catch (error) {
             throw new Error(`Error counting roles: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }

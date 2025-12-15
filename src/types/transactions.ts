@@ -2,13 +2,14 @@ import { Customer } from "customer";
 import { CartItem } from "order";
 import { PaymentMethod } from "payment-method";
 import { PaymentServiceProvider } from "payment-service-provider";
+import { Decimal } from "../databases/prisma/generated/prisma/internal/prismaNamespace";
 import { User } from "users";
 
 export type Transaction = {
     refNumber?: string;
-    subtotal: number;
-    tax: number;
-    date: string;
+    subtotal: Decimal;
+    tax: Decimal;
+    date: Date;
     userId: string;
     tenantId?: string;
     branchId?: string;
@@ -18,10 +19,10 @@ export type Transaction = {
     paymentMethodId?: string;
     terminalId: string;
     phoneNumber: string;
-    total: number;
-    paid: number;
-    discount?: number;
-    changeAmount: number;
+    total: Decimal;
+    paid: Decimal;
+    discount?: Decimal;
+    changeAmount: Decimal;
 
     status?: string;
     createdAt?: Date;
@@ -32,7 +33,7 @@ export type Transaction = {
     paymentServiceProvider?: PaymentServiceProvider;
     items?: CartItem[];
     user?: User;
-    synced?: 1 | 0;
+    synced: number;
 };
 
 export type TransactionValues = {

@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { PaymentMethodModel } from '../models/payment-methods.model';
 import { CreatePaymentMethodDto, PaymentMethod, UpdatePaymentMethodDto } from 'payment-method';
+import { PaymentMethodCreateInput } from '../databases/prisma/generated/prisma/models';
 
 export class PaymentMethodService {
 
@@ -61,8 +62,8 @@ export class PaymentMethodService {
 
             const paymentMethodData = {
                 ...data,
-                uuid: uuidv4(),
-            };
+                methodId: uuidv4(),
+            } as unknown as PaymentMethodCreateInput
 
             return await PaymentMethodModel.create(paymentMethodData);
         } catch (error) {

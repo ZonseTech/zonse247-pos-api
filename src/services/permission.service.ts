@@ -160,7 +160,7 @@ export class PermissionService {
             throw new Error('Valid scope is required');
         }
 
-        return await PermissionModel.findByScope(scope);
+        return await PermissionModel.findByScope(scope as unknown);
     }
 
     static async getSystemPermissions(): Promise<Permission[]> {

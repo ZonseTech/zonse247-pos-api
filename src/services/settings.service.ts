@@ -1,4 +1,4 @@
-import { CreateSettingRequest, Setting, TerminalSettings, UpdateSettingRequest } from "settings";
+import { CreateSettingRequest, TerminalSettings, UpdateSettingRequest } from "settings";
 import { SettingsModel } from "../models/settings.model";
 
 export class SettingsService {
@@ -34,13 +34,13 @@ export class SettingsService {
         branchId: string,
         terminalId: string,
         key: string
-    ): Promise<Setting | null> {
+    ): Promise<TerminalSettings | null> {
         try {
             if (!tenantId || !branchId || !terminalId || !key) {
                 throw new Error('Client UUID, Shop UUID, Workstation UUID, and key are required');
             }
 
-            return await SettingsModel.findByKey(tenantId, branchId, terminalId, key);
+            return await SettingsModel.findByKey(tenantId, branchId, terminalId);
         } catch (error) {
             console.error('Error in settings service - getSetting:', error);
             throw error;
@@ -78,13 +78,13 @@ export class SettingsService {
         branchId: string,
         terminalId: string,
         category: string
-    ): Promise<Setting[]> {
+    ): Promise<TerminalSettings[]> {
         try {
             if (!tenantId || !branchId || !terminalId || !category) {
                 throw new Error('Client UUID, Shop UUID, Workstation UUID, and category are required');
             }
 
-            return await SettingsModel.getSettingsByCategory(tenantId, branchId, terminalId, category);
+            return await SettingsModel.getSettingsByCategory(tenantId, branchId, terminalId);
         } catch (error) {
             console.error('Error in settings service - getSettingsByCategory:', error);
             throw error;

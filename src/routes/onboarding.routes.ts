@@ -3,24 +3,23 @@ import { asyncHandler } from "../middlewares/error.middleware";
 import { validateBody, validateParams } from "../middlewares/validation.middleware";
 import { tenantValidationSchemas } from "../validations/tenant.schemas";
 import { TenantController } from "../controllers/tenant.controller";
-import { DatabaseExportController } from "../controllers/export.controller";
 import { branchValidationSchemas } from "../validations/branch.schemas";
 import { BranchController } from "../controllers/branch.controller";
 import { OnboardingController } from "../controllers/onboarding.controller";
 import { SettingsController } from "../controllers/settings.controller";
 
 const router = Router();
-const exportController = new DatabaseExportController()
-
-router.get(
-    '/export/download/:filename',
-    asyncHandler(exportController.downloadFile)
-);
 
 router.post(
     '/verify-tenant',
     validateBody(tenantValidationSchemas.verifyTenant),
     asyncHandler(TenantController.verify)
+);
+
+router.post(
+    '/live/verify-account',
+    validateBody(tenantValidationSchemas.verifyTenant),
+    asyncHandler(TenantController.verifyTenantAccount)
 );
 
 router.get(
@@ -30,9 +29,21 @@ router.get(
 );
 
 router.get(
+    '/live/tenant/:tenantId/branches',
+    validateParams(tenantValidationSchemas.tenantId),
+    asyncHandler(TenantController.getTenantAccountBranches)
+);
+
+router.get(
     '/branch/:branchId/terminals',
     validateParams(branchValidationSchemas.branchId),
     asyncHandler(BranchController.getBranchTerminals)
+);
+
+router.get(
+    '/live/branch/:branchId/terminals',
+    validateParams(branchValidationSchemas.branchId),
+    asyncHandler(BranchController.getTenantBranchAccountTerminals)
 );
 
 router.use(

@@ -283,6 +283,7 @@ export class TransactionService {
             userId: data.userId || null,
             tenantId: data.tenantId || null,
             branchId: data.branchId || null,
+            synced: 0,
             status: data.status || 'completed',
         };
     }

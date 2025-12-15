@@ -129,3 +129,11 @@ exports
 mapped-data
 
 *.keystore
+
+/generated/prisma
+generated
+
+*.db
+src/databases/prisma/schema.prisma
+src/databases/prisma/migrations-backup/
+src/databases/prisma/migrations

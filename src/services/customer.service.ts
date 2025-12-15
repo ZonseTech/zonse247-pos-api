@@ -43,6 +43,7 @@ export class CustomerService {
         const newCustomer: Customer = {
             ...sanitizedData,
             customerId: uuidv4(),
+            synced: 0,
         };
 
         return await CustomerModel.create(newCustomer);
@@ -80,8 +81,8 @@ export class CustomerService {
             sanitizedUpdateData.address = updateData.address ? validator.escape(updateData.address.trim()) : undefined;
         }
 
-        const numReplaced = await CustomerModel.update(sanitizedId, sanitizedUpdateData);
-        return numReplaced > 0;
+        await CustomerModel.update(sanitizedId, sanitizedUpdateData);
+        return true;
     }
 
     static async deleteCustomer(customerId: string): Promise<boolean> {
@@ -90,8 +91,8 @@ export class CustomerService {
         }
 
         const sanitizedId = validator.escape(customerId.toString());
-        const numRemoved = await CustomerModel.delete(sanitizedId);
-        return numRemoved > 0;
+        await CustomerModel.delete(sanitizedId);
+        return true;
     }
 
     static async getCustomersCount(): Promise<number> {
@@ -124,8 +125,8 @@ export class CustomerService {
         }
 
         const sanitizedId = validator.escape(customerId.toString());
-        const numUpdated = await CustomerModel.markAsSynced(sanitizedId);
-        return numUpdated > 0;
+        await CustomerModel.markAsSynced(sanitizedId);
+        return true;
     }
 
     static async validateCustomerExists(customerId: string): Promise<boolean> {

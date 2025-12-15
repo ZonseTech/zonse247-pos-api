@@ -1,30 +1,16 @@
-import { v4 as uuidv4 } from 'uuid';
 import bcrypt from 'bcryptjs';
-import { sealDBModel } from '../databases/local';
-import { USERS_DB } from '../databases/local/tables';
-import { mysqlPool } from '../config/db';
-import { ValidationParams } from 'on-boarding';
-import { PublicUser, User, UserStatus } from 'users';
-
-const saltRounds = 10;
+import { v4 as uuidv4 } from 'uuid';
+import prisma from '../databases/prisma/client';
+import type { PublicUser, User, UserQueryParams, UserStatus } from 'users';
+import { UserCreateManyInput } from '../databases/prisma/generated/prisma/models';
 
 export class UserModel {
-
-    static async findAllByRDBMS(conditions: ValidationParams): Promise<Array<User>> {
+    static async findAll(conditions: UserQueryParams = {}): Promise<User[]> {
         try {
-            const connection = await mysqlPool.getConnection();
-            const [rows] = await connection.execute(`SELECT * FROM ${USERS_DB} WHERE tenant_id=${conditions.tenantId}`);
-            const records = rows as any[];
-
-            return records
-        } catch (error) {
-            throw new Error(`Error finding roles: ${error instanceof Error ? error.message : 'Unknown error'}`);
-        }
-    }
-
-    static async findAll(conditions: any = {}): Promise<User[]> {
-        try {
-            return await sealDBModel.find(USERS_DB, conditions);
+            return await prisma.user.findMany({
+                where: conditions,
+                orderBy: { createdAt: 'desc' }
+            }) as unknown as User[];
         } catch (error) {
             throw new Error(`Error finding users: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
@@ -32,25 +18,23 @@ export class UserModel {
 
     static async findById(id: string): Promise<User | null> {
         try {
-            return await sealDBModel.findById<User>(USERS_DB, id);
+            return await prisma.user.findUnique({
+                where: { userId: id }
+            }) as unknown as User | null;
         } catch (error) {
             throw new Error(`Error finding user by ID: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
     }
 
-    static async findByUuid(uuid: string): Promise<User | null> {
-        try {
-            const users = await sealDBModel.find<User[]>(USERS_DB, { uuid: uuid });
-            return users.length > 0 ? users[0] : null;
-        } catch (error) {
-            throw new Error(`Error finding user by UUID: ${error instanceof Error ? error.message : 'Unknown error'}`);
-        }
+    static async findByUuid(userId: string): Promise<User | null> {
+        return await this.findById(userId);
     }
 
     static async findByUsername(username: string): Promise<User | null> {
         try {
-            const users = await sealDBModel.findById<User>(USERS_DB, { username: username });
-            return users;
+            return await prisma.user.findFirst({
+                where: { username }
+            }) as unknown as User | null;
         } catch (error) {
             throw new Error(`Error finding user by username: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
@@ -58,16 +42,19 @@ export class UserModel {
 
     static async findByEmail(email: string): Promise<User | null> {
         try {
-            const users = await sealDBModel.find<User[]>(USERS_DB, { email: email });
-            return users.length > 0 ? users[0] : null;
+            return await prisma.user.findFirst({
+                where: { email }
+            }) as unknown as User | null;
         } catch (error) {
             throw new Error(`Error finding user by email: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
     }
 
-    static async findByRoleId(roleUuid: string): Promise<User[]> {
+    static async findByRoleId(roleId: string): Promise<User[]> {
         try {
-            return await sealDBModel.find(USERS_DB, { roleUuid: roleUuid });
+            return await prisma.user.findMany({
+                where: { roleId }
+            }) as unknown as User[];
         } catch (error) {
             throw new Error(`Error finding users by role: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
@@ -75,31 +62,39 @@ export class UserModel {
 
     static async findByTenantId(tenantId: string): Promise<User[]> {
         try {
-            return await sealDBModel.find(USERS_DB, { tenantId });
+            return await prisma.user.findMany({
+                where: { tenantId }
+            }) as unknown as User[];
         } catch (error) {
-            throw new Error(`Error finding users by client ID: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            throw new Error(`Error finding users by tenant ID: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
     }
 
-    static async findByBranchId(shopUuid: string): Promise<User[]> {
+    static async findByBranchId(branchId: string): Promise<User[]> {
         try {
-            return await sealDBModel.find(USERS_DB, { shopUuid: shopUuid });
+            return await prisma.user.findMany({
+                where: { branchId }
+            }) as unknown as User[];
         } catch (error) {
-            throw new Error(`Error finding users by shop ID: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            throw new Error(`Error finding users by branch ID: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
     }
 
-    static async findByCurrentTerminalId(currentTerminaId: string): Promise<User[]> {
+    static async findByCurrentBranchId(currentBranchId: string): Promise<User[]> {
         try {
-            return await sealDBModel.find(USERS_DB, { currentTerminaId: currentTerminaId });
+            return await prisma.user.findMany({
+                where: { currentBranchId }
+            }) as unknown as User[];
         } catch (error) {
-            throw new Error(`Error finding users by current shop ID: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            throw new Error(`Error finding users by current branch ID: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
     }
 
     static async findByStatus(status: UserStatus): Promise<User[]> {
         try {
-            return await sealDBModel.find(USERS_DB, { status: status });
+            return await prisma.user.findMany({
+                where: { status }
+            }) as unknown as User[];
         } catch (error) {
             throw new Error(`Error finding users by status: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
@@ -107,12 +102,14 @@ export class UserModel {
 
     static async findByUsernameOrEmail(username: string, email: string): Promise<User[]> {
         try {
-            return await sealDBModel.find(USERS_DB, {
-                $or: [
-                    { username: username },
-                    { email: email }
-                ]
-            });
+            return await prisma.user.findMany({
+                where: {
+                    OR: [
+                        { username },
+                        { email }
+                    ]
+                }
+            }) as unknown as User[];
         } catch (error) {
             throw new Error(`Error finding user by username or email: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
@@ -120,8 +117,9 @@ export class UserModel {
 
     static async findByPinCode(pinCode: string): Promise<User | null> {
         try {
-            const users = await sealDBModel.find<User[]>(USERS_DB, { pinCode: pinCode });
-            return users.length > 0 ? users[0] : null;
+            return await prisma.user.findFirst({
+                where: { pinCode }
+            }) as unknown as User | null;
         } catch (error) {
             throw new Error(`Error finding user by PIN code: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
@@ -129,43 +127,94 @@ export class UserModel {
 
     static async findUsersNeedingPasswordChange(): Promise<User[]> {
         try {
-            return await sealDBModel.find(USERS_DB, { forcePasswordChange: true });
+            return await prisma.user.findMany({
+                where: { forcePasswordChange: true }
+            }) as unknown as User[];
         } catch (error) {
             throw new Error(`Error finding users needing password change: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
     }
 
-    static async buildUserData(data: Partial<User>): Promise<User> {
+    static async findUnsynced(): Promise<User[]> {
+        try {
+            return await prisma.user.findMany({
+                where: { synced: 0 }
+            }) as unknown as User[];
+        } catch (error) {
+            throw new Error(`Error finding unsynced users: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+    }
+
+    static async findUnsyncedByTenant(tenantId: string): Promise<User[]> {
+        try {
+            return await prisma.user.findMany({
+                where: {
+                    tenantId,
+                    synced: 0
+                }
+            }) as unknown as User[];
+        } catch (error) {
+            throw new Error(`Error finding unsynced users by tenant: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+    }
+
+    static async buildUserData(data: UserCreateManyInput) {
         const now = new Date();
-        const hashedPassword = await bcrypt.hash(data.password, saltRounds);
+        const hashedPassword = await bcrypt.hash(data.password, parseInt(process.env.BCRYPT_SALT_ROUNDS));
 
         return {
-            userId: uuidv4(),
-            tenantId: data.tenantId || '',
-            branchId: data.branchId || '',
+            userId: data.userId || uuidv4(),
+            branchId: data.branchId,
+            tenantId: data.tenantId,
             username: data.username,
             password: hashedPassword,
-            fullname: data.fullname || '',
+            fullname: data.fullname,
             email: data.email || null,
             phone: data.phone || null,
             roleId: data.roleId,
             status: data.status || 'active',
-            accessibleShops: data.accessibleShops || null,
-            allowedWorkstations: data.allowedWorkstations || null,
-            maxDiscountPercent: data.maxDiscountPercent || 0,
+            accessibleShops: (data.accessibleShops || null) as unknown as any,
+            allowedWorkstations: (data.allowedWorkstations || null) as unknown as any,
+            maxDiscountPercent: parseFloat((data.maxDiscountPercent || 0).toString()),
             canOverridePrices: data.canOverridePrices || false,
             pinCode: data.pinCode || null,
             currentBranchId: data.currentBranchId || null,
             passwordChangedAt: now,
             forcePasswordChange: data.forcePasswordChange || false,
+            synced: 0,
             createdAt: now,
             updatedAt: now
         };
     }
 
-    static async create(userData: User): Promise<User> {
+    static async exists(userId: string): Promise<boolean> {
         try {
-            return await sealDBModel.insert(USERS_DB, userData);
+            const count = await prisma.user.count({
+                where: { userId }
+            });
+            return count > 0;
+        } catch (error) {
+            console.error('Error checking if user exists:', error);
+            return false;
+        }
+    }
+
+    static async insert(data: User): Promise<User> {
+        try {
+            return await prisma.user.create({
+                data: data as any
+            }) as unknown as User;
+        } catch (error) {
+            throw new Error(`Error inserting user: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+    }
+
+    static async create(userData: UserCreateManyInput): Promise<User> {
+        try {
+            const user = await this.buildUserData(userData);
+            return await prisma.user.create({
+                data: user as any
+            }) as unknown as User;
         } catch (error) {
             throw new Error(`Error creating user: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
@@ -173,17 +222,25 @@ export class UserModel {
 
     static async update(id: string, updateData: Partial<User>): Promise<number> {
         try {
-            const updateDataWithTimestamp = {
+            const updateDataWithTimestamp: any = {
                 ...updateData,
                 updatedAt: new Date()
             };
 
+            delete updateDataWithTimestamp.userId;
+            delete updateDataWithTimestamp.createdAt;
+
             if (updateData.password && updateData.password !== '') {
-                updateDataWithTimestamp.password = await bcrypt.hash(updateData.password, saltRounds);
+                updateDataWithTimestamp.password = await bcrypt.hash(updateData.password, parseInt(process.env.BCRYPT_SALT_ROUNDS));
                 updateDataWithTimestamp.passwordChangedAt = new Date();
             }
 
-            return await sealDBModel.update(USERS_DB, { userId: id }, updateDataWithTimestamp);
+            await prisma.user.update({
+                where: { userId: id },
+                data: updateDataWithTimestamp
+            });
+
+            return 1; // Return 1 to indicate successful update
         } catch (error) {
             throw new Error(`Error updating user: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
@@ -191,9 +248,8 @@ export class UserModel {
 
     static async updateLastLogin(id: string): Promise<number> {
         try {
-            return await sealDBModel.update(USERS_DB, { userId: id }, {
-                lastLogin: new Date(),
-                updatedAt: new Date()
+            return await this.update(id, {
+                lastLogin: new Date()
             });
         } catch (error) {
             throw new Error(`Error updating last login: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -202,32 +258,38 @@ export class UserModel {
 
     static async updateLastLogout(id: string): Promise<number> {
         try {
-            return await sealDBModel.update(USERS_DB, { userId: id }, {
-                lastLogout: new Date(),
-                updatedAt: new Date()
+            return await this.update(id, {
+                lastLogout: new Date()
             });
         } catch (error) {
             throw new Error(`Error updating last logout: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
     }
 
-    static async updateCurrentShop(id: string, currentBranchId: string): Promise<number> {
+    static async updateCurrentBranch(id: string, currentBranchId: string): Promise<number> {
         try {
-            return await sealDBModel.update(USERS_DB, { userId: id }, {
-                currentBranchId: currentBranchId,
-                updatedAt: new Date()
+            return await this.update(id, { currentBranchId });
+        } catch (error) {
+            throw new Error(`Error updating current branch: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+    }
+
+    static async updatePassword(id: string, newPassword: string): Promise<number> {
+        try {
+            const hashedPassword = await bcrypt.hash(newPassword, parseInt(process.env.BCRYPT_SALT_ROUNDS));
+            return await this.update(id, {
+                password: hashedPassword,
+                passwordChangedAt: new Date(),
+                forcePasswordChange: false
             });
         } catch (error) {
-            throw new Error(`Error updating current shop: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            throw new Error(`Error updating password: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
     }
 
     static async forcePasswordChange(id: string, force = true): Promise<number> {
         try {
-            return await sealDBModel.update(USERS_DB, { userId: id }, {
-                forcePasswordChange: force,
-                updatedAt: new Date()
-            });
+            return await this.update(id, { forcePasswordChange: force });
         } catch (error) {
             throw new Error(`Error updating force password change: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
@@ -235,10 +297,7 @@ export class UserModel {
 
     static async updatePinCode(id: string, pinCode: string | null): Promise<number> {
         try {
-            return await sealDBModel.update(USERS_DB, { userId: id }, {
-                pinCode: pinCode,
-                updatedAt: new Date()
-            });
+            return await this.update(id, { pinCode });
         } catch (error) {
             throw new Error(`Error updating PIN code: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
@@ -246,15 +305,21 @@ export class UserModel {
 
     static async delete(id: string): Promise<number> {
         try {
-            return await sealDBModel.delete(USERS_DB, { userId: id });
+            await prisma.user.delete({
+                where: { userId: id }
+            });
+
+            return 1; // Return 1 to indicate successful deletion
         } catch (error) {
             throw new Error(`Error deleting user: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
     }
 
-    static async count(conditions: any = {}): Promise<number> {
+    static async count(conditions: UserQueryParams = {}): Promise<number> {
         try {
-            return await sealDBModel.count(USERS_DB, conditions);
+            return await prisma.user.count({
+                where: conditions
+            });
         } catch (error) {
             throw new Error(`Error counting users: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
@@ -278,7 +343,9 @@ export class UserModel {
     }
 
     static getPublicUser(user: User): PublicUser {
-        const { password: _, ...publicUser } = user;
+        const { ...publicUser } = user;
+
+        delete publicUser.password
         return publicUser;
     }
 }

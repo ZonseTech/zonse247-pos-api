@@ -33,17 +33,12 @@ export interface SyncMetrics {
 }
 
 export interface SyncResult {
-	success: boolean;
 	recordCount: number;
-	errors: string[];
 	timestamp: string;
-}
-
-export interface SyncResult {
-	type: string;
+	type?: string;
 	success: boolean;
-	recordsProcessed: number;
-	recordsInserted: number;
-	recordsUpdated: number;
+	recordsProcessed?: number;
+	recordsInserted?: number;
+	recordsUpdated?: number;
 	errors: string[];
 }

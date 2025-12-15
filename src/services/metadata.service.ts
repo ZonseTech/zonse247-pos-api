@@ -1,4 +1,5 @@
 import axios from 'axios';
+import prisma from '../databases/prisma/client';
 import { RoleModel } from "../models/role.model";
 import { PermissionModel } from "../models/permission.model";
 import { RolePermissionModel } from "../models/role-permission.model";
@@ -249,9 +250,25 @@ export class MetadataService {
 
             for (const data of userData) {
                 try {
-                    const existingRole = await UserModel.findById(data.userId);
+                    // Validate that required relations exist
+                    const tenant = await prisma.tenant.findUnique({ where: { tenantId: data.tenantId } });
+                    if (!tenant) {
+                        throw new Error(`Tenant ${data.tenantId} does not exist. Please create tenant first.`);
+                    }
 
-                    if (existingRole) {
+                    const branch = await prisma.branch.findUnique({ where: { branchId: data.branchId } });
+                    if (!branch) {
+                        throw new Error(`Branch ${data.branchId} does not exist. Please create branch first.`);
+                    }
+
+                    const role = await prisma.role.findUnique({ where: { roleId: data.roleId } });
+                    if (!role) {
+                        throw new Error(`Role ${data.roleId} does not exist. Please sync roles first.`);
+                    }
+
+                    const existingUser = await UserModel.findById(data.userId);
+
+                    if (existingUser) {
                         await UserModel.update(data.userId, {
                             ...data,
                             updatedAt: new Date()
@@ -362,13 +379,13 @@ export class MetadataService {
                     const existingRole = await CategoryModel.findById(data.categoryId);
 
                     if (existingRole) {
-                        await CustomerModel.update(data.categoryId, {
+                        await CategoryModel.update(data.categoryId, {
                             ...data,
                             updatedAt: new Date()
                         });
                         result.recordsUpdated++;
                     } else {
-                        await CustomerModel.create({
+                        await CategoryModel.create({
                             ...data,
                             createdAt: new Date(),
                             updatedAt: new Date()

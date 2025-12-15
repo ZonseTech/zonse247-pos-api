@@ -1,28 +1,26 @@
 import { ValidationParams } from 'on-boarding';
-import { mysqlPool } from '../config/db';
-import { sealDBModel } from '../databases/local';
-import { CUSTOMERS_DB } from '../databases/local/tables';
 import { Role } from 'role-permission';
 import { Customer } from 'customer';
+import prisma from '../databases/prisma/client';
 
 export class CustomerModel {
-    private static tableName = CUSTOMERS_DB;
-
-    static async findAllByRDBMS(conditions: ValidationParams): Promise<Role[]> {
+    static async findAllByRDBMS(__: ValidationParams): Promise<Role[]> {
         try {
-            const connection = await mysqlPool.getConnection();
-            const [rows] = await connection.execute(`SELECT * FROM ${CUSTOMERS_DB} WHERE tenant_id=${conditions.tenantId}`);
-            const records = rows as any[];
-
-            return records
+            return await prisma.customer.findMany({
+                where: {},
+            }) as unknown as Array<Role>;
         } catch (error) {
-            throw new Error(`Error finding roles: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            throw new Error(
+                `Error finding roles: ${error instanceof Error ? error.message : 'Unknown error'}`
+            );
         }
     }
 
-    static async findById(id: string): Promise<Customer | null> {
+    static async findById(customerId: string): Promise<Customer | null> {
         try {
-            return await sealDBModel.findById<Customer>(this.tableName, id);
+            return await prisma.customer.findUnique({
+                where: { customerId },
+            });
         } catch (error) {
             console.error('CustomerModel.findById error:', error);
             throw error;
@@ -31,7 +29,7 @@ export class CustomerModel {
 
     static async findAll(): Promise<Customer[]> {
         try {
-            return await sealDBModel.findAll(this.tableName);
+            return await prisma.customer.findMany();
         } catch (error) {
             console.error('CustomerModel.findAll error:', error);
             throw error;
@@ -40,34 +38,45 @@ export class CustomerModel {
 
     static async find(conditions: any = {}): Promise<Customer[]> {
         try {
-            return await sealDBModel.find<Customer[]>(this.tableName, conditions);
+            return await prisma.customer.findMany({
+                where: conditions,
+            });
         } catch (error) {
             console.error('CustomerModel.find error:', error);
             throw error;
         }
     }
 
-    static async create(customerData: Omit<Customer, 'uuid' | 'createdAt' | 'updatedAt'>): Promise<Customer> {
+    static async create(
+        customerData: Omit<Customer, 'id' | 'createdAt' | 'updatedAt'>
+    ): Promise<Customer> {
         try {
-            return await sealDBModel.insert(this.tableName, customerData);
+            return await prisma.customer.create({
+                data: customerData,
+            });
         } catch (error) {
             console.error('CustomerModel.create error:', error);
             throw error;
         }
     }
 
-    static async update(id: string, updateData: Partial<Customer>): Promise<number> {
+    static async update(customerId: string, updateData: Partial<Customer>): Promise<Customer> {
         try {
-            return await sealDBModel.update(this.tableName, id, updateData);
+            return await prisma.customer.update({
+                where: { customerId },
+                data: updateData,
+            });
         } catch (error) {
             console.error('CustomerModel.update error:', error);
             throw error;
         }
     }
 
-    static async delete(id: string): Promise<number> {
+    static async delete(customerId: string): Promise<Customer> {
         try {
-            return await sealDBModel.delete(this.tableName, id);
+            return await prisma.customer.delete({
+                where: { customerId },
+            });
         } catch (error) {
             console.error('CustomerModel.delete error:', error);
             throw error;
@@ -76,7 +85,9 @@ export class CustomerModel {
 
     static async count(conditions: any = {}): Promise<number> {
         try {
-            return await sealDBModel.count(this.tableName, conditions);
+            return await prisma.customer.count({
+                where: conditions,
+            });
         } catch (error) {
             console.error('CustomerModel.count error:', error);
             throw error;
@@ -85,16 +96,21 @@ export class CustomerModel {
 
     static async getUnsyncedRecords(): Promise<Customer[]> {
         try {
-            return await sealDBModel.getUnsyncedRecords(this.tableName);
+            return await prisma.customer.findMany({
+                where: { synced: 0 },
+            });
         } catch (error) {
             console.error('CustomerModel.getUnsyncedRecords error:', error);
             throw error;
         }
     }
 
-    static async markAsSynced(id: string): Promise<number> {
+    static async markAsSynced(customerId: string): Promise<Customer> {
         try {
-            return await sealDBModel.markAsSynced(this.tableName, id);
+            return await prisma.customer.update({
+                where: { customerId },
+                data: { synced: 1 },
+            });
         } catch (error) {
             console.error('CustomerModel.markAsSynced error:', error);
             throw error;

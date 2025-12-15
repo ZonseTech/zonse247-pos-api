@@ -2,7 +2,6 @@ import { Request, Response } from "express";
 import { BaseController } from "./base.controller";
 import { TenantService } from "../services/tenant.service";
 import { BranchService } from "../services/branch.service";
-import { SecureSettingsService } from "../services/secure-settings.service";
 import { ApiResponse } from "network";
 import { MsonkhoOnlineStatus, Tenant, TenantFormValues, VerifyTenantRequest } from "tenant";
 
@@ -123,15 +122,31 @@ export class TenantController extends BaseController {
 
     static async verify(req: Request<ApiResponse<Omit<Tenant, 'verificationToken'>>, VerifyTenantRequest>, res: Response): Promise<void> {
         try {
-            const { verificationToken } = req.body;
+            const { verificationToken: encryptedVerificationToken } = req.body;
 
-            if (!verificationToken) {
+            if (!encryptedVerificationToken) {
                 return BaseController.sendResponse(res, 400, false, 'Verification token is required');
             }
 
-            const { tenantId } = await SecureSettingsService.decryptTenantId(verificationToken)
+            const safeTenantData = await TenantService.verifyTenant(encryptedVerificationToken);
+            return BaseController.sendResponse(res, 200, true, 'Tenant verified successfully', safeTenantData);
+        } catch (error: any) {
+            console.error('Error verifying tenant:', error);
 
-            const safeTenantData = await TenantService.verifyTenant(tenantId);
+            const statusCode = error.message.includes('Invalid credentials') ? 401 : 500;
+            return BaseController.sendResponse(res, statusCode, false, error.message, undefined, error.message);
+        }
+    }
+
+    static async verifyTenantAccount(req: Request<ApiResponse<Omit<Tenant, 'verificationToken'>>, VerifyTenantRequest>, res: Response): Promise<void> {
+        try {
+            const { verificationToken: encryptedVerificationToken } = req.body;
+
+            if (!encryptedVerificationToken) {
+                return BaseController.sendResponse(res, 400, false, 'Verification token is required');
+            }
+
+            const safeTenantData = await TenantService.verifyTenantAccount(encryptedVerificationToken);
             return BaseController.sendResponse(res, 200, true, 'Tenant verified successfully', safeTenantData);
         } catch (error: any) {
             console.error('Error verifying tenant:', error);
@@ -150,6 +165,22 @@ export class TenantController extends BaseController {
             }
 
             const branches = await BranchService.getBranchesByTenantId(tenantId);
+            return BaseController.sendResponse(res, 200, true, 'Tenant branches retrieved successfully', branches);
+        } catch (error: any) {
+            console.error('Error fetching tenant branches:', error);
+            return BaseController.sendResponse(res, 500, false, error.message, undefined, error.message);
+        }
+    }
+
+    static async getTenantAccountBranches(req: Request<{ tenantId: string }>, res: Response): Promise<void> {
+        try {
+            const { tenantId } = req.params;
+
+            if (!tenantId) {
+                return BaseController.sendResponse(res, 400, false, 'Tenant ID is required');
+            }
+
+            const branches = await BranchService.getAccountBranchesByTenantId(tenantId);
             return BaseController.sendResponse(res, 200, true, 'Tenant branches retrieved successfully', branches);
         } catch (error: any) {
             console.error('Error fetching tenant branches:', error);

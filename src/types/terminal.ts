@@ -1,3 +1,5 @@
+import { TerminalActivationStatus } from "../databases/prisma/generated/prisma/enums";
+
 export interface Terminal {
     terminalId: string;
     tenantId: string;
@@ -34,26 +36,8 @@ export interface Terminal {
     updatedAt?: Date;
 }
 
-export interface Workstation {
-    uuid: string;
-    shopCode: string;
-    clientUuid: string;
-    tillName: string;
-    tillNumber: string;
-    deviceId: string;
-    deviceType: 'desktop' | 'tablet' | 'mobile';
-    ipAddress: string;
-    isPrimary: boolean;
-    status: 'active' | 'inactive' | 'maintenance';
-    registeredAt?: string;
-    lastActivity?: string;
-    lastSync?: string | null;
-    createdAt?: string;
-    updatedAt?: string;
-    synced?: number;
-}
-
 export interface CreateTerminalRequest {
+    terminalId?: string;
     tenantId: string;
     branchId: string;
     terminalCode: string;
@@ -65,4 +49,14 @@ export interface CreateTerminalRequest {
     osBuild?: string;
     macAddress?: string;
     isPrimary?: boolean;
+}
+
+export interface TerminalQueryParams {
+    tenantId?: string;
+    branchId?: string;
+    terminalCode?: string;
+    isPrimary?: boolean;
+    activationStatus?: TerminalActivationStatus;
+    isBlocked?: boolean;
+    synced?: number;
 }

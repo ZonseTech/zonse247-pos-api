@@ -39,7 +39,7 @@ export class PaymentServiceProviderController extends BaseController {
                 branchId: user.branchId
             };
 
-            const psps = await PaymentServiceProviderService.getAllPaymentServiceProviders(filters);
+            const psps = await PaymentServiceProviderService.selectAll(filters);
             PaymentServiceProviderController.sendSuccess(res, 'Payment service providers retrieved successfully', psps);
         } catch (error) {
             console.error('Error in getAllPaymentServiceProviders:', error);
@@ -233,33 +233,13 @@ export class PaymentServiceProviderController extends BaseController {
                 branchId: user.branchId
             };
 
-            const psps = await PaymentServiceProviderService.searchPaymentServiceProvidersByName(name, filters);
+            const psps = await PaymentServiceProviderService.getPaymentServiceProviderById(name, filters);
             PaymentServiceProviderController.sendSuccess(res, 'Payment service providers search completed', psps);
         } catch (error) {
             console.error('Error in searchPaymentServiceProviders:', error);
             PaymentServiceProviderController.sendServerError(
                 res,
                 'Failed to search payment service providers',
-                error instanceof Error ? error.message : 'Unknown error'
-            );
-        }
-    }
-
-    static async getUnsyncedPaymentServiceProviders(req: Request & AuthRequest, res: Response): Promise<void> {
-        try {
-            const user = req.auth;
-            if (!user) {
-                PaymentServiceProviderController.sendUnauthorized(res);
-                return;
-            }
-
-            const psps = await PaymentServiceProviderService.getUnsyncedPaymentServiceProviders(user.tenantId);
-            PaymentServiceProviderController.sendSuccess(res, 'Unsynced payment service providers retrieved successfully', psps);
-        } catch (error) {
-            console.error('Error in getUnsyncedPaymentServiceProviders:', error);
-            PaymentServiceProviderController.sendServerError(
-                res,
-                'Failed to retrieve unsynced payment service providers',
                 error instanceof Error ? error.message : 'Unknown error'
             );
         }

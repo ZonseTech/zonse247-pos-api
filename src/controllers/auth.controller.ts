@@ -52,6 +52,42 @@ export class AuthController extends BaseController {
     }
 
     /**
+     * User Login
+     * Authenticates user credentials and returns JWT token
+     * @static
+     * @param req - Express request with username and password in body
+     * @param res - Express response
+     * @returns Promise<void>
+     */
+    static async initiateLoginAccount(
+        req: Request<ApiResponse<{ user: PublicUser; token: string }>, { username: string; password: string }>,
+        res: Response
+    ): Promise<void> {
+        try {
+            const { username, password } = req.body;
+
+            if (!username || !password) {
+                BaseController.sendResponse(res, 400, false, 'Username and password are required');
+                return;
+            }
+
+            const result = await AuthService.initiateLoginAccount(username, password);
+
+            if (result.message) {
+                BaseController.sendResponse(res, 401, false, result.message);
+            } else {
+                BaseController.sendResponse(res, 200, true, 'Login successful', {
+                    user: result.user,
+                    token: result.token
+                });
+            }
+        } catch (error: any) {
+            console.error('Error during login:', error);
+            BaseController.sendResponse(res, 500, false, 'An unexpected error occurred during login', undefined, error.message);
+        }
+    }
+
+    /**
      * User Logout
      * Logs out a specific user by invalidating their session/token
      * @static

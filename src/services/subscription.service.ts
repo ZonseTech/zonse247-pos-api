@@ -4,6 +4,8 @@ import { SubscriptionModel } from '../models/subscription.model';
 import { SubscriptionPlanService } from './subscription-plan.service';
 import type { Role } from 'role-permission';
 import type { CreateSubscriptionRequest, TenantSubscription } from 'subscription';
+import { EnumTenantSubscriptionStatusNullableFilter } from 'src/databases/prisma/generated/prisma/commonInputTypes';
+import { TenantSubscriptionCreateInput } from '../databases/prisma/generated/prisma/models';
 
 export class SubscriptionService {
 
@@ -69,7 +71,7 @@ export class SubscriptionService {
 			})
 		}
 
-		const subscriptionData = SubscriptionModel.buildSubscriptionData(data);
+		const subscriptionData = SubscriptionModel.buildSubscriptionData(data) as unknown as TenantSubscriptionCreateInput;
 		const newSubscription = await SubscriptionModel.create(subscriptionData);
 
 		const now = new Date();
@@ -106,13 +108,13 @@ export class SubscriptionService {
 	}
 
 	static async getByStatus(status: string): Promise<TenantSubscription[]> {
-		return SubscriptionModel.findByStatus(status);
+		return SubscriptionModel.findByStatus(status as EnumTenantSubscriptionStatusNullableFilter);
 	}
 
-	static async getByClientUuid(
-		clientUuid: string
+	static async getBytenantId(
+		tenantId: string
 	): Promise<TenantSubscription[]> {
-		return SubscriptionModel.findByTenantId(clientUuid);
+		return SubscriptionModel.findByTenantId(tenantId);
 	}
 
 	static async getByPlanId(planId: string): Promise<TenantSubscription[]> {

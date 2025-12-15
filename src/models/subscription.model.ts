@@ -1,95 +1,172 @@
 import { v4 as uuidv4 } from 'uuid';
-import { sealDBModel } from '../databases/local';
-import { TENANT_SUBSCRIPTIONS_TABLE } from '../databases/local/tables';
-import { mysqlPool } from '../config/db';
 import { ValidationParams } from 'on-boarding';
 import type { Role } from 'role-permission';
 import { CreateSubscriptionRequest, TenantSubscription } from 'subscription';
+import prisma from '../databases/prisma/client';
+import { EnumTenantSubscriptionStatusNullableFilter } from 'src/databases/prisma/generated/prisma/commonInputTypes';
+import { TenantSubscriptionCreateInput } from 'src/databases/prisma/generated/prisma/models';
 
 export class SubscriptionModel {
 	static async findAllByRDBMS(conditions: ValidationParams): Promise<Role[]> {
 		try {
-			const connection = await mysqlPool.getConnection();
-			const [rows] = await connection.execute(`SELECT * FROM ${TENANT_SUBSCRIPTIONS_TABLE} WHERE tenant_id=${conditions.tenantId}`);
-			const records = rows as any[];
-
-			return records
+			return await prisma.tenantSubscription.findMany({
+				where: {
+					tenantId: conditions.tenantId,
+				},
+			}) as unknown as Role[];
 		} catch (error) {
-			throw new Error(`Error finding roles: ${error instanceof Error ? error.message : 'Unknown error'}`);
+			throw new Error(
+				`Error finding roles: ${error instanceof Error ? error.message : 'Unknown error'}`
+			);
 		}
 	}
 
 	static async findAll(): Promise<TenantSubscription[]> {
-		return sealDBModel.findAll(TENANT_SUBSCRIPTIONS_TABLE);
+		try {
+			return await prisma.tenantSubscription.findMany() as unknown as TenantSubscription[];
+		} catch (error) {
+			throw new Error(
+				`Error finding subscriptions: ${error instanceof Error ? error.message : 'Unknown error'}`
+			);
+		}
 	}
 
-	static async findById(subscriptionId: string): Promise<TenantSubscription | null> {
-		return sealDBModel.findById(TENANT_SUBSCRIPTIONS_TABLE, { subscriptionId });
+	static async findById(tenantSubscriptionId: string): Promise<TenantSubscription | null> {
+		try {
+			return await prisma.tenantSubscription.findUnique({
+				where: { tenantSubscriptionId }
+			}) as unknown as TenantSubscription | null;
+		} catch (error) {
+			throw new Error(
+				`Error finding subscription by ID: ${error instanceof Error ? error.message : 'Unknown error'}`
+			);
+		}
 	}
 
-	static async findByStatus(status: string): Promise<TenantSubscription[]> {
-		return sealDBModel.find(TENANT_SUBSCRIPTIONS_TABLE, { status });
+	static async findByStatus(status: EnumTenantSubscriptionStatusNullableFilter): Promise<TenantSubscription[]> {
+		try {
+			return await prisma.tenantSubscription.findMany({
+				where: { status }
+			}) as unknown as TenantSubscription[];
+		} catch (error) {
+			throw new Error(
+				`Error finding subscriptions by status: ${error instanceof Error ? error.message : 'Unknown error'}`
+			);
+		}
 	}
 
-	static async findByPlanId(planId: string): Promise<TenantSubscription[]> {
-		return sealDBModel.find(TENANT_SUBSCRIPTIONS_TABLE, { planId });
+	static async findByPlanId(subscriptionPlanId: string): Promise<TenantSubscription[]> {
+		try {
+			return await prisma.tenantSubscription.findMany({
+				where: { subscriptionPlanId }
+			}) as unknown as TenantSubscription[];
+		} catch (error) {
+			throw new Error(
+				`Error finding subscriptions by plan ID: ${error instanceof Error ? error.message : 'Unknown error'}`
+			);
+		}
 	}
 
 	static async findByTenantId(tenantId: string): Promise<TenantSubscription[]> {
-		return sealDBModel.find(TENANT_SUBSCRIPTIONS_TABLE, { tenantId });
+		try {
+			return await prisma.tenantSubscription.findMany({
+				where: { tenantId }
+			}) as unknown as TenantSubscription[];
+		} catch (error) {
+			throw new Error(
+				`Error finding subscriptions by tenant ID: ${error instanceof Error ? error.message : 'Unknown error'}`
+			);
+		}
 	}
 
 	static async findActiveByTenantId(tenantId: string): Promise<TenantSubscription | null> {
-		const subscriptions = await sealDBModel.find(TENANT_SUBSCRIPTIONS_TABLE, {
-			tenantId,
-			status: 'active'
-		});
-		return subscriptions.length > 0 ? subscriptions[0] : null;
+		try {
+			return await prisma.tenantSubscription.findFirst({
+				where: {
+					tenantId,
+					status: 'active'
+				}
+			}) as unknown as TenantSubscription | null;
+		} catch (error) {
+			throw new Error(
+				`Error finding active subscription by tenant ID: ${error instanceof Error ? error.message : 'Unknown error'}`
+			);
+		}
 	}
 
-	static async create(subscriptionData: Omit<TenantSubscription, 'id'>): Promise<TenantSubscription> {
-		const subscriptionWithId = {
-			...subscriptionData,
-			createdAt: new Date(),
-			updatedAt: new Date(),
-		};
-
-		return sealDBModel.insert(TENANT_SUBSCRIPTIONS_TABLE, subscriptionWithId);
+	static async create(subscriptionData: TenantSubscriptionCreateInput): Promise<TenantSubscription> {
+		try {
+			return await prisma.tenantSubscription.create({
+				data: subscriptionData
+			}) as unknown as TenantSubscription;
+		} catch (error) {
+			throw new Error(
+				`Error creating subscription: ${error instanceof Error ? error.message : 'Unknown error'}`
+			);
+		}
 	}
 
-	static async update(subscriptionId: string, data: Partial<TenantSubscription>): Promise<number> {
-		const updateData = {
-			...data,
-			updated_at: new Date(),
-		};
-
-		return sealDBModel.update(TENANT_SUBSCRIPTIONS_TABLE, { subscriptionId }, updateData);
+	static async update(tenantSubscriptionId: string, data: Partial<TenantSubscription>): Promise<number> {
+		try {
+			await prisma.tenantSubscription.update({
+				where: { tenantSubscriptionId },
+				data: {
+					...data,
+					updatedAt: new Date()
+				}
+			});
+			return 1; // Return 1 to indicate successful update
+		} catch (error) {
+			throw new Error(
+				`Error updating subscription: ${error instanceof Error ? error.message : 'Unknown error'}`
+			);
+		}
 	}
 
 	static async delete(uuid: string): Promise<number> {
-		return sealDBModel.delete(TENANT_SUBSCRIPTIONS_TABLE, uuid);
+		try {
+			await prisma.tenantSubscription.delete({
+				where: { tenantSubscriptionId: uuid }
+			});
+			return 1; // Return 1 to indicate successful deletion
+		} catch (error) {
+			throw new Error(
+				`Error deleting subscription: ${error instanceof Error ? error.message : 'Unknown error'}`
+			);
+		}
 	}
 
 	static async count(conditions: any = {}): Promise<number> {
 		try {
-			return await sealDBModel.count(TENANT_SUBSCRIPTIONS_TABLE, conditions);
+			return await prisma.tenantSubscription.count({
+				where: conditions
+			});
 		} catch (error) {
-			console.error('Error counting payment methods:', error);
+			console.error('Error counting subscriptions:', error);
 			throw error;
 		}
 	}
 
 	static async findExpiring(days: number): Promise<TenantSubscription[]> {
-		const allSubscriptions = await this.findAll();
-		const expirationDate = new Date();
-		expirationDate.setDate(expirationDate.getDate() + days);
+		try {
+			const expirationDate = new Date();
+			expirationDate.setDate(expirationDate.getDate() + days);
+			const now = new Date();
 
-		return allSubscriptions.filter((subscription) => {
-			if (!subscription.endsAt || subscription.status !== 'active') return false;
-
-			const endDate = new Date(subscription.endsAt);
-			return endDate <= expirationDate && endDate > new Date();
-		});
+			return await prisma.tenantSubscription.findMany({
+				where: {
+					status: 'active',
+					endsAt: {
+						lte: expirationDate,
+						gt: now
+					}
+				}
+			}) as unknown as TenantSubscription[];
+		} catch (error) {
+			throw new Error(
+				`Error finding expiring subscriptions: ${error instanceof Error ? error.message : 'Unknown error'}`
+			);
+		}
 	}
 
 	static async getStats(): Promise<{
@@ -101,41 +178,49 @@ export class SubscriptionModel {
 		monthlyRevenue: number;
 		annualRevenue: number;
 	}> {
-		const now = new Date();
-		const allSubscriptions = await this.findAll();
+		try {
+			const now = new Date();
 
-		const stats = {
-			total: allSubscriptions.length,
-			active: 0,
-			cancelled: 0,
-			expired: 0,
-			pastDue: 0,
-			monthlyRevenue: 0,
-			annualRevenue: 0,
-		};
-
-		for (const subscription of allSubscriptions) {
-			switch (subscription.status) {
-				case 'active':
-					if (subscription.endsAt && new Date(subscription.endsAt) < now) {
-						stats.expired++;
-					} else {
-						stats.active++;
+			const [total, active, cancelled, expired, pastDue] = await Promise.all([
+				prisma.tenantSubscription.count(),
+				prisma.tenantSubscription.count({
+					where: {
+						status: 'active',
+						OR: [
+							{ endsAt: null },
+							{ endsAt: { gte: now } }
+						]
 					}
-					break;
-				case 'cancelled':
-					stats.cancelled++;
-					break;
-				case 'expired':
-					stats.expired++;
-					break;
-				case 'past_due':
-					stats.pastDue++;
-					break;
-			}
-		}
+				}),
+				prisma.tenantSubscription.count({ where: { status: 'cancelled' } }),
+				prisma.tenantSubscription.count({
+					where: {
+						OR: [
+							{ status: 'expired' },
+							{
+								status: 'active',
+								endsAt: { lt: now }
+							}
+						]
+					}
+				}),
+				prisma.tenantSubscription.count({ where: { status: 'past_due' } })
+			]);
 
-		return stats;
+			return {
+				total,
+				active,
+				cancelled,
+				expired,
+				pastDue,
+				monthlyRevenue: 0,
+				annualRevenue: 0,
+			};
+		} catch (error) {
+			throw new Error(
+				`Error getting subscription stats: ${error instanceof Error ? error.message : 'Unknown error'}`
+			);
+		}
 	}
 
 	static buildSubscriptionData(
@@ -167,28 +252,25 @@ export class SubscriptionModel {
 		};
 	}
 
-	static async getSubscriptionsCountByPlan(): Promise<{ [planId: string]: number }> {
-		const allSubscriptions = await this.findAll();
-		const countByPlan: { [planId: string]: number } = {};
-
-		for (const subscription of allSubscriptions) {
-			countByPlan[subscription.planId] = (countByPlan[subscription.planId] || 0) + 1;
-		}
-
-		return countByPlan;
-	}
-
 	static async findRenewableSubscriptions(): Promise<TenantSubscription[]> {
-		const allSubscriptions = await this.findAll();
-		const now = new Date();
-		const renewalWindow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000); // 7 days from now
+		try {
+			const now = new Date();
+			const renewalWindow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000); // 7 days from now
 
-		return allSubscriptions.filter(subscription =>
-			subscription.autoRenew &&
-			subscription.status === 'active' &&
-			subscription.endsAt &&
-			new Date(subscription.endsAt) <= renewalWindow &&
-			new Date(subscription.endsAt) > now
-		);
+			return await prisma.tenantSubscription.findMany({
+				where: {
+					autoRenew: true,
+					status: 'active',
+					endsAt: {
+						lte: renewalWindow,
+						gt: now
+					}
+				}
+			}) as unknown as TenantSubscription[];
+		} catch (error) {
+			throw new Error(
+				`Error finding renewable subscriptions: ${error instanceof Error ? error.message : 'Unknown error'}`
+			);
+		}
 	}
 }

@@ -3,6 +3,7 @@ import { BranchModel } from "../models/branch.model";
 import { TenantModel } from "../models/tenant.model";
 import { SubscriptionModel } from "../models/subscription.model";
 import { Branch, BranchStatus, CreateBranchRequest } from "branch";
+import { BaseService } from "./base.service";
 
 export class BranchService {
 
@@ -57,8 +58,32 @@ export class BranchService {
 			throw new Error('Tenant ID is required');
 		}
 
-		const branches = await BranchModel.findByTenantId(tenantId);
+		const response = await BaseService.get<Array<Branch>>(`/on-boarding/live/tenant/${tenantId}/branches`);
+
+		if (!response.success) {
+			throw new Error(response.message || 'Failed to fetch branches. External application down');
+		}
+
+		const branches = response.data;
+
+		if (branches && branches.length > 0) {
+			for (const branch of branches) {
+				const branchExists = await BranchModel.exists(branch.branchId, tenantId);
+				if (!branchExists) {
+					await BranchModel.insert(branch);
+				}
+			}
+		}
+
 		return branches;
+	}
+
+	static async getAccountBranchesByTenantId(tenantId: string): Promise<Branch[]> {
+		if (!tenantId) {
+			throw new Error('Tenant ID is required');
+		}
+
+		return await BranchModel.findByTenantId(tenantId);
 	}
 
 	static async getBranchById(branchId: string): Promise<Branch> {
@@ -132,8 +157,8 @@ export class BranchService {
 			}
 		}
 
-		const numUpdated = await BranchModel.update(branchId, updateData);
-		if (numUpdated === 0) {
+		const isUpdated = await BranchModel.update(branchId, updateData);
+		if (isUpdated) {
 			throw new Error('Failed to update branch');
 		}
 
@@ -155,8 +180,8 @@ export class BranchService {
 			throw new Error('Branch not found');
 		}
 
-		const numDeleted = await BranchModel.delete(branchId);
-		if (numDeleted === 0) {
+		const isDeleted = await BranchModel.delete(branchId);
+		if (isDeleted) {
 			throw new Error('Failed to delete branch');
 		}
 

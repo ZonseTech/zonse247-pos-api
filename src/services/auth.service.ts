@@ -1,7 +1,10 @@
 import jwt from 'jsonwebtoken';
 import validator from 'validator';
-import { UserModel } from '../models/user.model';
+import type { User } from 'users';
 import { UserService } from './user.service';
+import { BaseService } from './base.service';
+import { UserModel } from '../models/user.model';
+import { UserStatus } from '../databases/prisma/generated/prisma/enums';
 
 /**
  * Service layer for authentication and authorization operations
@@ -40,32 +43,97 @@ export class AuthService {
      */
     static async loginUser(
         username: string,
-        password: string
+        password: string,
     ): Promise<{ user?: any; token?: string; message?: string }> {
-        const user = await UserModel.findByUsername(validator.escape(username));
+        const escapedUsername = validator.escape(username);
 
-        if (!user) {
-            return { message: 'Incorrect username or password.' };
+        const user = await UserModel.findByUsername(escapedUsername);
+
+        if (user) {
+            if (user.status !== UserStatus.active) {
+                return { message: 'Account is not active. Please contact support.' };
+            }
+
+            const isPasswordValid = await UserModel.validatePassword(password, user.password);
+
+            if (!isPasswordValid) {
+                return { message: 'Incorrect username or password.' };
+            }
+
+            await UserModel.updateLastLogin(user.userId);
+
+            const roleData = await UserService.getRoleWithPermissions(user.roleId);
+            const completeUser = UserService.getPublicUser(user, roleData || {});
+            const token = this.generateJWTToken(completeUser);
+
+            return { user: completeUser, token };
         }
 
-        if (user.status !== 'active') {
-            return { message: 'Account is not active. Please contact support.' };
+        const response = await BaseService.post<{ user: User; token: string }>('/auth/live/login', {
+            username: escapedUsername,
+            password,
+        });
+
+        if (!response.success) {
+            return { message: response.message || 'Incorrect username or password.' };
         }
 
-        const isPasswordValid = await UserModel.validatePassword(password, user.password);
-        if (!isPasswordValid) {
-            return { message: 'Incorrect username or password.' };
+        const { user: remoteUser, token: remoteToken } = response.data;
+
+        if (remoteUser) {
+            remoteUser.password = password;
+            await UserModel.create(remoteUser);
         }
 
-        await UserModel.updateLastLogin(user.userId);
+        return { user: remoteUser, token: remoteToken };
+    }
 
-        const roleData = await UserService.getRoleWithPermissions(user.roleId);
+    /**
+     * Authenticates user credentials and generates JWT token
+     * 
+     * @param username - User's username (automatically sanitized)
+     * @param password - User's plain text password
+     * @returns Object containing user data with token, or error message
+     * 
+     * @throws {Error} When database operations fail
+     * 
+     * @example
+     * ```typescript
+     * const result = await AuthService.loginUser('john_doe', 'password123');
+     * if (result.token) {
+     *   // Login successful
+     * }
+     * ```
+     */
+    static async initiateLoginAccount(
+        username: string,
+        password: string,
+    ): Promise<{ user?: any; token?: string; message?: string }> {
+        const escapedUsername = validator.escape(username);
 
-        const completeUser = UserService.getPublicUser(user, roleData || {});
+        const user = await UserModel.findByUsername(escapedUsername);
 
-        const token = this.generateJWTToken(completeUser);
+        if (user) {
+            if (user.status !== 'active') {
+                return { message: 'Account is not active. Please contact support.' };
+            }
 
-        return { user: completeUser, token };
+            const isPasswordValid = await UserModel.validatePassword(password, user.password);
+
+            if (!isPasswordValid) {
+                return { message: 'Incorrect username or password.' };
+            }
+
+            await UserModel.updateLastLogin(user.userId);
+
+            const roleData = await UserService.getRoleWithPermissions(user.roleId);
+            const completeUser = UserService.getPublicUser(user, roleData || {});
+            const token = this.generateJWTToken(completeUser);
+
+            return { user: completeUser, token };
+        }
+
+        return { message: 'Incorrect username or password.' };
     }
 
     /**

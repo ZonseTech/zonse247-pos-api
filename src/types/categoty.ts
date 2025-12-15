@@ -4,6 +4,7 @@ export type Category = {
     description?: string;
     tenantId: string;
     branchId: string;
+    terminalId: string;
     userId: string;
     createdAt?: Date;
     updatedAt?: Date;
