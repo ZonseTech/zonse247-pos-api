@@ -3,7 +3,6 @@ import { PrismaClient } from "../generated/prisma/client";
 export async function seedTenant(prisma: PrismaClient) {
     console.log('📝 Seeding tenant...');
 
-    // Get the offline plan (should be seeded before this)
     const offlinePlan = await prisma.subscriptionPlan.findFirst({
         where: { planCode: 'OFFLINE' }
     });
@@ -35,7 +34,6 @@ export async function seedTenant(prisma: PrismaClient) {
         },
     });
 
-    // Create tenant subscription
     const existingSubscription = await prisma.tenantSubscription.findFirst({
         where: {
             tenantId: '-1',
