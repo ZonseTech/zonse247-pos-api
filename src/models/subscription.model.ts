@@ -248,7 +248,7 @@ export class SubscriptionModel {
 			lastPaymentDate: now.toISOString(),
 			nextPaymentDate: nextPaymentDate.toISOString() || undefined,
 			maxBranches: 1,
-			subscriptionId: uuidv4(),
+			subscriptionPlanId: uuidv4(),
 		};
 	}
 

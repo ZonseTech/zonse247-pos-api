@@ -53,7 +53,7 @@ export class SubscriptionPlanModel {
 		try {
 			const planWithId = {
 				...planData,
-				subscriptionPlanId: uuidv4()
+				subscriptionPlanId: planData.subscriptionPlanId || uuidv4()
 			};
 
 			return await prisma.subscriptionPlan.create({

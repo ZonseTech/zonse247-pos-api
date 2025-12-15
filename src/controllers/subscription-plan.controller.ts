@@ -10,7 +10,6 @@ export class SubscriptionPlanController extends BaseController {
             const plans = await SubscriptionPlanService.selectAll(params);
             BaseController.sendResponse(res, 200, true, 'Subscription plans retrieved successfully', plans);
         } catch (error: any) {
-            console.error('Error fetching roles:', error);
             BaseController.sendResponse(res, 500, false, error.message, undefined, error.message);
         }
     }
