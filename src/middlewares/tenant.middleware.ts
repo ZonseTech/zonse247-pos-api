@@ -30,7 +30,7 @@ export class TenantMiddleware {
                 return;
             }
 
-            const tenant: Omit<Tenant, 'verificationToken' | 'authKey'> = await TenantService.getTenantById(
+            const tenant: Omit<Tenant, 'verificationToken'> = await TenantService.getTenantById(
                 verification.tenantId
             );
 
@@ -123,7 +123,7 @@ export class TenantMiddleware {
         }
     };
 
-    private checkSubscriptionStatus(tenant: Omit<Tenant, 'verificationToken' | 'authKey'>): {
+    private checkSubscriptionStatus(tenant: Omit<Tenant, 'verificationToken'>): {
         isValid: boolean;
         message: string;
         daysRemaining: number | null;
