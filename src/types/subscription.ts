@@ -17,6 +17,7 @@ export interface PlanFeatureCategory {
 
 export interface TenantSubscription {
 	subscriptionPlanId: string;
+	tenantSubscriptionId: string;
 	tenantId: string;
 	tenantDetails?: {
 		tenantCode: string;
