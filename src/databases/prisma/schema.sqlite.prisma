@@ -211,6 +211,7 @@ model Inventory {
   dimensions                             String?           @map("dimensions")
   color                                  String?           @map("color")
   size                                   String?           @map("size")
+  properties                             Json?             @map("properties")
   status                                 InventoryStatus?  @default(active) @map("status")
   trackInventory                         Boolean?          @default(true) @map("track_inventory")
   allowNegativeStock                     Boolean?          @default(false) @map("allow_negative_stock")
