@@ -15,48 +15,48 @@ export class InventoryController extends BaseController {
     static async getSummary(req: Request & AuthRequest, res: Response): Promise<void> {
         try {
             const auth = InventoryController.getAuthContext(req);
-            const summary = await InventoryService.getProductsSummary(auth);
-            BaseController.sendSuccess(res, 'Products summary retrieved successfully.', summary);
+            const summary = await InventoryService.getInventorySummary(auth);
+            BaseController.sendSuccess(res, 'Inventory summary retrieved successfully.', summary);
         } catch (error) {
-            console.error('Error fetching products summary:', error);
-            BaseController.sendServerError(res, 'Failed to fetch products summary.');
+            console.error('Error fetching inventory summary:', error);
+            BaseController.sendServerError(res, 'Failed to fetch inventory summary.');
         }
     }
 
-    static async getProduct(req: Request & AuthRequest, res: Response): Promise<void> {
+    static async getInventoryItem(req: Request & AuthRequest, res: Response): Promise<void> {
         try {
-            if (!req.params.productUuid) {
-                BaseController.sendBadRequest(res, 'Product ID is required.');
+            if (!req.params.itemId) {
+                BaseController.sendBadRequest(res, 'Inventory item ID is required.');
                 return;
             }
 
             const auth = InventoryController.getAuthContext(req);
-            const product = await InventoryService.getProductByUuid(req.params.productUuid, auth);
+            const inventoryItem = await InventoryService.getInventoryItemByUuid(req.params.itemId, auth);
 
-            if (!product) {
-                BaseController.sendNotFound(res, 'Product not found.');
+            if (!inventoryItem) {
+                BaseController.sendNotFound(res, 'Inventory item not found.');
                 return;
             }
 
-            BaseController.sendSuccess(res, 'Product retrieved successfully.', product);
+            BaseController.sendSuccess(res, 'Inventory item retrieved successfully.', inventoryItem);
         } catch (err) {
-            console.error('Error fetching product:', err);
+            console.error('Error fetching inventory item:', err);
             BaseController.sendServerError(res, 'An unexpected error occurred.');
         }
     }
 
-    static async getProductsOnly(req: Request & AuthRequest, res: Response): Promise<void> {
+    static async getInventoryItemsOnly(req: Request & AuthRequest, res: Response): Promise<void> {
         try {
             const auth = InventoryController.getAuthContext(req);
-            const products = await InventoryService.getActiveProducts(auth);
-            BaseController.sendSuccess(res, 'Products retrieved successfully.', products);
+            const inventoryItems = await InventoryService.getActiveInventoryItems(auth);
+            BaseController.sendSuccess(res, 'Inventory items retrieved successfully.', inventoryItems);
         } catch (err) {
-            console.error('Error fetching products:', err);
-            BaseController.sendServerError(res, 'Failed to fetch products.');
+            console.error('Error fetching inventory items:', err);
+            BaseController.sendServerError(res, 'Failed to fetch inventory items.');
         }
     }
 
-    static async getProducts(req: Request & AuthRequest, res: Response): Promise<void> {
+    static async getInventoryItems(req: Request & AuthRequest, res: Response): Promise<void> {
         try {
             const auth = InventoryController.getAuthContext(req);
             const page = parseInt(req.query.page as string) || 1;
@@ -65,7 +65,7 @@ export class InventoryController extends BaseController {
             const filter = req.query.filter as string || 'all';
             const categoryId = req.query.categoryId ? parseInt(req.query.categoryId as string) : undefined;
 
-            const { products, total, totalPages } = await InventoryService.getProductsWithCategories(
+            const { inventoryItems, total, totalPages } = await InventoryService.getInventoryItemsWithCategories(
                 auth,
                 page,
                 perPage,
@@ -74,8 +74,8 @@ export class InventoryController extends BaseController {
                 categoryId
             );
 
-            BaseController.sendSuccess(res, 'Products with categories retrieved successfully.', {
-                products,
+            BaseController.sendSuccess(res, 'Inventory items with categories retrieved successfully.', {
+                inventoryItems,
                 pagination: {
                     currentPage: page,
                     totalPages,
@@ -84,45 +84,45 @@ export class InventoryController extends BaseController {
                 }
             });
         } catch (error) {
-            console.error('Error fetching products with categories:', error);
-            BaseController.sendServerError(res, 'Failed to fetch products with categories.');
+            console.error('Error fetching inventory items with categories:', error);
+            BaseController.sendServerError(res, 'Failed to fetch inventory items with categories.');
         }
     }
 
-    static async createProduct(req: Request & AuthRequest, res: Response): Promise<void> {
+    static async createInventoryItem(req: Request & AuthRequest, res: Response): Promise<void> {
         try {
             const auth = InventoryController.getAuthContext(req);
-            const newProduct = await InventoryService.createProduct(req.body, auth);
-            BaseController.sendCreated(res, 'Product created successfully.', newProduct);
+            const newInventoryItem = await InventoryService.createInventoryItem(req.body, auth);
+            BaseController.sendCreated(res, 'Inventory item created successfully.', newInventoryItem);
         } catch (err) {
-            console.error('Error creating product:', err);
-            if (err instanceof Error && err.message === 'Product validation failed') {
-                BaseController.sendBadRequest(res, 'Invalid product data provided.');
+            console.error('Error creating inventory item:', err);
+            if (err instanceof Error && err.message === 'Inventory item validation failed') {
+                BaseController.sendBadRequest(res, 'Invalid inventory item data provided.');
             } else {
                 BaseController.sendServerError(res, 'An unexpected error occurred.');
             }
         }
     }
 
-    static async updateProduct(req: Request & AuthRequest, res: Response): Promise<void> {
+    static async updateInventoryItem(req: Request & AuthRequest, res: Response): Promise<void> {
         try {
             const auth = InventoryController.getAuthContext(req);
-            const numReplaced = await InventoryService.updateProduct(
-                req.params.productUuid,
+            const numReplaced = await InventoryService.updateInventoryItem(
+                req.params.itemId,
                 req.body,
                 auth
             );
 
             if (numReplaced === 0) {
-                BaseController.sendNotFound(res, 'Product not found.');
+                BaseController.sendNotFound(res, 'Inventory item not found.');
             } else {
-                BaseController.sendSuccess(res, 'Product updated successfully.');
+                BaseController.sendSuccess(res, 'Inventory item updated successfully.');
             }
         } catch (err) {
-            console.error('Error updating product:', err);
+            console.error('Error updating inventory item:', err);
             if (err instanceof Error && (
-                err.message === 'Product validation failed' ||
-                err.message === 'Product not found or access denied'
+                err.message === 'Inventory item validation failed' ||
+                err.message === 'Inventory item not found or access denied'
             )) {
                 BaseController.sendBadRequest(res, err.message);
             } else {
@@ -131,19 +131,19 @@ export class InventoryController extends BaseController {
         }
     }
 
-    static async voidProduct(req: Request & AuthRequest, res: Response): Promise<void> {
+    static async voidInventoryItem(req: Request & AuthRequest, res: Response): Promise<void> {
         try {
             const auth = InventoryController.getAuthContext(req);
-            const numReplaced = await InventoryService.voidProduct(req.params.productUuid, auth);
+            const numReplaced = await InventoryService.voidInventoryItem(req.params.itemId, auth);
 
             if (numReplaced === 0) {
-                BaseController.sendNotFound(res, 'Product not found.');
+                BaseController.sendNotFound(res, 'Inventory item not found.');
             } else {
-                BaseController.sendSuccess(res, 'Product voided successfully.');
+                BaseController.sendSuccess(res, 'Inventory item voided successfully.');
             }
         } catch (err) {
-            console.error('Error voiding product:', err);
-            if (err instanceof Error && err.message === 'Product not found or access denied') {
+            console.error('Error voiding inventory item:', err);
+            if (err instanceof Error && err.message === 'Inventory item not found or access denied') {
                 BaseController.sendNotFound(res, err.message);
             } else {
                 BaseController.sendServerError(res, 'An unexpected error occurred.');
@@ -151,19 +151,19 @@ export class InventoryController extends BaseController {
         }
     }
 
-    static async deleteProduct(req: Request & AuthRequest, res: Response): Promise<void> {
+    static async deleteInventoryItem(req: Request & AuthRequest, res: Response): Promise<void> {
         try {
             const auth = InventoryController.getAuthContext(req);
-            const numDeleted = await InventoryService.deleteProduct(req.params.productUuid, auth);
+            const numDeleted = await InventoryService.deleteInventoryItem(req.params.itemId, auth);
 
             if (numDeleted === 0) {
-                BaseController.sendNotFound(res, 'Product not found.');
+                BaseController.sendNotFound(res, 'Inventory item not found.');
             } else {
-                BaseController.sendSuccess(res, 'Product deleted successfully.');
+                BaseController.sendSuccess(res, 'Inventory item deleted successfully.');
             }
         } catch (err) {
-            console.error('Error deleting product:', err);
-            if (err instanceof Error && err.message === 'Product not found or access denied') {
+            console.error('Error deleting inventory item:', err);
+            if (err instanceof Error && err.message === 'Inventory item not found or access denied') {
                 BaseController.sendNotFound(res, err.message);
             } else {
                 BaseController.sendServerError(res, 'An unexpected error occurred.');
@@ -171,7 +171,7 @@ export class InventoryController extends BaseController {
         }
     }
 
-    static async findProductBySku(req: Request & AuthRequest, res: Response): Promise<void> {
+    static async findInventoryItemBySku(req: Request & AuthRequest, res: Response): Promise<void> {
         try {
             const { skuCode } = req.body;
             if (!skuCode) {
@@ -180,10 +180,10 @@ export class InventoryController extends BaseController {
             }
 
             const auth = InventoryController.getAuthContext(req);
-            const product = await InventoryService.findProductBySku(skuCode, auth);
-            BaseController.sendSuccess(res, 'Product found successfully.', product);
+            const inventoryItem = await InventoryService.findInventoryItemBySku(skuCode, auth);
+            BaseController.sendSuccess(res, 'Inventory item found successfully.', inventoryItem);
         } catch (err) {
-            console.error('Error finding product by SKU:', err);
+            console.error('Error finding inventory item by SKU:', err);
             BaseController.sendServerError(res, 'An unexpected error occurred.');
         }
     }

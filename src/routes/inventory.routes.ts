@@ -4,13 +4,13 @@ import { InventoryController } from '../controllers/inventory.controller';
 const router = Router();
 
 router.get('/summary', InventoryController.getSummary);
-router.get('/', InventoryController.getProducts);
-router.post('/product', InventoryController.createProduct);
-router.post('/product/sku', InventoryController.findProductBySku);
-router.get('/products-only', InventoryController.getProductsOnly);
-router.get('/product/:productUuid', InventoryController.getProduct);
-router.put('/product/:productUuid', InventoryController.updateProduct);
-router.put('/product-void/:productUuid', InventoryController.voidProduct);
-router.delete('/product/:productUuid', InventoryController.deleteProduct);
+router.get('/', InventoryController.getInventoryItems);
+router.post('/item', InventoryController.createInventoryItem);
+router.post('/item/sku', InventoryController.findInventoryItemBySku);
+router.get('/items-only', InventoryController.getInventoryItemsOnly);
+router.get('/item/:itemId', InventoryController.getInventoryItem);
+router.put('/item/:itemId', InventoryController.updateInventoryItem);
+router.put('/item-void/:itemId', InventoryController.voidInventoryItem);
+router.delete('/item/:itemId', InventoryController.deleteInventoryItem);
 
 export default router;
