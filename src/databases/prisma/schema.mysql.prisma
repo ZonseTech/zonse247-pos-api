@@ -595,8 +595,8 @@ model User {
   phone                                               String?            @map("phone")
   roleId                                              String             @map("role_id")
   status                                              UserStatus?        @default(active) @map("status")
-  accessibleShops                                     Json?              @map("accessible_shops")
-  allowedWorkstations                                 Json?              @map("allowed_workstations")
+  accessibleBranches                                  Json?              @map("accessible_branches")
+  allowedTerminals                                    Json?              @map("allowed_terminals")
   maxDiscountPercent                                  Decimal?           @default(0.00) @map("max_discount_percent")
   canOverridePrices                                   Boolean?           @default(false) @map("can_override_prices")
   pinCode                                             String?            @map("pin_code")
@@ -675,66 +675,165 @@ model AppSetup {
   @@map("app_setups")
 }
 
-model TerminalSetting {
-  // Common primary key that works for both
-  id        String   @id @default(cuid()) @map("id")
- 
-  // Your business ID
-  settingId String   @unique @map("setting_id")
- 
-  app       String   @map("app")
-  store     String   @map("store")
-  verificationToken String @map("verification_token")
- 
-  // Optional fields with proper null handling
-  addressLine1 String? @map("address_line1")
-  addressLine2 String? @map("address_line2")
- 
-  tenantSignature String @map("tenant_signature")
- 
-  country   String?  @map("country")
-  city      String?  @map("city")
-  contact   String   @map("contact")
- 
-  // Tax handling
-  tax       Decimal? @map("tax")
-  taxString String?  @map("tax_string")
- 
-  symbol    String   @map("symbol")
-  chargeTax Boolean  @default(false) @map("charge_tax")
-  footer    String   @map("footer")
-  img       String?  @map("img")
-  tillName  String?  @map("till_name")
- 
-  // Status with enum type
-  status    TerminalStatus @default(active) @map("status")
- 
-  // Synced as boolean
-  synced    Boolean @default(false) @map("synced")
- 
-  // Tenant context
-  tenantId  String   @map("tenant_id")
-  branchId  String   @map("branch_id")
-  terminalId String  @map("terminal_id")
- 
-  // Timestamps
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
- 
-  // Indexes (automatically use mapped column names)
-  @@index([settingId])
-  @@index([tenantId])
-  @@index([branchId])
+model TerminalSettings {
+  id                               String                           @id @default(cuid())
+  terminalId                       String                           @unique @map("terminal_id")
+  
+  // Localization & Display Settings
+  language                         String                           @default("en_US") @map("language")
+  timezone                         String                           @default("Africa/Blantyre") @map("timezone")
+  dateFormat                       String                           @default("DD/MM/YYYY") @map("date_format")
+  timeFormat                       String                           @default("24h") @map("time_format")
+  currencyDecimalPlaces            Int                              @default(2) @map("currency_decimal_places")
+  numberSeparator                  String                           @default("comma") @map("number_separator") // comma, period, space
+  showCurrencySymbol               Boolean                          @default(true) @map("show_currency_symbol")
+  currencySymbolPosition           String                           @default("before") @map("currency_symbol_position") // before, after
+  
+  // Transaction Processing Settings
+  autoApplyTax                     Boolean                          @default(true) @map("auto_apply_tax")
+  taxInclusivePricing              Boolean                          @default(false) @map("tax_inclusive_pricing")
+  roundTaxAmount                   Boolean                          @default(false) @map("round_tax_amount")
+  roundTotalAmount                 Boolean                          @default(false) @map("round_total_amount")
+  roundToNearest                   Decimal?                         @map("round_to_nearest") // 0.05, 0.10, etc.
+  minimumTransactionAmount         Decimal?                         @map("minimum_transaction_amount")
+  maximumTransactionAmount         Decimal?                         @map("maximum_transaction_amount")
+  holdTransactionMinutes           Int                              @default(30) @map("hold_transaction_minutes")
+  saveDraftTransactions            Boolean                          @default(true) @map("save_draft_transactions")
+  
+  // Customer Settings
+  requireCustomerDetails           Boolean                          @default(false) @map("require_customer_details")
+  defaultCustomerType              String                           @default("WALK_IN") @map("default_customer_type")
+  collectCustomerEmail             Boolean                          @default(true) @map("collect_customer_email")
+  collectCustomerPhone             Boolean                          @default(true) @map("collect_customer_phone")
+  collectCustomerAddress           Boolean                          @default(false) @map("collect_customer_address")
+  customerDisplayMode              String                           @default("SEARCH") @map("customer_display_mode") // SEARCH, LIST, BOTH
+  
+  // Receipt & Printing Settings
+  receiptNumberPrefix              String?                          @map("receipt_number_prefix")
+  receiptNumberSuffix              String?                          @map("receipt_number_suffix")
+  receiptStartNumber               Int?                             @default(1) @map("receipt_start_number")
+  receiptResetDaily                Boolean                          @default(false) @map("receipt_reset_daily")
+  printDuplicateReceipt            Boolean                          @default(false) @map("print_duplicate_receipt")
+  receiptCopies                    Int                              @default(1) @map("receipt_copies")
+  printOrderKitchen                Boolean                          @default(false) @map("print_order_kitchen")
+  printOrderBar                    Boolean                          @default(false) @map("print_order_bar")
+  kitchenPrinterName               String?                          @map("kitchen_printer_name")
+  barPrinterName                   String?                          @map("bar_printer_name")
+  printItemizedReceipt             Boolean                          @default(true) @map("print_itemized_receipt")
+  
+  // Payment Processing Settings
+  cashPaymentDefault               Boolean                          @default(true) @map("cash_payment_default")
+  cardPaymentDefault               Boolean                          @default(false) @map("card_payment_default")
+  splitPaymentEnabled              Boolean                          @default(true) @map("split_payment_enabled")
+  maxSplitWays                     Int                              @default(4) @map("max_split_ways")
+  changeCalculationMode            String                           @default("AUTO") @map("change_calculation_mode") // AUTO, MANUAL
+  suggestChangeAmounts             Boolean                          @default(true) @map("suggest_change_amounts")
+  giftCardEnabled                  Boolean                          @default(false) @map("gift_card_enabled")
+  loyaltyPointsEnabled             Boolean                          @default(false) @map("loyalty_points_enabled")
+  
+  // VAT/MRA Compliance Settings
+  mraComplianceMode                String                           @default("STRICT") @map("mra_compliance_mode") // STRICT, RELAXED, TEST
+  requireVatNumber                 Boolean                          @default(false) @map("require_vat_number")
+  vatInclusiveDisplay              Boolean                          @default(true) @map("vat_inclusive_display")
+  zReportAutoGenerate              Boolean                          @default(true) @map("z_report_auto_generate")
+  zReportTime                      String?                          @default("23:00") @map("z_report_time")
+  dailySalesReportTime             String?                          @default("22:00") @map("daily_sales_report_time")
+  
+  // Inventory & Product Settings
+  showProductImages                Boolean                          @default(true) @map("show_product_images")
+  productDisplayMode               String                           @default("GRID") @map("product_display_mode") // GRID, LIST, COMPACT
+  productsPerPage                  Int                              @default(20) @map("products_per_page")
+  quickProductSearch               Boolean                          @default(true) @map("quick_product_search")
+  barcodeScanMode                  String                           @default("AUTO") @map("barcode_scan_mode") // AUTO, MANUAL, BOTH
+  scaleIntegrationMode             String                           @default("DIRECT") @map("scale_integration_mode") // DIRECT, MANUAL
+  
+  // Offline & Sync Settings
+  offlineDataRetentionDays         Int                              @default(7) @map("offline_data_retention_days")
+  syncOnWifiOnly                   Boolean                          @default(false) @map("sync_on_wifi_only")
+  autoSyncOnReconnect              Boolean                          @default(true) @map("auto_sync_on_reconnect")
+  syncBatchSize                    Int                              @default(50) @map("sync_batch_size")
+  syncTimeoutSeconds               Int                              @default(30) @map("sync_timeout_seconds")
+  
+  // Security & Access Control
+  pinLength                        Int                              @default(4) @map("pin_length")
+  sessionTimeoutMinutes            Int                              @default(15) @map("session_timeout_minutes")
+  maxLoginAttempts                 Int                              @default(3) @map("max_login_attempts")
+  lockoutMinutes                   Int                              @default(30) @map("lockout_minutes")
+  requirePinForSettings            Boolean                          @default(true) @map("require_pin_for_settings")
+  requirePinForReports             Boolean                          @default(true) @map("require_pin_for_reports")
+  auditLogEnabled                  Boolean                          @default(true) @map("audit_log_enabled")
+  
+  // Performance & Storage
+  cacheExpiryHours                 Int                              @default(24) @map("cache_expiry_hours")
+  maxCacheSizeMB                   Int                              @default(100) @map("max_cache_size_mb")
+  transactionHistoryDays           Int                              @default(90) @map("transaction_history_days")
+  autoCleanupOldData               Boolean                          @default(true) @map("auto_cleanup_old_data")
+  imageCompressionQuality          Int                              @default(80) @map("image_compression_quality") // percentage
+  
+  // Hardware & Device Settings
+  printerConnectionType            String                           @default("BLUETOOTH") @map("printer_connection_type") // BLUETOOTH, USB, NETWORK
+  printerPaperWidth                Int                              @default(80) @map("printer_paper_width")
+  cashDrawerOpenCode               String?                          @default("ESC p m t1 t2") @map("cash_drawer_open_code")
+  scannerBeepEnabled               Boolean                          @default(true) @map("scanner_beep_enabled")
+  scannerVibrationEnabled          Boolean                          @default(false) @map("scanner_vibration_enabled")
+  screenBrightness                 Int                              @default(80) @map("screen_brightness")
+  screenTimeoutSeconds             Int                              @default(60) @map("screen_timeout_seconds")
+  
+  // Integration & API Settings
+  mraApiTimeoutSeconds             Int                              @default(10) @map("mra_api_timeout_seconds")
+  mraRetryAttempts                 Int                              @default(3) @map("mra_retry_attempts")
+  webhookEnabled                   Boolean                          @default(false) @map("webhook_enabled")
+  webhookSecret                    String?                          @map("webhook_secret")
+  apiKeyExpiryDays                 Int                              @default(90) @map("api_key_expiry_days")
+  
+  // Business Rules & Workflow
+  allowReturnWithoutReceipt        Boolean                          @default(false) @map("allow_return_without_receipt")
+  returnPeriodDays                 Int                              @default(30) @map("return_period_days")
+  requireManagerForVoid            Boolean                          @default(false) @map("require_manager_for_void")
+  managerOverridePin               String?                          @map("manager_override_pin")
+  autoCloseShift                   Boolean                          @default(true) @map("auto_close_shift")
+  shiftCloseTime                   String?                          @default("23:59") @map("shift_close_time")
+  dailyOpeningTime                 String?                          @default("08:00") @map("daily_opening_time")
+  
+  // Backup & Recovery
+  autoBackupEnabled                Boolean                          @default(true) @map("auto_backup_enabled")
+  backupIntervalHours              Int                              @default(24) @map("backup_interval_hours")
+  maxBackupFiles                   Int                              @default(7) @map("max_backup_files")
+  backupLocation                   String                           @default("LOCAL") @map("backup_location") // LOCAL, CLOUD, BOTH
+  
+  // Audit & Metadata
+  settingsVersion                  String                           @default("1.0.0") @map("settings_version")
+  lastConfiguredBy                 String?                          @map("last_configured_by")
+  configurationDate                DateTime?                        @map("configuration_date")
+  isActive                         Boolean                          @default(true) @map("is_active")
+  createdAt                        DateTime                         @default(now()) @map("created_at")
+  updatedAt                        DateTime                         @updatedAt @map("updated_at")
+  
+  // Relations
+  terminal                         Terminal                         @relation(fields: [terminalId], references: [terminalId], onDelete: Cascade)
+  
   @@index([terminalId])
-  @@index([status])
-  @@index([synced])
-  @@index([createdAt])
- 
-  // Unique constraint for tenant/branch/terminal combination
-  @@unique([tenantId, branchId, terminalId])
- 
-  // Map the table name to snake_case
   @@map("terminal_settings")
+}
+
+model TerminalSettingsOverride {
+  id                               String                           @id @default(cuid())
+  settingKey                       String                           @map("setting_key")
+  settingValue                     Json                             @map("setting_value") // Can store different types
+  overrideLevel                    String                           @map("override_level") // TENANT, BRANCH, TERMINAL
+  overrideSourceId                 String                           @map("override_source_id") // tenantId, branchId, or terminalId
+  reason                           String?                          @map("reason")
+  effectiveFrom                    DateTime                         @map("effective_from")
+  effectiveTo                      DateTime?                        @map("effective_to")
+  isActive                         Boolean                          @default(true) @map("is_active")
+  createdBy                        String?                          @map("created_by")
+  createdAt                        DateTime                         @default(now()) @map("created_at")
+  updatedAt                        DateTime                         @updatedAt @map("updated_at")
+  
+  @@unique([overrideLevel, overrideSourceId, settingKey], name: "unique_override")
+  @@index([overrideLevel, overrideSourceId])
+  @@index([settingKey])
+  @@map("terminal_settings_overrides")
 }
 
 model HoldOrder {

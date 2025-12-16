@@ -19,8 +19,8 @@ export async function seedUser(prisma: PrismaClient) {
             roleId: 'super-admin',
             email: 'admin@example.com',
             status: 'active',
-            accessibleShops: ['*'],
-            allowedWorkstations: ['*'],
+            accessibleBranches: ['*'],
+            allowedTerminals: ['*'],
         },
     });
 
