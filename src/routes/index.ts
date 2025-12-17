@@ -7,7 +7,7 @@ import HoldOrdersRoutes from './hold-orders.routes'
 import InventoryRoutes from './inventory.routes'
 import MigrationRoutes from './migration.routes'
 import PaymentMethodRoutes from './payment-method.routes'
-import SettingsRoutes from './settings.routes'
+import TerminalSettingsRoutes from './terminal-settings.routes'
 import SyncRoutes from './sync.routes'
 import TransactionsRoutes from './transaction.routes'
 import UsersRoutes from './users.routes'
@@ -67,7 +67,7 @@ router.use('/auth', authLimiter, AuthRoutes);
 
 router.use(authMiddleware.verifyToken)
 
-router.use('/settings', SettingsRoutes);
+router.use('/terminal-settings', TerminalSettingsRoutes);
 router.use('/tenants', TenantsRoutes);
 router.use('/branches', BranchesRoutes);
 

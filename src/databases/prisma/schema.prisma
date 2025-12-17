@@ -681,130 +681,139 @@ model TerminalSettings {
   id         String @id @default(cuid())
   terminalId String @unique @map("terminal_id")
 
-  // Localization & Display Settings
-  language               String  @default("en_US") @map("language")
-  timezone               String  @default("Africa/Blantyre") @map("timezone")
-  dateFormat             String  @default("DD/MM/YYYY") @map("date_format")
-  timeFormat             String  @default("24h") @map("time_format")
-  currencyDecimalPlaces  Int     @default(2) @map("currency_decimal_places")
-  numberSeparator        String  @default("comma") @map("number_separator") // comma, period, space
-  showCurrencySymbol     Boolean @default(true) @map("show_currency_symbol")
-  currencySymbolPosition String  @default("before") @map("currency_symbol_position") // before, after
+  // ==========================================
+  // SELECTIVE COLUMNS (Frequently queried fields)
+  // ==========================================
 
-  // Transaction Processing Settings
-  autoApplyTax             Boolean  @default(true) @map("auto_apply_tax")
-  taxInclusivePricing      Boolean  @default(false) @map("tax_inclusive_pricing")
-  roundTaxAmount           Boolean  @default(false) @map("round_tax_amount")
-  roundTotalAmount         Boolean  @default(false) @map("round_total_amount")
-  roundToNearest           Decimal? @map("round_to_nearest") // 0.05, 0.10, etc.
-  minimumTransactionAmount Decimal? @map("minimum_transaction_amount")
-  maximumTransactionAmount Decimal? @map("maximum_transaction_amount")
-  holdTransactionMinutes   Int      @default(30) @map("hold_transaction_minutes")
-  saveDraftTransactions    Boolean  @default(true) @map("save_draft_transactions")
+  // General Information (Selective Columns)
+  storeName       String?  @map("store_name")
+  storeAddress    String?  @map("store_address")
+  storePhone      String?  @map("store_phone")
+  storeEmail      String?  @map("store_email")
+  currency        String   @default("MKW") @map("currency")
+  taxRate         Decimal  @default(0.00) @map("tax_rate")
+  businessLicense String?  @map("business_license")
+  businessTaxId   String?  @map("business_tax_id")
 
-  // Customer Settings
-  requireCustomerDetails Boolean @default(false) @map("require_customer_details")
-  defaultCustomerType    String  @default("WALK_IN") @map("default_customer_type")
-  collectCustomerEmail   Boolean @default(true) @map("collect_customer_email")
-  collectCustomerPhone   Boolean @default(true) @map("collect_customer_phone")
-  collectCustomerAddress Boolean @default(false) @map("collect_customer_address")
-  customerDisplayMode    String  @default("SEARCH") @map("customer_display_mode") // SEARCH, LIST, BOTH
+  // Localization & Display Settings (Selective Columns)
+  language   String @default("en_US") @map("language")
+  timezone   String @default("Africa/Blantyre") @map("timezone")
+  dateFormat String @default("DD/MM/YYYY") @map("date_format")
+  timeFormat String @default("24h") @map("time_format") // '12h' | '24h'
 
-  // Receipt & Printing Settings
-  receiptNumberPrefix   String? @map("receipt_number_prefix")
-  receiptNumberSuffix   String? @map("receipt_number_suffix")
-  receiptStartNumber    Int?    @default(1) @map("receipt_start_number")
-  receiptResetDaily     Boolean @default(false) @map("receipt_reset_daily")
-  printDuplicateReceipt Boolean @default(false) @map("print_duplicate_receipt")
-  receiptCopies         Int     @default(1) @map("receipt_copies")
-  printOrderKitchen     Boolean @default(false) @map("print_order_kitchen")
-  printOrderBar         Boolean @default(false) @map("print_order_bar")
-  kitchenPrinterName    String? @map("kitchen_printer_name")
-  barPrinterName        String? @map("bar_printer_name")
-  printItemizedReceipt  Boolean @default(true) @map("print_itemized_receipt")
-
-  // Payment Processing Settings
-  cashPaymentDefault    Boolean @default(true) @map("cash_payment_default")
-  cardPaymentDefault    Boolean @default(false) @map("card_payment_default")
-  splitPaymentEnabled   Boolean @default(true) @map("split_payment_enabled")
-  maxSplitWays          Int     @default(4) @map("max_split_ways")
-  changeCalculationMode String  @default("AUTO") @map("change_calculation_mode") // AUTO, MANUAL
-  suggestChangeAmounts  Boolean @default(true) @map("suggest_change_amounts")
-  giftCardEnabled       Boolean @default(false) @map("gift_card_enabled")
-  loyaltyPointsEnabled  Boolean @default(false) @map("loyalty_points_enabled")
-
-  // VAT/MRA Compliance Settings
-  mraComplianceMode    String  @default("STRICT") @map("mra_compliance_mode") // STRICT, RELAXED, TEST
-  requireVatNumber     Boolean @default(false) @map("require_vat_number")
-  vatInclusiveDisplay  Boolean @default(true) @map("vat_inclusive_display")
-  zReportAutoGenerate  Boolean @default(true) @map("z_report_auto_generate")
-  zReportTime          String? @default("23:00") @map("z_report_time")
-  dailySalesReportTime String? @default("22:00") @map("daily_sales_report_time")
-
-  // Inventory & Product Settings
-  showProductImages    Boolean @default(true) @map("show_product_images")
-  productDisplayMode   String  @default("GRID") @map("product_display_mode") // GRID, LIST, COMPACT
-  productsPerPage      Int     @default(20) @map("products_per_page")
-  quickProductSearch   Boolean @default(true) @map("quick_product_search")
-  barcodeScanMode      String  @default("AUTO") @map("barcode_scan_mode") // AUTO, MANUAL, BOTH
-  scaleIntegrationMode String  @default("DIRECT") @map("scale_integration_mode") // DIRECT, MANUAL
-
-  // Offline & Sync Settings
-  offlineDataRetentionDays Int     @default(7) @map("offline_data_retention_days")
-  syncOnWifiOnly           Boolean @default(false) @map("sync_on_wifi_only")
-  autoSyncOnReconnect      Boolean @default(true) @map("auto_sync_on_reconnect")
-  syncBatchSize            Int     @default(50) @map("sync_batch_size")
-  syncTimeoutSeconds       Int     @default(30) @map("sync_timeout_seconds")
-
-  // Security & Access Control
+  // Security & Access Control (Selective Columns - frequently used)
   pinLength             Int     @default(4) @map("pin_length")
   sessionTimeoutMinutes Int     @default(15) @map("session_timeout_minutes")
-  maxLoginAttempts      Int     @default(3) @map("max_login_attempts")
-  lockoutMinutes        Int     @default(30) @map("lockout_minutes")
-  requirePinForSettings Boolean @default(true) @map("require_pin_for_settings")
-  requirePinForReports  Boolean @default(true) @map("require_pin_for_reports")
-  auditLogEnabled       Boolean @default(true) @map("audit_log_enabled")
+  autoLogoutMinutes     Int     @default(30) @map("auto_logout_minutes")
+  serverUrl             String? @map("server_url")
 
-  // Performance & Storage
-  cacheExpiryHours        Int     @default(24) @map("cache_expiry_hours")
-  maxCacheSizeMB          Int     @default(100) @map("max_cache_size_mb")
-  transactionHistoryDays  Int     @default(90) @map("transaction_history_days")
-  autoCleanupOldData      Boolean @default(true) @map("auto_cleanup_old_data")
-  imageCompressionQuality Int     @default(80) @map("image_compression_quality") // percentage
+  // ==========================================
+  // HIERARCHICAL JSON COLUMNS (Grouped settings)
+  // ==========================================
 
-  // Hardware & Device Settings
-  printerConnectionType   String  @default("BLUETOOTH") @map("printer_connection_type") // BLUETOOTH, USB, NETWORK
-  printerPaperWidth       Int     @default(80) @map("printer_paper_width")
-  cashDrawerOpenCode      String? @default("ESC p m t1 t2") @map("cash_drawer_open_code")
-  scannerBeepEnabled      Boolean @default(true) @map("scanner_beep_enabled")
-  scannerVibrationEnabled Boolean @default(false) @map("scanner_vibration_enabled")
-  screenBrightness        Int     @default(80) @map("screen_brightness")
-  screenTimeoutSeconds    Int     @default(60) @map("screen_timeout_seconds")
+  // Localization Settings (JSON) - extended settings
+  // { currencyDecimalPlaces, numberSeparator, showCurrencySymbol, currencySymbolPosition }
+  localizationSettings Json? @map("localization_settings")
 
-  // Integration & API Settings
-  mraApiTimeoutSeconds Int     @default(10) @map("mra_api_timeout_seconds")
-  mraRetryAttempts     Int     @default(3) @map("mra_retry_attempts")
-  webhookEnabled       Boolean @default(false) @map("webhook_enabled")
-  webhookSecret        String? @map("webhook_secret")
-  apiKeyExpiryDays     Int     @default(90) @map("api_key_expiry_days")
+  // Transaction Processing Settings (JSON)
+  // { autoApplyTax, taxInclusivePricing, roundTaxAmount, roundTotalAmount, roundToNearest,
+  //   minimumTransactionAmount, maximumTransactionAmount, holdTransactionMinutes, saveDraftTransactions }
+  transactionSettings Json? @map("transaction_settings")
 
-  // Business Rules & Workflow
-  allowReturnWithoutReceipt Boolean @default(false) @map("allow_return_without_receipt")
-  returnPeriodDays          Int     @default(30) @map("return_period_days")
-  requireManagerForVoid     Boolean @default(false) @map("require_manager_for_void")
-  managerOverridePin        String? @map("manager_override_pin")
-  autoCloseShift            Boolean @default(true) @map("auto_close_shift")
-  shiftCloseTime            String? @default("23:59") @map("shift_close_time")
-  dailyOpeningTime          String? @default("08:00") @map("daily_opening_time")
+  // Customer Settings (JSON)
+  // { requireCustomerDetails, defaultCustomerType, collectCustomerEmail, collectCustomerPhone,
+  //   collectCustomerAddress, customerDisplayMode }
+  customerSettings Json? @map("customer_settings")
 
-  // Backup & Recovery
-  autoBackupEnabled   Boolean @default(true) @map("auto_backup_enabled")
-  backupIntervalHours Int     @default(24) @map("backup_interval_hours")
-  maxBackupFiles      Int     @default(7) @map("max_backup_files")
-  backupLocation      String  @default("LOCAL") @map("backup_location") // LOCAL, CLOUD, BOTH
+  // Receipt & Printing Settings (JSON)
+  // { receiptNumberPrefix, receiptNumberSuffix, receiptStartNumber, receiptResetDaily,
+  //   printDuplicateReceipt, receiptCopies, printOrderKitchen, printOrderBar, kitchenPrinterName,
+  //   barPrinterName, printItemizedReceipt, receiptFooter, receiptHeader, showStoreLogo, logoUrl,
+  //   receiptWidth, showTaxBreakdown, showItemCodes, showCashierName, showTerminalId,
+  //   qrCodeEnabled, qrCodeContent }
+  receiptSettings Json? @map("receipt_settings")
 
-  // Audit & Metadata
-  settingsVersion   String    @default("1.0.0") @map("settings_version")
+  // Payment Processing Settings (JSON)
+  // { cashPaymentDefault, cardPaymentDefault, splitPaymentEnabled, maxSplitWays,
+  //   changeCalculationMode, suggestChangeAmounts, giftCardEnabled, loyaltyPointsEnabled,
+  //   enableCash, enableCard, enableMobileMoney, enableCredit, enableGiftCard,
+  //   roundingEnabled, roundingAmount }
+  paymentSettings Json? @map("payment_settings")
+
+  // VAT/MRA Compliance Settings (JSON)
+  // { mraComplianceMode, requireVatNumber, vatInclusiveDisplay, zReportAutoGenerate,
+  //   zReportTime, dailySalesReportTime }
+  mraComplianceSettings Json? @map("mra_compliance_settings")
+
+  // Inventory & Product Settings (JSON)
+  // { showProductImages, productDisplayMode, productsPerPage, quickProductSearch,
+  //   barcodeScanMode, scaleIntegrationMode, allowNegativeStock, lowStockThreshold,
+  //   showStockLevels, enableStockAlerts, autoOrderEnabled }
+  inventorySettings Json? @map("inventory_settings")
+
+  // Offline & Sync Settings (JSON)
+  // { enableOfflineMode, offlineDataRetentionDays, syncOnWifiOnly, autoSyncOnReconnect,
+  //   syncBatchSize, syncTimeoutSeconds, enableCloudSync }
+  syncSettings Json? @map("sync_settings")
+
+  // Security & Access Control (JSON) - extended settings
+  // { maxLoginAttempts, lockoutMinutes, requirePinForSettings, requirePinForReports,
+  //   requirePinForVoid, requirePinForDiscount, requirePinForReturn, auditLogEnabled }
+  securitySettings Json? @map("security_settings")
+
+  // Performance & Storage (JSON)
+  // { cacheExpiryHours, maxCacheSizeMB, transactionHistoryDays, autoCleanupOldData,
+  //   imageCompressionQuality }
+  performanceSettings Json? @map("performance_settings")
+
+  // Hardware & Device Settings (JSON)
+  // { printerConnectionType, printerPaperWidth, cashDrawerOpenCode, scannerBeepEnabled,
+  //   scannerVibrationEnabled, screenBrightness, screenTimeoutSeconds, printerType,
+  //   printerName, autoPrintReceipt, paperSize, enableCashDrawer, cashDrawerOpenOn,
+  //   enableBarcodeScanner, barcodeScannerPrefix, enableCardReader, cardReaderType }
+  hardwareSettings Json? @map("hardware_settings")
+
+  // Integration & API Settings (JSON)
+  // { apiBaseUrl, mraApiTimeoutSeconds, mraRetryAttempts, webhookEnabled, webhookUrl,
+  //   webhookSecret, apiKeyExpiryDays, enableApiAccess, apiRateLimit }
+  integrationSettings Json? @map("integration_settings")
+
+  // Business Rules & Workflow (JSON)
+  // { allowReturnWithoutReceipt, returnPeriodDays, requireManagerForVoid, managerOverridePin,
+  //   autoCloseShift, shiftCloseTime, dailyOpeningTime, enableCashManagement,
+  //   requireOpeningFloat, openingFloatAmount, enableShiftManagement, enableMultipleUsers,
+  //   enableReturns, enableLayaway, enableDiscounts, maxDiscountPercentage }
+  workflowSettings Json? @map("workflow_settings")
+
+  // Backup & Recovery (JSON)
+  // { backupEnabled, backupFrequency, autoBackupEnabled, backupIntervalHours,
+  //   maxBackupFiles, backupLocation }
+  backupSettings Json? @map("backup_settings")
+
+  // Display & UI Settings (JSON)
+  // { theme, fontSize, navigationMenuType, showProductImages, enableAnimations,
+  //   enableNotifications, enableVirtualKeyboard, virtualKeyboardLayout,
+  //   virtualKeyboardTheme, virtualKeyboardSound, virtualKeyboardHaptic }
+  displaySettings Json? @map("display_settings")
+
+  // Taxes & Fees Settings (JSON)
+  // { taxInclusive, showTaxOnReceipt, multiTaxEnabled, serviceFeeEnabled,
+  //   serviceFeePercentage }
+  taxFeeSettings Json? @map("tax_fee_settings")
+
+  // Customer Management Settings (JSON)
+  // { enableLoyaltyProgram, loyaltyPointsPerDollar, enableCustomerAccounts,
+  //   enableCustomerCredit, maxCustomerCredit }
+  customerManagementSettings Json? @map("customer_management_settings")
+
+  // Reporting Settings (JSON)
+  // { eodReportEnabled, eodReportTime, emailReports, reportEmail }
+  reportingSettings Json? @map("reporting_settings")
+
+  // ==========================================
+  // AUDIT & METADATA
+  // ==========================================
+  settingsVersion   String    @default("2.0.0") @map("settings_version")
   lastConfiguredBy  String?   @map("last_configured_by")
   configurationDate DateTime? @map("configuration_date")
   isActive          Boolean   @default(true) @map("is_active")
