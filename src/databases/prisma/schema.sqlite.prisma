@@ -500,6 +500,7 @@ model Terminal {
   tenant                            Tenant                            @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade, onUpdate: NoAction)
   branch                            Branch                            @relation(fields: [branchId], references: [branchId], onDelete: Cascade, onUpdate: NoAction)
   userSessions                      UserSession[]
+  terminalSettings                  TerminalSettings?
 
   @@index([activationStatus])
   @@index([branchId])
