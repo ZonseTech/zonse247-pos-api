@@ -245,20 +245,20 @@ All endpoints are prefixed with the API base URL (e.g., `http://localhost:3000/a
 
 **Base Path:** `/users`
 
-| Method | Endpoint                | Description                      | Auth Required |
-| ------ | ----------------------- | -------------------------------- | ------------- |
-| GET    | `/users/`               | Health check                     | Yes           |
-| GET    | `/users/profile/:id`    | Get user profile (owner only)    | Yes           |
-| PUT    | `/users/profile/:id`    | Update user profile (owner only) | Yes           |
-| DELETE | `/users/profile/:id`    | Delete user profile (owner only) | Yes           |
-| GET    | `/users/list`           | List all users                   | Yes           |
-| POST   | `/users/`               | Create user (admin only)         | Yes (Admin)   |
-| GET    | `/users/:id`            | Get user by ID (admin only)      | Yes (Admin)   |
-| PUT    | `/users/:id`            | Update user (admin only)         | Yes (Admin)   |
-| DELETE | `/users/:id`            | Delete user (admin only)         | Yes (Admin)   |
-| PUT    | `/users/status/:id`     | Update user status (admin only)  | Yes (Admin)   |
-| GET    | `/users/role/:roleId`   | Get users by role (admin only)   | Yes (Admin)   |
-| GET    | `/users/shop/:shopUuid` | Get users by shop (admin only)   | Yes (Admin)   |
+| Method | Endpoint                    | Description                      | Auth Required |
+| ------ | --------------------------- | -------------------------------- | ------------- |
+| GET    | `/users/`                   | Health check                     | Yes           |
+| GET    | `/users/profile/:id`        | Get user profile (owner only)    | Yes           |
+| PUT    | `/users/profile/:id`        | Update user profile (owner only) | Yes           |
+| DELETE | `/users/profile/:id`        | Delete user profile (owner only) | Yes           |
+| GET    | `/users/list`               | List all users                   | Yes           |
+| POST   | `/users/`                   | Create user (admin only)         | Yes (Admin)   |
+| GET    | `/users/:id`                | Get user by ID (admin only)      | Yes (Admin)   |
+| PUT    | `/users/:id`                | Update user (admin only)         | Yes (Admin)   |
+| DELETE | `/users/:id`                | Delete user (admin only)         | Yes (Admin)   |
+| PUT    | `/users/status/:id`         | Update user status (admin only)  | Yes (Admin)   |
+| GET    | `/users/role/:roleId`       | Get users by role (admin only)   | Yes (Admin)   |
+| GET    | `/users/branch/:branchUuid` | Get users by branch (admin only) | Yes (Admin)   |
 
 ---
 

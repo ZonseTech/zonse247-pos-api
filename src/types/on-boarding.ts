@@ -18,14 +18,14 @@ export type ValidationParams = {
 export interface OnboardingStatus {
     tenant: Omit<Tenant, 'verificationToken'>;
     subscription: any;
-    shops: any[];
-    workstations: any[];
+    branches: any[];
+    terminals: any[];
     onboarding: {
         steps: {
             tenantRegistered: boolean;
             subscriptionActive: boolean;
-            shopCreated: boolean;
-            workstationSetup: boolean;
+            branchCreated: boolean;
+            terminalSetup: boolean;
         };
         completedSteps: number;
         totalSteps: number;

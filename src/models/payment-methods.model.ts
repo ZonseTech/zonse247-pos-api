@@ -99,18 +99,18 @@ export class PaymentMethodModel {
         }
     }
 
-    static async findByClientAndShop(tenantId: string, shopUuid: string): Promise<PaymentMethod[]> {
+    static async findByTenantAndBranch(tenantId: string, branchId: string): Promise<PaymentMethod[]> {
         try {
-            return await this.find({ tenantId, shopUuid });
+            return await this.find({ tenantId, branchId });
         } catch (error) {
-            console.error(`Error finding payment methods for client ${tenantId} and shop ${shopUuid}:`, error);
+            console.error(`Error finding payment methods for tenant ${tenantId} and branch ${branchId}:`, error);
             throw error;
         }
     }
 
-    static async findByName(name: string, tenantId: string, shopUuid: string): Promise<PaymentMethod | null> {
+    static async findByName(name: string, tenantId: string, branchId: string): Promise<PaymentMethod | null> {
         try {
-            const results = await this.find({ name, tenantId, shopUuid });
+            const results = await this.find({ name, tenantId, branchId });
             return results.length > 0 ? results[0] : null;
         } catch (error) {
             console.error(`Error finding payment method by name ${name}:`, error);

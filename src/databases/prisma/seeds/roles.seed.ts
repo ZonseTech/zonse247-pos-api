@@ -313,13 +313,13 @@ export async function seedRoles(prisma: PrismaClient) {
         },
 
         // =====================================================
-        // RETAIL SHOP SPECIFIC ROLES
+        // RETAIL STORE SPECIFIC ROLES
         // =====================================================
         {
             roleId: 'floor-manager',
             name: 'floor_manager',
             displayName: 'Floor Manager',
-            description: 'Manages shop floor operations, merchandising, and staff supervision',
+            description: 'Manages store floor operations, merchandising, and staff supervision',
             isSystemRole: true,
             isActive: true,
         },
@@ -347,7 +347,7 @@ export async function seedRoles(prisma: PrismaClient) {
             roleId: 'owner-operator',
             name: 'owner_operator',
             displayName: 'Owner-Operator',
-            description: 'Small business owner who handles all operations (ideal for single-person shops)',
+            description: 'Small business owner who handles all operations (ideal for single-person stores)',
             isSystemRole: true,
             isActive: true,
         },

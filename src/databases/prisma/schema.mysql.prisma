@@ -288,7 +288,7 @@ model Permission {
   displayName          String             @map("display_name")
   description          String?            @map("description")
   category             String             @map("category")
-  scope                PermissionScope?   @default(shop) @map("scope")
+  scope                PermissionScope?   @default(branch) @map("scope")
   synced               Int?               @default(0) @map("synced")
   isSystemPermission   Boolean?           @default(true) @map("is_system_permission")
   createdAt            DateTime?          @default(now()) @map("created_at")
@@ -942,11 +942,11 @@ enum AuditLogActionType {
 
 enum PermissionScope {
   global
-  workstation
+  terminal
   self
   system
-  client
-  shop
+  tenant
+  branch
 }
 
 enum MRA_API_CONFIG_TABLE_sync_status {

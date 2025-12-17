@@ -58,7 +58,7 @@ const ALL_USER_PERMISSIONS = [
 ];
 
 const ALL_SETTINGS_PERMISSIONS = [
-    'settings.shop.manage', 'settings.tax.manage', 'settings.payment.manage'
+    'settings.branch.manage', 'settings.tax.manage', 'settings.payment.manage'
 ];
 
 const ALL_SYSTEM_PERMISSIONS = [
@@ -109,7 +109,7 @@ const SUPPORT_ADMIN_PERMISSIONS = [
     ...BASIC_VIEW_PERMISSIONS,
     ...ALL_REPORT_PERMISSIONS,
     'users.view',
-    'settings.shop.manage',
+    'settings.branch.manage',
 ];
 
 // ===== TENANT-LEVEL ROLES =====
@@ -157,7 +157,7 @@ const OPERATIONS_DIRECTOR_PERMISSIONS = [
     ...ALL_CASH_PERMISSIONS,
     ...ALL_REPORT_PERMISSIONS,
     'users.view', 'users.edit', 'users.roles.assign',
-    'settings.shop.manage',
+    'settings.branch.manage',
 ];
 
 // ===== LOCATION/BRANCH-LEVEL ROLES =====
@@ -174,7 +174,7 @@ const BRANCH_MANAGER_PERMISSIONS = [
     ...ALL_CASH_PERMISSIONS,
     ...ALL_REPORT_PERMISSIONS,
     'users.create', 'users.view', 'users.edit', 'users.roles.assign',
-    'settings.shop.manage',
+    'settings.branch.manage',
 ];
 
 // ASSISTANT MANAGER - Supports branch manager
@@ -454,7 +454,7 @@ const PHARMACY_MANAGER_PERMISSIONS = [
     ...ALL_CASH_PERMISSIONS,
     ...ALL_REPORT_PERMISSIONS,
     'users.create', 'users.view', 'users.edit',
-    'settings.shop.manage',
+    'settings.branch.manage',
 ];
 
 // PHARMACY TECHNICIAN - Assists pharmacist
@@ -478,9 +478,9 @@ const PHARMACY_ASSISTANT_PERMISSIONS = [
     'cash.drawer.open',
 ];
 
-// ===== RETAIL SHOP ROLES =====
+// ===== RETAIL STORE ROLES =====
 
-// FLOOR MANAGER - Shop floor operations
+// FLOOR MANAGER - Store floor operations
 const FLOOR_MANAGER_PERMISSIONS = [
     'sales.create', 'sales.view', 'sales.edit',
     'products.view', 'products.edit', 'products.pricing',
@@ -508,7 +508,7 @@ const DELIVERY_STAFF_PERMISSIONS = [
 
 // ===== SMALL BUSINESS ROLES =====
 
-// OWNER OPERATOR - Single person shop (full access)
+// OWNER OPERATOR - Single person store (full access)
 const OWNER_OPERATOR_PERMISSIONS = [
     ...ALL_SALES_PERMISSIONS,
     ...ALL_PRODUCT_PERMISSIONS,
@@ -648,7 +648,7 @@ const DEFAULT_ROLE_PERMISSIONS: RolePermission[] = [
     ...createRolePermissions('pharmacy-technician', PHARMACY_TECHNICIAN_PERMISSIONS),
     ...createRolePermissions('pharmacy-assistant', PHARMACY_ASSISTANT_PERMISSIONS),
 
-    // Retail Shop
+    // Retail Store
     ...createRolePermissions('floor-manager', FLOOR_MANAGER_PERMISSIONS),
     ...createRolePermissions('merchandiser', MERCHANDISER_PERMISSIONS),
     ...createRolePermissions('delivery-staff', DELIVERY_STAFF_PERMISSIONS),

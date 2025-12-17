@@ -12,8 +12,8 @@ export interface User {
     roleId: string;
     roleName?: string | null;
     status?: UserStatus;
-    accessibleShops?: string[] | null;
-    allowedWorkstations?: string[] | null;
+    accessibleBranches?: string[] | null;
+    allowedTerminals?: string[] | null;
     maxDiscountPercent?: number;
     canOverridePrices?: boolean;
     pinCode?: string | null;
@@ -56,8 +56,8 @@ export interface CreateUserRequest {
     phone?: string | null;
     roleId: string;
     status?: UserStatus;
-    accessibleShops?: string[] | null;
-    allowedWorkstations?: string[] | null;
+    accessibleBranches?: string[] | null;
+    allowedTerminals?: string[] | null;
     maxDiscountPercent?: number;
     canOverridePrices?: boolean;
     pinCode?: string | null;

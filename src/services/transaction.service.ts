@@ -165,11 +165,11 @@ export class TransactionService {
         if (transaction.terminalId) {
             promises.push(
                 TerminalModel.findById(transaction.terminalId)
-                    .then(workstation => ({ workstation }))
-                    .catch(() => ({ workstation: null }))
+                    .then(terminal => ({ terminal }))
+                    .catch(() => ({ terminal: null }))
             );
         } else {
-            promises.push(Promise.resolve({ workstation: null }));
+            promises.push(Promise.resolve({ terminal: null }));
         }
 
         if (transaction.paymentMethodId) {
@@ -235,7 +235,7 @@ export class TransactionService {
             promises.push(Promise.resolve({ items: [] }));
         }
 
-        const [customerResult, paymentMethodResult, paymentServiceProviderResult, userResult, itemsResult] =
+        const [customerResult, _terminalResult, paymentMethodResult, paymentServiceProviderResult, userResult, itemsResult] =
             await Promise.all(promises);
 
         return {

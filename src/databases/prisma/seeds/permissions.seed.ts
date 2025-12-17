@@ -3,7 +3,7 @@ import { PermissionCategory, PermissionScope } from "../../../utils/enums";
 
 /**
  * Comprehensive permissions for multi-tenant POS system
- * Supports: Cafes, Bars, Pharmacies, Retail Shops (Small to Large businesses)
+ * Supports: Cafes, Bars, Pharmacies, Retail Stores (Small to Large businesses)
  */
 const APP_PERMISSIONS = [
     // =====================================================
@@ -15,7 +15,7 @@ const APP_PERMISSIONS = [
         displayName: 'Create Sales',
         description: 'Create new sales transactions',
         category: PermissionCategory.SALES,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
     {
         permissionId: 'sales.view',
@@ -23,7 +23,7 @@ const APP_PERMISSIONS = [
         displayName: 'View All Sales',
         description: 'View all sales transactions in the location',
         category: PermissionCategory.SALES,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
     {
         permissionId: 'sales.view.own',
@@ -39,7 +39,7 @@ const APP_PERMISSIONS = [
         displayName: 'Edit Sales',
         description: 'Edit existing sales transactions',
         category: PermissionCategory.SALES,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
     {
         permissionId: 'sales.void',
@@ -47,7 +47,7 @@ const APP_PERMISSIONS = [
         displayName: 'Void Sales',
         description: 'Void/cancel sales transactions',
         category: PermissionCategory.SALES,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
     {
         permissionId: 'sales.return',
@@ -55,7 +55,7 @@ const APP_PERMISSIONS = [
         displayName: 'Process Returns',
         description: 'Process product returns',
         category: PermissionCategory.SALES,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
     {
         permissionId: 'sales.hold',
@@ -63,7 +63,7 @@ const APP_PERMISSIONS = [
         displayName: 'Hold Sales',
         description: 'Put sales on hold for later completion',
         category: PermissionCategory.SALES,
-        scope: PermissionScope.WORKSTATION,
+        scope: PermissionScope.TERMINAL,
     },
     {
         permissionId: 'sales.layaway',
@@ -71,7 +71,7 @@ const APP_PERMISSIONS = [
         displayName: 'Manage Layaway',
         description: 'Create and manage layaway orders',
         category: PermissionCategory.SALES,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
 
     // =====================================================
@@ -83,7 +83,7 @@ const APP_PERMISSIONS = [
         displayName: 'Create Products',
         description: 'Create new products in the catalog',
         category: PermissionCategory.PRODUCTS,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
     {
         permissionId: 'products.view',
@@ -91,7 +91,7 @@ const APP_PERMISSIONS = [
         displayName: 'View Products',
         description: 'View product catalog and details',
         category: PermissionCategory.PRODUCTS,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
     {
         permissionId: 'products.edit',
@@ -99,7 +99,7 @@ const APP_PERMISSIONS = [
         displayName: 'Edit Products',
         description: 'Edit existing product information',
         category: PermissionCategory.PRODUCTS,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
     {
         permissionId: 'products.delete',
@@ -107,7 +107,7 @@ const APP_PERMISSIONS = [
         displayName: 'Delete Products',
         description: 'Delete products from catalog',
         category: PermissionCategory.PRODUCTS,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
     {
         permissionId: 'products.pricing',
@@ -115,7 +115,7 @@ const APP_PERMISSIONS = [
         displayName: 'Manage Pricing',
         description: 'View and modify product prices and costs',
         category: PermissionCategory.PRODUCTS,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
     {
         permissionId: 'products.import',
@@ -123,7 +123,7 @@ const APP_PERMISSIONS = [
         displayName: 'Import Products',
         description: 'Bulk import products from files',
         category: PermissionCategory.PRODUCTS,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
     {
         permissionId: 'products.export',
@@ -131,7 +131,7 @@ const APP_PERMISSIONS = [
         displayName: 'Export Products',
         description: 'Export product data to files',
         category: PermissionCategory.PRODUCTS,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
 
     // =====================================================
@@ -143,7 +143,7 @@ const APP_PERMISSIONS = [
         displayName: 'Create Categories',
         description: 'Create product categories',
         category: PermissionCategory.CATEGORIES,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
     {
         permissionId: 'categories.view',
@@ -151,7 +151,7 @@ const APP_PERMISSIONS = [
         displayName: 'View Categories',
         description: 'View product categories',
         category: PermissionCategory.CATEGORIES,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
     {
         permissionId: 'categories.edit',
@@ -159,7 +159,7 @@ const APP_PERMISSIONS = [
         displayName: 'Edit Categories',
         description: 'Edit product categories',
         category: PermissionCategory.CATEGORIES,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
     {
         permissionId: 'categories.delete',
@@ -167,7 +167,7 @@ const APP_PERMISSIONS = [
         displayName: 'Delete Categories',
         description: 'Delete product categories',
         category: PermissionCategory.CATEGORIES,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
 
     // =====================================================
@@ -179,7 +179,7 @@ const APP_PERMISSIONS = [
         displayName: 'View Inventory',
         description: 'View inventory levels and stock information',
         category: PermissionCategory.INVENTORY,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
     {
         permissionId: 'inventory.adjust',
@@ -187,7 +187,7 @@ const APP_PERMISSIONS = [
         displayName: 'Adjust Inventory',
         description: 'Make manual inventory adjustments',
         category: PermissionCategory.INVENTORY,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
     {
         permissionId: 'inventory.transfer',
@@ -195,7 +195,7 @@ const APP_PERMISSIONS = [
         displayName: 'Transfer Inventory',
         description: 'Transfer inventory between locations',
         category: PermissionCategory.INVENTORY,
-        scope: PermissionScope.CLIENT,
+        scope: PermissionScope.TENANT,
     },
     {
         permissionId: 'inventory.receive',
@@ -203,7 +203,7 @@ const APP_PERMISSIONS = [
         displayName: 'Receive Inventory',
         description: 'Receive inventory from suppliers or transfers',
         category: PermissionCategory.INVENTORY,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
     {
         permissionId: 'inventory.count',
@@ -211,7 +211,7 @@ const APP_PERMISSIONS = [
         displayName: 'Inventory Count',
         description: 'Perform physical inventory counts',
         category: PermissionCategory.INVENTORY,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
     {
         permissionId: 'inventory.reorder',
@@ -219,7 +219,7 @@ const APP_PERMISSIONS = [
         displayName: 'Manage Reorder Levels',
         description: 'Set and manage reorder points and quantities',
         category: PermissionCategory.INVENTORY,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
     {
         permissionId: 'inventory.waste',
@@ -227,7 +227,7 @@ const APP_PERMISSIONS = [
         displayName: 'Record Waste/Spoilage',
         description: 'Record product waste, spoilage, or damage',
         category: PermissionCategory.INVENTORY,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
 
     // =====================================================
@@ -239,7 +239,7 @@ const APP_PERMISSIONS = [
         displayName: 'Create Customers',
         description: 'Create new customer records',
         category: PermissionCategory.CUSTOMERS,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
     {
         permissionId: 'customers.view',
@@ -247,7 +247,7 @@ const APP_PERMISSIONS = [
         displayName: 'View Customers',
         description: 'View customer information and history',
         category: PermissionCategory.CUSTOMERS,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
     {
         permissionId: 'customers.edit',
@@ -255,7 +255,7 @@ const APP_PERMISSIONS = [
         displayName: 'Edit Customers',
         description: 'Edit customer information',
         category: PermissionCategory.CUSTOMERS,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
     {
         permissionId: 'customers.delete',
@@ -263,7 +263,7 @@ const APP_PERMISSIONS = [
         displayName: 'Delete Customers',
         description: 'Delete customer records',
         category: PermissionCategory.CUSTOMERS,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
     {
         permissionId: 'customers.credit',
@@ -271,7 +271,7 @@ const APP_PERMISSIONS = [
         displayName: 'Manage Customer Credit',
         description: 'Manage customer store credit and balances',
         category: PermissionCategory.CUSTOMERS,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
     {
         permissionId: 'customers.loyalty',
@@ -279,7 +279,7 @@ const APP_PERMISSIONS = [
         displayName: 'Manage Loyalty Points',
         description: 'View and adjust customer loyalty points',
         category: PermissionCategory.CUSTOMERS,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
 
     // =====================================================
@@ -291,7 +291,7 @@ const APP_PERMISSIONS = [
         displayName: 'Process Payments',
         description: 'Process customer payments',
         category: PermissionCategory.PAYMENTS,
-        scope: PermissionScope.WORKSTATION,
+        scope: PermissionScope.TERMINAL,
     },
     {
         permissionId: 'payments.view',
@@ -299,7 +299,7 @@ const APP_PERMISSIONS = [
         displayName: 'View Payments',
         description: 'View payment records and history',
         category: PermissionCategory.PAYMENTS,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
     {
         permissionId: 'payments.partial',
@@ -307,7 +307,7 @@ const APP_PERMISSIONS = [
         displayName: 'Accept Partial Payments',
         description: 'Accept partial payments on orders',
         category: PermissionCategory.PAYMENTS,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
     {
         permissionId: 'payments.credit',
@@ -315,7 +315,7 @@ const APP_PERMISSIONS = [
         displayName: 'Process Credit Sales',
         description: 'Allow sales on credit/account',
         category: PermissionCategory.PAYMENTS,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
     {
         permissionId: 'payments.split',
@@ -323,7 +323,7 @@ const APP_PERMISSIONS = [
         displayName: 'Split Payments',
         description: 'Split payments across multiple methods',
         category: PermissionCategory.PAYMENTS,
-        scope: PermissionScope.WORKSTATION,
+        scope: PermissionScope.TERMINAL,
     },
 
     // =====================================================
@@ -335,7 +335,7 @@ const APP_PERMISSIONS = [
         displayName: 'Process Refunds',
         description: 'Process customer refunds',
         category: PermissionCategory.REFUNDS,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
     {
         permissionId: 'refunds.view',
@@ -343,7 +343,7 @@ const APP_PERMISSIONS = [
         displayName: 'View Refunds',
         description: 'View refund records',
         category: PermissionCategory.REFUNDS,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
     {
         permissionId: 'refunds.approve',
@@ -351,7 +351,7 @@ const APP_PERMISSIONS = [
         displayName: 'Approve Refunds',
         description: 'Approve refund requests over limits',
         category: PermissionCategory.REFUNDS,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
     {
         permissionId: 'refunds.void',
@@ -359,7 +359,7 @@ const APP_PERMISSIONS = [
         displayName: 'Void Refunds',
         description: 'Void processed refunds',
         category: PermissionCategory.REFUNDS,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
 
     // =====================================================
@@ -371,7 +371,7 @@ const APP_PERMISSIONS = [
         displayName: 'Apply Discounts',
         description: 'Apply predefined discounts to sales',
         category: PermissionCategory.DISCOUNTS,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
     {
         permissionId: 'discounts.create',
@@ -379,7 +379,7 @@ const APP_PERMISSIONS = [
         displayName: 'Create Discounts',
         description: 'Create discount rules and promotions',
         category: PermissionCategory.DISCOUNTS,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
     {
         permissionId: 'discounts.edit',
@@ -387,7 +387,7 @@ const APP_PERMISSIONS = [
         displayName: 'Edit Discounts',
         description: 'Edit existing discount rules',
         category: PermissionCategory.DISCOUNTS,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
     {
         permissionId: 'discounts.delete',
@@ -395,7 +395,7 @@ const APP_PERMISSIONS = [
         displayName: 'Delete Discounts',
         description: 'Delete discount rules',
         category: PermissionCategory.DISCOUNTS,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
     {
         permissionId: 'discounts.override',
@@ -403,7 +403,7 @@ const APP_PERMISSIONS = [
         displayName: 'Override Discount Limits',
         description: 'Override maximum discount limits',
         category: PermissionCategory.DISCOUNTS,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
     {
         permissionId: 'discounts.manual',
@@ -411,7 +411,7 @@ const APP_PERMISSIONS = [
         displayName: 'Manual Discounts',
         description: 'Apply manual/ad-hoc discounts',
         category: PermissionCategory.DISCOUNTS,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
 
     // =====================================================
@@ -423,7 +423,7 @@ const APP_PERMISSIONS = [
         displayName: 'Create Promotions',
         description: 'Create promotional campaigns',
         category: PermissionCategory.PROMOTIONS,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
     {
         permissionId: 'promotions.view',
@@ -431,7 +431,7 @@ const APP_PERMISSIONS = [
         displayName: 'View Promotions',
         description: 'View promotional campaigns',
         category: PermissionCategory.PROMOTIONS,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
     {
         permissionId: 'promotions.edit',
@@ -439,7 +439,7 @@ const APP_PERMISSIONS = [
         displayName: 'Edit Promotions',
         description: 'Edit promotional campaigns',
         category: PermissionCategory.PROMOTIONS,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
     {
         permissionId: 'promotions.delete',
@@ -447,7 +447,7 @@ const APP_PERMISSIONS = [
         displayName: 'Delete Promotions',
         description: 'Delete promotional campaigns',
         category: PermissionCategory.PROMOTIONS,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
 
     // =====================================================
@@ -459,7 +459,7 @@ const APP_PERMISSIONS = [
         displayName: 'Open Cash Drawer',
         description: 'Open cash drawer manually without a sale',
         category: PermissionCategory.CASH_MANAGEMENT,
-        scope: PermissionScope.WORKSTATION,
+        scope: PermissionScope.TERMINAL,
     },
     {
         permissionId: 'cash.count',
@@ -467,7 +467,7 @@ const APP_PERMISSIONS = [
         displayName: 'Count Cash',
         description: 'Perform cash counts and reconciliation',
         category: PermissionCategory.CASH_MANAGEMENT,
-        scope: PermissionScope.WORKSTATION,
+        scope: PermissionScope.TERMINAL,
     },
     {
         permissionId: 'cash.deposit',
@@ -475,7 +475,7 @@ const APP_PERMISSIONS = [
         displayName: 'Cash Deposits',
         description: 'Record cash deposits and bank drops',
         category: PermissionCategory.CASH_MANAGEMENT,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
     {
         permissionId: 'cash.payout',
@@ -483,7 +483,7 @@ const APP_PERMISSIONS = [
         displayName: 'Cash Payouts',
         description: 'Process cash payouts from drawer',
         category: PermissionCategory.CASH_MANAGEMENT,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
     {
         permissionId: 'cash.float',
@@ -491,7 +491,7 @@ const APP_PERMISSIONS = [
         displayName: 'Manage Float',
         description: 'Set and adjust cash drawer float',
         category: PermissionCategory.CASH_MANAGEMENT,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
     {
         permissionId: 'cash.close',
@@ -499,7 +499,7 @@ const APP_PERMISSIONS = [
         displayName: 'Close Cash Drawer',
         description: 'Close and reconcile cash drawer at end of shift',
         category: PermissionCategory.CASH_MANAGEMENT,
-        scope: PermissionScope.WORKSTATION,
+        scope: PermissionScope.TERMINAL,
     },
 
     // =====================================================
@@ -511,7 +511,7 @@ const APP_PERMISSIONS = [
         displayName: 'Daily Sales Reports',
         description: 'View daily sales summary reports',
         category: PermissionCategory.REPORTS,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
     {
         permissionId: 'reports.sales.detailed',
@@ -519,7 +519,7 @@ const APP_PERMISSIONS = [
         displayName: 'Detailed Sales Reports',
         description: 'View detailed sales reports with line items',
         category: PermissionCategory.REPORTS,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
     {
         permissionId: 'reports.inventory',
@@ -527,7 +527,7 @@ const APP_PERMISSIONS = [
         displayName: 'Inventory Reports',
         description: 'View inventory and stock reports',
         category: PermissionCategory.REPORTS,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
     {
         permissionId: 'reports.financial',
@@ -535,7 +535,7 @@ const APP_PERMISSIONS = [
         displayName: 'Financial Reports',
         description: 'View financial and accounting reports',
         category: PermissionCategory.REPORTS,
-        scope: PermissionScope.CLIENT,
+        scope: PermissionScope.TENANT,
     },
     {
         permissionId: 'reports.staff',
@@ -543,7 +543,7 @@ const APP_PERMISSIONS = [
         displayName: 'Staff Reports',
         description: 'View staff performance and activity reports',
         category: PermissionCategory.REPORTS,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
     {
         permissionId: 'reports.customers',
@@ -551,7 +551,7 @@ const APP_PERMISSIONS = [
         displayName: 'Customer Reports',
         description: 'View customer analytics and reports',
         category: PermissionCategory.REPORTS,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
     {
         permissionId: 'reports.taxes',
@@ -559,7 +559,7 @@ const APP_PERMISSIONS = [
         displayName: 'Tax Reports',
         description: 'View tax collection reports',
         category: PermissionCategory.REPORTS,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
     {
         permissionId: 'reports.export',
@@ -567,7 +567,7 @@ const APP_PERMISSIONS = [
         displayName: 'Export Reports',
         description: 'Export reports to PDF, Excel, CSV',
         category: PermissionCategory.REPORTS,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
 
     // =====================================================
@@ -579,7 +579,7 @@ const APP_PERMISSIONS = [
         displayName: 'View Analytics',
         description: 'View business analytics dashboard',
         category: PermissionCategory.ANALYTICS,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
     {
         permissionId: 'analytics.advanced',
@@ -587,7 +587,7 @@ const APP_PERMISSIONS = [
         displayName: 'Advanced Analytics',
         description: 'Access advanced analytics and insights',
         category: PermissionCategory.ANALYTICS,
-        scope: PermissionScope.CLIENT,
+        scope: PermissionScope.TENANT,
     },
 
     // =====================================================
@@ -599,7 +599,7 @@ const APP_PERMISSIONS = [
         displayName: 'Create Users',
         description: 'Create new user accounts',
         category: PermissionCategory.USERS,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
     {
         permissionId: 'users.view',
@@ -607,7 +607,7 @@ const APP_PERMISSIONS = [
         displayName: 'View Users',
         description: 'View user accounts and profiles',
         category: PermissionCategory.USERS,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
     {
         permissionId: 'users.edit',
@@ -615,7 +615,7 @@ const APP_PERMISSIONS = [
         displayName: 'Edit Users',
         description: 'Edit user account information',
         category: PermissionCategory.USERS,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
     {
         permissionId: 'users.delete',
@@ -623,7 +623,7 @@ const APP_PERMISSIONS = [
         displayName: 'Delete Users',
         description: 'Delete or deactivate user accounts',
         category: PermissionCategory.USERS,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
     {
         permissionId: 'users.roles.assign',
@@ -631,7 +631,7 @@ const APP_PERMISSIONS = [
         displayName: 'Assign User Roles',
         description: 'Assign and modify user roles',
         category: PermissionCategory.USERS,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
     {
         permissionId: 'users.permissions.view',
@@ -639,7 +639,7 @@ const APP_PERMISSIONS = [
         displayName: 'View User Permissions',
         description: 'View user permission assignments',
         category: PermissionCategory.USERS,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
     {
         permissionId: 'users.clock',
@@ -647,7 +647,7 @@ const APP_PERMISSIONS = [
         displayName: 'Manage Time Clock',
         description: 'Manage staff clock in/out and timesheets',
         category: PermissionCategory.USERS,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
 
     // =====================================================
@@ -659,7 +659,7 @@ const APP_PERMISSIONS = [
         displayName: 'Create Roles',
         description: 'Create custom roles',
         category: PermissionCategory.ROLES,
-        scope: PermissionScope.CLIENT,
+        scope: PermissionScope.TENANT,
     },
     {
         permissionId: 'roles.view',
@@ -667,7 +667,7 @@ const APP_PERMISSIONS = [
         displayName: 'View Roles',
         description: 'View role definitions',
         category: PermissionCategory.ROLES,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
     {
         permissionId: 'roles.edit',
@@ -675,7 +675,7 @@ const APP_PERMISSIONS = [
         displayName: 'Edit Roles',
         description: 'Edit custom role permissions',
         category: PermissionCategory.ROLES,
-        scope: PermissionScope.CLIENT,
+        scope: PermissionScope.TENANT,
     },
     {
         permissionId: 'roles.delete',
@@ -683,19 +683,19 @@ const APP_PERMISSIONS = [
         displayName: 'Delete Roles',
         description: 'Delete custom roles',
         category: PermissionCategory.ROLES,
-        scope: PermissionScope.CLIENT,
+        scope: PermissionScope.TENANT,
     },
 
     // =====================================================
     // SETTINGS PERMISSIONS
     // =====================================================
     {
-        permissionId: 'settings.shop.manage',
-        name: 'settings.shop.manage',
-        displayName: 'Manage Shop Settings',
-        description: 'Manage shop/location configuration',
+        permissionId: 'settings.branch.manage',
+        name: 'settings.branch.manage',
+        displayName: 'Manage Branch Settings',
+        description: 'Manage branch/location configuration',
         category: PermissionCategory.SETTINGS,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
     {
         permissionId: 'settings.tax.manage',
@@ -703,7 +703,7 @@ const APP_PERMISSIONS = [
         displayName: 'Manage Tax Settings',
         description: 'Configure tax rates and rules',
         category: PermissionCategory.SETTINGS,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
     {
         permissionId: 'settings.payment.manage',
@@ -711,7 +711,7 @@ const APP_PERMISSIONS = [
         displayName: 'Manage Payment Settings',
         description: 'Configure payment methods and processors',
         category: PermissionCategory.SETTINGS,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
     {
         permissionId: 'settings.receipt.manage',
@@ -719,7 +719,7 @@ const APP_PERMISSIONS = [
         displayName: 'Manage Receipt Settings',
         description: 'Configure receipt templates and printing',
         category: PermissionCategory.SETTINGS,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
     {
         permissionId: 'settings.loyalty.manage',
@@ -727,79 +727,79 @@ const APP_PERMISSIONS = [
         displayName: 'Manage Loyalty Program',
         description: 'Configure loyalty program settings',
         category: PermissionCategory.SETTINGS,
-        scope: PermissionScope.CLIENT,
+        scope: PermissionScope.TENANT,
     },
 
     // =====================================================
-    // BRANCH/SHOP MANAGEMENT PERMISSIONS
+    // BRANCH MANAGEMENT PERMISSIONS
     // =====================================================
     {
-        permissionId: 'shops.create',
-        name: 'shops.create',
+        permissionId: 'branches.create',
+        name: 'branches.create',
         displayName: 'Create Branches',
-        description: 'Create new branch/shop locations',
-        category: PermissionCategory.SHOPS,
-        scope: PermissionScope.CLIENT,
+        description: 'Create new branch locations',
+        category: PermissionCategory.BRANCHES,
+        scope: PermissionScope.TENANT,
     },
     {
-        permissionId: 'shops.view',
-        name: 'shops.view',
+        permissionId: 'branches.view',
+        name: 'branches.view',
         displayName: 'View Branches',
-        description: 'View branch/shop locations',
-        category: PermissionCategory.SHOPS,
-        scope: PermissionScope.CLIENT,
+        description: 'View branch locations',
+        category: PermissionCategory.BRANCHES,
+        scope: PermissionScope.TENANT,
     },
     {
-        permissionId: 'shops.edit',
-        name: 'shops.edit',
+        permissionId: 'branches.edit',
+        name: 'branches.edit',
         displayName: 'Edit Branches',
-        description: 'Edit branch/shop information',
-        category: PermissionCategory.SHOPS,
-        scope: PermissionScope.CLIENT,
+        description: 'Edit branch information',
+        category: PermissionCategory.BRANCHES,
+        scope: PermissionScope.TENANT,
     },
     {
-        permissionId: 'shops.delete',
-        name: 'shops.delete',
+        permissionId: 'branches.delete',
+        name: 'branches.delete',
         displayName: 'Delete Branches',
         description: 'Delete or deactivate branches',
-        category: PermissionCategory.SHOPS,
-        scope: PermissionScope.CLIENT,
+        category: PermissionCategory.BRANCHES,
+        scope: PermissionScope.TENANT,
     },
 
     // =====================================================
-    // WORKSTATION/TERMINAL PERMISSIONS
+    // TERMINAL PERMISSIONS
     // =====================================================
     {
-        permissionId: 'workstations.create',
-        name: 'workstations.create',
-        displayName: 'Create Workstations',
-        description: 'Register new POS terminals/workstations',
-        category: PermissionCategory.WORKSTATIONS,
-        scope: PermissionScope.SHOP,
+        permissionId: 'terminals.create',
+        name: 'terminals.create',
+        displayName: 'Create Terminals',
+        description: 'Register new POS terminals',
+        category: PermissionCategory.TERMINALS,
+        scope: PermissionScope.BRANCH,
     },
     {
-        permissionId: 'workstations.view',
-        name: 'workstations.view',
-        displayName: 'View Workstations',
-        description: 'View registered terminals/workstations',
-        category: PermissionCategory.WORKSTATIONS,
-        scope: PermissionScope.SHOP,
+        permissionId: 'terminals.view',
+        name: 'terminals.view',
+        displayName: 'View Terminals',
+        description: 'View registered terminals',
+        category: PermissionCategory.TERMINALS,
+        scope: PermissionScope.BRANCH,
     },
     {
-        permissionId: 'workstations.edit',
-        name: 'workstations.edit',
-        displayName: 'Edit Workstations',
-        description: 'Edit terminal/workstation settings',
-        category: PermissionCategory.WORKSTATIONS,
-        scope: PermissionScope.SHOP,
+        permissionId: 'terminals.edit',
+        name: 'terminals.edit',
+        displayName: 'Edit Terminals',
+        description: 'Edit terminal settings',
+        category: PermissionCategory.TERMINALS,
+        scope: PermissionScope.BRANCH,
     },
     {
-        permissionId: 'workstations.delete',
-        name: 'workstations.delete',
-        displayName: 'Delete Workstations',
-        description: 'Remove terminals/workstations',
-        category: PermissionCategory.WORKSTATIONS,
-        scope: PermissionScope.SHOP,
+        permissionId: 'terminals.delete',
+        name: 'terminals.delete',
+        displayName: 'Delete Terminals',
+        description: 'Remove terminals',
+        category: PermissionCategory.TERMINALS,
+        scope: PermissionScope.BRANCH,
     },
 
     // =====================================================
@@ -811,7 +811,7 @@ const APP_PERMISSIONS = [
         displayName: 'Create Suppliers',
         description: 'Create new supplier records',
         category: PermissionCategory.SUPPLIERS,
-        scope: PermissionScope.CLIENT,
+        scope: PermissionScope.TENANT,
     },
     {
         permissionId: 'suppliers.view',
@@ -819,7 +819,7 @@ const APP_PERMISSIONS = [
         displayName: 'View Suppliers',
         description: 'View supplier information',
         category: PermissionCategory.SUPPLIERS,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
     {
         permissionId: 'suppliers.edit',
@@ -827,7 +827,7 @@ const APP_PERMISSIONS = [
         displayName: 'Edit Suppliers',
         description: 'Edit supplier information',
         category: PermissionCategory.SUPPLIERS,
-        scope: PermissionScope.CLIENT,
+        scope: PermissionScope.TENANT,
     },
     {
         permissionId: 'suppliers.delete',
@@ -835,7 +835,7 @@ const APP_PERMISSIONS = [
         displayName: 'Delete Suppliers',
         description: 'Delete supplier records',
         category: PermissionCategory.SUPPLIERS,
-        scope: PermissionScope.CLIENT,
+        scope: PermissionScope.TENANT,
     },
     {
         permissionId: 'suppliers.orders',
@@ -843,7 +843,7 @@ const APP_PERMISSIONS = [
         displayName: 'Manage Purchase Orders',
         description: 'Create and manage purchase orders',
         category: PermissionCategory.SUPPLIERS,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
 
     // =====================================================
@@ -863,7 +863,7 @@ const APP_PERMISSIONS = [
         displayName: 'System Backup',
         description: 'Create and manage data backups',
         category: PermissionCategory.SYSTEM,
-        scope: PermissionScope.CLIENT,
+        scope: PermissionScope.TENANT,
     },
     {
         permissionId: 'system.restore',
@@ -871,7 +871,7 @@ const APP_PERMISSIONS = [
         displayName: 'System Restore',
         description: 'Restore data from backups',
         category: PermissionCategory.SYSTEM,
-        scope: PermissionScope.CLIENT,
+        scope: PermissionScope.TENANT,
     },
     {
         permissionId: 'system.logs.view',
@@ -879,7 +879,7 @@ const APP_PERMISSIONS = [
         displayName: 'View System Logs',
         description: 'View system logs and audit trails',
         category: PermissionCategory.LOGS,
-        scope: PermissionScope.CLIENT,
+        scope: PermissionScope.TENANT,
     },
     {
         permissionId: 'system.maintenance',
@@ -899,7 +899,7 @@ const APP_PERMISSIONS = [
         displayName: 'View Subscription',
         description: 'View subscription plan and status',
         category: PermissionCategory.SUBSCRIPTIONS,
-        scope: PermissionScope.CLIENT,
+        scope: PermissionScope.TENANT,
     },
     {
         permissionId: 'subscriptions.manage',
@@ -907,7 +907,7 @@ const APP_PERMISSIONS = [
         displayName: 'Manage Subscription',
         description: 'Upgrade, downgrade, or cancel subscription',
         category: PermissionCategory.SUBSCRIPTIONS,
-        scope: PermissionScope.CLIENT,
+        scope: PermissionScope.TENANT,
     },
     {
         permissionId: 'billing.view',
@@ -915,7 +915,7 @@ const APP_PERMISSIONS = [
         displayName: 'View Billing',
         description: 'View invoices and billing history',
         category: PermissionCategory.BILLING,
-        scope: PermissionScope.CLIENT,
+        scope: PermissionScope.TENANT,
     },
     {
         permissionId: 'billing.manage',
@@ -923,7 +923,7 @@ const APP_PERMISSIONS = [
         displayName: 'Manage Billing',
         description: 'Update payment methods and billing info',
         category: PermissionCategory.BILLING,
-        scope: PermissionScope.CLIENT,
+        scope: PermissionScope.TENANT,
     },
 
     // =====================================================
@@ -935,7 +935,7 @@ const APP_PERMISSIONS = [
         displayName: 'View Integrations',
         description: 'View connected integrations',
         category: PermissionCategory.INTEGRATIONS,
-        scope: PermissionScope.CLIENT,
+        scope: PermissionScope.TENANT,
     },
     {
         permissionId: 'integrations.manage',
@@ -943,7 +943,7 @@ const APP_PERMISSIONS = [
         displayName: 'Manage Integrations',
         description: 'Connect and configure integrations',
         category: PermissionCategory.INTEGRATIONS,
-        scope: PermissionScope.CLIENT,
+        scope: PermissionScope.TENANT,
     },
     {
         permissionId: 'api.access',
@@ -951,7 +951,7 @@ const APP_PERMISSIONS = [
         displayName: 'API Access',
         description: 'Access REST API endpoints',
         category: PermissionCategory.API,
-        scope: PermissionScope.CLIENT,
+        scope: PermissionScope.TENANT,
     },
     {
         permissionId: 'api.keys.manage',
@@ -959,7 +959,7 @@ const APP_PERMISSIONS = [
         displayName: 'Manage API Keys',
         description: 'Create and manage API keys',
         category: PermissionCategory.API,
-        scope: PermissionScope.CLIENT,
+        scope: PermissionScope.TENANT,
     },
 
     // =====================================================
@@ -971,7 +971,7 @@ const APP_PERMISSIONS = [
         displayName: 'Create Orders',
         description: 'Create new orders (table/takeaway)',
         category: PermissionCategory.SALES,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
     {
         permissionId: 'orders.view',
@@ -979,7 +979,7 @@ const APP_PERMISSIONS = [
         displayName: 'View Orders',
         description: 'View all orders',
         category: PermissionCategory.SALES,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
     {
         permissionId: 'orders.edit',
@@ -987,7 +987,7 @@ const APP_PERMISSIONS = [
         displayName: 'Edit Orders',
         description: 'Edit existing orders',
         category: PermissionCategory.SALES,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
     {
         permissionId: 'orders.cancel',
@@ -995,7 +995,7 @@ const APP_PERMISSIONS = [
         displayName: 'Cancel Orders',
         description: 'Cancel orders',
         category: PermissionCategory.SALES,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
     {
         permissionId: 'orders.status',
@@ -1003,7 +1003,7 @@ const APP_PERMISSIONS = [
         displayName: 'Update Order Status',
         description: 'Update order preparation/delivery status',
         category: PermissionCategory.SALES,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
 
     // =====================================================
@@ -1015,7 +1015,7 @@ const APP_PERMISSIONS = [
         displayName: 'View Tables',
         description: 'View table layout and status',
         category: PermissionCategory.SALES,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
     {
         permissionId: 'tables.manage',
@@ -1023,7 +1023,7 @@ const APP_PERMISSIONS = [
         displayName: 'Manage Tables',
         description: 'Manage table assignments and layout',
         category: PermissionCategory.SALES,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
     {
         permissionId: 'tables.transfer',
@@ -1031,7 +1031,7 @@ const APP_PERMISSIONS = [
         displayName: 'Transfer Tables',
         description: 'Transfer orders between tables',
         category: PermissionCategory.SALES,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
     {
         permissionId: 'tables.merge',
@@ -1039,7 +1039,7 @@ const APP_PERMISSIONS = [
         displayName: 'Merge/Split Tables',
         description: 'Merge or split table orders',
         category: PermissionCategory.SALES,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
 
     // =====================================================
@@ -1051,7 +1051,7 @@ const APP_PERMISSIONS = [
         displayName: 'Create Reservations',
         description: 'Create new reservations',
         category: PermissionCategory.CUSTOMERS,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
     {
         permissionId: 'reservations.view',
@@ -1059,7 +1059,7 @@ const APP_PERMISSIONS = [
         displayName: 'View Reservations',
         description: 'View reservation calendar',
         category: PermissionCategory.CUSTOMERS,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
     {
         permissionId: 'reservations.edit',
@@ -1067,7 +1067,7 @@ const APP_PERMISSIONS = [
         displayName: 'Edit Reservations',
         description: 'Edit existing reservations',
         category: PermissionCategory.CUSTOMERS,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
     {
         permissionId: 'reservations.cancel',
@@ -1075,7 +1075,7 @@ const APP_PERMISSIONS = [
         displayName: 'Cancel Reservations',
         description: 'Cancel reservations',
         category: PermissionCategory.CUSTOMERS,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
 
     // =====================================================
@@ -1087,7 +1087,7 @@ const APP_PERMISSIONS = [
         displayName: 'View Kitchen Display',
         description: 'View kitchen order display',
         category: PermissionCategory.SALES,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
     {
         permissionId: 'kitchen.manage',
@@ -1095,7 +1095,7 @@ const APP_PERMISSIONS = [
         displayName: 'Manage Kitchen Orders',
         description: 'Mark orders as prepared/ready',
         category: PermissionCategory.SALES,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
 
     // =====================================================
@@ -1107,7 +1107,7 @@ const APP_PERMISSIONS = [
         displayName: 'View Deliveries',
         description: 'View delivery orders and status',
         category: PermissionCategory.SALES,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
     {
         permissionId: 'delivery.manage',
@@ -1115,7 +1115,7 @@ const APP_PERMISSIONS = [
         displayName: 'Manage Deliveries',
         description: 'Assign and manage delivery orders',
         category: PermissionCategory.SALES,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
     {
         permissionId: 'delivery.status',
@@ -1135,7 +1135,7 @@ const APP_PERMISSIONS = [
         displayName: 'Collect Tips',
         description: 'Accept and record tips',
         category: PermissionCategory.PAYMENTS,
-        scope: PermissionScope.WORKSTATION,
+        scope: PermissionScope.TERMINAL,
     },
     {
         permissionId: 'tips.view',
@@ -1143,7 +1143,7 @@ const APP_PERMISSIONS = [
         displayName: 'View Tips',
         description: 'View tip reports',
         category: PermissionCategory.PAYMENTS,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
     {
         permissionId: 'tips.manage',
@@ -1151,7 +1151,7 @@ const APP_PERMISSIONS = [
         displayName: 'Manage Tips',
         description: 'Manage tip pooling and distribution',
         category: PermissionCategory.PAYMENTS,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
 
     // =====================================================
@@ -1163,7 +1163,7 @@ const APP_PERMISSIONS = [
         displayName: 'Dispense Medication',
         description: 'Dispense prescription medications',
         category: PermissionCategory.SALES,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
     {
         permissionId: 'pharmacy.prescriptions',
@@ -1171,7 +1171,7 @@ const APP_PERMISSIONS = [
         displayName: 'Manage Prescriptions',
         description: 'View and manage prescriptions',
         category: PermissionCategory.SALES,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
     {
         permissionId: 'pharmacy.controlled',
@@ -1179,7 +1179,7 @@ const APP_PERMISSIONS = [
         displayName: 'Controlled Substances',
         description: 'Handle controlled substance transactions',
         category: PermissionCategory.SALES,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
     {
         permissionId: 'pharmacy.counseling',
@@ -1187,7 +1187,7 @@ const APP_PERMISSIONS = [
         displayName: 'Patient Counseling',
         description: 'Record patient counseling sessions',
         category: PermissionCategory.CUSTOMERS,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
 
     // =====================================================
@@ -1199,7 +1199,7 @@ const APP_PERMISSIONS = [
         displayName: 'Age Verification',
         description: 'Verify customer age for restricted products',
         category: PermissionCategory.SALES,
-        scope: PermissionScope.WORKSTATION,
+        scope: PermissionScope.TERMINAL,
     },
     {
         permissionId: 'age.override',
@@ -1207,7 +1207,7 @@ const APP_PERMISSIONS = [
         displayName: 'Override Age Check',
         description: 'Override age verification (supervisor)',
         category: PermissionCategory.SALES,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
 
     // =====================================================
@@ -1219,7 +1219,7 @@ const APP_PERMISSIONS = [
         displayName: 'Export Data',
         description: 'Export business data',
         category: PermissionCategory.EXPORTS,
-        scope: PermissionScope.CLIENT,
+        scope: PermissionScope.TENANT,
     },
     {
         permissionId: 'exports.reports',
@@ -1227,7 +1227,7 @@ const APP_PERMISSIONS = [
         displayName: 'Export Reports',
         description: 'Export reports to various formats',
         category: PermissionCategory.EXPORTS,
-        scope: PermissionScope.SHOP,
+        scope: PermissionScope.BRANCH,
     },
 
     // =====================================================
@@ -1239,7 +1239,7 @@ const APP_PERMISSIONS = [
         displayName: 'Create Support Tickets',
         description: 'Create support tickets',
         category: PermissionCategory.SUPPORT,
-        scope: PermissionScope.CLIENT,
+        scope: PermissionScope.TENANT,
     },
     {
         permissionId: 'support.tickets.view',
@@ -1247,7 +1247,7 @@ const APP_PERMISSIONS = [
         displayName: 'View Support Tickets',
         description: 'View support tickets',
         category: PermissionCategory.SUPPORT,
-        scope: PermissionScope.CLIENT,
+        scope: PermissionScope.TENANT,
     },
 ];
 
