@@ -14,7 +14,6 @@ export * from './on-boarding';
 export * from './order';
 export * from './payment-method';
 export * from './payment-service-provider';
-export * from './product';
 export * from './role-permission';
 export * from './security';
 export * from './settings';
