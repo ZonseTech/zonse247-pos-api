@@ -18,7 +18,7 @@ export class PaymentMethodController extends BaseController {
 
     static async list(req: Request, res: Response): Promise<void> {
         try {
-            const { tenantId, shopUuid, search } = req.query;
+            const { tenantId, branchId, search } = req.query;
 
             let paymentMethods;
 
@@ -26,12 +26,12 @@ export class PaymentMethodController extends BaseController {
                 paymentMethods = await PaymentMethodService.searchPaymentMethods(
                     search,
                     tenantId as string,
-                    shopUuid as string
+                    branchId as string
                 );
-            } else if (tenantId && shopUuid) {
-                paymentMethods = await PaymentMethodService.getPaymentMethodsByClientAndShop(
+            } else if (tenantId && branchId) {
+                paymentMethods = await PaymentMethodService.getPaymentMethodsByTenantAndBranch(
                     tenantId as string,
-                    shopUuid as string
+                    branchId as string
                 );
             } else {
                 paymentMethods = await PaymentMethodService.getAllPaymentMethods();
