@@ -67,7 +67,7 @@ export class TransactionService {
         const transaction = await TransactionModel.create(transactionData);
 
         if (transactionData.paid >= transactionData.total) {
-            await OrderService.createOrderItems(transactionUuid, data.items);
+            await OrderService.createOrderItems(transactionUuid, transactionData.refNumber, data.items);
             await InventoryModel.decrementInventory(data.items, auth);
         }
 
@@ -289,8 +289,8 @@ export class TransactionService {
     }
 
     private static validateTransactionData(data: any): string | null {
-        if (!data.total || data.total <= 0) {
-            return 'Total amount is required and must be greater than 0';
+        if (data.total === undefined || data.total === null || data.total < 0) {
+            return 'Total amount is required and cannot be negative';
         }
 
         if (data.paid < 0) {
