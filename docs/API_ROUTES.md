@@ -281,17 +281,189 @@ All endpoints are prefixed with the API base URL (e.g., `http://localhost:3000/a
 
 **Base Path:** `/inventory`
 
-| Method | Endpoint                       | Description                | Auth Required |
-| ------ | ------------------------------ | -------------------------- | ------------- |
-| GET    | `/inventory/summary`           | Get inventory summary      | Yes           |
-| GET    | `/inventory/`                  | Get inventory items        | Yes           |
-| POST   | `/inventory/item`              | Create inventory item      | Yes           |
-| POST   | `/inventory/item/sku`          | Find inventory item by SKU | Yes           |
-| GET    | `/inventory/items-only`        | Get inventory items only   | Yes           |
-| GET    | `/inventory/item/:itemId`      | Get inventory item by ID   | Yes           |
-| PUT    | `/inventory/item/:itemId`      | Update inventory item      | Yes           |
-| PUT    | `/inventory/item-void/:itemId` | Void inventory item        | Yes           |
-| DELETE | `/inventory/item/:itemId`      | Delete inventory item      | Yes           |
+### Summary & Count
+
+| Method | Endpoint             | Description                                        | Auth Required |
+| ------ | -------------------- | -------------------------------------------------- | ------------- |
+| GET    | `/inventory/summary` | Get inventory summary (total, new, expiring, etc.) | Yes           |
+| GET    | `/inventory/count`   | Get inventory item count                           | Yes           |
+
+**Query Parameters for `/inventory/count`:**
+
+- `includeVoided` (boolean): Include voided items in count (default: false)
+
+### Get Items
+
+| Method | Endpoint                  | Description                         | Auth Required |
+| ------ | ------------------------- | ----------------------------------- | ------------- |
+| GET    | `/inventory/`             | Get inventory items with pagination | Yes           |
+| GET    | `/inventory/all`          | Get all inventory items             | Yes           |
+| GET    | `/inventory/items-only`   | Get active inventory items only     | Yes           |
+| GET    | `/inventory/item/:itemId` | Get inventory item by ID            | Yes           |
+
+**Query Parameters for `/inventory/`:**
+
+- `page` (number): Page number (default: 1)
+- `perPage` (number): Items per page (default: 10)
+- `search` (string): Search term for name/barcode
+- `filter` (string): Filter type - 'all', 'new', 'expiring', 'expired'
+- `categoryId` (number): Filter by category ID
+
+**Query Parameters for `/inventory/all`:**
+
+- `includeVoided` (boolean): Include voided items (default: false)
+
+### Search & Filter
+
+| Method | Endpoint                          | Description                | Auth Required |
+| ------ | --------------------------------- | -------------------------- | ------------- |
+| GET    | `/inventory/search`               | Search inventory items     | Yes           |
+| GET    | `/inventory/barcode/:barcode`     | Find item by barcode       | Yes           |
+| GET    | `/inventory/category/:categoryId` | Get items by category      | Yes           |
+| GET    | `/inventory/status/:status`       | Get items by status        | Yes           |
+| POST   | `/inventory/item/sku`             | Find inventory item by SKU | Yes           |
+
+**Query Parameters for `/inventory/search`:**
+
+- `q` (string, required): Search term
+
+**Request Body for `/inventory/item/sku`:**
+
+```json
+{
+  "skuCode": "string"
+}
+```
+
+### Low Stock & Alerts
+
+| Method | Endpoint               | Description         | Auth Required |
+| ------ | ---------------------- | ------------------- | ------------- |
+| GET    | `/inventory/low-stock` | Get low stock items | Yes           |
+
+**Query Parameters for `/inventory/low-stock`:**
+
+- `threshold` (number): Stock threshold (default: 10)
+
+### Exists Check
+
+| Method | Endpoint                    | Description                    | Auth Required |
+| ------ | --------------------------- | ------------------------------ | ------------- |
+| GET    | `/inventory/exists/:itemId` | Check if inventory item exists | Yes           |
+
+### Create
+
+| Method | Endpoint          | Description           | Auth Required |
+| ------ | ----------------- | --------------------- | ------------- |
+| POST   | `/inventory/item` | Create inventory item | Yes           |
+
+**Request Body:**
+
+```json
+{
+  "barcode": "string (required)",
+  "name": "string (required)",
+  "categoryId": "string",
+  "description": "string",
+  "brand": "string",
+  "unit": "string",
+  "costPrice": "number (required)",
+  "sellPrice": "number (required)",
+  "promoPrice": "number",
+  "promoStart": "date",
+  "promoEnd": "date",
+  "quantity": "string (required)",
+  "minStock": "number",
+  "maxStock": "number",
+  "reorderLevel": "number",
+  "trackInventory": "boolean",
+  "allowNegativeStock": "boolean",
+  "isTaxable": "boolean",
+  "expirationDate": "date",
+  "manufactureDate": "date",
+  "imageUrls": "array",
+  "supplierName": "string",
+  "supplierCode": "string",
+  "color": "string",
+  "size": "string",
+  "dimensions": "string",
+  "weight": "number",
+  "properties": "object"
+}
+```
+
+### Update
+
+| Method | Endpoint                       | Description           | Auth Required |
+| ------ | ------------------------------ | --------------------- | ------------- |
+| PUT    | `/inventory/item/:itemId`      | Update inventory item | Yes           |
+| PUT    | `/inventory/item-void/:itemId` | Void inventory item   | Yes           |
+
+### Stock Management
+
+| Method | Endpoint                           | Description                     | Auth Required |
+| ------ | ---------------------------------- | ------------------------------- | ------------- |
+| PATCH  | `/inventory/item/:itemId/quantity` | Update item quantity            | Yes           |
+| PATCH  | `/inventory/item/:itemId/adjust`   | Adjust inventory (add/subtract) | Yes           |
+
+**Request Body for `/inventory/item/:itemId/quantity`:**
+
+```json
+{
+  "quantity": "number (required)"
+}
+```
+
+**Request Body for `/inventory/item/:itemId/adjust`:**
+
+```json
+{
+  "adjustment": "number (required, positive to add, negative to subtract)"
+}
+```
+
+### Bulk Operations
+
+| Method | Endpoint                      | Description                    | Auth Required |
+| ------ | ----------------------------- | ------------------------------ | ------------- |
+| PUT    | `/inventory/bulk-update`      | Bulk update inventory items    | Yes           |
+| PUT    | `/inventory/move-to-category` | Move items to another category | Yes           |
+
+**Request Body for `/inventory/bulk-update`:**
+
+```json
+{
+  "updates": [
+    {
+      "productUuid": "string",
+      "data": {
+        "field": "value"
+      }
+    }
+  ]
+}
+```
+
+**Request Body for `/inventory/move-to-category`:**
+
+```json
+{
+  "productUuids": ["string"],
+  "categoryId": "string"
+}
+```
+
+### Category Sync
+
+| Method | Endpoint                          | Description                   | Auth Required |
+| ------ | --------------------------------- | ----------------------------- | ------------- |
+| POST   | `/inventory/sync-category-counts` | Sync all category item counts | Yes           |
+
+### Delete
+
+| Method | Endpoint                  | Description           | Auth Required |
+| ------ | ------------------------- | --------------------- | ------------- |
+| DELETE | `/inventory/item/:itemId` | Delete inventory item | Yes           |
 
 ---
 
