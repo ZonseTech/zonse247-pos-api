@@ -519,11 +519,11 @@ export class InventoryModel {
         if (data.promoPrice !== undefined) preparedData.promoPrice = data.promoPrice ? parseFloat(data.promoPrice) : null;
         if (data.weight !== undefined) preparedData.weight = data.weight ? parseFloat(data.weight) : null;
 
-        // Handle date fields
-        if (data.promoStart !== undefined) preparedData.promoStart = data.promoStart;
-        if (data.promoEnd !== undefined) preparedData.promoEnd = data.promoEnd;
-        if (data.expirationDate !== undefined) preparedData.expirationDate = data.expirationDate;
-        if (data.manufactureDate !== undefined) preparedData.manufactureDate = data.manufactureDate;
+        // Handle date fields - convert empty strings to null for optional DateTime fields
+        if (data.promoStart !== undefined) preparedData.promoStart = data.promoStart || null;
+        if (data.promoEnd !== undefined) preparedData.promoEnd = data.promoEnd || null;
+        if (data.expirationDate !== undefined) preparedData.expirationDate = data.expirationDate || null;
+        if (data.manufactureDate !== undefined) preparedData.manufactureDate = data.manufactureDate || null;
 
         // Handle quantity fields (stored as string in DB)
         if (data.quantity !== undefined) preparedData.quantity = String(data.quantity || '0');
