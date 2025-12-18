@@ -133,11 +133,11 @@ export class TenantService {
         }
 
         const subscriptions = await SubscriptionModel.findByTenantId(tenantId);
-        const shops = await BranchModel.findByTenantId(tenantId);
-        const workstations = await TerminalModel.findByTenantId(tenantId);
+        const branches = await BranchModel.findByTenantId(tenantId);
+        const terminals = await TerminalModel.findByTenantId(tenantId);
 
-        if (subscriptions.length > 0 || shops.length > 0 || workstations.length > 0) {
-            throw new Error('Cannot delete tenant with existing subscriptions, shops, or workstations');
+        if (subscriptions.length > 0 || branches.length > 0 || terminals.length > 0) {
+            throw new Error('Cannot delete tenant with existing subscriptions, branches, or terminals');
         }
 
         const isDeleted = await TenantModel.delete(tenantId);
@@ -239,14 +239,14 @@ export class TenantService {
         const subscriptions = await SubscriptionModel.findByTenantId(tenantId);
         const activeSubscription = subscriptions.find(sub => sub.status === 'active') || null;
 
-        const shops = await BranchModel.findByTenantId(tenantId);
-        const workstations = await TerminalModel.findByTenantId(tenantId);
+        const branches = await BranchModel.findByTenantId(tenantId);
+        const terminals = await TerminalModel.findByTenantId(tenantId);
 
         const onboardingSteps = {
             tenantRegistered: true,
             subscriptionActive: !!activeSubscription,
-            shopCreated: shops.length > 0,
-            workstationSetup: workstations.length > 0
+            branchCreated: branches.length > 0,
+            terminalSetup: terminals.length > 0
         };
 
         const completedSteps = Object.values(onboardingSteps).filter(Boolean).length;
@@ -258,8 +258,8 @@ export class TenantService {
         return {
             tenant: safeTenant,
             subscription: activeSubscription,
-            shops,
-            workstations,
+            branches,
+            terminals,
             onboarding: {
                 steps: onboardingSteps,
                 completedSteps: completedSteps,

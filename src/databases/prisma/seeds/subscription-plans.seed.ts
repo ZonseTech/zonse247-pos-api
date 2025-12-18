@@ -7,7 +7,7 @@ const plans: Array<SubscriptionPlan & { planCode: string }> = [
         planCode: 'OFFLINE',
         name: 'Offline (Free)',
         displayName: 'Offline',
-        description: 'Best for small shops that prefer full offline functionality — no cloud or MRA link.',
+        description: 'Best for small stores that prefer full offline functionality — no cloud or MRA link.',
         monthlyPrice: 0,
         yearlyPrice: 0,
         color: 'gray',

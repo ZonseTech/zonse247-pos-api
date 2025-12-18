@@ -158,10 +158,10 @@ export const userValidationSchemas = {
 		})
 	}),
 
-	shopUuid: Joi.object({
-		shopUuid: Joi.string().required().messages({
-			'string.empty': 'Shop ID is required',
-			'any.required': 'Shop ID is required'
+	branchUuid: Joi.object({
+		branchUuid: Joi.string().required().messages({
+			'string.empty': 'Branch ID is required',
+			'any.required': 'Branch ID is required'
 		})
 	})
 

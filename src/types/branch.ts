@@ -1,3 +1,5 @@
+import { BranchMRAApprovalStatus } from "../databases/prisma/generated/prisma/enums";
+
 export type MraApprovalStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 export type BranchStatus = 'active' | 'inactive' | 'suspended';
 
@@ -27,7 +29,7 @@ export interface Branch {
     isVirtualWarehouse?: boolean;
     isActive?: boolean;
     synced: number;
-    mraApprovalStatus?: MraApprovalStatus;
+    mraApprovalStatus?: BranchMRAApprovalStatus;
     mraApprovalDate?: Date | null;
     status?: BranchStatus;
     createdAt?: Date;
@@ -38,7 +40,8 @@ export type BranchFormValues = Omit<Branch, 'createdAt' | 'updatedAt'>;
 
 export interface CreateBranchRequest {
     tenantId: string;
-    branchCode: string;
+    branchId?: string;
+    branchCode?: string;
     branchName: string;
     siteId?: string;
     siteName?: string;
@@ -59,4 +62,8 @@ export interface CreateBranchRequest {
     receiptFooter?: string;
     logoUrl?: string;
     isVirtualWarehouse?: boolean;
+    isActive?: boolean;
+    status?: string;
+    mraApprovalStatus?: string;
+    synced?: number;
 }

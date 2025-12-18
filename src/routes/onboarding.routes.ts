@@ -6,7 +6,7 @@ import { TenantController } from "../controllers/tenant.controller";
 import { branchValidationSchemas } from "../validations/branch.schemas";
 import { BranchController } from "../controllers/branch.controller";
 import { OnboardingController } from "../controllers/onboarding.controller";
-import { SettingsController } from "../controllers/settings.controller";
+import { TerminalSettingsController } from "../controllers/terminal-settings.controller";
 
 const router = Router();
 
@@ -53,12 +53,12 @@ router.use(
 
 router.post(
     '/settings/configure',
-    asyncHandler(SettingsController.createSettings)
+    asyncHandler(TerminalSettingsController.createSettings)
 );
 
 router.get(
     '/settings',
-    asyncHandler(SettingsController.getSettings)
+    asyncHandler(TerminalSettingsController.getAllSettings)
 );
 
 export default router;

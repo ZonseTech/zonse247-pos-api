@@ -7,7 +7,7 @@ import HoldOrdersRoutes from './hold-orders.routes'
 import InventoryRoutes from './inventory.routes'
 import MigrationRoutes from './migration.routes'
 import PaymentMethodRoutes from './payment-method.routes'
-import SettingsRoutes from './settings.routes'
+import TerminalSettingsRoutes from './terminal-settings.routes'
 import SyncRoutes from './sync.routes'
 import TransactionsRoutes from './transaction.routes'
 import UsersRoutes from './users.routes'
@@ -16,7 +16,7 @@ import SubscriptionsRoutes from './subscription.routes'
 import SubscriptionPlanRoutes from './subscription-plan.routes'
 import PlanFeaturesRoutes from './plan-features.routes'
 import BranchesRoutes from './branch.routes'
-import WorkStationRoutes from './terminal.routes'
+import TerminalRoutes from './terminal.routes'
 import RoleRoutes from './role.routes'
 import MailingRoutes from './email.routes'
 import OnboardingRoutes from './onboarding.routes'
@@ -67,7 +67,7 @@ router.use('/auth', authLimiter, AuthRoutes);
 
 router.use(authMiddleware.verifyToken)
 
-router.use('/settings', SettingsRoutes);
+router.use('/terminal-settings', TerminalSettingsRoutes);
 router.use('/tenants', TenantsRoutes);
 router.use('/branches', BranchesRoutes);
 
@@ -86,7 +86,7 @@ router.use('/transactions', TransactionsRoutes);
 router.use('/hold-orders', HoldOrdersRoutes);
 router.use('/subscriptions', SubscriptionsRoutes);
 router.use('/subscription-plans', SubscriptionPlanRoutes);
-router.use('/workstations', WorkStationRoutes);
+router.use('/terminals', TerminalRoutes);
 router.use('/roles', RoleRoutes);
 router.use('/permissions', PermissionRoutes);
 router.use('/role-permissions', RolePermissionRoutes);

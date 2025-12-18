@@ -110,6 +110,7 @@ CREATE TABLE "categories" (
     "branch_id" TEXT NOT NULL,
     "tenant_id" TEXT NOT NULL,
     "user_id" TEXT NOT NULL,
+    "terminal_id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "description" TEXT,
     "color" TEXT,
@@ -119,7 +120,8 @@ CREATE TABLE "categories" (
     "synced" INTEGER DEFAULT 0,
     "created_at" DATETIME DEFAULT CURRENT_TIMESTAMP,
     "updated_at" DATETIME DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT "categories_branch_id_fkey" FOREIGN KEY ("branch_id") REFERENCES "branches" ("branch_id") ON DELETE CASCADE ON UPDATE NO ACTION
+    CONSTRAINT "categories_branch_id_fkey" FOREIGN KEY ("branch_id") REFERENCES "branches" ("branch_id") ON DELETE CASCADE ON UPDATE NO ACTION,
+    CONSTRAINT "categories_terminal_id_fkey" FOREIGN KEY ("terminal_id") REFERENCES "terminals" ("terminal_id") ON DELETE CASCADE ON UPDATE NO ACTION
 );
 
 -- CreateTable
@@ -166,6 +168,7 @@ CREATE TABLE "inventory" (
     "dimensions" TEXT,
     "color" TEXT,
     "size" TEXT,
+    "properties" JSONB,
     "status" TEXT DEFAULT 'active',
     "track_inventory" BOOLEAN DEFAULT true,
     "allow_negative_stock" BOOLEAN DEFAULT false,
@@ -319,7 +322,7 @@ CREATE TABLE "tenant_subscriptions" (
     "ends_at" DATETIME,
     "auto_renew" BOOLEAN DEFAULT true,
     "payment_method" TEXT,
-    "max_shops" INTEGER DEFAULT 1,
+    "max_branches" INTEGER DEFAULT 1,
     "synced" INTEGER DEFAULT 0,
     "last_payment_date" DATETIME,
     "next_payment_date" DATETIME,
@@ -349,8 +352,8 @@ CREATE TABLE "tenants" (
     "owner_name" TEXT NOT NULL,
     "address" TEXT,
     "country" TEXT,
+    "verification_token" TEXT NOT NULL,
     "trial_ends_at" DATETIME,
-    "auth_key" TEXT NOT NULL,
     "status" TEXT DEFAULT 'pending',
     "registered_at" DATETIME DEFAULT CURRENT_TIMESTAMP,
     "activated_at" DATETIME,
@@ -476,8 +479,8 @@ CREATE TABLE "users" (
     "phone" TEXT,
     "role_id" TEXT NOT NULL,
     "status" TEXT DEFAULT 'active',
-    "accessible_shops" JSONB,
-    "allowed_workstations" JSONB,
+    "accessible_branches" JSONB,
+    "allowed_terminals" JSONB,
     "max_discount_percent" DECIMAL DEFAULT 0.00,
     "can_override_prices" BOOLEAN DEFAULT false,
     "pin_code" TEXT,
@@ -518,6 +521,117 @@ CREATE TABLE "payment_service_providers" (
     "synced" INTEGER NOT NULL DEFAULT 0,
     "createdAt" DATETIME DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME
+);
+
+-- CreateTable
+CREATE TABLE "app_setups" (
+    "setup_id" TEXT NOT NULL PRIMARY KEY DEFAULT '-1',
+    "tenant_id" TEXT NOT NULL,
+    "branch_id" TEXT NOT NULL,
+    "terminal_id" TEXT NOT NULL,
+    "encrypted_verification_token" TEXT NOT NULL,
+    "iv" TEXT NOT NULL,
+    "data_signature" TEXT NOT NULL,
+    "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" DATETIME NOT NULL
+);
+
+-- CreateTable
+CREATE TABLE "terminal_settings" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "terminal_id" TEXT NOT NULL,
+    "store_name" TEXT,
+    "store_address" TEXT,
+    "store_phone" TEXT,
+    "store_email" TEXT,
+    "currency" TEXT NOT NULL DEFAULT 'MKW',
+    "tax_rate" DECIMAL NOT NULL DEFAULT 0.00,
+    "business_license" TEXT,
+    "business_tax_id" TEXT,
+    "language" TEXT NOT NULL DEFAULT 'en_US',
+    "timezone" TEXT NOT NULL DEFAULT 'Africa/Blantyre',
+    "date_format" TEXT NOT NULL DEFAULT 'DD/MM/YYYY',
+    "time_format" TEXT NOT NULL DEFAULT '24h',
+    "pin_length" INTEGER NOT NULL DEFAULT 4,
+    "session_timeout_minutes" INTEGER NOT NULL DEFAULT 15,
+    "auto_logout_minutes" INTEGER NOT NULL DEFAULT 30,
+    "server_url" TEXT,
+    "localization_settings" JSONB,
+    "transaction_settings" JSONB,
+    "customer_settings" JSONB,
+    "receipt_settings" JSONB,
+    "payment_settings" JSONB,
+    "mra_compliance_settings" JSONB,
+    "inventory_settings" JSONB,
+    "sync_settings" JSONB,
+    "security_settings" JSONB,
+    "performance_settings" JSONB,
+    "hardware_settings" JSONB,
+    "integration_settings" JSONB,
+    "workflow_settings" JSONB,
+    "backup_settings" JSONB,
+    "display_settings" JSONB,
+    "tax_fee_settings" JSONB,
+    "customer_management_settings" JSONB,
+    "reporting_settings" JSONB,
+    "settings_version" TEXT NOT NULL DEFAULT '2.0.0',
+    "last_configured_by" TEXT,
+    "configuration_date" DATETIME,
+    "is_active" BOOLEAN NOT NULL DEFAULT true,
+    "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" DATETIME NOT NULL,
+    CONSTRAINT "terminal_settings_terminal_id_fkey" FOREIGN KEY ("terminal_id") REFERENCES "terminals" ("terminal_id") ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+-- CreateTable
+CREATE TABLE "terminal_settings_overrides" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "setting_key" TEXT NOT NULL,
+    "setting_value" JSONB NOT NULL,
+    "override_level" TEXT NOT NULL,
+    "override_source_id" TEXT NOT NULL,
+    "reason" TEXT,
+    "effective_from" DATETIME NOT NULL,
+    "effective_to" DATETIME,
+    "is_active" BOOLEAN NOT NULL DEFAULT true,
+    "created_by" TEXT,
+    "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" DATETIME NOT NULL
+);
+
+-- CreateTable
+CREATE TABLE "HoldOrder" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "itemId" TEXT NOT NULL,
+    "reference" TEXT NOT NULL,
+    "total" DECIMAL NOT NULL DEFAULT 0,
+    "totalItems" INTEGER NOT NULL DEFAULT 0,
+    "date" DATETIME NOT NULL,
+    "status" TEXT NOT NULL DEFAULT 'hold',
+    "userId" TEXT,
+    "till" TEXT,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL,
+    "tenantId" TEXT,
+    "branchId" TEXT
+);
+
+-- CreateTable
+CREATE TABLE "HoldOrderItem" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "holdOrderId" TEXT NOT NULL,
+    "productId" TEXT NOT NULL,
+    "productName" TEXT NOT NULL,
+    "quantity" INTEGER NOT NULL DEFAULT 1,
+    "price" DECIMAL NOT NULL DEFAULT 0,
+    "subtotal" DECIMAL NOT NULL DEFAULT 0,
+    "sku" TEXT,
+    "barcode" TEXT,
+    "unit" TEXT,
+    "discount" DECIMAL DEFAULT 0,
+    "tax" DECIMAL DEFAULT 0,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "HoldOrderItem_holdOrderId_fkey" FOREIGN KEY ("holdOrderId") REFERENCES "HoldOrder" ("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 -- CreateIndex
@@ -573,6 +687,9 @@ CREATE UNIQUE INDEX "categories_category_id_key" ON "categories"("category_id");
 
 -- CreateIndex
 CREATE INDEX "categories_branch_id_idx" ON "categories"("branch_id");
+
+-- CreateIndex
+CREATE INDEX "categories_terminal_id_idx" ON "categories"("terminal_id");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "categories_branch_id_name_key" ON "categories"("branch_id", "name");
@@ -707,12 +824,6 @@ CREATE UNIQUE INDEX "tenants_tenant_code_key" ON "tenants"("tenant_code");
 CREATE UNIQUE INDEX "tenants_email_key" ON "tenants"("email");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "tenants_auth_key_key" ON "tenants"("auth_key");
-
--- CreateIndex
-CREATE INDEX "tenants_auth_key_idx" ON "tenants"("auth_key");
-
--- CreateIndex
 CREATE INDEX "tenants_email_idx" ON "tenants"("email");
 
 -- CreateIndex
@@ -807,3 +918,63 @@ CREATE UNIQUE INDEX "users_tenant_id_username_key" ON "users"("tenant_id", "user
 
 -- CreateIndex
 CREATE UNIQUE INDEX "payment_service_providers_providerId_key" ON "payment_service_providers"("providerId");
+
+-- CreateIndex
+CREATE INDEX "app_setups_tenant_id_idx" ON "app_setups"("tenant_id");
+
+-- CreateIndex
+CREATE INDEX "app_setups_branch_id_idx" ON "app_setups"("branch_id");
+
+-- CreateIndex
+CREATE INDEX "app_setups_terminal_id_idx" ON "app_setups"("terminal_id");
+
+-- CreateIndex
+CREATE INDEX "app_setups_created_at_idx" ON "app_setups"("created_at");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "app_setups_tenant_id_branch_id_terminal_id_key" ON "app_setups"("tenant_id", "branch_id", "terminal_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "terminal_settings_terminal_id_key" ON "terminal_settings"("terminal_id");
+
+-- CreateIndex
+CREATE INDEX "terminal_settings_terminal_id_idx" ON "terminal_settings"("terminal_id");
+
+-- CreateIndex
+CREATE INDEX "terminal_settings_overrides_override_level_override_source_id_idx" ON "terminal_settings_overrides"("override_level", "override_source_id");
+
+-- CreateIndex
+CREATE INDEX "terminal_settings_overrides_setting_key_idx" ON "terminal_settings_overrides"("setting_key");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "terminal_settings_overrides_override_level_override_source_id_setting_key_key" ON "terminal_settings_overrides"("override_level", "override_source_id", "setting_key");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "HoldOrder_itemId_key" ON "HoldOrder"("itemId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "HoldOrder_reference_key" ON "HoldOrder"("reference");
+
+-- CreateIndex
+CREATE INDEX "HoldOrder_itemId_idx" ON "HoldOrder"("itemId");
+
+-- CreateIndex
+CREATE INDEX "HoldOrder_reference_idx" ON "HoldOrder"("reference");
+
+-- CreateIndex
+CREATE INDEX "HoldOrder_date_idx" ON "HoldOrder"("date");
+
+-- CreateIndex
+CREATE INDEX "HoldOrder_status_idx" ON "HoldOrder"("status");
+
+-- CreateIndex
+CREATE INDEX "HoldOrder_userId_idx" ON "HoldOrder"("userId");
+
+-- CreateIndex
+CREATE INDEX "HoldOrder_createdAt_idx" ON "HoldOrder"("createdAt");
+
+-- CreateIndex
+CREATE INDEX "HoldOrderItem_holdOrderId_idx" ON "HoldOrderItem"("holdOrderId");
+
+-- CreateIndex
+CREATE INDEX "HoldOrderItem_productId_idx" ON "HoldOrderItem"("productId");

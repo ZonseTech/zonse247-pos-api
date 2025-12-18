@@ -99,9 +99,9 @@ router.get(
 );
 
 router.get(
-	'/shop/:shopUuid',
-	validateParams(userValidationSchemas.shopUuid),
-	asyncHandler(UserController.getUsersByShop)
+	'/branch/:branchUuid',
+	validateParams(userValidationSchemas.branchUuid),
+	asyncHandler(UserController.getUsersByBranch)
 );
 
 export default router;

@@ -67,7 +67,7 @@ export class OrderController extends BaseController {
                 return;
             }
 
-            const savedItems = await OrderService.createOrderItems(transactionId, items);
+            const savedItems = await OrderService.createOrderItems(transactionId, refNumber, items);
             OrderController.sendCreated(res, 'Order items created successfully', {
                 refNumber,
                 items: savedItems,

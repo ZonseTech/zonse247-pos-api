@@ -125,9 +125,9 @@ export class UserService {
 		return publicUsers;
 	}
 
-	static async getUsersByShop(branchId: string): Promise<any[]> {
+	static async getUsersByBranch(branchId: string): Promise<any[]> {
 		if (!branchId) {
-			throw new Error('Shop ID is required.');
+			throw new Error('Branch ID is required.');
 		}
 
 		const users = await UserModel.findByBranchId(branchId);

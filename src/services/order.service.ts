@@ -25,6 +25,7 @@ export class OrderService {
 
     static async createOrderItems(
         transactionId: string,
+        refNumber: string,
         items: CartItem[]
     ): Promise<OrderItem[]> {
         const orderItems: OrderItem[] = [];
@@ -32,6 +33,7 @@ export class OrderService {
         for (const item of items) {
             const orderItem: Partial<OrderItem> = {
                 transactionId,
+                refNumber,
                 productId: item.productId,
                 quantity: item.quantity as any,
                 purchasePrice: item.purchasePrice as any,

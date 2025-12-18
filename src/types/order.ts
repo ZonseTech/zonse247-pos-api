@@ -1,5 +1,4 @@
 import { Category } from "categoty";
-import { Product } from "product";
 import { Decimal } from "../databases/prisma/generated/prisma/internal/prismaNamespace";
 
 export interface OrderItem {
@@ -48,5 +47,4 @@ export interface CartItem {
     variancePrice?: number;
     quantity: number;
     categoryDetails?: Category;
-    productDetails?: Product;
 }

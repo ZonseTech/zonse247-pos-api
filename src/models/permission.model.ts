@@ -85,7 +85,7 @@ export class PermissionModel {
             displayName: data.displayName,
             description: data.description || null,
             category: data.category,
-            scope: data.scope || PermissionScope.CLIENT,
+            scope: data.scope || PermissionScope.TENANT,
             isSystemPermission: data.isSystemPermission || false,
             createdAt: data.createdAt || now,
             updatedAt: now

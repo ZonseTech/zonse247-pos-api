@@ -211,6 +211,7 @@ model Inventory {
   dimensions                             String?           @map("dimensions")
   color                                  String?           @map("color")
   size                                   String?           @map("size")
+  properties                             Json?             @map("properties")
   status                                 InventoryStatus?  @default(active) @map("status")
   trackInventory                         Boolean?          @default(true) @map("track_inventory")
   allowNegativeStock                     Boolean?          @default(false) @map("allow_negative_stock")
@@ -260,9 +261,9 @@ model Order {
 model PaymentMethod {
   id         Int       @id @default(autoincrement())
   methodId   String    @unique @map("method_id")
-  branchId   String    @map("branch_id")
-  tenantId   String    @map("tenant_id")
-  userId     String    @map("user_id")
+  branchId   String?   @map("branch_id")
+  tenantId   String?   @map("tenant_id")
+  userId     String?   @map("user_id")
   name       String    @map("name")
   isActive   Boolean?  @default(true) @map("is_active")
   icon       String?   @map("icon")
@@ -270,13 +271,10 @@ model PaymentMethod {
   synced     Int?      @default(0) @map("synced")
   createdAt  DateTime? @default(now()) @map("created_at")
   updatedAt  DateTime? @default(now()) @map("updated_at")
-  branch     Branch    @relation(fields: [branchId], references: [branchId], onDelete: Cascade, onUpdate: NoAction)
-  tenant     Tenant    @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade, onUpdate: NoAction)
-  user       User      @relation(fields: [userId], references: [userId], onDelete: Cascade, onUpdate: NoAction)
+  branch     Branch?   @relation(fields: [branchId], references: [branchId], onDelete: Cascade, onUpdate: NoAction)
+  tenant     Tenant?   @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade, onUpdate: NoAction)
+  user       User?     @relation(fields: [userId], references: [userId], onDelete: Cascade, onUpdate: NoAction)
 
-  @@unique([branchId, name], name: "unique_branch_payment_method")
-  @@unique([tenantId, name], name: "unique_tenant_payment_method")
-  @@unique([userId, name], name: "unique_user_payment_method")
   @@index([branchId])
   @@index([tenantId])
   @@index([userId])
@@ -290,7 +288,7 @@ model Permission {
   displayName          String             @map("display_name")
   description          String?            @map("description")
   category             String             @map("category")
-  scope                PermissionScope?   @default(shop) @map("scope")
+  scope                PermissionScope?   @default(branch) @map("scope")
   synced               Int?               @default(0) @map("synced")
   isSystemPermission   Boolean?           @default(true) @map("is_system_permission")
   createdAt            DateTime?          @default(now()) @map("created_at")
@@ -499,6 +497,7 @@ model Terminal {
   tenant                            Tenant                            @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade, onUpdate: NoAction)
   branch                            Branch                            @relation(fields: [branchId], references: [branchId], onDelete: Cascade, onUpdate: NoAction)
   userSessions                      UserSession[]
+  terminalSettings                  TerminalSettings?
 
   @@index([activationStatus])
   @@index([branchId])
@@ -595,8 +594,8 @@ model User {
   phone                                               String?            @map("phone")
   roleId                                              String             @map("role_id")
   status                                              UserStatus?        @default(active) @map("status")
-  accessibleShops                                     Json?              @map("accessible_shops")
-  allowedWorkstations                                 Json?              @map("allowed_workstations")
+  accessibleBranches                                  Json?              @map("accessible_branches")
+  allowedTerminals                                    Json?              @map("allowed_terminals")
   maxDiscountPercent                                  Decimal?           @default(0.00) @map("max_discount_percent")
   canOverridePrices                                   Boolean?           @default(false) @map("can_override_prices")
   pinCode                                             String?            @map("pin_code")
@@ -675,66 +674,174 @@ model AppSetup {
   @@map("app_setups")
 }
 
-model TerminalSetting {
-  // Common primary key that works for both
-  id        String   @id @default(cuid()) @map("id")
- 
-  // Your business ID
-  settingId String   @unique @map("setting_id")
- 
-  app       String   @map("app")
-  store     String   @map("store")
-  verificationToken String @map("verification_token")
- 
-  // Optional fields with proper null handling
-  addressLine1 String? @map("address_line1")
-  addressLine2 String? @map("address_line2")
- 
-  tenantSignature String @map("tenant_signature")
- 
-  country   String?  @map("country")
-  city      String?  @map("city")
-  contact   String   @map("contact")
- 
-  // Tax handling
-  tax       Decimal? @map("tax")
-  taxString String?  @map("tax_string")
- 
-  symbol    String   @map("symbol")
-  chargeTax Boolean  @default(false) @map("charge_tax")
-  footer    String   @map("footer")
-  img       String?  @map("img")
-  tillName  String?  @map("till_name")
- 
-  // Status with enum type
-  status    TerminalStatus @default(active) @map("status")
- 
-  // Synced as boolean
-  synced    Boolean @default(false) @map("synced")
- 
-  // Tenant context
-  tenantId  String   @map("tenant_id")
-  branchId  String   @map("branch_id")
-  terminalId String  @map("terminal_id")
- 
-  // Timestamps
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
- 
-  // Indexes (automatically use mapped column names)
-  @@index([settingId])
-  @@index([tenantId])
-  @@index([branchId])
+model TerminalSettings {
+  id                               String                           @id @default(cuid())
+  terminalId                       String                           @unique @map("terminal_id")
+  
+  // ==========================================
+  // SELECTIVE COLUMNS (Frequently queried fields)
+  // ==========================================
+  
+  // General Information (Selective Columns)
+  storeName                        String?                          @map("store_name")
+  storeAddress                     String?                          @map("store_address")
+  storePhone                       String?                          @map("store_phone")
+  storeEmail                       String?                          @map("store_email")
+  currency                         String                           @default("MKW") @map("currency")
+  taxRate                          Decimal                          @default(0.00) @map("tax_rate")
+  businessLicense                  String?                          @map("business_license")
+  businessTaxId                    String?                          @map("business_tax_id")
+  
+  // Localization & Display Settings (Selective Columns)
+  language                         String                           @default("en_US") @map("language")
+  timezone                         String                           @default("Africa/Blantyre") @map("timezone")
+  dateFormat                       String                           @default("DD/MM/YYYY") @map("date_format")
+  timeFormat                       String                           @default("24h") @map("time_format") // '12h' | '24h'
+  
+  // Security & Access Control (Selective Columns - frequently used)
+  pinLength                        Int                              @default(4) @map("pin_length")
+  sessionTimeoutMinutes            Int                              @default(15) @map("session_timeout_minutes")
+  autoLogoutMinutes                Int                              @default(30) @map("auto_logout_minutes")
+  serverUrl                        String?                          @map("server_url")
+  
+  // ==========================================
+  // HIERARCHICAL JSON COLUMNS (Grouped settings)
+  // ==========================================
+  
+  // Localization Settings (JSON) - extended settings
+  // { currencyDecimalPlaces, numberSeparator, showCurrencySymbol, currencySymbolPosition }
+  localizationSettings             Json?                            @map("localization_settings")
+  
+  // Transaction Processing Settings (JSON)
+  // { autoApplyTax, taxInclusivePricing, roundTaxAmount, roundTotalAmount, roundToNearest,
+  //   minimumTransactionAmount, maximumTransactionAmount, holdTransactionMinutes, saveDraftTransactions }
+  transactionSettings              Json?                            @map("transaction_settings")
+  
+  // Customer Settings (JSON)
+  // { requireCustomerDetails, defaultCustomerType, collectCustomerEmail, collectCustomerPhone,
+  //   collectCustomerAddress, customerDisplayMode }
+  customerSettings                 Json?                            @map("customer_settings")
+  
+  // Receipt & Printing Settings (JSON)
+  // { receiptNumberPrefix, receiptNumberSuffix, receiptStartNumber, receiptResetDaily,
+  //   printDuplicateReceipt, receiptCopies, printOrderKitchen, printOrderBar, kitchenPrinterName,
+  //   barPrinterName, printItemizedReceipt, receiptFooter, receiptHeader, showStoreLogo, logoUrl,
+  //   receiptWidth, showTaxBreakdown, showItemCodes, showCashierName, showTerminalId,
+  //   qrCodeEnabled, qrCodeContent }
+  receiptSettings                  Json?                            @map("receipt_settings")
+  
+  // Payment Processing Settings (JSON)
+  // { cashPaymentDefault, cardPaymentDefault, splitPaymentEnabled, maxSplitWays,
+  //   changeCalculationMode, suggestChangeAmounts, giftCardEnabled, loyaltyPointsEnabled,
+  //   enableCash, enableCard, enableMobileMoney, enableCredit, enableGiftCard,
+  //   roundingEnabled, roundingAmount }
+  paymentSettings                  Json?                            @map("payment_settings")
+  
+  // VAT/MRA Compliance Settings (JSON)
+  // { mraComplianceMode, requireVatNumber, vatInclusiveDisplay, zReportAutoGenerate,
+  //   zReportTime, dailySalesReportTime }
+  mraComplianceSettings            Json?                            @map("mra_compliance_settings")
+  
+  // Inventory & Product Settings (JSON)
+  // { showProductImages, productDisplayMode, productsPerPage, quickProductSearch,
+  //   barcodeScanMode, scaleIntegrationMode, allowNegativeStock, lowStockThreshold,
+  //   showStockLevels, enableStockAlerts, autoOrderEnabled }
+  inventorySettings                Json?                            @map("inventory_settings")
+  
+  // Offline & Sync Settings (JSON)
+  // { enableOfflineMode, offlineDataRetentionDays, syncOnWifiOnly, autoSyncOnReconnect,
+  //   syncBatchSize, syncTimeoutSeconds, enableCloudSync }
+  syncSettings                     Json?                            @map("sync_settings")
+  
+  // Security & Access Control (JSON) - extended settings
+  // { maxLoginAttempts, lockoutMinutes, requirePinForSettings, requirePinForReports,
+  //   requirePinForVoid, requirePinForDiscount, requirePinForReturn, auditLogEnabled }
+  securitySettings                 Json?                            @map("security_settings")
+  
+  // Performance & Storage (JSON)
+  // { cacheExpiryHours, maxCacheSizeMB, transactionHistoryDays, autoCleanupOldData,
+  //   imageCompressionQuality }
+  performanceSettings              Json?                            @map("performance_settings")
+  
+  // Hardware & Device Settings (JSON)
+  // { printerConnectionType, printerPaperWidth, cashDrawerOpenCode, scannerBeepEnabled,
+  //   scannerVibrationEnabled, screenBrightness, screenTimeoutSeconds, printerType,
+  //   printerName, autoPrintReceipt, paperSize, enableCashDrawer, cashDrawerOpenOn,
+  //   enableBarcodeScanner, barcodeScannerPrefix, enableCardReader, cardReaderType }
+  hardwareSettings                 Json?                            @map("hardware_settings")
+  
+  // Integration & API Settings (JSON)
+  // { apiBaseUrl, mraApiTimeoutSeconds, mraRetryAttempts, webhookEnabled, webhookUrl,
+  //   webhookSecret, apiKeyExpiryDays, enableApiAccess, apiRateLimit }
+  integrationSettings              Json?                            @map("integration_settings")
+  
+  // Business Rules & Workflow (JSON)
+  // { allowReturnWithoutReceipt, returnPeriodDays, requireManagerForVoid, managerOverridePin,
+  //   autoCloseShift, shiftCloseTime, dailyOpeningTime, enableCashManagement,
+  //   requireOpeningFloat, openingFloatAmount, enableShiftManagement, enableMultipleUsers,
+  //   enableReturns, enableLayaway, enableDiscounts, maxDiscountPercentage }
+  workflowSettings                 Json?                            @map("workflow_settings")
+  
+  // Backup & Recovery (JSON)
+  // { backupEnabled, backupFrequency, autoBackupEnabled, backupIntervalHours,
+  //   maxBackupFiles, backupLocation }
+  backupSettings                   Json?                            @map("backup_settings")
+  
+  // Display & UI Settings (JSON)
+  // { theme, fontSize, navigationMenuType, showProductImages, enableAnimations,
+  //   enableNotifications, enableVirtualKeyboard, virtualKeyboardLayout,
+  //   virtualKeyboardTheme, virtualKeyboardSound, virtualKeyboardHaptic }
+  displaySettings                  Json?                            @map("display_settings")
+  
+  // Taxes & Fees Settings (JSON)
+  // { taxInclusive, showTaxOnReceipt, multiTaxEnabled, serviceFeeEnabled,
+  //   serviceFeePercentage }
+  taxFeeSettings                   Json?                            @map("tax_fee_settings")
+  
+  // Customer Management Settings (JSON)
+  // { enableLoyaltyProgram, loyaltyPointsPerDollar, enableCustomerAccounts,
+  //   enableCustomerCredit, maxCustomerCredit }
+  customerManagementSettings       Json?                            @map("customer_management_settings")
+  
+  // Reporting Settings (JSON)
+  // { eodReportEnabled, eodReportTime, emailReports, reportEmail }
+  reportingSettings                Json?                            @map("reporting_settings")
+  
+  // ==========================================
+  // AUDIT & METADATA
+  // ==========================================
+  settingsVersion                  String                           @default("2.0.0") @map("settings_version")
+  lastConfiguredBy                 String?                          @map("last_configured_by")
+  configurationDate                DateTime?                        @map("configuration_date")
+  isActive                         Boolean                          @default(true) @map("is_active")
+  createdAt                        DateTime                         @default(now()) @map("created_at")
+  updatedAt                        DateTime                         @updatedAt @map("updated_at")
+  
+  // Relations
+  terminal                         Terminal                         @relation(fields: [terminalId], references: [terminalId], onDelete: Cascade)
+  
   @@index([terminalId])
-  @@index([status])
-  @@index([synced])
-  @@index([createdAt])
- 
-  // Unique constraint for tenant/branch/terminal combination
-  @@unique([tenantId, branchId, terminalId])
- 
-  // Map the table name to snake_case
   @@map("terminal_settings")
+}
+
+model TerminalSettingsOverride {
+  id                               String                           @id @default(cuid())
+  settingKey                       String                           @map("setting_key")
+  settingValue                     Json                             @map("setting_value") // Can store different types
+  overrideLevel                    String                           @map("override_level") // TENANT, BRANCH, TERMINAL
+  overrideSourceId                 String                           @map("override_source_id") // tenantId, branchId, or terminalId
+  reason                           String?                          @map("reason")
+  effectiveFrom                    DateTime                         @map("effective_from")
+  effectiveTo                      DateTime?                        @map("effective_to")
+  isActive                         Boolean                          @default(true) @map("is_active")
+  createdBy                        String?                          @map("created_by")
+  createdAt                        DateTime                         @default(now()) @map("created_at")
+  updatedAt                        DateTime                         @updatedAt @map("updated_at")
+  
+  @@unique([overrideLevel, overrideSourceId, settingKey], name: "unique_override")
+  @@index([overrideLevel, overrideSourceId])
+  @@index([settingKey])
+  @@map("terminal_settings_overrides")
 }
 
 model HoldOrder {
@@ -835,11 +942,11 @@ enum AuditLogActionType {
 
 enum PermissionScope {
   global
-  workstation
+  terminal
   self
   system
-  client
-  shop
+  tenant
+  branch
 }
 
 enum MRA_API_CONFIG_TABLE_sync_status {

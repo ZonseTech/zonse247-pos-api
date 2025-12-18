@@ -82,8 +82,8 @@ export class EmailService {
                             <ol style="color: #666;">
                             <li>Verify your account using the link above</li>
                             <li>Set up your subscription plan</li>
-                            <li>Create your first shop</li>
-                            <li>Configure your workstations</li>
+                            <li>Create your first branch</li>
+                            <li>Configure your terminals</li>
                             </ol>
                         </div>
                     
@@ -123,8 +123,8 @@ export class EmailService {
             Next Steps:
             1. Verify your account using the link above
             2. Set up your subscription plan
-            3. Create your first shop
-            4. Configure your workstations
+            3. Create your first branch
+            4. Configure your terminals
 
             If you have any questions or need assistance, please don't hesitate to contact our support team.
 

@@ -1,9 +1,9 @@
 export const PermissionScope = {
     USER: 'user',
     GLOBAL: 'global',
-    CLIENT: 'client',
-    SHOP: 'shop',
-    WORKSTATION: 'workstation',
+    TENANT: 'tenant',
+    BRANCH: 'branch',
+    TERMINAL: 'terminal',
     SELF: 'self',
 } as const;
 
@@ -34,8 +34,8 @@ export const PermissionCategory = {
     // System Configuration
     SETTINGS: 'settings',
     SYSTEM: 'system',
-    SHOPS: 'shops',
-    WORKSTATIONS: 'workstations',
+    BRANCHES: 'branches',
+    TERMINALS: 'terminals',
 
     // Business Management
     SUPPLIERS: 'suppliers',
