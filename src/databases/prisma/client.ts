@@ -1,9 +1,7 @@
-/* eslint-disable @typescript-eslint/no-empty-function */
-/* eslint-disable @typescript-eslint/no-non-null-assertion */
 import { PrismaMariaDb } from '@prisma/adapter-mariadb';
 import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
 import {
-    OFFLINE_MODE,
+    DATABASE_OFFLINE_MODE,
     DATABASE_URL,
     DATABASE_HOST,
     DATABASE_USER,
@@ -20,7 +18,7 @@ let isInitialized = false;
 
 const initializeLocalClient = () => {
     if (!localClient) {
-        const adapter = new PrismaBetterSqlite3({ url: DATABASE_URL || 'file:local.db' });
+        const adapter = new PrismaBetterSqlite3({ url: DATABASE_URL || 'file:./local.db' });
         localClient = new PrismaClient({
             adapter,
             log: ['error', 'warn']
@@ -56,11 +54,11 @@ const initializeRemoteClient = async () => {
 const initializePrisma = async (): Promise<PrismaClient> => {
     if (prismaInstance) return prismaInstance;
 
-    if (!OFFLINE_MODE) {
+    if (!DATABASE_OFFLINE_MODE) {
         try {
             console.log('🌐 Attempting to connect to remote MySQL database...');
             prismaInstance = await initializeRemoteClient();
-            console.log('✅ Connected to remote MySQL database');
+            console.log('✓ Connected to remote MySQL database');
             isInitialized = true;
             return prismaInstance;
         } catch (error) {
@@ -74,7 +72,7 @@ const initializePrisma = async (): Promise<PrismaClient> => {
     console.log('📦 Using local SQLite database');
     prismaInstance = initializeLocalClient();
     isInitialized = true;
-    console.log('✅ Connected to remote SQLite database');
+    console.log('✓ Connected to remote SQLite database');
     return prismaInstance;
 };
 
@@ -93,20 +91,18 @@ class PrismaClientWrapper {
         if (!isInitialized) {
             await this.clientPromise;
         }
-        return prismaInstance!;
+
+        return prismaInstance;
     }
 
-    // Proxy all property access to the actual client
     private createProxy(): any {
         return new Proxy(this, {
             get: (target, prop: string) => {
-                // If accessing a method on the wrapper itself
                 if (prop in target) {
                     return (target as any)[prop];
                 }
 
-                // Return a function that will get the client and access the property
-                return new Proxy(() => { }, {
+                return new Proxy(() => { 1 + 1 }, {
                     get: (_, subProp: string) => {
                         return async (...args: any[]) => {
                             const client = await target.getClient();
@@ -145,15 +141,6 @@ class PrismaClientWrapper {
     }
 }
 
-const wrapper = new PrismaClientWrapper();
-
-/**
- * Prisma client instance with lazy initialization
- * Use directly: prisma.model.findMany()
- * All operations automatically wait for initialization
- */
-export const prisma: PrismaClient = wrapper.getProxy();
-
 /**
  * Get the Prisma client instance (ensures initialization)
  */
@@ -161,7 +148,7 @@ export const getPrisma = async (): Promise<PrismaClient> => {
     if (!isInitialized) {
         await initializePrisma();
     }
-    return prismaInstance!;
+    return prismaInstance;
 };
 
 /**
@@ -196,8 +183,17 @@ export const getConnectionStatus = () => {
         isInitialized,
         isLocal: prismaInstance === localClient,
         isRemote: prismaInstance === remoteClient,
-        offlineMode: OFFLINE_MODE
+        offlineMode: DATABASE_OFFLINE_MODE
     };
 };
+
+const wrapper = new PrismaClientWrapper();
+
+/**
+ * Prisma client instance with lazy initialization
+ * Use directly: prisma.model.findMany()
+ * All operations automatically wait for initialization
+ */
+export const prisma: PrismaClient = wrapper.getProxy();
 
 export default prisma;

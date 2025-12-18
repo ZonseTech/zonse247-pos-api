@@ -1,10 +1,10 @@
-import type { Role } from 'role-permission';
+import type { SubscriptionPlan } from 'subscription';
 import { SubscriptionPlanModel } from '../models/subscription-plan.model';
-import { SubscriptionPlan } from 'subscription';
+import { SubscriptionPlanCreateInput, SubscriptionPlanUpdateInput } from '../databases/prisma/generated/prisma/models';
 
 export class SubscriptionPlanService {
 
-    static async selectAll(params): Promise<Array<Role>> {
+    static async selectAll(params): Promise<Array<SubscriptionPlan>> {
         return await SubscriptionPlanModel.findAllByRDBMS(params);
     }
 
@@ -21,7 +21,7 @@ export class SubscriptionPlanService {
     }
 
     static async create(data: Partial<SubscriptionPlan>): Promise<SubscriptionPlan> {
-        return SubscriptionPlanModel.create(data);
+        return SubscriptionPlanModel.create(data as unknown as SubscriptionPlanCreateInput);
     }
 
     static async update(id: string, data: Partial<SubscriptionPlan>): Promise<SubscriptionPlan | null> {
@@ -30,7 +30,7 @@ export class SubscriptionPlanService {
             return null;
         }
 
-        const numUpdated = await SubscriptionPlanModel.update(id, data);
+        const numUpdated = await SubscriptionPlanModel.update(id, data as unknown as SubscriptionPlanUpdateInput);
         if (numUpdated === 0) {
             return null;
         }
@@ -52,10 +52,6 @@ export class SubscriptionPlanService {
         return SubscriptionPlanModel.update(id, {
             isActive: !plan.isActive
         });
-    }
-
-    static async getByBillingCycle(billingCycle: string): Promise<SubscriptionPlan[]> {
-        return SubscriptionPlanModel.findByBillingCycle(billingCycle);
     }
 
     static async validatePlan(planId: string): Promise<boolean> {

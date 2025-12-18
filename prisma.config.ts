@@ -12,6 +12,6 @@ export default defineConfig({
     seed: `tsx ${path.join(prismaDir, 'seed.ts')}`
   },
   datasource: {
-    url: env('DATABASE_URL'),
+    url: env('DATABASE_URL') || "file:./local.db",
   },
 })

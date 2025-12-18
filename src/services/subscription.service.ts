@@ -2,8 +2,11 @@ import { TenantService } from './tenant.service';
 import { TenantModel } from '../models/tenant.model';
 import { SubscriptionModel } from '../models/subscription.model';
 import { SubscriptionPlanService } from './subscription-plan.service';
+import { BaseService } from './base.service';
 import type { Role } from 'role-permission';
 import type { CreateSubscriptionRequest, TenantSubscription } from 'subscription';
+import { EnumTenantSubscriptionStatusNullableFilter } from '../databases/prisma/generated/prisma/commonInputTypes';
+import { TenantSubscriptionCreateInput } from '../databases/prisma/generated/prisma/models';
 
 export class SubscriptionService {
 
@@ -37,11 +40,11 @@ export class SubscriptionService {
 	}
 
 	static async create(
-		data: CreateSubscriptionRequest
+		data: CreateSubscriptionRequest & { tenantSubscriptionId?: string }
 	): Promise<TenantSubscription> {
 		const validationError = TenantService.validateRequired(data, [
 			'tenantId',
-			'planId',
+			'subscriptionPlanId',
 		]);
 		if (validationError) {
 			throw new Error(validationError);
@@ -52,7 +55,7 @@ export class SubscriptionService {
 			throw new Error('Tenant not found');
 		}
 
-		const plan = await SubscriptionPlanService.getById(data.planId);
+		const plan = await SubscriptionPlanService.getById(data.subscriptionPlanId);
 		if (!plan || !plan.isActive) {
 			throw new Error('Subscription plan not found or inactive');
 		}
@@ -61,15 +64,15 @@ export class SubscriptionService {
 			throw new Error('Tenant already subscribe to this plan.');
 		}
 
-		const existingSubscription = await SubscriptionModel.findActiveByTenantId(data.tenantId);
+		const existingSubscription = await SubscriptionModel.findById(data?.tenantSubscriptionId);
 
-		if (existingSubscription.subscriptionId) {
-			await SubscriptionModel.update(existingSubscription.subscriptionId, {
+		if (existingSubscription?.tenantSubscriptionId) {
+			await SubscriptionModel.update(existingSubscription.tenantSubscriptionId, {
 				status: 'cancelled',
 			})
 		}
 
-		const subscriptionData = SubscriptionModel.buildSubscriptionData(data);
+		const subscriptionData = SubscriptionModel.buildSubscriptionData(data) as unknown as TenantSubscriptionCreateInput;
 		const newSubscription = await SubscriptionModel.create(subscriptionData);
 
 		const now = new Date();
@@ -106,13 +109,35 @@ export class SubscriptionService {
 	}
 
 	static async getByStatus(status: string): Promise<TenantSubscription[]> {
-		return SubscriptionModel.findByStatus(status);
+		return SubscriptionModel.findByStatus(status as EnumTenantSubscriptionStatusNullableFilter);
 	}
 
-	static async getByClientUuid(
-		clientUuid: string
-	): Promise<TenantSubscription[]> {
-		return SubscriptionModel.findByTenantId(clientUuid);
+	static async getByTenantId(
+		tenantId: string
+	): Promise<TenantSubscription> {
+		const subscription = await SubscriptionModel.findActiveByTenantId(tenantId)
+
+		if (subscription) return subscription
+
+		const response = await BaseService.get<TenantSubscription>(
+			`/subscriptions/live/tenant/${tenantId}`
+		);
+
+		if (response.success) {
+			const newSubscription = response.data
+
+			await SubscriptionModel.create(newSubscription as unknown as TenantSubscriptionCreateInput)
+
+			return response.data;
+		}
+
+		return null
+	}
+
+	static async getActiveSubscriptionByTenantId(
+		tenantId: string
+	): Promise<TenantSubscription> {
+		return await SubscriptionModel.findActiveByTenantId(tenantId);
 	}
 
 	static async getByPlanId(planId: string): Promise<TenantSubscription[]> {
@@ -147,7 +172,7 @@ export class SubscriptionService {
 			return null;
 		}
 
-		const plan = await SubscriptionPlanService.getById(subscription.planId);
+		const plan = await SubscriptionPlanService.getById(subscription.subscriptionPlanId);
 		if (!plan) {
 			throw new Error('Subscription plan not found');
 		}
@@ -199,7 +224,7 @@ export class SubscriptionService {
 			status: 'active',
 		};
 
-		const plan = await SubscriptionPlanService.getById(subscription.planId);
+		const plan = await SubscriptionPlanService.getById(subscription.subscriptionPlanId);
 		if (plan) {
 			let nextPaymentDate: Date | null = null;
 			if (plan.monthlyPrice) {

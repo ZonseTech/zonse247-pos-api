@@ -7,15 +7,16 @@ import HoldOrdersRoutes from './hold-orders.routes'
 import InventoryRoutes from './inventory.routes'
 import MigrationRoutes from './migration.routes'
 import PaymentMethodRoutes from './payment-method.routes'
-import SettingsRoutes from './settings.routes'
+import TerminalSettingsRoutes from './terminal-settings.routes'
 import SyncRoutes from './sync.routes'
 import TransactionsRoutes from './transaction.routes'
 import UsersRoutes from './users.routes'
 import TenantsRoutes from './tenant.routes'
 import SubscriptionsRoutes from './subscription.routes'
 import SubscriptionPlanRoutes from './subscription-plan.routes'
+import PlanFeaturesRoutes from './plan-features.routes'
 import BranchesRoutes from './branch.routes'
-import WorkStationRoutes from './terminal.routes'
+import TerminalRoutes from './terminal.routes'
 import RoleRoutes from './role.routes'
 import MailingRoutes from './email.routes'
 import OnboardingRoutes from './onboarding.routes'
@@ -29,6 +30,11 @@ import PaymentServiceProviderRoutes from './payment-service-provider.routes'
 import MetadataRoutes from './metadata.routes'
 import AccountSeedsRoutes from './account-seeds.routes'
 import { MetadataMiddleware } from '../middlewares/metadata.middleware'
+import { validateBody } from '../middlewares/validation.middleware'
+import { userValidationSchemas } from '../validations/user.schemas'
+import { asyncHandler } from '../middlewares/error.middleware'
+import { AuthController } from '../controllers/auth.controller'
+import { SubscriptionController } from '../controllers/subscription.controller'
 
 const router = Router();
 const authMiddleware = new AuthMiddleware();
@@ -45,13 +51,23 @@ router.use('/on-boarding', OnboardingRoutes);
 router.use('/account-seeds', AccountSeedsRoutes)
 router.use('/metadata', MetadataMiddleware.validateKey, MetadataRoutes);
 
+router.get('/subscriptions/live/tenant/:tenantId', SubscriptionController.getSubscriptionByTenantId);
+
+router.post(
+    '/auth/live/login',
+    validateBody(userValidationSchemas.loginUser),
+    asyncHandler(AuthController.initiateLoginAccount)
+);
+
+router.use('/plan-features', PlanFeaturesRoutes);
+
 router.use(authMiddleware.verifyRequestHeaders)
 
 router.use('/auth', authLimiter, AuthRoutes);
 
 router.use(authMiddleware.verifyToken)
 
-router.use('/settings', SettingsRoutes);
+router.use('/terminal-settings', TerminalSettingsRoutes);
 router.use('/tenants', TenantsRoutes);
 router.use('/branches', BranchesRoutes);
 
@@ -70,7 +86,7 @@ router.use('/transactions', TransactionsRoutes);
 router.use('/hold-orders', HoldOrdersRoutes);
 router.use('/subscriptions', SubscriptionsRoutes);
 router.use('/subscription-plans', SubscriptionPlanRoutes);
-router.use('/workstations', WorkStationRoutes);
+router.use('/terminals', TerminalRoutes);
 router.use('/roles', RoleRoutes);
 router.use('/permissions', PermissionRoutes);
 router.use('/role-permissions', RolePermissionRoutes);

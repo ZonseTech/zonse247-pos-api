@@ -4,7 +4,7 @@ export const branchValidationSchemas = {
 
     id: Joi.object({
         id: Joi.string().required().messages({
-            'any.required': 'Shop ID is required',
+            'any.required': 'Branch ID is required',
         }),
     }),
 

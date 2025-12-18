@@ -3,22 +3,22 @@ import { PrismaClient } from "../generated/prisma/client";
 export async function seedBranch(prisma: PrismaClient) {
     console.log('📝 Seeding branch...');
 
-    await prisma.branches.upsert({
-        where: { branch_id: '-1' },
+    await prisma.branch.upsert({
+        where: { branchId: '-1' },
         update: {},
         create: {
-            branch_id: '-1',
-            tenant_id: '-1',
-            branch_name: 'Default Branch',
-            branch_code: 'BR001',
-            address_line_1: '123 Main Street',
+            branchId: '-1',
+            tenantId: '-1',
+            branchName: 'Default Branch',
+            branchCode: 'BR001',
+            addressLine1: '123 Main Street',
             city: 'Lilongwe',
             district: 'Lilongwe Urban',
-            phone_number: '+265999000111',
+            phoneNumber: '+265999000111',
             email: 'branch@example.com',
             status: 'active',
         },
     });
 
-    console.log('✅ Branch seeded');
+    console.log('✓ Branch seeded');
 }

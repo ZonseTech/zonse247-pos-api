@@ -1,6 +1,4 @@
 import { v4 as uuidv4 } from 'uuid';
-import { sealDBModel } from "../databases/local";
-import { ROLE_PERMISSIONS_DB } from "../databases/local/tables";
 import { ValidationParams } from 'on-boarding';
 import type { RolePermission } from 'role-permission';
 import prisma from '../databases/prisma/client';
@@ -8,10 +6,7 @@ import prisma from '../databases/prisma/client';
 export class RolePermissionModel {
     static async findAllByRDBMS(_: ValidationParams): Promise<RolePermission[]> {
         try {
-            return await prisma.role_permissions.findMany({
-                where: {
-                },
-            }) as unknown as Array<RolePermission>
+            return await prisma.rolePermission.findMany() as unknown as RolePermission[];
         } catch (error) {
             throw new Error(
                 `Error finding role permissions: ${error instanceof Error ? error.message : 'Unknown error'}`
@@ -21,7 +16,9 @@ export class RolePermissionModel {
 
     static async findAll(conditions: any = {}): Promise<RolePermission[]> {
         try {
-            return await sealDBModel.find(ROLE_PERMISSIONS_DB, conditions);
+            return await prisma.rolePermission.findMany({
+                where: conditions
+            }) as unknown as RolePermission[];
         } catch (error) {
             throw new Error(`Error finding role permissions: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
@@ -29,7 +26,9 @@ export class RolePermissionModel {
 
     static async findById(id: string): Promise<RolePermission | null> {
         try {
-            return await sealDBModel.findById<RolePermission>(ROLE_PERMISSIONS_DB, id);
+            return await prisma.rolePermission.findUnique({
+                where: { rolePermissionId: id }
+            }) as unknown as RolePermission | null;
         } catch (error) {
             throw new Error(`Error finding role permission by ID: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
@@ -37,7 +36,9 @@ export class RolePermissionModel {
 
     static async findByRoleId(roleId: string): Promise<RolePermission[]> {
         try {
-            return await sealDBModel.find(ROLE_PERMISSIONS_DB, { roleId: roleId });
+            return await prisma.rolePermission.findMany({
+                where: { roleId }
+            }) as unknown as RolePermission[];
         } catch (error) {
             throw new Error(`Error finding role permissions by role Id: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
@@ -45,7 +46,9 @@ export class RolePermissionModel {
 
     static async findByPermissionId(permissionId: string): Promise<RolePermission[]> {
         try {
-            return await sealDBModel.find(ROLE_PERMISSIONS_DB, { permissionId: permissionId });
+            return await prisma.rolePermission.findMany({
+                where: { permissionId }
+            }) as unknown as RolePermission[];
         } catch (error) {
             throw new Error(`Error finding role permissions by permission Id: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
@@ -53,11 +56,12 @@ export class RolePermissionModel {
 
     static async findByRoleAndPermissionId(roleId: string, permissionId: string): Promise<RolePermission | null> {
         try {
-            const results = await sealDBModel.find(ROLE_PERMISSIONS_DB, {
-                roleId: roleId,
-                permissionId: permissionId
-            });
-            return results.length > 0 ? results[0] : null;
+            return await prisma.rolePermission.findFirst({
+                where: {
+                    roleId,
+                    permissionId
+                }
+            }) as unknown as RolePermission | null;
         } catch (error) {
             throw new Error(`Error finding role permission by role and permission Id: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
@@ -76,7 +80,9 @@ export class RolePermissionModel {
     static async create(rolePermissionData: Partial<RolePermission>): Promise<RolePermission> {
         try {
             const data = this.buildRolePermissionData(rolePermissionData);
-            return await sealDBModel.insert(ROLE_PERMISSIONS_DB, data);
+            return await prisma.rolePermission.create({
+                data
+            }) as unknown as RolePermission;
         } catch (error) {
             throw new Error(`Error creating role permission: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
@@ -84,7 +90,10 @@ export class RolePermissionModel {
 
     static async delete(id: string): Promise<number> {
         try {
-            return await sealDBModel.delete(ROLE_PERMISSIONS_DB, id);
+            await prisma.rolePermission.delete({
+                where: { rolePermissionId: id }
+            });
+            return 1; // Return 1 to indicate successful deletion
         } catch (error) {
             throw new Error(`Error deleting role permission: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
@@ -92,17 +101,10 @@ export class RolePermissionModel {
 
     static async deleteByRoleId(roleId: string): Promise<number> {
         try {
-            const rolePermissions = await this.findByRoleId(roleId);
-            let deletedCount = 0;
-
-            for (const rp of rolePermissions) {
-                if (rp.roleId) {
-                    const deleted = await sealDBModel.delete(ROLE_PERMISSIONS_DB, rp.roleId.toString());
-                    deletedCount += deleted;
-                }
-            }
-
-            return deletedCount;
+            const result = await prisma.rolePermission.deleteMany({
+                where: { roleId }
+            });
+            return result.count;
         } catch (error) {
             throw new Error(`Error deleting role permissions by role Id: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
@@ -110,17 +112,10 @@ export class RolePermissionModel {
 
     static async deleteByPermissionId(permissionId: string): Promise<number> {
         try {
-            const rolePermissions = await this.findByPermissionId(permissionId);
-            let deletedCount = 0;
-
-            for (const rp of rolePermissions) {
-                if (rp.permissionId) {
-                    const deleted = await sealDBModel.delete(ROLE_PERMISSIONS_DB, rp.roleId.toString());
-                    deletedCount += deleted;
-                }
-            }
-
-            return deletedCount;
+            const result = await prisma.rolePermission.deleteMany({
+                where: { permissionId }
+            });
+            return result.count;
         } catch (error) {
             throw new Error(`Error deleting role permissions by permission Id: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
@@ -128,13 +123,13 @@ export class RolePermissionModel {
 
     static async deleteByRoleAndPermissionId(roleId: string, permissionId: string): Promise<number> {
         try {
-            const rolePermission = await this.findByRoleAndPermissionId(roleId, permissionId);
-
-            if (!rolePermission || !rolePermission.roleId || !rolePermission.permissionId) {
-                return 0;
-            }
-
-            return await sealDBModel.delete(ROLE_PERMISSIONS_DB, rolePermission.rolePermissionId.toString());
+            const result = await prisma.rolePermission.deleteMany({
+                where: {
+                    roleId,
+                    permissionId
+                }
+            });
+            return result.count;
         } catch (error) {
             throw new Error(`Error deleting role permission by role and permission Id: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
@@ -142,7 +137,9 @@ export class RolePermissionModel {
 
     static async count(conditions: any = {}): Promise<number> {
         try {
-            return await sealDBModel.count(ROLE_PERMISSIONS_DB, conditions);
+            return await prisma.rolePermission.count({
+                where: conditions
+            });
         } catch (error) {
             throw new Error(`Error counting role permissions: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }

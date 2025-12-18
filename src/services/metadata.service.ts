@@ -1,4 +1,5 @@
 import axios from 'axios';
+import prisma from '../databases/prisma/client';
 import { RoleModel } from "../models/role.model";
 import { PermissionModel } from "../models/permission.model";
 import { RolePermissionModel } from "../models/role-permission.model";
@@ -10,6 +11,7 @@ import { UserModel } from '../models/user.model';
 import { CustomerModel } from '../models/customer.model';
 import { CategoryModel } from '../models/category.model';
 import { ValidationParams } from 'on-boarding';
+import { SubscriptionPlan } from '../databases/prisma/generated/prisma/browser';
 
 const API_TIMEOUT = 30000;
 
@@ -249,9 +251,25 @@ export class MetadataService {
 
             for (const data of userData) {
                 try {
-                    const existingRole = await UserModel.findById(data.userId);
+                    // Validate that required relations exist
+                    const tenant = await prisma.tenant.findUnique({ where: { tenantId: data.tenantId } });
+                    if (!tenant) {
+                        throw new Error(`Tenant ${data.tenantId} does not exist. Please create tenant first.`);
+                    }
 
-                    if (existingRole) {
+                    const branch = await prisma.branch.findUnique({ where: { branchId: data.branchId } });
+                    if (!branch) {
+                        throw new Error(`Branch ${data.branchId} does not exist. Please create branch first.`);
+                    }
+
+                    const role = await prisma.role.findUnique({ where: { roleId: data.roleId } });
+                    if (!role) {
+                        throw new Error(`Role ${data.roleId} does not exist. Please sync roles first.`);
+                    }
+
+                    const existingUser = await UserModel.findById(data.userId);
+
+                    if (existingUser) {
                         await UserModel.update(data.userId, {
                             ...data,
                             updatedAt: new Date()
@@ -362,13 +380,13 @@ export class MetadataService {
                     const existingRole = await CategoryModel.findById(data.categoryId);
 
                     if (existingRole) {
-                        await CustomerModel.update(data.categoryId, {
+                        await CategoryModel.update(data.categoryId, {
                             ...data,
                             updatedAt: new Date()
                         });
                         result.recordsUpdated++;
                     } else {
-                        await CustomerModel.create({
+                        await CategoryModel.create({
                             ...data,
                             createdAt: new Date(),
                             updatedAt: new Date()
@@ -404,7 +422,7 @@ export class MetadataService {
 
         try {
             const response = await this.fetchFromExternalAPI('/account-seeds/subscription-plans', params);
-            const subscriptionPlans = response.data || response;
+            const subscriptionPlans: Array<SubscriptionPlan> = response.data || response;
 
             if (!Array.isArray(subscriptionPlans)) {
                 throw new Error('Invalid response format - expected array of subscription plans');
@@ -414,10 +432,10 @@ export class MetadataService {
 
             for (const planData of subscriptionPlans) {
                 try {
-                    const existingPlan = await SubscriptionPlanModel.findById(planData.planId);
+                    const existingPlan = await SubscriptionPlanModel.findById(planData.subscriptionPlanId);
 
                     if (existingPlan) {
-                        await SubscriptionPlanModel.update(planData.planId, {
+                        await SubscriptionPlanModel.update(planData.subscriptionPlanId, {
                             ...planData,
                             updatedAt: new Date()
                         });
@@ -431,7 +449,7 @@ export class MetadataService {
                         result.recordsInserted++;
                     }
                 } catch (error: any) {
-                    result.errors.push(`Subscription plan ${planData.planId}: ${error.message}`);
+                    result.errors.push(`Subscription plan ${planData.subscriptionPlanId}: ${error.message}`);
                 }
             }
 

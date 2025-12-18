@@ -10,19 +10,16 @@ export class SubscriptionPlanController extends BaseController {
             const plans = await SubscriptionPlanService.selectAll(params);
             BaseController.sendResponse(res, 200, true, 'Subscription plans retrieved successfully', plans);
         } catch (error: any) {
-            console.error('Error fetching roles:', error);
             BaseController.sendResponse(res, 500, false, error.message, undefined, error.message);
         }
     }
 
     static async list(req: Request, res: Response): Promise<void> {
         try {
-            const { billingCycle, isActive } = req.query;
+            const { isActive } = req.query;
             let plans;
 
-            if (billingCycle) {
-                plans = await SubscriptionPlanService.getByBillingCycle(billingCycle as string);
-            } else if (isActive !== undefined) {
+            if (isActive !== undefined) {
                 const allPlans = await SubscriptionPlanService.getAll();
                 plans = allPlans.filter(plan =>
                     isActive === 'true' ? plan.isActive : !plan.isActive
@@ -127,17 +124,6 @@ export class SubscriptionPlanController extends BaseController {
         } catch (error: any) {
             console.error('Error toggling subscription plan status:', error);
             BaseController.sendResponse(res, 500, false, 'Failed to toggle subscription plan status', undefined, error.message);
-        }
-    }
-
-    static async getByBillingCycle(req: Request, res: Response): Promise<void> {
-        try {
-            const { billingCycle } = req.params;
-            const plans = await SubscriptionPlanService.getByBillingCycle(billingCycle);
-            BaseController.sendResponse(res, 200, true, 'Subscription plans retrieved successfully', plans);
-        } catch (error: any) {
-            console.error('Error fetching subscription plans by billing cycle:', error);
-            BaseController.sendResponse(res, 500, false, 'Failed to fetch subscription plans', undefined, error.message);
         }
     }
 

@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { PaymentMethodModel } from '../models/payment-methods.model';
 import { CreatePaymentMethodDto, PaymentMethod, UpdatePaymentMethodDto } from 'payment-method';
+import { PaymentMethodCreateInput } from '../databases/prisma/generated/prisma/models';
 
 export class PaymentMethodService {
 
@@ -30,15 +31,15 @@ export class PaymentMethodService {
         }
     }
 
-    static async getPaymentMethodsByClientAndShop(tenantId: string, branchId: string): Promise<PaymentMethod[]> {
+    static async getPaymentMethodsByTenantAndBranch(tenantId: string, branchId: string): Promise<PaymentMethod[]> {
         try {
             if (!tenantId || !branchId) {
-                throw new Error('Client UUID and Shop UUID are required');
+                throw new Error('Tenant UUID and Branch UUID are required');
             }
 
-            return await PaymentMethodModel.findByClientAndShop(tenantId, branchId);
+            return await PaymentMethodModel.findByTenantAndBranch(tenantId, branchId);
         } catch (error) {
-            console.error(`Service: Error getting payment methods for client ${tenantId} and shop ${branchId}:`, error);
+            console.error(`Service: Error getting payment methods for tenant ${tenantId} and branch ${branchId}:`, error);
             throw new Error('Failed to retrieve payment methods');
         }
     }
@@ -61,8 +62,8 @@ export class PaymentMethodService {
 
             const paymentMethodData = {
                 ...data,
-                uuid: uuidv4(),
-            };
+                methodId: uuidv4(),
+            } as unknown as PaymentMethodCreateInput
 
             return await PaymentMethodModel.create(paymentMethodData);
         } catch (error) {

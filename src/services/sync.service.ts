@@ -1,5 +1,4 @@
 import { SyncResult } from 'sync';
-import tables from '../databases/local/tables';
 import prisma from '../databases/prisma/client';
 import { transformValue } from '../utils/data-sync-transfomer';
 import { BaseService } from './base.service';
@@ -29,13 +28,13 @@ export class SyncService {
 
 	private initializeTableConfigs(): void {
 		// Map table names to their API endpoints
-		tables.forEach(tableName => {
-			this.tableConfigs.set(tableName, {
-				name: tableName,
-				endpoint: `/${tableName}`, // Adjust endpoint pattern as needed
-				syncDirection: 'pull' // Default sync direction
-			});
-		});
+		// tables.forEach(tableName => {
+		// 	this.tableConfigs.set(tableName, {
+		// 		name: tableName,
+		// 		endpoint: `/${tableName}`, // Adjust endpoint pattern as needed
+		// 		syncDirection: 'pull' // Default sync direction
+		// 	});
+		// });
 	}
 
 	private async updateSyncStatus(tableName: string, status: 'syncing' | 'synced' | 'error', error?: string | null): Promise<void> {
@@ -324,16 +323,16 @@ export class SyncService {
 			try {
 				console.log('Starting auto-sync...');
 
-				for (const table of tables) {
-					try {
-						const config = this.tableConfigs.get(table);
-						if (config && config.syncDirection === 'pull' || config?.syncDirection === 'bidirectional') {
-							await this.pullDataFromAPI(table);
-						}
-					} catch (error) {
-						console.error(`Auto-sync failed for table ${table}:`, error);
-					}
-				}
+				// for (const table of tables) {
+				// 	try {
+				// 		const config = this.tableConfigs.get(table);
+				// 		if (config && config.syncDirection === 'pull' || config?.syncDirection === 'bidirectional') {
+				// 			await this.pullDataFromAPI(table);
+				// 		}
+				// 	} catch (error) {
+				// 		console.error(`Auto-sync failed for table ${table}:`, error);
+				// 	}
+				// }
 
 				console.log('Auto-sync completed');
 			} catch (error) {

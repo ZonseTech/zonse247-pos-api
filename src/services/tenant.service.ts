@@ -10,6 +10,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { MsonkhoOnlineStatus, Tenant, TenantFormValues, TenantStatus } from "tenant";
 import { OnboardingStatus } from "on-boarding";
 import { BaseService } from "./base.service";
+import { TenantCreateInput } from "../databases/prisma/generated/prisma/models";
 
 export class TenantService {
     static validateEmail(email: string): boolean {
@@ -62,7 +63,7 @@ export class TenantService {
             throw new Error('Tenant with this TIN already exists');
         }
 
-        const tenant = await TenantModel.create(data);
+        const tenant = await TenantModel.create(data as unknown as TenantCreateInput);
         const verificationToken = await SecureSettingsService.encryptTenantId(tenant.tenantId)
 
         const defaultBranch = await BranchService.createDefault({
@@ -84,9 +85,6 @@ export class TenantService {
                     tenantCode: tenant.tenantCode,
                     verificationToken,
                 });
-
-                console.log(`Welcome email sent successfully to ${tenant.email} for business: ${tenant.businessName}`);
-
             } catch (emailError) {
                 console.error('Failed to send welcome email:', {
                     tenantCode: tenant.tenantCode,
@@ -95,7 +93,7 @@ export class TenantService {
                 });
 
                 if (tenant.tenantId) {
-                    await TenantModel.update(tenant.tenantId, { synced: false });
+                    await TenantModel.update(tenant.tenantId, { synced: 0 });
                 }
             }
         }
@@ -135,49 +133,24 @@ export class TenantService {
         }
 
         const subscriptions = await SubscriptionModel.findByTenantId(tenantId);
-        const shops = await BranchModel.findByTenantId(tenantId);
-        const workstations = await TerminalModel.findByTenantId(tenantId);
+        const branches = await BranchModel.findByTenantId(tenantId);
+        const terminals = await TerminalModel.findByTenantId(tenantId);
 
-        if (subscriptions.length > 0 || shops.length > 0 || workstations.length > 0) {
-            throw new Error('Cannot delete tenant with existing subscriptions, shops, or workstations');
+        if (subscriptions.length > 0 || branches.length > 0 || terminals.length > 0) {
+            throw new Error('Cannot delete tenant with existing subscriptions, branches, or terminals');
         }
 
-        const deletedCount = await TenantModel.delete(tenantId);
-        if (deletedCount === 0) {
+        const isDeleted = await TenantModel.delete(tenantId);
+        if (isDeleted) {
             throw new Error('Failed to delete tenant');
         }
 
         return { status: true };
     }
 
-    static async verifyTenant(verificationToken: string, isLive = false): Promise<Omit<Tenant, 'verificationToken'>> {
-        if (isLive) {
-            const { tenantId } = await SecureSettingsService.decryptTenantId(verificationToken);
-
-            const tenant = await TenantModel.findById(tenantId);
-
-            if (!tenant) {
-                throw new Error('Invalid tenant credentials');
-            }
-
-            const now = new Date();
-            await TenantModel.update(tenantId, {
-                status: 'active',
-                activatedAt: now
-            });
-
-            const updatedTenant = {
-                ...tenant,
-                status: 'active' as TenantStatus,
-                activatedAt: now
-            };
-
-            return updatedTenant;
-        }
-
-        const response = await BaseService.post<TenantFormValues>('/on-boarding/verify-tenant', {
+    static async verifyTenant(verificationToken: string): Promise<Omit<Tenant, 'verificationToken'>> {
+        const response = await BaseService.post<TenantFormValues>('/on-boarding/live/verify-account', {
             verificationToken,
-            isLive: true,
         });
 
         if (!response.success) {
@@ -191,13 +164,37 @@ export class TenantService {
         if (tenantExists)
             return TenantModel.sanitizeTenant(tenant as unknown as Tenant);
 
-        const localTenant = await TenantModel.insert(tenant);
+        const localTenant = await TenantModel.insert(tenant as undefined);
 
         if (!localTenant) {
             throw new Error('Something went wrong. External server down');
         }
 
         return TenantModel.sanitizeTenant(localTenant);
+    }
+
+    static async verifyTenantAccount(verificationToken: string): Promise<Omit<Tenant, 'verificationToken'>> {
+        const { tenantId } = await SecureSettingsService.decryptTenantId(verificationToken);
+
+        const tenant = await TenantModel.findById(tenantId);
+
+        if (!tenant) {
+            throw new Error('Invalid tenant credentials');
+        }
+
+        const now = new Date();
+        await TenantModel.update(tenantId, {
+            status: 'active',
+            activatedAt: now
+        });
+
+        const updatedTenant = {
+            ...tenant,
+            status: 'active' as TenantStatus,
+            activatedAt: now
+        };
+
+        return updatedTenant;
     }
 
     static async updateTenant(tenantId: string, updateData: Partial<TenantFormValues>): Promise<Omit<Tenant, 'verificationToken'>> {
@@ -221,7 +218,7 @@ export class TenantService {
         }
 
         const numUpdated = await TenantModel.update(tenantId, updateData as Partial<any>);
-        if (numUpdated === 0) {
+        if (numUpdated) {
             throw new Error('Failed to update tenant');
         }
 
@@ -242,14 +239,14 @@ export class TenantService {
         const subscriptions = await SubscriptionModel.findByTenantId(tenantId);
         const activeSubscription = subscriptions.find(sub => sub.status === 'active') || null;
 
-        const shops = await BranchModel.findByTenantId(tenantId);
-        const workstations = await TerminalModel.findByTenantId(tenantId);
+        const branches = await BranchModel.findByTenantId(tenantId);
+        const terminals = await TerminalModel.findByTenantId(tenantId);
 
         const onboardingSteps = {
             tenantRegistered: true,
             subscriptionActive: !!activeSubscription,
-            shopCreated: shops.length > 0,
-            workstationSetup: workstations.length > 0
+            branchCreated: branches.length > 0,
+            terminalSetup: terminals.length > 0
         };
 
         const completedSteps = Object.values(onboardingSteps).filter(Boolean).length;
@@ -261,8 +258,8 @@ export class TenantService {
         return {
             tenant: safeTenant,
             subscription: activeSubscription,
-            shops,
-            workstations,
+            branches,
+            terminals,
             onboarding: {
                 steps: onboardingSteps,
                 completedSteps: completedSteps,
@@ -316,8 +313,8 @@ export class TenantService {
             throw new Error('Tenant not found');
         }
 
-        const numUpdated = await TenantModel.update(tenantId, { msonkhoOnlineStatus: status });
-        if (numUpdated === 0) {
+        const isUpdated = await TenantModel.update(tenantId, { msonkhoOnlineStatus: status });
+        if (isUpdated) {
             throw new Error('Failed to update Msonkho status');
         }
 

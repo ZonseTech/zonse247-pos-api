@@ -6,15 +6,24 @@ export interface SubscriptionResponse {
 	success: boolean;
 }
 
+export interface PlanFeatureCategory {
+	featureCategoryId?: number;
+	title: string;
+	features: string[];
+	displayOrder?: number;
+	createdAt?: Date;
+	updatedAt?: Date;
+}
+
 export interface TenantSubscription {
-	subscriptionId: string;
+	subscriptionPlanId: string;
+	tenantSubscriptionId: string;
 	tenantId: string;
 	tenantDetails?: {
 		tenantCode: string;
 		companyName: string;
 		ownerName: string;
 	};
-	planId: string;
 	planName: string;
 	billingCycle: string;
 	referenceNumber: string;
@@ -33,7 +42,7 @@ export interface TenantSubscription {
 
 export interface CreateSubscriptionRequest {
 	tenantId: string;
-	planId: string;
+	subscriptionPlanId: string;
 	planName: string;
 	referenceNumber: string;
 	autoRenew?: boolean;

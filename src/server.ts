@@ -25,16 +25,15 @@ export class Server {
 	private app: Application;
 	private electron: any | null;
 
-	constructor(electronApp: any) {
+	constructor(electronApp?: any) {
 		this.app = express();
-		this.electron = electronApp
+		this.electron = electronApp || null;
 
 		if (this.electron) {
 			process.env.APPDATA = this.electron.getPath('appData');
 		}
 
 		this.server = createServer(this.app);
-
 		this.setupMiddleware();
 		this.setupRoutes();
 		this.setupErrorHandling();
@@ -57,8 +56,9 @@ export class Server {
 		this.app.use(compression());
 		this.app.use(limitRequestSize(process.env.CORS_REQUEST_SIZE_LIMIT));
 		this.app.use(securityLogger);
-
-		this.app.use(express.json({ limit: process.env.CORS_REQUEST_SIZE_LIMIT }));
+		this.app.use(
+			express.json({ limit: process.env.CORS_REQUEST_SIZE_LIMIT })
+		);
 		this.app.use(
 			express.urlencoded({
 				extended: true,
@@ -113,19 +113,34 @@ export class Server {
 	}
 
 	public async start() {
-		this.server.listen(parseInt(process.env.SERVER_PORT || '3000'), '0.0.0.0', async () => {
-			console.log(`🚀 Server running on port ${process.env.SERVER_PORT}`);
-			console.log(`📊 Environment: ${process.env.NODE_ENV}`);
+		try {
+			this.server.listen(
+				parseInt(process.env.SERVER_PORT || '3000'),
+				'0.0.0.0',
+				async () => {
+					console.log(
+						`🚀 Server running on port ${process.env.SERVER_PORT}`
+					);
+					console.log(`📊 Environment: ${process.env.NODE_ENV}`);
 
-			if (!this.electron)
-				await initializeEmailService()
-					.then(() => {
-						console.log('✅ Email service ready');
-					})
-					.catch((error) => {
-						console.error('❌ Email service initialization failed:', error);
-					});
-		});
+					if (!this.electron) {
+						await initializeEmailService()
+							.then(() => {
+								console.log('✓ Email service ready');
+							})
+							.catch((error) => {
+								console.error(
+									'❌ Email service initialization failed:',
+									error
+								);
+							});
+					}
+				}
+			);
+		} catch (error) {
+			console.error('Failed to start server:', error);
+			throw error;
+		}
 	}
 
 	public stop() {
@@ -134,3 +149,4 @@ export class Server {
 	}
 }
 
+export default Server;

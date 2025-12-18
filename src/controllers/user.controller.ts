@@ -140,19 +140,19 @@ export class UserController extends BaseController {
 		}
 	}
 
-	static async getUsersByShop(req: Request<{ shopUuid: string }>, res: Response): Promise<void> {
+	static async getUsersByBranch(req: Request<{ branchUuid: string }>, res: Response): Promise<void> {
 		try {
-			const { shopUuid } = req.params;
+			const { branchUuid } = req.params;
 
-			if (!shopUuid) {
-				BaseController.sendResponse(res, 400, false, 'Shop ID is required');
+			if (!branchUuid) {
+				BaseController.sendResponse(res, 400, false, 'Branch ID is required');
 				return;
 			}
 
-			const users = await UserService.getUsersByShop(shopUuid);
+			const users = await UserService.getUsersByBranch(branchUuid);
 			BaseController.sendResponse(res, 200, true, 'Users retrieved successfully', users);
 		} catch (error: any) {
-			console.error('Error retrieving users by shop:', error);
+			console.error('Error retrieving users by branch:', error);
 			BaseController.sendResponse(res, 500, false, error.message, undefined, error.message);
 		}
 	}

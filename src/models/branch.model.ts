@@ -1,126 +1,248 @@
 import { v4 as uuidv4 } from 'uuid';
-import { sealDBModel } from '../databases/local';
-import { BRANCHES_TABLE, } from '../databases/local/tables';
+import prisma from '../databases/prisma/client';
 import { Branch, BranchStatus, CreateBranchRequest, MraApprovalStatus } from 'branch';
+import { BranchMRAApprovalStatus } from '../databases/prisma/generated/prisma/enums';
+import { BranchCreateInput } from 'src/databases/prisma/generated/prisma/models';
 
 export class BranchModel {
-
-    static async findAll(conditions: any = {}): Promise<Branch[]> {
-        return sealDBModel.find(BRANCHES_TABLE, conditions);
+    static async findAll(conditions = {}): Promise<Branch[]> {
+        return await prisma.branch.findMany({
+            where: conditions
+        });
     }
 
     static async findByTenantId(tenantId: string): Promise<Branch[]> {
-        return sealDBModel.find(BRANCHES_TABLE, { tenantId });
+        return await prisma.branch.findMany({
+            where: { tenantId }
+        });
     }
 
     static async findByBranchCode(branchCode: string): Promise<Branch | null> {
-        return sealDBModel.findById(BRANCHES_TABLE, { branchCode });
+        return await prisma.branch.findFirst({
+            where: { branchCode }
+        });
     }
 
     static async findByTenantIdAndBranchCode(tenantId: string, branchCode: string): Promise<Branch[]> {
-        return sealDBModel.find(BRANCHES_TABLE, { tenantId, branchCode });
+        return await prisma.branch.findMany({
+            where: { tenantId, branchCode }
+        });
     }
 
     static async findById(branchId: string): Promise<Branch | null> {
-        return sealDBModel.findById(BRANCHES_TABLE, branchId);
+        return await prisma.branch.findUnique({
+            where: { branchId }
+        });
     }
 
     static async exists(branchId: string, tenantId: string): Promise<boolean> {
-        const result = await sealDBModel.findById(BRANCHES_TABLE, { tenantId, branchId });
-
-        if (!result || typeof result !== 'object') {
-            return false;
-        }
-
-        const hasKeys = Object.keys(result).length > 0;
-
-        return hasKeys
+        const branch = await prisma.branch.findFirst({
+            where: { branchId, tenantId }
+        });
+        return !!branch;
     }
 
-    static async create(branchData: Omit<Branch, 'branchId'>): Promise<Branch> {
-        return sealDBModel.insert(BRANCHES_TABLE, branchData);
+    static async create(branchData: BranchCreateInput) {
+        return await prisma.branch.create({
+            data: {
+                ...branchData,
+                branchId: branchData.branchId || uuidv4(),
+                createdAt: new Date(),
+                updatedAt: new Date()
+            }
+        }) as unknown as Branch;
     }
 
+    // Insert branch (alias for create)
     static async insert(data: Branch): Promise<Branch> {
-        return await sealDBModel.insert(BRANCHES_TABLE, data);
+        return await prisma.branch.create({
+            data: {
+                ...data,
+                createdAt: new Date(),
+                updatedAt: new Date()
+            }
+        }) as unknown as Branch;
     }
 
-    static async update(branchId: string, data: Partial<Branch>): Promise<number> {
-        return sealDBModel.update(BRANCHES_TABLE, branchId, data);
+    static async update(branchId: string, data: Partial<Branch>): Promise<Branch> {
+        const updateData = this.buildUpdateData(data);
+
+        return await prisma.branch.update({
+            where: { branchId },
+            data: updateData
+        }) as unknown as Branch;
     }
 
-    static async delete(branchId: string): Promise<number> {
-        return sealDBModel.delete(BRANCHES_TABLE, branchId);
+    static async delete(branchId: string): Promise<Branch> {
+        return await prisma.branch.delete({
+            where: { branchId }
+        }) as unknown as Branch;
     }
 
-    static async count(conditions: any = {}): Promise<number> {
-        return sealDBModel.count(BRANCHES_TABLE, conditions);
+    static async count(conditions = {}): Promise<number> {
+        return await prisma.branch.count({
+            where: conditions
+        });
     }
 
     static async findByStatus(status: BranchStatus): Promise<Branch[]> {
-        return sealDBModel.find(BRANCHES_TABLE, { status });
+        return await prisma.branch.findMany({
+            where: { status }
+        });
     }
 
+    // Find branches by city
     static async findByCity(city: string): Promise<Branch[]> {
-        return sealDBModel.find(BRANCHES_TABLE, { city });
+        return await prisma.branch.findMany({
+            where: { city }
+        });
     }
 
+    // Find branches by state
     static async findByState(state: string): Promise<Branch[]> {
-        return sealDBModel.find(BRANCHES_TABLE, { state });
+        return await prisma.branch.findMany({
+            where: { state }
+        });
     }
 
+    // Find branches by district
     static async findByDistrict(district: string): Promise<Branch[]> {
-        return sealDBModel.find(BRANCHES_TABLE, { district });
+        return await prisma.branch.findMany({
+            where: { district }
+        });
     }
 
+    // Find active branches
     static async findActiveBranches(): Promise<Branch[]> {
-        return sealDBModel.find(BRANCHES_TABLE, { isActive: true });
+        return await prisma.branch.findMany({
+            where: { isActive: true }
+        });
     }
 
+    // Find active branches by tenant ID
     static async findActiveBranchesByTenantId(tenantId: string): Promise<Branch[]> {
-        return sealDBModel.find(BRANCHES_TABLE, { tenantId, isActive: true });
+        return await prisma.branch.findMany({
+            where: { tenantId, isActive: true }
+        });
     }
 
+    // Find branches by status
     static async findBranchesByStatus(status: BranchStatus): Promise<Branch[]> {
-        return sealDBModel.find(BRANCHES_TABLE, { status });
+        return await prisma.branch.findMany({
+            where: { status }
+        });
     }
 
+    // Find virtual warehouses
     static async findVirtualWarehouses(tenantId?: string): Promise<Branch[]> {
-        const conditions: any = { isVirtualWarehouse: true };
+        const where: { tenantId?: string; isVirtualWarehouse: boolean } = { isVirtualWarehouse: true };
+
         if (tenantId) {
-            conditions.tenantId = tenantId;
+            where.tenantId = tenantId;
         }
-        return sealDBModel.find(BRANCHES_TABLE, conditions);
+        return await prisma.branch.findMany({ where });
     }
 
+    // Find branches by MRA approval status
     static async findByMraApprovalStatus(status: MraApprovalStatus): Promise<Branch[]> {
-        return sealDBModel.find(BRANCHES_TABLE, { mraApprovalStatus: status });
+        return await prisma.branch.findMany({
+            where: { mraApprovalStatus: status }
+        });
     }
 
+    // Get branches by email domain
     static async getBranchesByEmailDomain(domain: string): Promise<Branch[]> {
-        const allBranches = await sealDBModel.findAll(BRANCHES_TABLE);
-        return allBranches.filter((branch: Branch) =>
+        const branches = await prisma.branch.findMany();
+        return branches.filter((branch: any) =>
             branch.email && branch.email.toLowerCase().endsWith(`@${domain.toLowerCase()}`)
         );
     }
 
+    // Get unsynced branches
     static async getUnsyncedBranches(): Promise<Branch[]> {
-        return sealDBModel.getUnsyncedRecords(BRANCHES_TABLE);
+        return await prisma.branch.findMany({
+            where: { synced: 0 }
+        });
     }
 
-    static async markAsSynced(branchId: string): Promise<number> {
-        return sealDBModel.markAsSynced(BRANCHES_TABLE, branchId);
+    // Mark branch as synced
+    static async markAsSynced(branchId: string): Promise<Branch> {
+        return await prisma.branch.update({
+            where: { branchId },
+            data: { synced: 1, updatedAt: new Date() }
+        }) as unknown as Branch;
     }
 
-    static async clearAllBranches(): Promise<number> {
-        return sealDBModel.clearTable(BRANCHES_TABLE);
+    // Clear all branches
+    static async clearAllBranches(): Promise<{ count: number }> {
+        return await prisma.branch.deleteMany({});
     }
 
-    static buildBranchData(data: CreateBranchRequest): Omit<Branch, 'createdAt' | 'updatedAt'> {
+    // Find by email
+    static async findByEmail(email: string): Promise<Branch[]> {
+        return await prisma.branch.findMany({
+            where: { email }
+        });
+    }
+
+    // Find by phone number
+    static async findByPhone(phoneNumber: string): Promise<Branch[]> {
+        return await prisma.branch.findMany({
+            where: { phoneNumber }
+        });
+    }
+
+    // Find by site ID
+    static async findBySiteId(siteId: string): Promise<Branch[]> {
+        return await prisma.branch.findMany({
+            where: { siteId }
+        });
+    }
+
+    // Find branches with pagination
+    static async findBranchesWithPagination(
+        conditions = {},
+        page = 1,
+        limit = 10
+    ): Promise<{ branches: Branch[], total: number, page: number, limit: number }> {
+        const skip = (page - 1) * limit;
+
+        const [branches, total] = await Promise.all([
+            prisma.branch.findMany({
+                where: conditions,
+                skip,
+                take: limit
+            }),
+            prisma.branch.count({ where: conditions })
+        ]);
+
         return {
-            branchId: uuidv4(),
+            branches,
+            total,
+            page,
+            limit
+        };
+    }
+
+    // Find branches with sorting
+    static async findBranchesWithSorting(
+        conditions = {},
+        sortBy = 'branchName',
+        sortOrder: 'asc' | 'desc' = 'asc'
+    ): Promise<Branch[]> {
+        return await prisma.branch.findMany({
+            where: conditions,
+            orderBy: { [sortBy]: sortOrder }
+        });
+    }
+
+    static buildBranchData(data: CreateBranchRequest) {
+        const now = new Date();
+
+        return {
+            branchId: data.branchId || uuidv4(),
             tenantId: data.tenantId,
-            branchCode: data.branchCode,
+            branchCode: data.branchCode || 'BR001',
             branchName: data.branchName,
             siteId: data.siteId || null,
             siteName: data.siteName || null,
@@ -139,36 +261,28 @@ export class BranchModel {
             receiptFooter: data.receiptFooter || null,
             logoUrl: data.logoUrl || null,
             currencyCode: data.currencyCode || 'MWK',
-            currencySymbol: data.currencySymbol || 'MK',
+            currencySymbol: data.currencySymbol || 'K',
             isVirtualWarehouse: data.isVirtualWarehouse || false,
-            isActive: true,
-            status: 'active',
-            mraApprovalStatus: 'PENDING',
-            synced: false,
+            isActive: data.isActive !== undefined ? data.isActive : true,
+            status: (data.status as BranchStatus) || 'active',
+            mraApprovalStatus: data.mraApprovalStatus || BranchMRAApprovalStatus.PENDING,
+            synced: data.synced || 0,
+            createdAt: now,
+            updatedAt: now,
+            mraApprovalDate: null
         };
     }
 
+    // Build update data (excluding non-updateable fields)
     static buildUpdateData(data: Partial<Branch>): Partial<Branch> {
-        const {
-            branchId,
-            tenantId,
-            createdAt,
-            ...updateableData
-        } = data;
-
-        console.log('====================================');
-        console.log(branchId,
-            tenantId,
-            createdAt,);
-        console.log('====================================');
-
         return {
-            ...updateableData,
+            ...data,
             updatedAt: new Date()
         };
     }
 
-    static validateBranchData(data: Partial<Branch>): string | null {
+    // Validate branch data
+    validateBranchData(data: Partial<Branch>): string | null {
         if (data.email && !this.isValidEmail(data.email)) {
             return 'Invalid email format';
         }
@@ -196,60 +310,9 @@ export class BranchModel {
         return null;
     }
 
-    private static isValidEmail(email: string): boolean {
+    // Email validation helper
+    private isValidEmail(email: string): boolean {
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         return emailRegex.test(email);
-    }
-
-    static async findByEmail(email: string): Promise<Branch[]> {
-        return sealDBModel.find(BRANCHES_TABLE, { email });
-    }
-
-    static async findByPhone(phoneNumber: string): Promise<Branch[]> {
-        return sealDBModel.find(BRANCHES_TABLE, { phoneNumber });
-    }
-
-    static async findBySiteId(siteId: string): Promise<Branch[]> {
-        return sealDBModel.find(BRANCHES_TABLE, { siteId });
-    }
-
-    static async findBranchesWithPagination(
-        conditions: any = {},
-        page = 1,
-        limit = 10
-    ): Promise<{ branches: Branch[], total: number, page: number, limit: number }> {
-        const allBranches = await sealDBModel.find(BRANCHES_TABLE, conditions);
-        const total = allBranches.length;
-        const startIndex = (page - 1) * limit;
-        const endIndex = startIndex + limit;
-        const branches = allBranches.slice(startIndex, endIndex);
-
-        return {
-            branches,
-            total,
-            page,
-            limit
-        };
-    }
-
-    static async findBranchesWithSorting(
-        conditions: any = {},
-        sortBy: keyof Branch = 'branchName',
-        sortOrder: 'asc' | 'desc' = 'asc'
-    ): Promise<Branch[]> {
-        const branches = await sealDBModel.find(BRANCHES_TABLE, conditions);
-
-        return branches.sort((a: Branch, b: Branch) => {
-            const aValue = a[sortBy];
-            const bValue = b[sortBy];
-
-            if (aValue === undefined && bValue === undefined) return 0;
-            if (aValue === undefined) return sortOrder === 'asc' ? 1 : -1;
-            if (bValue === undefined) return sortOrder === 'asc' ? -1 : 1;
-
-            if (aValue < bValue) return sortOrder === 'asc' ? -1 : 1;
-            if (aValue > bValue) return sortOrder === 'asc' ? 1 : -1;
-            return 0;
-        });
     }
 }

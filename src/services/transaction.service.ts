@@ -67,7 +67,7 @@ export class TransactionService {
         const transaction = await TransactionModel.create(transactionData);
 
         if (transactionData.paid >= transactionData.total) {
-            await OrderService.createOrderItems(transactionUuid, data.items);
+            await OrderService.createOrderItems(transactionUuid, transactionData.refNumber, data.items);
             await InventoryModel.decrementInventory(data.items, auth);
         }
 
@@ -165,11 +165,11 @@ export class TransactionService {
         if (transaction.terminalId) {
             promises.push(
                 TerminalModel.findById(transaction.terminalId)
-                    .then(workstation => ({ workstation }))
-                    .catch(() => ({ workstation: null }))
+                    .then(terminal => ({ terminal }))
+                    .catch(() => ({ terminal: null }))
             );
         } else {
-            promises.push(Promise.resolve({ workstation: null }));
+            promises.push(Promise.resolve({ terminal: null }));
         }
 
         if (transaction.paymentMethodId) {
@@ -235,7 +235,7 @@ export class TransactionService {
             promises.push(Promise.resolve({ items: [] }));
         }
 
-        const [customerResult, paymentMethodResult, paymentServiceProviderResult, userResult, itemsResult] =
+        const [customerResult, _terminalResult, paymentMethodResult, paymentServiceProviderResult, userResult, itemsResult] =
             await Promise.all(promises);
 
         return {
@@ -283,13 +283,14 @@ export class TransactionService {
             userId: data.userId || null,
             tenantId: data.tenantId || null,
             branchId: data.branchId || null,
+            synced: 0,
             status: data.status || 'completed',
         };
     }
 
     private static validateTransactionData(data: any): string | null {
-        if (!data.total || data.total <= 0) {
-            return 'Total amount is required and must be greater than 0';
+        if (data.total === undefined || data.total === null || data.total < 0) {
+            return 'Total amount is required and cannot be negative';
         }
 
         if (data.paid < 0) {

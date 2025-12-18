@@ -5,11 +5,14 @@ import { RolePermissionModel } from '../models/role-permission.model';
 import { PermissionModel } from '../models/permission.model';
 import type { PublicUser, User } from 'users';
 import type { Permission } from 'role-permission';
+import { UserUncheckedCreateInput } from 'src/databases/prisma/generated/prisma/models';
 
 export class UserService {
 
 	static async selectAll(params): Promise<Array<User>> {
-		return await UserModel.findAllByRDBMS(params);
+		return await UserModel.findAll({
+			tenantId: params.tenantId,
+		});
 	}
 
 	static async getUserById(userId: string): Promise<any> {
@@ -68,7 +71,7 @@ export class UserService {
 		const newUserData = await UserModel.buildUserData({
 			...userData,
 			status: userData.status || 'active'
-		});
+		} as unknown as UserUncheckedCreateInput) as unknown as UserUncheckedCreateInput;
 
 		const user = await UserModel.create(newUserData);
 		return UserModel.getPublicUser(user);
@@ -122,9 +125,9 @@ export class UserService {
 		return publicUsers;
 	}
 
-	static async getUsersByShop(branchId: string): Promise<any[]> {
+	static async getUsersByBranch(branchId: string): Promise<any[]> {
 		if (!branchId) {
-			throw new Error('Shop ID is required.');
+			throw new Error('Branch ID is required.');
 		}
 
 		const users = await UserModel.findByBranchId(branchId);

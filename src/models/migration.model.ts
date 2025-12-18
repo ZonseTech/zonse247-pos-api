@@ -1,8 +1,6 @@
 import fs from 'fs';
 import Papa from 'papaparse';
-import { sealDBModel } from '../databases/local';
 import { PoolConnection } from 'mysql2/promise';
-import migrationTables from '../databases/local/migration-table-columns'
 import { transformValue } from '../utils/data-sync-transfomer';
 import { MigrationProgress, MigrationRecord, MigrationStats, TColumnMapping } from 'migrations';
 import prisma from '../databases/prisma/client';
@@ -174,7 +172,7 @@ export class MigrationModel {
         try {
             await prisma.$queryRaw`SELECT 1`;
 
-            await prisma.users.count();
+            await prisma.user.count();
 
             this.addProgress('connection-test', 'completed', 'Database connections verified');
 
@@ -195,11 +193,11 @@ export class MigrationModel {
                     dataSet[key.replace(/([A-Z])/g, '_$1').toLowerCase()] = cleanRecord[key];
                 });
 
-                await tx.categories.create({
+                await tx.category.create({
                     data: dataSet as any
                 });
 
-                await prisma.categories.upsert({
+                await prisma.category.upsert({
                     where: { id: dataSet.id },
                     update: dataSet,
                     create: dataSet as any
@@ -233,40 +231,6 @@ export class MigrationModel {
         });
 
         return transformedRow;
-    }
-
-    private async insertIntoMySQL(connection: PoolConnection, record: MigrationRecord): Promise<void> {
-        try {
-            const columnMappings: TColumnMapping[] = migrationTables[this.currentTableName];
-
-            await this.getTableColumns(connection);
-
-            const data = this.transformData(record, columnMappings);
-            const columns = Object.keys(data).join(", ");
-            const placeholders = Object.keys(data).map((_) => `?`).join(", ");
-            const values = Object.values(data);
-
-            const query = `INSERT INTO ${this.currentTableName} (${columns}) VALUES (${placeholders})`;
-
-            await connection.execute(query, values);
-
-        } catch (error) {
-            console.error('Error inserting into MySQL:', error);
-            throw error;
-        }
-    }
-
-    private async syncToLocalDB(record: MigrationRecord): Promise<void> {
-        try {
-            await sealDBModel.insert(this.currentTableName, {
-                ...record,
-                synced: 1,
-            });
-        } catch (error: any) {
-            if (!error.message?.includes('unique')) {
-                throw error;
-            }
-        }
     }
 
     private prepareRecordForMySQL(record: MigrationRecord): MigrationRecord {

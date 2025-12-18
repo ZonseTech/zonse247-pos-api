@@ -1,57 +1,85 @@
 import { OrderItem } from 'order';
-import { sealDBModel } from '../databases/local';
-import { ORDERS_DB } from '../databases/local/tables';
+import prisma from '../databases/prisma/client';
 
 export class OrderModel {
     static async findAll(): Promise<OrderItem[]> {
-        return await sealDBModel.findAll(ORDERS_DB);
+        return await prisma.order.findMany();
     }
 
     static async findById(orderId: string): Promise<OrderItem | null> {
-        return await sealDBModel.findById(ORDERS_DB, orderId);
+        return await prisma.order.findUnique({
+            where: { orderId },
+        });
     }
 
-    static async findByTransactionUuid(transactionUuid: string): Promise<Array<OrderItem>> {
-        return await sealDBModel.find(ORDERS_DB, { transactionUuid });
+    static async findByTransactionUuid(transactionId: string): Promise<Array<OrderItem>> {
+        return await prisma.order.findMany({
+            where: { transactionId },
+        });
     }
 
     static async findByTransactionRefNumber(refNumber: string): Promise<Array<OrderItem>> {
-        return await sealDBModel.find(ORDERS_DB, { refNumber });
+        return await prisma.order.findMany({
+            where: { refNumber },
+        });
     }
 
     static async findByRefNumber(refNumber: string): Promise<OrderItem[]> {
-        return await sealDBModel.find(ORDERS_DB, { refNumber });
+        return await prisma.order.findMany({
+            where: { refNumber },
+        });
     }
 
     static async findByProductId(productId: string): Promise<OrderItem[]> {
-        return await sealDBModel.find(ORDERS_DB, { productId });
+        return await prisma.order.findMany({
+            where: { productId },
+        });
     }
 
     static async findByConditions(conditions: any): Promise<OrderItem[]> {
-        return await sealDBModel.find(ORDERS_DB, conditions);
+        return await prisma.order.findMany({
+            where: conditions,
+        });
     }
 
     static async create(orderData: Partial<OrderItem>): Promise<OrderItem> {
-        return await sealDBModel.insert(ORDERS_DB, orderData);
+        return await prisma.order.create({
+            data: orderData as any,
+        });
     }
 
     static async update(orderId: string, updateData: Partial<OrderItem>): Promise<number> {
-        return await sealDBModel.update(ORDERS_DB, orderId, updateData);
+        const result = await prisma.order.update({
+            where: { orderId },
+            data: updateData,
+        });
+        return result ? 1 : 0;
     }
 
     static async delete(orderId: string): Promise<number> {
-        return await sealDBModel.delete(ORDERS_DB, orderId);
+        const result = await prisma.order.delete({
+            where: { orderId },
+        });
+        return result ? 1 : 0;
     }
 
     static async count(conditions: any = {}): Promise<number> {
-        return await sealDBModel.count(ORDERS_DB, conditions);
+        return await prisma.order.count({
+            where: conditions,
+        });
     }
 
     static async getUnsyncedRecords(): Promise<OrderItem[]> {
-        return await sealDBModel.getUnsyncedRecords(ORDERS_DB);
+        return await prisma.order.findMany({
+            where: { synced: 0 },
+        });
     }
 
     static async markAsSynced(orderId: string): Promise<number> {
-        return await sealDBModel.markAsSynced(ORDERS_DB, orderId);
+        const result = await prisma.order.update({
+            where: { orderId },
+            data: { synced: 1 },
+        });
+        return result ? 1 : 0;
     }
 }

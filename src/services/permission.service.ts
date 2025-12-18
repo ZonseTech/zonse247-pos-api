@@ -160,7 +160,7 @@ export class PermissionService {
             throw new Error('Valid scope is required');
         }
 
-        return await PermissionModel.findByScope(scope);
+        return await PermissionModel.findByScope(scope as unknown);
     }
 
     static async getSystemPermissions(): Promise<Permission[]> {
@@ -218,7 +218,7 @@ export class PermissionService {
     }
 
     private static isValidScope(scope: PermissionScopeType): boolean {
-        const validScopes: PermissionScopeType[] = ['client', 'shop', 'user'] as any;
+        const validScopes: PermissionScopeType[] = ['tenant', 'branch', 'user'] as any;
         return validScopes.includes(scope);
     }
 

@@ -60,7 +60,7 @@ export const transformValue = (column: string, value: any) => {
         return isNaN(numValue) ? 0 : numValue;
     }
 
-    const jsonColumns = ['accessible_shops', 'allowed_workstations'];
+    const jsonColumns = ['accessible_branches', 'allowed_terminals'];
     if (jsonColumns.includes(dbColumn)) {
         if (typeof value === 'string') {
             try {

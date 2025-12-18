@@ -1,12 +1,12 @@
 import { AuthenticatedUser } from 'auth';
 import { InventoryModel } from '../models/inventory.model';
 import { CategoryService } from './category.service';
-import { Product } from 'product';
 import { Category } from 'categoty';
 import { CartItem } from 'order';
+import { InventoryItem } from 'inventory-item';
 
 export class InventoryService {
-    static async getProductsSummary(auth: AuthenticatedUser): Promise<{
+    static async getInventorySummary(auth: AuthenticatedUser): Promise<{
         totalStock: number;
         newStock: number;
         expiringSoon: number;
@@ -16,12 +16,12 @@ export class InventoryService {
         const oneWeekAgo = new Date();
         oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
         const thirtyDaysLater = new Date();
-        const products = await InventoryModel.findActive(auth);
+        const inventoryItems = await InventoryModel.findActive(auth);
         thirtyDaysLater.setDate(thirtyDaysLater.getDate() + 30);
 
         return {
-            totalStock: products.filter(item => item.status !== 'void').length,
-            newStock: products.filter(item => {
+            totalStock: inventoryItems.filter(item => item.status !== 'void').length,
+            newStock: inventoryItems.filter(item => {
                 if (!item.createdAt || item.status === 'void') return false;
                 if (item.expirationDate) {
                     const expiryDate = new Date(item.expirationDate);
@@ -30,12 +30,12 @@ export class InventoryService {
                 const createdDate = new Date(item.createdAt);
                 return createdDate >= oneWeekAgo;
             }).length,
-            expiringSoon: products.filter(item => {
+            expiringSoon: inventoryItems.filter(item => {
                 if (!item.expirationDate || item.status === 'void') return false;
                 const expiryDate = new Date(item.expirationDate);
                 return expiryDate > currentDate && expiryDate <= thirtyDaysLater;
             }).length,
-            expired: products.filter(item => {
+            expired: inventoryItems.filter(item => {
                 if (!item.expirationDate || item.status === 'void') return false;
                 const expiryDate = new Date(item.expirationDate);
                 return expiryDate <= currentDate;
@@ -43,22 +43,22 @@ export class InventoryService {
         };
     }
 
-    static async getProductByUuid(productId: string, auth: AuthenticatedUser): Promise<Product | null> {
+    static async getInventoryItemByUuid(productId: string, auth: AuthenticatedUser): Promise<InventoryItem | null> {
         return await InventoryModel.findById(productId, auth);
     }
 
-    static async getActiveProducts(auth: AuthenticatedUser): Promise<Product[]> {
+    static async getActiveInventoryItems(auth: AuthenticatedUser): Promise<InventoryItem[]> {
         return await InventoryModel.findActive(auth);
     }
 
-    static async getProductsWithCategories(
+    static async getInventoryItemsWithCategories(
         auth: AuthenticatedUser,
         page = 1,
         perPage = 10,
         search = '',
         filter = 'all',
         categoryId?: number
-    ): Promise<{ products: Product[]; total: number; totalPages: number }> {
+    ): Promise<{ inventoryItems: InventoryItem[]; total: number; totalPages: number }> {
         const categories: Category[] = await CategoryService.getAllCategories(auth);
 
         const categoryMap = new Map<string, Category>();
@@ -70,7 +70,7 @@ export class InventoryService {
 
         const skip = (page - 1) * perPage;
 
-        const products: Product[] = await InventoryModel.findActiveWithPagination(
+        const inventoryItems: InventoryItem[] = await InventoryModel.findActiveWithPagination(
             auth,
             skip,
             perPage,
@@ -79,90 +79,90 @@ export class InventoryService {
             categoryId
         );
 
-        const totalProducts = await InventoryModel.getFilteredCount(auth, search, filter, categoryId);
-        const totalPages = Math.ceil(totalProducts / perPage); const enhancedProducts = products.map((product) => ({
-            ...product,
-            categoryDetails: product.categoryId ? categoryMap.get(product.categoryId) : undefined
+        const totalItems = await InventoryModel.getFilteredCount(auth, search, filter, categoryId);
+        const totalPages = Math.ceil(totalItems / perPage); const enhancedItems = inventoryItems.map((item) => ({
+            ...item,
+            categoryDetails: item.categoryId ? categoryMap.get(item.categoryId) : undefined
         }));
 
         return {
-            products: enhancedProducts,
-            total: totalProducts,
+            inventoryItems: enhancedItems,
+            total: totalItems,
             totalPages
         };
     }
 
-    static async createProduct(productData: Record<string, any>, auth: AuthenticatedUser): Promise<void> {
-        await InventoryModel.create(productData, auth);
+    static async createInventoryItem(inventoryData: Record<string, any>, auth: AuthenticatedUser): Promise<void> {
+        await InventoryModel.create(inventoryData, auth);
 
-        if (productData.categoryId) {
+        if (inventoryData.categoryId) {
             try {
-                await CategoryService.syncCategoryItemCounts([productData.categoryId], auth);
+                await CategoryService.syncCategoryItemCounts([inventoryData.categoryId], auth);
             } catch (error) {
-                console.warn('Failed to sync category item counts after product creation:', error);
+                console.warn('Failed to sync category item counts after inventory item creation:', error);
             }
         }
     }
 
-    static async updateProduct(productUuid: string, productData: Record<string, any>, auth: AuthenticatedUser): Promise<number> {
-        const currentProduct = await InventoryModel.findById(productUuid, auth);
+    static async updateInventoryItem(productUuid: string, inventoryData: Record<string, any>, auth: AuthenticatedUser): Promise<number> {
+        const currentItem = await InventoryModel.findById(productUuid, auth);
 
-        const result = await InventoryModel.updateWithValidation(productUuid, productData, auth);
+        const result = await InventoryModel.updateWithValidation(productUuid, inventoryData, auth);
 
         const categoriesToSync = new Set<string>();
 
-        if (currentProduct?.categoryId) {
-            categoriesToSync.add(currentProduct.categoryId);
+        if (currentItem?.categoryId) {
+            categoriesToSync.add(currentItem.categoryId);
         }
 
-        if (productData.categoryId && productData.categoryId !== currentProduct?.categoryId) {
-            categoriesToSync.add(productData.categoryId);
+        if (inventoryData.categoryId && inventoryData.categoryId !== currentItem?.categoryId) {
+            categoriesToSync.add(inventoryData.categoryId);
         }
 
         if (categoriesToSync.size > 0) {
             try {
                 await CategoryService.syncCategoryItemCounts(Array.from(categoriesToSync), auth);
             } catch (error) {
-                console.warn('Failed to sync category item counts after product update:', error);
+                console.warn('Failed to sync category item counts after inventory item update:', error);
             }
         }
 
         return result;
     }
 
-    static async voidProduct(productUuid: string, auth: AuthenticatedUser): Promise<number> {
-        const product = await InventoryModel.findById(productUuid, auth);
+    static async voidInventoryItem(productUuid: string, auth: AuthenticatedUser): Promise<number> {
+        const inventoryItem = await InventoryModel.findById(productUuid, auth);
 
         const result = await InventoryModel.voidWithCheck(productUuid, auth);
 
-        if (product?.categoryId) {
+        if (inventoryItem?.categoryId) {
             try {
-                await CategoryService.syncCategoryItemCounts([product.categoryId], auth);
+                await CategoryService.syncCategoryItemCounts([inventoryItem.categoryId], auth);
             } catch (error) {
-                console.warn('Failed to sync category item counts after product void:', error);
+                console.warn('Failed to sync category item counts after inventory item void:', error);
             }
         }
 
         return result;
     }
 
-    static async deleteProduct(productUuid: string, auth: AuthenticatedUser): Promise<number> {
-        const product = await InventoryModel.findById(productUuid, auth);
+    static async deleteInventoryItem(productUuid: string, auth: AuthenticatedUser): Promise<number> {
+        const inventoryItem = await InventoryModel.findById(productUuid, auth);
 
         const result = await InventoryModel.deleteWithCheck(productUuid, auth);
 
-        if (product?.categoryId) {
+        if (inventoryItem?.categoryId) {
             try {
-                await CategoryService.syncCategoryItemCounts([product.categoryId], auth);
+                await CategoryService.syncCategoryItemCounts([inventoryItem.categoryId], auth);
             } catch (error) {
-                console.warn('Failed to sync category item counts after product deletion:', error);
+                console.warn('Failed to sync category item counts after inventory item deletion:', error);
             }
         }
 
         return result;
     }
 
-    static async findProductBySku(sku: string, auth: AuthenticatedUser): Promise<Product | null> {
+    static async findInventoryItemBySku(sku: string, auth: AuthenticatedUser): Promise<InventoryItem | null> {
         return await InventoryModel.findBySku(sku, auth);
     }
 
@@ -170,59 +170,59 @@ export class InventoryService {
         return await InventoryModel.decrementInventory(products, auth);
     }
 
-    static async getProductCount(auth: AuthenticatedUser, includeVoided = false): Promise<number> {
+    static async getInventoryItemCount(auth: AuthenticatedUser, includeVoided = false): Promise<number> {
         return await InventoryModel.getCount(auth, includeVoided);
     }
 
-    static async productExists(productUuid: string, auth: AuthenticatedUser): Promise<boolean> {
+    static async inventoryItemExists(productUuid: string, auth: AuthenticatedUser): Promise<boolean> {
         return await InventoryModel.exists(productUuid, auth);
     }
 
-    static async updateProductQuantity(productUuid: string, quantity: number, auth: AuthenticatedUser): Promise<number> {
+    static async updateInventoryItemQuantity(productUuid: string, quantity: number, auth: AuthenticatedUser): Promise<number> {
         const exists = await InventoryModel.exists(productUuid, auth);
         if (!exists) {
-            throw new Error('Product not found or access denied');
+            throw new Error('Inventory item not found or access denied');
         }
 
         return await InventoryModel.updateQuantity(productUuid, quantity, auth);
     }
 
-    static async getProductsByCategory(categoryId: string, auth: AuthenticatedUser): Promise<Product[]> {
+    static async getInventoryItemsByCategory(categoryId: string, auth: AuthenticatedUser): Promise<InventoryItem[]> {
         return await InventoryModel.find({ categoryId }, auth);
     }
 
-    static async getProductsByStatus(status: string, auth: AuthenticatedUser): Promise<Product[]> {
+    static async getInventoryItemsByStatus(status: string, auth: AuthenticatedUser): Promise<InventoryItem[]> {
         return await InventoryModel.find({ status }, auth);
     }
 
-    static async getAllProducts(auth: AuthenticatedUser, includeVoided = false): Promise<Product[]> {
+    static async getAllInventoryItems(auth: AuthenticatedUser, includeVoided = false): Promise<InventoryItem[]> {
         if (includeVoided) {
             return await InventoryModel.find({}, auth);
         }
         return await InventoryModel.findActive(auth);
     }
 
-    static async searchProducts(searchTerm: string, auth: AuthenticatedUser): Promise<Product[]> {
-        const products = await InventoryModel.findActive(auth);
+    static async searchInventoryItems(searchTerm: string, auth: AuthenticatedUser): Promise<InventoryItem[]> {
+        const inventoryItems = await InventoryModel.findActive(auth);
 
-        return products.filter(product =>
-            product.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            product.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            product.barcode?.toString().includes(searchTerm)
+        return inventoryItems.filter(item =>
+            item.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            item.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            item.barcode?.toString().includes(searchTerm)
         );
     }
 
-    static async bulkUpdateProducts(updates: Array<{ productUuid: string, data: Record<string, any> }>, auth: AuthenticatedUser): Promise<void> {
+    static async bulkUpdateInventoryItems(updates: Array<{ productUuid: string, data: Record<string, any> }>, auth: AuthenticatedUser): Promise<void> {
         const categoriesToSync = new Set<string>();
 
         for (const { productUuid, data } of updates) {
-            const currentProduct = await InventoryModel.findById(productUuid, auth);
+            const currentItem = await InventoryModel.findById(productUuid, auth);
 
-            if (currentProduct?.categoryId) {
-                categoriesToSync.add(currentProduct.categoryId);
+            if (currentItem?.categoryId) {
+                categoriesToSync.add(currentItem.categoryId);
             }
 
-            if (data.categoryId && data.categoryId !== currentProduct?.categoryId) {
+            if (data.categoryId && data.categoryId !== currentItem?.categoryId) {
                 categoriesToSync.add(data.categoryId);
             }
         }
@@ -242,23 +242,23 @@ export class InventoryService {
         }
     }
 
-    static async getProductsWithLowStock(threshold: number, auth: AuthenticatedUser): Promise<Product[]> {
-        const products = await InventoryModel.findActive(auth);
+    static async getInventoryItemsWithLowStock(threshold: number, auth: AuthenticatedUser): Promise<InventoryItem[]> {
+        const inventoryItems = await InventoryModel.findActive(auth);
 
-        return products.filter(product =>
-            product.quantity !== undefined &&
-            product.quantity !== null &&
-            parseInt(product.quantity.toString()) < threshold
+        return inventoryItems.filter(item =>
+            item.quantity !== undefined &&
+            item.quantity !== null &&
+            parseInt(item.quantity.toString()) < threshold
         );
     }
 
     static async adjustInventory(productUuid: string, adjustment: number, auth: AuthenticatedUser): Promise<number> {
-        const product = await InventoryModel.findById(productUuid, auth);
-        if (!product) {
-            throw new Error('Product not found or access denied');
+        const inventoryItem = await InventoryModel.findById(productUuid, auth);
+        if (!inventoryItem) {
+            throw new Error('Inventory item not found or access denied');
         }
 
-        const currentQuantity = parseInt(product.quantity?.toString() || '0');
+        const currentQuantity = parseInt(inventoryItem.quantity?.toString() || '0');
         const newQuantity = currentQuantity + adjustment;
 
         if (newQuantity < 0) {
@@ -283,7 +283,7 @@ export class InventoryService {
     }
 
 
-    static async moveProductsToCategory(
+    static async moveInventoryItemsToCategory(
         productUuids: string[],
         newcategoryId: string,
         auth: AuthenticatedUser
@@ -292,9 +292,9 @@ export class InventoryService {
         categoriesToSync.add(newcategoryId);
 
         for (const productUuid of productUuids) {
-            const product = await InventoryModel.findById(productUuid, auth);
-            if (product?.categoryId) {
-                categoriesToSync.add(product.categoryId);
+            const inventoryItem = await InventoryModel.findById(productUuid, auth);
+            if (inventoryItem?.categoryId) {
+                categoriesToSync.add(inventoryItem.categoryId);
             }
         }
 
@@ -303,12 +303,12 @@ export class InventoryService {
             data: { categoryId: newcategoryId }
         }));
 
-        await this.bulkUpdateProducts(updates, auth);
+        await this.bulkUpdateInventoryItems(updates, auth);
 
         try {
             await CategoryService.syncCategoryItemCounts(Array.from(categoriesToSync), auth);
         } catch (error) {
-            console.warn('Failed to sync category item counts after moving products:', error);
+            console.warn('Failed to sync category item counts after moving inventory items:', error);
         }
     }
 }

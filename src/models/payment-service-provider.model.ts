@@ -1,18 +1,13 @@
 import { v4 as uuidv4 } from 'uuid';
-import { sealDBModel } from '../databases/local';
-import { PAYMENT_SERVICE_PROVIDERS_DB } from '../databases/local/tables';
 import { ValidationParams } from 'on-boarding';
-import { CreatePaymentServiceProviderRequest, PaymentServiceProvider, UpdatePaymentServiceProviderDto } from 'payment-service-provider';
 import prisma from '../databases/prisma/client';
+import { CreatePaymentServiceProviderRequest, PaymentServiceProvider, UpdatePaymentServiceProviderDto } from 'payment-service-provider';
 
 export class PaymentServiceProviderModel {
 
     static async findAllByRDBMS(_: ValidationParams): Promise<PaymentServiceProvider[]> {
         try {
-            return await prisma.paymentServiceProviders.findMany({
-                where: {
-                },
-            }) as unknown as Array<PaymentServiceProvider>
+            return await prisma.paymentServiceProvider.findMany() as unknown as PaymentServiceProvider[];
         } catch (error) {
             throw new Error(
                 `Error finding payment service providers: ${error instanceof Error ? error.message : 'Unknown error'}`
@@ -22,7 +17,9 @@ export class PaymentServiceProviderModel {
 
     static async findAll(conditions: any = {}): Promise<PaymentServiceProvider[]> {
         try {
-            return await sealDBModel.find(PAYMENT_SERVICE_PROVIDERS_DB, conditions);
+            return await prisma.paymentServiceProvider.findMany({
+                where: conditions
+            }) as unknown as PaymentServiceProvider[];
         } catch (error) {
             throw new Error(`Error finding payment service providers: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
@@ -30,42 +27,19 @@ export class PaymentServiceProviderModel {
 
     static async findById(providerId: string): Promise<PaymentServiceProvider | null> {
         try {
-            return await sealDBModel.findById<PaymentServiceProvider>(PAYMENT_SERVICE_PROVIDERS_DB, { providerId });
+            return await prisma.paymentServiceProvider.findUnique({
+                where: { providerId }
+            }) as unknown as PaymentServiceProvider | null;
         } catch (error) {
             throw new Error(`Error finding payment service provider by ID: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
     }
 
-    static async findByTenantId(tenantId: string): Promise<PaymentServiceProvider[]> {
-        try {
-            return await sealDBModel.find(PAYMENT_SERVICE_PROVIDERS_DB, { tenantId });
-        } catch (error) {
-            throw new Error(`Error finding payment service providers by tenant ID: ${error instanceof Error ? error.message : 'Unknown error'}`);
-        }
-    }
-
-    static async findByBranchId(branchId: string): Promise<PaymentServiceProvider[]> {
-        try {
-            return await sealDBModel.find(PAYMENT_SERVICE_PROVIDERS_DB, { branchId });
-        } catch (error) {
-            throw new Error(`Error finding payment service providers by branch ID: ${error instanceof Error ? error.message : 'Unknown error'}`);
-        }
-    }
-
-    static async findByTenantIdAndBranchId(tenantId: string, branchId: string): Promise<PaymentServiceProvider[]> {
-        try {
-            return await sealDBModel.find(PAYMENT_SERVICE_PROVIDERS_DB, {
-                tenantId,
-                branchId
-            });
-        } catch (error) {
-            throw new Error(`Error finding payment service providers by tenant ID and branch ID: ${error instanceof Error ? error.message : 'Unknown error'}`);
-        }
-    }
-
     static async findByName(name: string): Promise<PaymentServiceProvider[]> {
         try {
-            return await sealDBModel.find(PAYMENT_SERVICE_PROVIDERS_DB, { name });
+            return await prisma.paymentServiceProvider.findMany({
+                where: { name }
+            }) as unknown as PaymentServiceProvider[];
         } catch (error) {
             throw new Error(`Error finding payment service providers by name: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
@@ -73,10 +47,11 @@ export class PaymentServiceProviderModel {
 
     static async findByTenantIdAndName(tenantId: string, name: string): Promise<PaymentServiceProvider[]> {
         try {
-            return await sealDBModel.find(PAYMENT_SERVICE_PROVIDERS_DB, {
-                tenantId,
-                name
-            });
+            return await prisma.paymentServiceProvider.findMany({
+                where: {
+                    name
+                }
+            }) as unknown as PaymentServiceProvider[];
         } catch (error) {
             throw new Error(`Error finding payment service provider by tenant ID and name: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
@@ -84,20 +59,11 @@ export class PaymentServiceProviderModel {
 
     static async findBySynced(synced: number): Promise<PaymentServiceProvider[]> {
         try {
-            return await sealDBModel.find(PAYMENT_SERVICE_PROVIDERS_DB, { synced });
+            return await prisma.paymentServiceProvider.findMany({
+                where: { synced }
+            }) as unknown as PaymentServiceProvider[];
         } catch (error) {
             throw new Error(`Error finding payment service providers by sync status: ${error instanceof Error ? error.message : 'Unknown error'}`);
-        }
-    }
-
-    static async findUnsyncedByTenant(tenantId: string): Promise<PaymentServiceProvider[]> {
-        try {
-            return await sealDBModel.find(PAYMENT_SERVICE_PROVIDERS_DB, {
-                tenantId,
-                synced: 0
-            });
-        } catch (error) {
-            throw new Error(`Error finding unsynced payment service providers by tenant: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
     }
 
@@ -118,7 +84,15 @@ export class PaymentServiceProviderModel {
 
     static async create(pspData: PaymentServiceProvider): Promise<PaymentServiceProvider> {
         try {
-            return await sealDBModel.insert(PAYMENT_SERVICE_PROVIDERS_DB, pspData);
+            return await prisma.paymentServiceProvider.create({
+                data: {
+                    providerId: pspData.providerId,
+                    name: pspData.name,
+                    userId: pspData.userId,
+                    logoUrl: pspData.logoUrl,
+                    synced: 0
+                }
+            }) as unknown as PaymentServiceProvider;
         } catch (error) {
             throw new Error(`Error creating payment service provider: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
@@ -131,7 +105,13 @@ export class PaymentServiceProviderModel {
                 updatedAt: new Date(),
                 synced: 0
             };
-            return await sealDBModel.update(PAYMENT_SERVICE_PROVIDERS_DB, id, dataWithTimestamp);
+
+            await prisma.paymentServiceProvider.update({
+                where: { providerId: id },
+                data: dataWithTimestamp
+            });
+
+            return 1; // Return 1 to indicate successful update
         } catch (error) {
             throw new Error(`Error updating payment service provider: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
@@ -139,7 +119,10 @@ export class PaymentServiceProviderModel {
 
     static async delete(id: string): Promise<number> {
         try {
-            return await sealDBModel.delete(PAYMENT_SERVICE_PROVIDERS_DB, id);
+            await prisma.paymentServiceProvider.delete({
+                where: { providerId: id }
+            });
+            return 1; // Return 1 to indicate successful deletion
         } catch (error) {
             throw new Error(`Error deleting payment service provider: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
@@ -147,7 +130,9 @@ export class PaymentServiceProviderModel {
 
     static async count(conditions: any = {}): Promise<number> {
         try {
-            return await sealDBModel.count(PAYMENT_SERVICE_PROVIDERS_DB, conditions);
+            return await prisma.paymentServiceProvider.count({
+                where: conditions
+            });
         } catch (error) {
             throw new Error(`Error counting payment service providers: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
@@ -155,7 +140,14 @@ export class PaymentServiceProviderModel {
 
     static async markAsSynced(id: string): Promise<number> {
         try {
-            return await this.update(id, { synced: 1 });
+            await prisma.paymentServiceProvider.update({
+                where: { providerId: id },
+                data: {
+                    synced: 1,
+                    updatedAt: new Date()
+                }
+            });
+            return 1;
         } catch (error) {
             throw new Error(`Error marking payment service provider as synced: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
@@ -163,7 +155,14 @@ export class PaymentServiceProviderModel {
 
     static async markAsUnsynced(id: string): Promise<number> {
         try {
-            return await this.update(id, { synced: 0 });
+            await prisma.paymentServiceProvider.update({
+                where: { providerId: id },
+                data: {
+                    synced: 0,
+                    updatedAt: new Date()
+                }
+            });
+            return 1;
         } catch (error) {
             throw new Error(`Error marking payment service provider as unsynced: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }

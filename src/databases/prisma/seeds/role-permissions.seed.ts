@@ -1,214 +1,677 @@
-import { v4 as uuidv4 } from 'uuid';
 import { PrismaClient } from "../generated/prisma/client";
-import { RolePermission } from 'role-permission';
 
-const DEFAULT_ROLE_PERMISSIONS: Array<RolePermission> = [
-    // ===== SUPER ADMIN - Full system access =====
-    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'system.admin' },
-    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'system.backup' },
-    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'system.logs.view' },
+interface RolePermission {
+    rolePermissionId: string;
+    roleId: string;
+    permissionId: string;
+}
 
-    // Sales permissions
-    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'sales.create' },
-    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'sales.view' },
-    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'sales.edit' },
-    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'sales.void' },
+const createRolePermissions = (roleId: string, permissionIds: string[]): RolePermission[] => {
+    return permissionIds.map(permissionId => ({
+        rolePermissionId: `${roleId}-${permissionId}`,
+        roleId,
+        permissionId,
+    }));
+};
 
-    // Product permissions
-    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'products.create' },
-    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'products.view' },
-    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'products.edit' },
-    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'products.delete' },
-    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'products.pricing' },
+// =====================================================
+// PERMISSION GROUPS FOR REUSE
+// =====================================================
+const ALL_SALES_PERMISSIONS = [
+    'sales.create', 'sales.view', 'sales.edit', 'sales.void'
+];
 
-    // Inventory permissions
-    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'inventory.view' },
-    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'inventory.adjust' },
-    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'inventory.transfer' },
-    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'inventory.receive' },
+const ALL_PRODUCT_PERMISSIONS = [
+    'products.create', 'products.view', 'products.edit', 'products.delete', 'products.pricing'
+];
 
-    // Customer permissions
-    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'customers.create' },
-    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'customers.view' },
-    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'customers.edit' },
-    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'customers.delete' },
+const ALL_INVENTORY_PERMISSIONS = [
+    'inventory.view', 'inventory.adjust', 'inventory.transfer', 'inventory.receive'
+];
 
-    // Payment & Refund permissions
-    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'payments.process' },
-    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'payments.view' },
-    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'payments.partial' },
-    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'refunds.process' },
-    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'refunds.view' },
-    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'refunds.approve' },
+const ALL_CUSTOMER_PERMISSIONS = [
+    'customers.create', 'customers.view', 'customers.edit', 'customers.delete'
+];
 
-    // Discount permissions
-    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'discounts.apply' },
-    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'discounts.create' },
-    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'discounts.override' },
+const ALL_PAYMENT_PERMISSIONS = [
+    'payments.process', 'payments.view', 'payments.partial'
+];
 
-    // Cash management
-    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'cash.drawer.open' },
-    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'cash.count' },
-    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'cash.deposit' },
+const ALL_REFUND_PERMISSIONS = [
+    'refunds.process', 'refunds.view', 'refunds.approve'
+];
 
-    // Reports
-    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'reports.sales.daily' },
-    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'reports.sales.detailed' },
-    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'reports.inventory' },
-    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'reports.financial' },
+const ALL_DISCOUNT_PERMISSIONS = [
+    'discounts.apply', 'discounts.create', 'discounts.override'
+];
 
-    // User management
-    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'users.create' },
-    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'users.view' },
-    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'users.edit' },
-    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'users.delete' },
-    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'users.roles.assign' },
+const ALL_CASH_PERMISSIONS = [
+    'cash.drawer.open', 'cash.count', 'cash.deposit'
+];
 
-    // Settings
-    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'settings.shop.manage' },
-    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'settings.tax.manage' },
-    { rolePermissionId: uuidv4(), roleId: 'super-admin', permissionId: 'settings.payment.manage' },
+const ALL_REPORT_PERMISSIONS = [
+    'reports.sales.daily', 'reports.sales.detailed', 'reports.inventory', 'reports.financial'
+];
 
-    // ===== ADMIN - Shop level administration =====
-    // Sales permissions
-    { rolePermissionId: uuidv4(), roleId: 'admin', permissionId: 'sales.create' },
-    { rolePermissionId: uuidv4(), roleId: 'admin', permissionId: 'sales.view' },
-    { rolePermissionId: uuidv4(), roleId: 'admin', permissionId: 'sales.edit' },
-    { rolePermissionId: uuidv4(), roleId: 'admin', permissionId: 'sales.void' },
+const ALL_USER_PERMISSIONS = [
+    'users.create', 'users.view', 'users.edit', 'users.delete', 'users.roles.assign'
+];
 
-    // Product permissions
-    { rolePermissionId: uuidv4(), roleId: 'admin', permissionId: 'products.create' },
-    { rolePermissionId: uuidv4(), roleId: 'admin', permissionId: 'products.view' },
-    { rolePermissionId: uuidv4(), roleId: 'admin', permissionId: 'products.edit' },
-    { rolePermissionId: uuidv4(), roleId: 'admin', permissionId: 'products.delete' },
-    { rolePermissionId: uuidv4(), roleId: 'admin', permissionId: 'products.pricing' },
+const ALL_SETTINGS_PERMISSIONS = [
+    'settings.branch.manage', 'settings.tax.manage', 'settings.payment.manage'
+];
 
-    // Inventory permissions
-    { rolePermissionId: uuidv4(), roleId: 'admin', permissionId: 'inventory.view' },
-    { rolePermissionId: uuidv4(), roleId: 'admin', permissionId: 'inventory.adjust' },
-    { rolePermissionId: uuidv4(), roleId: 'admin', permissionId: 'inventory.transfer' },
-    { rolePermissionId: uuidv4(), roleId: 'admin', permissionId: 'inventory.receive' },
+const ALL_SYSTEM_PERMISSIONS = [
+    'system.admin', 'system.backup', 'system.logs.view'
+];
 
-    // Customer permissions
-    { rolePermissionId: uuidv4(), roleId: 'admin', permissionId: 'customers.create' },
-    { rolePermissionId: uuidv4(), roleId: 'admin', permissionId: 'customers.view' },
-    { rolePermissionId: uuidv4(), roleId: 'admin', permissionId: 'customers.edit' },
-    { rolePermissionId: uuidv4(), roleId: 'admin', permissionId: 'customers.delete' },
+// Basic view-only permissions
+const BASIC_VIEW_PERMISSIONS = [
+    'sales.view', 'products.view', 'inventory.view', 'customers.view', 'payments.view'
+];
 
-    // Payment & Refund permissions
-    { rolePermissionId: uuidv4(), roleId: 'admin', permissionId: 'payments.process' },
-    { rolePermissionId: uuidv4(), roleId: 'admin', permissionId: 'payments.view' },
-    { rolePermissionId: uuidv4(), roleId: 'admin', permissionId: 'payments.partial' },
-    { rolePermissionId: uuidv4(), roleId: 'admin', permissionId: 'refunds.process' },
-    { rolePermissionId: uuidv4(), roleId: 'admin', permissionId: 'refunds.view' },
-    { rolePermissionId: uuidv4(), roleId: 'admin', permissionId: 'refunds.approve' },
+// Basic cashier operations
+export const BASIC_CASHIER_PERMISSIONS = [
+    'sales.create', 'sales.view.own',
+    'products.view',
+    'inventory.view',
+    'customers.create', 'customers.view',
+    'payments.process', 'payments.view',
+    'discounts.apply',
+    'cash.drawer.open',
+];
 
-    // Discount permissions
-    { rolePermissionId: uuidv4(), roleId: 'admin', permissionId: 'discounts.apply' },
-    { rolePermissionId: uuidv4(), roleId: 'admin', permissionId: 'discounts.create' },
-    { rolePermissionId: uuidv4(), roleId: 'admin', permissionId: 'discounts.override' },
+// =====================================================
+// ROLE PERMISSION DEFINITIONS
+// =====================================================
 
-    // Cash management
-    { rolePermissionId: uuidv4(), roleId: 'admin', permissionId: 'cash.drawer.open' },
-    { rolePermissionId: uuidv4(), roleId: 'admin', permissionId: 'cash.count' },
-    { rolePermissionId: uuidv4(), roleId: 'admin', permissionId: 'cash.deposit' },
+// ===== SYSTEM-LEVEL ROLES =====
 
-    // Reports
-    { rolePermissionId: uuidv4(), roleId: 'admin', permissionId: 'reports.sales.daily' },
-    { rolePermissionId: uuidv4(), roleId: 'admin', permissionId: 'reports.sales.detailed' },
-    { rolePermissionId: uuidv4(), roleId: 'admin', permissionId: 'reports.inventory' },
-    { rolePermissionId: uuidv4(), roleId: 'admin', permissionId: 'reports.financial' },
+// SUPER ADMIN - Full platform access
+const SUPER_ADMIN_PERMISSIONS = [
+    ...ALL_SYSTEM_PERMISSIONS,
+    ...ALL_SALES_PERMISSIONS,
+    ...ALL_PRODUCT_PERMISSIONS,
+    ...ALL_INVENTORY_PERMISSIONS,
+    ...ALL_CUSTOMER_PERMISSIONS,
+    ...ALL_PAYMENT_PERMISSIONS,
+    ...ALL_REFUND_PERMISSIONS,
+    ...ALL_DISCOUNT_PERMISSIONS,
+    ...ALL_CASH_PERMISSIONS,
+    ...ALL_REPORT_PERMISSIONS,
+    ...ALL_USER_PERMISSIONS,
+    ...ALL_SETTINGS_PERMISSIONS,
+];
 
-    // User management
-    { rolePermissionId: uuidv4(), roleId: 'admin', permissionId: 'users.create' },
-    { rolePermissionId: uuidv4(), roleId: 'admin', permissionId: 'users.view' },
-    { rolePermissionId: uuidv4(), roleId: 'admin', permissionId: 'users.edit' },
-    { rolePermissionId: uuidv4(), roleId: 'admin', permissionId: 'users.delete' },
-    { rolePermissionId: uuidv4(), roleId: 'admin', permissionId: 'users.roles.assign' },
+// SUPPORT ADMIN - Platform support with limited write access
+const SUPPORT_ADMIN_PERMISSIONS = [
+    'system.logs.view',
+    ...BASIC_VIEW_PERMISSIONS,
+    ...ALL_REPORT_PERMISSIONS,
+    'users.view',
+    'settings.branch.manage',
+];
 
-    // Settings
-    { rolePermissionId: uuidv4(), roleId: 'admin', permissionId: 'settings.shop.manage' },
-    { rolePermissionId: uuidv4(), roleId: 'admin', permissionId: 'settings.tax.manage' },
-    { rolePermissionId: uuidv4(), roleId: 'admin', permissionId: 'settings.payment.manage' },
+// ===== TENANT-LEVEL ROLES =====
 
-    // ===== MANAGER - Operational management =====
-    // Sales permissions
-    { rolePermissionId: uuidv4(), roleId: 'manager', permissionId: 'sales.create' },
-    { rolePermissionId: uuidv4(), roleId: 'manager', permissionId: 'sales.view' },
-    { rolePermissionId: uuidv4(), roleId: 'manager', permissionId: 'sales.edit' },
-    { rolePermissionId: uuidv4(), roleId: 'manager', permissionId: 'sales.void' },
+// TENANT OWNER - Full business access
+const TENANT_OWNER_PERMISSIONS = [
+    'system.backup', 'system.logs.view',
+    ...ALL_SALES_PERMISSIONS,
+    ...ALL_PRODUCT_PERMISSIONS,
+    ...ALL_INVENTORY_PERMISSIONS,
+    ...ALL_CUSTOMER_PERMISSIONS,
+    ...ALL_PAYMENT_PERMISSIONS,
+    ...ALL_REFUND_PERMISSIONS,
+    ...ALL_DISCOUNT_PERMISSIONS,
+    ...ALL_CASH_PERMISSIONS,
+    ...ALL_REPORT_PERMISSIONS,
+    ...ALL_USER_PERMISSIONS,
+    ...ALL_SETTINGS_PERMISSIONS,
+];
 
-    // Product permissions
-    { rolePermissionId: uuidv4(), roleId: 'manager', permissionId: 'products.create' },
-    { rolePermissionId: uuidv4(), roleId: 'manager', permissionId: 'products.view' },
-    { rolePermissionId: uuidv4(), roleId: 'manager', permissionId: 'products.edit' },
-    { rolePermissionId: uuidv4(), roleId: 'manager', permissionId: 'products.pricing' },
+// ADMIN - Full operational access within tenant
+const ADMIN_PERMISSIONS = [
+    ...ALL_SALES_PERMISSIONS,
+    ...ALL_PRODUCT_PERMISSIONS,
+    ...ALL_INVENTORY_PERMISSIONS,
+    ...ALL_CUSTOMER_PERMISSIONS,
+    ...ALL_PAYMENT_PERMISSIONS,
+    ...ALL_REFUND_PERMISSIONS,
+    ...ALL_DISCOUNT_PERMISSIONS,
+    ...ALL_CASH_PERMISSIONS,
+    ...ALL_REPORT_PERMISSIONS,
+    ...ALL_USER_PERMISSIONS,
+    ...ALL_SETTINGS_PERMISSIONS,
+];
 
-    // Inventory permissions
-    { rolePermissionId: uuidv4(), roleId: 'manager', permissionId: 'inventory.view' },
-    { rolePermissionId: uuidv4(), roleId: 'manager', permissionId: 'inventory.adjust' },
-    { rolePermissionId: uuidv4(), roleId: 'manager', permissionId: 'inventory.receive' },
+// OPERATIONS DIRECTOR - Multi-branch oversight
+const OPERATIONS_DIRECTOR_PERMISSIONS = [
+    ...ALL_SALES_PERMISSIONS,
+    ...ALL_PRODUCT_PERMISSIONS,
+    ...ALL_INVENTORY_PERMISSIONS,
+    ...ALL_CUSTOMER_PERMISSIONS,
+    ...ALL_PAYMENT_PERMISSIONS,
+    ...ALL_REFUND_PERMISSIONS,
+    ...ALL_DISCOUNT_PERMISSIONS,
+    ...ALL_CASH_PERMISSIONS,
+    ...ALL_REPORT_PERMISSIONS,
+    'users.view', 'users.edit', 'users.roles.assign',
+    'settings.branch.manage',
+];
 
-    // Customer permissions
-    { rolePermissionId: uuidv4(), roleId: 'manager', permissionId: 'customers.create' },
-    { rolePermissionId: uuidv4(), roleId: 'manager', permissionId: 'customers.view' },
-    { rolePermissionId: uuidv4(), roleId: 'manager', permissionId: 'customers.edit' },
+// ===== LOCATION/BRANCH-LEVEL ROLES =====
 
-    // Payment & Refund permissions
-    { rolePermissionId: uuidv4(), roleId: 'manager', permissionId: 'payments.process' },
-    { rolePermissionId: uuidv4(), roleId: 'manager', permissionId: 'payments.view' },
-    { rolePermissionId: uuidv4(), roleId: 'manager', permissionId: 'payments.partial' },
-    { rolePermissionId: uuidv4(), roleId: 'manager', permissionId: 'refunds.process' },
-    { rolePermissionId: uuidv4(), roleId: 'manager', permissionId: 'refunds.view' },
-    { rolePermissionId: uuidv4(), roleId: 'manager', permissionId: 'refunds.approve' },
+// BRANCH MANAGER - Full control over specific location
+const BRANCH_MANAGER_PERMISSIONS = [
+    ...ALL_SALES_PERMISSIONS,
+    ...ALL_PRODUCT_PERMISSIONS,
+    ...ALL_INVENTORY_PERMISSIONS,
+    ...ALL_CUSTOMER_PERMISSIONS,
+    ...ALL_PAYMENT_PERMISSIONS,
+    ...ALL_REFUND_PERMISSIONS,
+    ...ALL_DISCOUNT_PERMISSIONS,
+    ...ALL_CASH_PERMISSIONS,
+    ...ALL_REPORT_PERMISSIONS,
+    'users.create', 'users.view', 'users.edit', 'users.roles.assign',
+    'settings.branch.manage',
+];
 
-    // Discount permissions
-    { rolePermissionId: uuidv4(), roleId: 'manager', permissionId: 'discounts.apply' },
-    { rolePermissionId: uuidv4(), roleId: 'manager', permissionId: 'discounts.create' },
-    { rolePermissionId: uuidv4(), roleId: 'manager', permissionId: 'discounts.override' },
+// ASSISTANT MANAGER - Supports branch manager
+const ASSISTANT_MANAGER_PERMISSIONS = [
+    ...ALL_SALES_PERMISSIONS,
+    'products.create', 'products.view', 'products.edit', 'products.pricing',
+    'inventory.view', 'inventory.adjust', 'inventory.receive',
+    ...ALL_CUSTOMER_PERMISSIONS,
+    ...ALL_PAYMENT_PERMISSIONS,
+    ...ALL_REFUND_PERMISSIONS,
+    ...ALL_DISCOUNT_PERMISSIONS,
+    ...ALL_CASH_PERMISSIONS,
+    'reports.sales.daily', 'reports.sales.detailed', 'reports.inventory',
+    'users.view',
+];
 
-    // Cash management
-    { rolePermissionId: uuidv4(), roleId: 'manager', permissionId: 'cash.drawer.open' },
-    { rolePermissionId: uuidv4(), roleId: 'manager', permissionId: 'cash.count' },
-    { rolePermissionId: uuidv4(), roleId: 'manager', permissionId: 'cash.deposit' },
+// MANAGER - General operational management
+const MANAGER_PERMISSIONS = [
+    ...ALL_SALES_PERMISSIONS,
+    'products.create', 'products.view', 'products.edit', 'products.pricing',
+    'inventory.view', 'inventory.adjust', 'inventory.receive',
+    'customers.create', 'customers.view', 'customers.edit',
+    ...ALL_PAYMENT_PERMISSIONS,
+    ...ALL_REFUND_PERMISSIONS,
+    ...ALL_DISCOUNT_PERMISSIONS,
+    ...ALL_CASH_PERMISSIONS,
+    'reports.sales.daily', 'reports.sales.detailed', 'reports.inventory',
+];
 
-    // Reports
-    { rolePermissionId: uuidv4(), roleId: 'manager', permissionId: 'reports.sales.daily' },
-    { rolePermissionId: uuidv4(), roleId: 'manager', permissionId: 'reports.sales.detailed' },
-    { rolePermissionId: uuidv4(), roleId: 'manager', permissionId: 'reports.inventory' },
+// SHIFT SUPERVISOR - Elevated cashier with supervision
+const SHIFT_SUPERVISOR_PERMISSIONS = [
+    'sales.create', 'sales.view', 'sales.edit',
+    'products.view',
+    'inventory.view',
+    'customers.create', 'customers.view', 'customers.edit',
+    ...ALL_PAYMENT_PERMISSIONS,
+    'refunds.process', 'refunds.view',
+    'discounts.apply', 'discounts.override',
+    ...ALL_CASH_PERMISSIONS,
+    'reports.sales.daily',
+];
 
-    // ===== CASHIER - Point of sale operations =====
-    // Sales permissions
-    { rolePermissionId: uuidv4(), roleId: 'cashier', permissionId: 'sales.create' },
-    { rolePermissionId: uuidv4(), roleId: 'cashier', permissionId: 'sales.view.own' }, // Can only view own sales
+// TEAM LEAD - Leads small team
+const TEAM_LEAD_PERMISSIONS = [
+    'sales.create', 'sales.view', 'sales.edit',
+    'products.view',
+    'inventory.view',
+    'customers.create', 'customers.view', 'customers.edit',
+    ...ALL_PAYMENT_PERMISSIONS,
+    'refunds.process', 'refunds.view',
+    'discounts.apply',
+    'cash.drawer.open', 'cash.count',
+    'reports.sales.daily',
+];
 
-    // Product permissions (view only)
-    { rolePermissionId: uuidv4(), roleId: 'cashier', permissionId: 'products.view' },
+// ===== FINANCIAL ROLES =====
 
-    // Inventory permissions (view only)
-    { rolePermissionId: uuidv4(), roleId: 'cashier', permissionId: 'inventory.view' },
+// FINANCE MANAGER - Full financial oversight
+const FINANCE_MANAGER_PERMISSIONS = [
+    'sales.view',
+    'products.view', 'products.pricing',
+    'inventory.view',
+    'customers.view',
+    ...ALL_PAYMENT_PERMISSIONS,
+    ...ALL_REFUND_PERMISSIONS,
+    ...ALL_CASH_PERMISSIONS,
+    ...ALL_REPORT_PERMISSIONS,
+    'system.logs.view',
+    'settings.tax.manage', 'settings.payment.manage',
+];
 
-    // Customer permissions
-    { rolePermissionId: uuidv4(), roleId: 'cashier', permissionId: 'customers.create' },
-    { rolePermissionId: uuidv4(), roleId: 'cashier', permissionId: 'customers.view' },
-    { rolePermissionId: uuidv4(), roleId: 'cashier', permissionId: 'customers.edit' },
+// ACCOUNTANT - Financial reporting and reconciliation
+const ACCOUNTANT_PERMISSIONS = [
+    'sales.view',
+    'payments.view',
+    'refunds.view',
+    'cash.count',
+    ...ALL_REPORT_PERMISSIONS,
+    'system.logs.view',
+];
 
-    // Payment permissions
-    { rolePermissionId: uuidv4(), roleId: 'cashier', permissionId: 'payments.process' },
-    { rolePermissionId: uuidv4(), roleId: 'cashier', permissionId: 'payments.view' },
-    { rolePermissionId: uuidv4(), roleId: 'cashier', permissionId: 'payments.partial' },
+// BOOKKEEPER - Daily transaction records
+const BOOKKEEPER_PERMISSIONS = [
+    'sales.view',
+    'payments.view',
+    'refunds.view',
+    'reports.sales.daily', 'reports.sales.detailed',
+];
 
-    // Basic discount permissions
-    { rolePermissionId: uuidv4(), roleId: 'cashier', permissionId: 'discounts.apply' },
+// ===== INVENTORY & SUPPLY CHAIN ROLES =====
 
-    // Cash management
-    { rolePermissionId: uuidv4(), roleId: 'cashier', permissionId: 'cash.drawer.open' },
-    { rolePermissionId: uuidv4(), roleId: 'cashier', permissionId: 'cash.count' },
+// INVENTORY MANAGER - Full stock management
+const INVENTORY_MANAGER_PERMISSIONS = [
+    'products.view', 'products.edit', 'products.create',
+    ...ALL_INVENTORY_PERMISSIONS,
+    'reports.inventory',
+];
+
+// WAREHOUSE SUPERVISOR - Warehouse operations
+const WAREHOUSE_SUPERVISOR_PERMISSIONS = [
+    'products.view',
+    ...ALL_INVENTORY_PERMISSIONS,
+    'reports.inventory',
+];
+
+// STOCK CLERK - Basic inventory tasks
+const STOCK_CLERK_PERMISSIONS = [
+    'products.view',
+    'inventory.view', 'inventory.receive',
+];
+
+// PURCHASING OFFICER - Supplier and orders
+const PURCHASING_OFFICER_PERMISSIONS = [
+    'products.view', 'products.create', 'products.edit',
+    'inventory.view', 'inventory.receive',
+    'reports.inventory',
+];
+
+// ===== SALES & CUSTOMER SERVICE ROLES =====
+
+// SALES MANAGER - Manages sales team
+const SALES_MANAGER_PERMISSIONS = [
+    ...ALL_SALES_PERMISSIONS,
+    'products.view', 'products.pricing',
+    'inventory.view',
+    ...ALL_CUSTOMER_PERMISSIONS,
+    ...ALL_PAYMENT_PERMISSIONS,
+    ...ALL_REFUND_PERMISSIONS,
+    ...ALL_DISCOUNT_PERMISSIONS,
+    'cash.drawer.open', 'cash.count',
+    'reports.sales.daily', 'reports.sales.detailed',
+];
+
+// SENIOR CASHIER - Experienced cashier with refunds
+const SENIOR_CASHIER_PERMISSIONS = [
+    'sales.create', 'sales.view',
+    'products.view',
+    'inventory.view',
+    'customers.create', 'customers.view', 'customers.edit',
+    ...ALL_PAYMENT_PERMISSIONS,
+    'refunds.process', 'refunds.view',
+    'discounts.apply',
+    'cash.drawer.open', 'cash.count',
+];
+
+// CASHIER - Standard POS operations
+const CASHIER_PERMISSIONS = [
+    'sales.create', 'sales.view.own',
+    'products.view',
+    'inventory.view',
+    'customers.create', 'customers.view', 'customers.edit',
+    'payments.process', 'payments.view', 'payments.partial',
+    'discounts.apply',
+    'cash.drawer.open', 'cash.count',
+];
+
+// TRAINEE CASHIER - Limited cashier in training
+const TRAINEE_CASHIER_PERMISSIONS = [
+    'sales.create', 'sales.view.own',
+    'products.view',
+    'customers.view',
+    'payments.process', 'payments.view',
+    'cash.drawer.open',
+];
+
+// SALES ASSOCIATE - Assists customers
+const SALES_ASSOCIATE_PERMISSIONS = [
+    'sales.view',
+    'products.view',
+    'inventory.view',
+    'customers.create', 'customers.view',
+];
+
+// CUSTOMER SERVICE REP - Handles inquiries and returns
+const CUSTOMER_SERVICE_REP_PERMISSIONS = [
+    'sales.view',
+    'products.view',
+    'customers.create', 'customers.view', 'customers.edit',
+    'payments.view',
+    'refunds.process', 'refunds.view',
+];
+
+// ===== CAFE & RESTAURANT ROLES =====
+
+// BARISTA - Cafe counter operations
+const BARISTA_PERMISSIONS = [
+    'sales.create', 'sales.view.own',
+    'products.view',
+    'inventory.view',
+    'customers.create', 'customers.view',
+    'payments.process', 'payments.view',
+    'discounts.apply',
+    'cash.drawer.open',
+];
+
+// SERVER - Table service
+const SERVER_PERMISSIONS = [
+    'sales.create', 'sales.view.own', 'sales.edit',
+    'products.view',
+    'customers.create', 'customers.view',
+    'payments.process', 'payments.view', 'payments.partial',
+    'discounts.apply',
+];
+
+// KITCHEN STAFF - Kitchen display and orders
+const KITCHEN_STAFF_PERMISSIONS = [
+    'sales.view',
+    'products.view',
+    'inventory.view',
+];
+
+// HEAD CHEF - Kitchen management
+const HEAD_CHEF_PERMISSIONS = [
+    'sales.view',
+    'products.view', 'products.edit',
+    'inventory.view', 'inventory.adjust', 'inventory.receive',
+    'reports.inventory',
+];
+
+// ===== BAR ROLES =====
+
+// BAR MANAGER - Bar operations
+const BAR_MANAGER_PERMISSIONS = [
+    ...ALL_SALES_PERMISSIONS,
+    'products.view', 'products.edit', 'products.pricing',
+    'inventory.view', 'inventory.adjust', 'inventory.receive',
+    'customers.create', 'customers.view', 'customers.edit',
+    ...ALL_PAYMENT_PERMISSIONS,
+    ...ALL_REFUND_PERMISSIONS,
+    ...ALL_DISCOUNT_PERMISSIONS,
+    ...ALL_CASH_PERMISSIONS,
+    'reports.sales.daily', 'reports.sales.detailed', 'reports.inventory',
+    'users.view',
+];
+
+// BARTENDER - Bar sales
+const BARTENDER_PERMISSIONS = [
+    'sales.create', 'sales.view.own',
+    'products.view',
+    'inventory.view',
+    'customers.create', 'customers.view',
+    'payments.process', 'payments.view', 'payments.partial',
+    'discounts.apply',
+    'cash.drawer.open', 'cash.count',
+];
+
+// HOST - Reservations and seating
+const HOST_PERMISSIONS = [
+    'sales.view',
+    'customers.create', 'customers.view', 'customers.edit',
+];
+
+// ===== PHARMACY ROLES =====
+
+// PHARMACIST - Full dispensing access
+const PHARMACIST_PERMISSIONS = [
+    'sales.create', 'sales.view', 'sales.edit',
+    'products.view', 'products.edit',
+    'inventory.view', 'inventory.adjust',
+    'customers.create', 'customers.view', 'customers.edit',
+    ...ALL_PAYMENT_PERMISSIONS,
+    'refunds.process', 'refunds.view',
+    'discounts.apply',
+    'cash.drawer.open', 'cash.count',
+    'reports.sales.daily', 'reports.inventory',
+];
+
+// PHARMACY MANAGER - Pharmacy operations
+const PHARMACY_MANAGER_PERMISSIONS = [
+    ...ALL_SALES_PERMISSIONS,
+    ...ALL_PRODUCT_PERMISSIONS,
+    ...ALL_INVENTORY_PERMISSIONS,
+    ...ALL_CUSTOMER_PERMISSIONS,
+    ...ALL_PAYMENT_PERMISSIONS,
+    ...ALL_REFUND_PERMISSIONS,
+    ...ALL_DISCOUNT_PERMISSIONS,
+    ...ALL_CASH_PERMISSIONS,
+    ...ALL_REPORT_PERMISSIONS,
+    'users.create', 'users.view', 'users.edit',
+    'settings.branch.manage',
+];
+
+// PHARMACY TECHNICIAN - Assists pharmacist
+const PHARMACY_TECHNICIAN_PERMISSIONS = [
+    'sales.create', 'sales.view',
+    'products.view',
+    'inventory.view', 'inventory.receive',
+    'customers.view',
+    'payments.process', 'payments.view',
+    'cash.drawer.open',
+];
+
+// PHARMACY ASSISTANT - Front store
+const PHARMACY_ASSISTANT_PERMISSIONS = [
+    'sales.create', 'sales.view.own',
+    'products.view',
+    'inventory.view',
+    'customers.create', 'customers.view',
+    'payments.process', 'payments.view',
+    'discounts.apply',
+    'cash.drawer.open',
+];
+
+// ===== RETAIL STORE ROLES =====
+
+// FLOOR MANAGER - Store floor operations
+const FLOOR_MANAGER_PERMISSIONS = [
+    'sales.create', 'sales.view', 'sales.edit',
+    'products.view', 'products.edit', 'products.pricing',
+    'inventory.view', 'inventory.adjust',
+    'customers.create', 'customers.view', 'customers.edit',
+    ...ALL_PAYMENT_PERMISSIONS,
+    'refunds.process', 'refunds.view',
+    ...ALL_DISCOUNT_PERMISSIONS,
+    'cash.drawer.open', 'cash.count',
+    'reports.sales.daily',
+    'users.view',
+];
+
+// MERCHANDISER - Product displays and pricing
+const MERCHANDISER_PERMISSIONS = [
+    'products.view', 'products.edit', 'products.pricing',
+    'inventory.view',
+];
+
+// DELIVERY STAFF - Order deliveries
+const DELIVERY_STAFF_PERMISSIONS = [
+    'sales.view',
+    'customers.view',
+];
+
+// ===== SMALL BUSINESS ROLES =====
+
+// OWNER OPERATOR - Single person store (full access)
+const OWNER_OPERATOR_PERMISSIONS = [
+    ...ALL_SALES_PERMISSIONS,
+    ...ALL_PRODUCT_PERMISSIONS,
+    ...ALL_INVENTORY_PERMISSIONS,
+    ...ALL_CUSTOMER_PERMISSIONS,
+    ...ALL_PAYMENT_PERMISSIONS,
+    ...ALL_REFUND_PERMISSIONS,
+    ...ALL_DISCOUNT_PERMISSIONS,
+    ...ALL_CASH_PERMISSIONS,
+    ...ALL_REPORT_PERMISSIONS,
+    ...ALL_USER_PERMISSIONS,
+    ...ALL_SETTINGS_PERMISSIONS,
+];
+
+// PART TIME STAFF - Limited access
+const PART_TIME_STAFF_PERMISSIONS = [
+    'sales.create', 'sales.view.own',
+    'products.view',
+    'customers.view',
+    'payments.process', 'payments.view',
+    'cash.drawer.open',
+];
+
+// ===== AUDIT & COMPLIANCE ROLES =====
+
+// AUDITOR - Full read-only for audits
+const AUDITOR_PERMISSIONS = [
+    'sales.view',
+    'products.view',
+    'inventory.view',
+    'customers.view',
+    'payments.view',
+    'refunds.view',
+    ...ALL_REPORT_PERMISSIONS,
+    'system.logs.view',
+];
+
+// COMPLIANCE OFFICER - Compliance monitoring
+const COMPLIANCE_OFFICER_PERMISSIONS = [
+    'sales.view',
+    'products.view',
+    'inventory.view',
+    'customers.view',
+    'payments.view',
+    'refunds.view',
+    ...ALL_REPORT_PERMISSIONS,
+    'system.logs.view',
+    'users.view',
+];
+
+// VIEWER - Basic read-only
+const VIEWER_PERMISSIONS = [
+    'sales.view',
+    'products.view',
+    'inventory.view',
+    'customers.view',
+    'payments.view',
+    'reports.sales.daily',
+];
+
+// REPORT VIEWER - Reports only
+const REPORT_VIEWER_PERMISSIONS = [
+    ...ALL_REPORT_PERMISSIONS,
+];
+
+// ===== EXTERNAL/INTEGRATION ROLES =====
+
+// API USER - External integrations
+const API_USER_PERMISSIONS = [
+    'sales.view',
+    'products.view',
+    'inventory.view',
+    'customers.view',
+];
+
+// KIOSK - Self-service terminal
+const KIOSK_PERMISSIONS = [
+    'sales.create',
+    'products.view',
+    'customers.create',
+    'payments.process',
+];
+
+// =====================================================
+// COMBINE ALL ROLE PERMISSIONS
+// =====================================================
+const DEFAULT_ROLE_PERMISSIONS: RolePermission[] = [
+    // System-level
+    ...createRolePermissions('super-admin', SUPER_ADMIN_PERMISSIONS),
+    ...createRolePermissions('support-admin', SUPPORT_ADMIN_PERMISSIONS),
+
+    // Tenant-level
+    ...createRolePermissions('tenant-owner', TENANT_OWNER_PERMISSIONS),
+    ...createRolePermissions('admin', ADMIN_PERMISSIONS),
+    ...createRolePermissions('operations-director', OPERATIONS_DIRECTOR_PERMISSIONS),
+
+    // Location/Branch-level
+    ...createRolePermissions('branch-manager', BRANCH_MANAGER_PERMISSIONS),
+    ...createRolePermissions('assistant-manager', ASSISTANT_MANAGER_PERMISSIONS),
+    ...createRolePermissions('manager', MANAGER_PERMISSIONS),
+    ...createRolePermissions('shift-supervisor', SHIFT_SUPERVISOR_PERMISSIONS),
+    ...createRolePermissions('team-lead', TEAM_LEAD_PERMISSIONS),
+
+    // Financial
+    ...createRolePermissions('finance-manager', FINANCE_MANAGER_PERMISSIONS),
+    ...createRolePermissions('accountant', ACCOUNTANT_PERMISSIONS),
+    ...createRolePermissions('bookkeeper', BOOKKEEPER_PERMISSIONS),
+
+    // Inventory & Supply Chain
+    ...createRolePermissions('inventory-manager', INVENTORY_MANAGER_PERMISSIONS),
+    ...createRolePermissions('warehouse-supervisor', WAREHOUSE_SUPERVISOR_PERMISSIONS),
+    ...createRolePermissions('stock-clerk', STOCK_CLERK_PERMISSIONS),
+    ...createRolePermissions('purchasing-officer', PURCHASING_OFFICER_PERMISSIONS),
+
+    // Sales & Customer Service
+    ...createRolePermissions('sales-manager', SALES_MANAGER_PERMISSIONS),
+    ...createRolePermissions('senior-cashier', SENIOR_CASHIER_PERMISSIONS),
+    ...createRolePermissions('cashier', CASHIER_PERMISSIONS),
+    ...createRolePermissions('trainee-cashier', TRAINEE_CASHIER_PERMISSIONS),
+    ...createRolePermissions('sales-associate', SALES_ASSOCIATE_PERMISSIONS),
+    ...createRolePermissions('customer-service-rep', CUSTOMER_SERVICE_REP_PERMISSIONS),
+
+    // Cafe & Restaurant
+    ...createRolePermissions('barista', BARISTA_PERMISSIONS),
+    ...createRolePermissions('server', SERVER_PERMISSIONS),
+    ...createRolePermissions('kitchen-staff', KITCHEN_STAFF_PERMISSIONS),
+    ...createRolePermissions('head-chef', HEAD_CHEF_PERMISSIONS),
+
+    // Bar
+    ...createRolePermissions('bar-manager', BAR_MANAGER_PERMISSIONS),
+    ...createRolePermissions('bartender', BARTENDER_PERMISSIONS),
+    ...createRolePermissions('host', HOST_PERMISSIONS),
+
+    // Pharmacy
+    ...createRolePermissions('pharmacist', PHARMACIST_PERMISSIONS),
+    ...createRolePermissions('pharmacy-manager', PHARMACY_MANAGER_PERMISSIONS),
+    ...createRolePermissions('pharmacy-technician', PHARMACY_TECHNICIAN_PERMISSIONS),
+    ...createRolePermissions('pharmacy-assistant', PHARMACY_ASSISTANT_PERMISSIONS),
+
+    // Retail Store
+    ...createRolePermissions('floor-manager', FLOOR_MANAGER_PERMISSIONS),
+    ...createRolePermissions('merchandiser', MERCHANDISER_PERMISSIONS),
+    ...createRolePermissions('delivery-staff', DELIVERY_STAFF_PERMISSIONS),
+
+    // Small Business
+    ...createRolePermissions('owner-operator', OWNER_OPERATOR_PERMISSIONS),
+    ...createRolePermissions('part-time-staff', PART_TIME_STAFF_PERMISSIONS),
+
+    // Audit & Compliance
+    ...createRolePermissions('auditor', AUDITOR_PERMISSIONS),
+    ...createRolePermissions('compliance-officer', COMPLIANCE_OFFICER_PERMISSIONS),
+    ...createRolePermissions('viewer', VIEWER_PERMISSIONS),
+    ...createRolePermissions('report-viewer', REPORT_VIEWER_PERMISSIONS),
+
+    // External/Integration
+    ...createRolePermissions('api-user', API_USER_PERMISSIONS),
+    ...createRolePermissions('kiosk', KIOSK_PERMISSIONS),
 ];
 
 export async function seedRolePermissions(prisma: PrismaClient) {
     console.log('📝 Seeding role permissions...');
 
+    // Group permissions by role for efficient processing
     const permissionsByRole: Record<string, string[]> = {};
 
     DEFAULT_ROLE_PERMISSIONS.forEach(rolePermission => {
@@ -216,24 +679,31 @@ export async function seedRolePermissions(prisma: PrismaClient) {
         if (!permissionsByRole[roleId]) {
             permissionsByRole[roleId] = [];
         }
-        permissionsByRole[roleId].push(permissionId);
+        // Avoid duplicates
+        if (!permissionsByRole[roleId].includes(permissionId)) {
+            permissionsByRole[roleId].push(permissionId);
+        }
     });
 
+    let totalCreated = 0;
     for (const [roleId, permissionIds] of Object.entries(permissionsByRole)) {
-        for (const permissionId of permissionIds) {
-            const role_permission_id = `${roleId}-${permissionId}`;
+        console.log(`  → Assigning ${permissionIds.length} permissions to ${roleId}...`);
 
-            await prisma.role_permissions.upsert({
-                where: { role_permission_id },
+        for (const permissionId of permissionIds) {
+            const rolePermissionId = `${roleId}-${permissionId}`;
+
+            await prisma.rolePermission.upsert({
+                where: { rolePermissionId },
                 update: {},
                 create: {
-                    role_permission_id,
-                    role_id: roleId,
-                    permission_id: permissionId,
+                    rolePermissionId,
+                    roleId: roleId,
+                    permissionId: permissionId,
                 },
             });
+            totalCreated++;
         }
     }
 
-    console.log('✅ Role permissions seeded');
+    console.log(`✓ Role permissions seeded (${totalCreated} assignments across ${Object.keys(permissionsByRole).length} roles)`);
 }

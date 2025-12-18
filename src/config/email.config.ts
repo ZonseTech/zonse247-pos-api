@@ -18,7 +18,7 @@ export const initializeEmailService = async (): Promise<void> => {
 
         const isConnected = await EmailService.verifyConnection();
         if (isConnected) {
-            console.log('✅ Email service initialized successfully');
+            console.log('✓ Email service initialized successfully');
         } else {
             console.warn('⚠️  Email service initialized but connection verification failed');
         }

@@ -107,7 +107,7 @@ pm2 save
 echo "🔧 Setting up PM2 startup..."
 sudo pm2 startup ubuntu -u $USER --hp /home/$USER --silent || echo "PM2 startup already configured"
 
-echo "✅ Deployment completed successfully!"
+echo "✓ Deployment completed successfully!"
 echo "📊 Check application status with: pm2 status"
 echo "📋 Check logs with: pm2 logs $APP_NAME"
 echo "⚠️  IMPORTANT: Don't forget to configure your .env file at $APP_DIR/.env"

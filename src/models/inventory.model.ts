@@ -1,39 +1,58 @@
-import { sealDBModel } from '../databases/local';
-import { ProductModel } from './product.model';
-import { INVENTORY_DB } from '../databases/local/tables';
-import { AuthenticatedUser } from 'auth';
-import { Product } from 'product';
 import { CartItem } from 'order';
+import { AuthenticatedUser } from 'auth';
+import { InventoryItem } from 'inventory-item';
+import prisma from '../databases/prisma/client';
+import { InventoryItemModel } from '../serializers/inventory-item.serializer';
+import { InventoryStatus } from '../databases/prisma/generated/prisma/enums';
 
 export class InventoryModel {
-    static async findById(productId: string, auth: AuthenticatedUser): Promise<Product | null> {
-        return await sealDBModel.findById(INVENTORY_DB, {
-            productId,
-            tenantId: auth.tenantId,
-            branchId: auth.branchId
+
+    static async findById(productId: string, auth: AuthenticatedUser): Promise<InventoryItem | null> {
+        const product = await prisma.inventory.findFirst({
+            where: {
+                productId: productId,
+                tenantId: auth.tenantId,
+                branchId: auth.branchId
+            }
         });
+
+        return this.mapPrismaToInventoryItem(product);
     }
 
-    static async findByUuid(productId: string): Promise<Product | null> {
-        return await sealDBModel.findById(INVENTORY_DB, productId);
+    static async findByUuid(uuid: string): Promise<InventoryItem | null> {
+        const product = await prisma.inventory.findUnique({
+            where: { productId: uuid }
+        });
+
+        return this.mapPrismaToInventoryItem(product);
     }
 
-    static async find(criteria: Record<string, any>, auth: AuthenticatedUser): Promise<Product[]> {
+    static async find(criteria: Record<string, any>, auth: AuthenticatedUser): Promise<InventoryItem[]> {
         const baseCriteria = {
             ...criteria,
             tenantId: auth.tenantId,
             branchId: auth.branchId
         };
 
-        return await sealDBModel.find(INVENTORY_DB, baseCriteria);
+        const whereClause = this.buildWhereClause(baseCriteria);
+
+        const products = await prisma.inventory.findMany({
+            where: whereClause
+        });
+
+        return products.map(p => this.mapPrismaToInventoryItem(p));
     }
 
-    static async findActive(auth: AuthenticatedUser): Promise<Product[]> {
-        return await sealDBModel.find(INVENTORY_DB, {
-            status: { $ne: 'void' },
-            tenantId: auth.tenantId,
-            branchId: auth.branchId
+    static async findActive(auth: AuthenticatedUser): Promise<InventoryItem[]> {
+        const products = await prisma.inventory.findMany({
+            where: {
+                tenantId: auth.tenantId,
+                branchId: auth.branchId,
+                NOT: { status: InventoryStatus.inactive }
+            }
         });
+
+        return products.map(p => this.mapPrismaToInventoryItem(p));
     }
 
     static async findActiveWithPagination(
@@ -43,45 +62,52 @@ export class InventoryModel {
         search = '',
         filter = 'all',
         categoryId?: number
-    ): Promise<Product[]> {
-        const query: any = {
+    ): Promise<InventoryItem[]> {
+        const whereClause: any = {
             tenantId: auth.tenantId,
             branchId: auth.branchId
         };
 
         if (filter === 'all') {
-            query.status = { $ne: 'void' };
+            whereClause.NOT = { status: InventoryStatus.inactive };
         } else if (filter === 'new') {
             const oneWeekAgo = new Date();
             oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-            query.createdAt = { $gte: oneWeekAgo.toISOString() };
-            query.status = { $ne: 'void' };
+            whereClause.createdAt = { gte: oneWeekAgo };
+            whereClause.NOT = { status: InventoryStatus.inactive };
         } else if (filter === 'expiring') {
             const now = new Date();
             const thirtyDaysLater = new Date();
             thirtyDaysLater.setDate(thirtyDaysLater.getDate() + 30);
-            query.expirationDate = {
-                $gt: now.toISOString(),
-                $lte: thirtyDaysLater.toISOString()
+            whereClause.expirationDate = {
+                gt: now,
+                lte: thirtyDaysLater
             };
-            query.status = { $ne: 'void' };
+            whereClause.NOT = { status: InventoryStatus.inactive };
         } else if (filter === 'expired') {
             const now = new Date();
-            query.expirationDate = { $lte: now.toISOString() };
+            whereClause.expirationDate = { lte: now };
         }
 
         if (categoryId) {
-            query.categoryUuid = categoryId.toString();
+            whereClause.categoryId = categoryId.toString();
         }
 
         if (search) {
-            query.$or = [
-                { name: { $regex: search, $options: 'i' } },
-                { barcode: { $regex: search, $options: 'i' } }
+            whereClause.OR = [
+                { name: { contains: search, mode: 'insensitive' as const } },
+                { barcode: { contains: search, mode: 'insensitive' as const } }
             ];
         }
 
-        return await sealDBModel.findWithPagination(INVENTORY_DB, query, skip, limit);
+        const products = await prisma.inventory.findMany({
+            where: whereClause,
+            skip: skip,
+            take: limit,
+            orderBy: { createdAt: 'desc' }
+        });
+
+        return products.map(p => this.mapPrismaToInventoryItem(p));
     }
 
     static async getFilteredCount(
@@ -90,63 +116,73 @@ export class InventoryModel {
         filter = 'all',
         categoryId?: number
     ): Promise<number> {
-        const query: any = {
+        const whereClause: any = {
             tenantId: auth.tenantId,
             branchId: auth.branchId
         };
 
         if (categoryId) {
-            query.categoryUuid = categoryId.toString();
+            whereClause.categoryId = categoryId.toString();
         }
 
         if (filter === 'all') {
-            query.status = { $ne: 'void' };
+            whereClause.NOT = { status: InventoryStatus.inactive };
         } else if (filter === 'new') {
             const oneWeekAgo = new Date();
             oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-            query.createdAt = { $gte: oneWeekAgo.toISOString() };
-            query.status = { $ne: 'void' };
+            whereClause.createdAt = { gte: oneWeekAgo };
+            whereClause.NOT = { status: InventoryStatus.inactive };
         } else if (filter === 'expiring') {
             const now = new Date();
             const thirtyDaysLater = new Date();
             thirtyDaysLater.setDate(thirtyDaysLater.getDate() + 30);
-            query.expirationDate = {
-                $gt: now.toISOString(),
-                $lte: thirtyDaysLater.toISOString()
+            whereClause.expirationDate = {
+                gt: now,
+                lte: thirtyDaysLater
             };
-            query.status = { $ne: 'void' };
+            whereClause.NOT = { status: InventoryStatus.inactive };
         } else if (filter === 'expired') {
             const now = new Date();
-            query.expirationDate = { $lte: now.toISOString() };
+            whereClause.expirationDate = { lte: now };
         }
 
         if (search) {
-            query.$or = [
-                { name: { $regex: search, $options: 'i' } },
-                { barcode: { $regex: search, $options: 'i' } }
+            whereClause.OR = [
+                { name: { contains: search, mode: 'insensitive' as const } },
+                { barcode: { contains: search, mode: 'insensitive' as const } }
             ];
         }
 
-        const products = await sealDBModel.find(INVENTORY_DB, query);
-        return Array.isArray(products) ? products.length : 0;
+        return await prisma.inventory.count({
+            where: whereClause
+        });
     }
 
-    static async findBySku(sku: string, auth: AuthenticatedUser): Promise<Product | null> {
-        const products = await sealDBModel.find(INVENTORY_DB, {
-            barcode: parseInt(sku),
-            tenantId: auth.tenantId,
-            branchId: auth.branchId
+    static async findBySku(sku: string, auth: AuthenticatedUser): Promise<InventoryItem | null> {
+        const product = await prisma.inventory.findFirst({
+            where: {
+                barcode: sku,
+                tenantId: auth.tenantId,
+                branchId: auth.branchId
+            }
         });
 
-        return products.length > 0 ? products[0] : null;
+        return this.mapPrismaToInventoryItem(product);
     }
 
     static async insert(productData: Record<string, any>): Promise<void> {
-        await sealDBModel.insert(INVENTORY_DB, productData);
+        await prisma.inventory.create({
+            data: this.prepareProductData(productData)
+        });
     }
 
     static async update(productId: string, updateData: Record<string, any>): Promise<number> {
-        return await sealDBModel.update(INVENTORY_DB, productId, updateData);
+        const result = await prisma.inventory.update({
+            where: { productId: productId },
+            data: this.prepareProductData(updateData)
+        });
+
+        return result ? 1 : 0;
     }
 
     static async updateWithUser(productId: string, updateData: Record<string, any>, auth: AuthenticatedUser): Promise<number> {
@@ -155,25 +191,50 @@ export class InventoryModel {
             userId: auth.userId
         };
 
-        return await sealDBModel.update(INVENTORY_DB, productId, dataWithUser);
+        const result = await prisma.inventory.update({
+            where: { productId: productId },
+            data: this.prepareProductData(dataWithUser)
+        });
+
+        return result ? 1 : 0;
     }
 
     static async void(productId: string, auth: AuthenticatedUser): Promise<number> {
-        return await sealDBModel.update(INVENTORY_DB, productId, {
-            status: 'void',
-            userId: auth.userId
+        const result = await prisma.inventory.update({
+            where: { productId: productId },
+            data: {
+                status: InventoryStatus.inactive,
+                userId: auth.userId,
+                updatedAt: new Date()
+            }
         });
+
+        return result ? 1 : 0;
     }
 
     static async delete(productId: string): Promise<number> {
-        return await sealDBModel.delete(INVENTORY_DB, productId);
+        try {
+            await prisma.inventory.delete({
+                where: { productId: productId }
+            });
+            return 1;
+        } catch (error) {
+            console.error('Error deleting product:', error);
+            return 0;
+        }
     }
 
     static async updateQuantity(productId: string, quantity: number, auth: AuthenticatedUser): Promise<number> {
-        return await sealDBModel.update(INVENTORY_DB, productId, {
-            quantity: quantity,
-            userId: auth.userId
+        const result = await prisma.inventory.update({
+            where: { productId: productId },
+            data: {
+                quantity: quantity.toString(),
+                userId: auth.userId,
+                updatedAt: new Date()
+            }
         });
+
+        return result ? 1 : 0;
     }
 
     static async decrementInventory(
@@ -181,30 +242,76 @@ export class InventoryModel {
         auth: AuthenticatedUser
     ): Promise<void> {
         try {
-            const inventoryUpdates = products.map(item => ({
-                productId: item.productId,
-                quantityToDecrement: item.quantity,
-                userId: auth.userId
-            }));
+            const successful: string[] = [];
+            const failed: Array<{ productId: string; error: string }> = [];
+            const skipped: Array<{ productId: string; reason: string }> = [];
 
-            const result = await sealDBModel.bulkInventoryUpdate(
-                INVENTORY_DB,
-                inventoryUpdates,
-                {
-                    tenantId: auth.tenantId,
-                    branchId: auth.branchId
+            // Process each inventory item update in a transaction
+            for (const item of products) {
+                try {
+                    // Check if inventory item exists and has sufficient quantity
+                    const existingItem = await prisma.inventory.findFirst({
+                        where: {
+                            productId: item.productId,
+                            tenantId: auth.tenantId,
+                            branchId: auth.branchId
+                        }
+                    });
+
+                    if (!existingItem) {
+                        skipped.push({
+                            productId: item.productId,
+                            reason: 'Inventory item not found'
+                        });
+                        continue;
+                    }
+
+                    if (existingItem.status === InventoryStatus.inactive) {
+                        skipped.push({
+                            productId: item.productId,
+                            reason: 'Inventory item is voided'
+                        });
+                        continue;
+                    }
+
+                    // Check if sufficient quantity
+                    const newQuantity = parseInt(existingItem.quantity) - item.quantity;
+                    if (newQuantity < 0) {
+                        failed.push({
+                            productId: item.productId,
+                            error: 'Insufficient quantity'
+                        });
+                        continue;
+                    }
+
+                    // Update the inventory item
+                    await prisma.inventory.update({
+                        where: { productId: item.productId },
+                        data: {
+                            quantity: newQuantity.toString(),
+                            userId: auth.userId,
+                            updatedAt: new Date()
+                        }
+                    });
+
+                    successful.push(item.productId);
+                } catch (error) {
+                    failed.push({
+                        productId: item.productId,
+                        error: error instanceof Error ? error.message : 'Unknown error'
+                    });
                 }
-            );
+            }
 
             console.log('Inventory Update Results:', {
-                successful: result.successful,
-                failed: result.failed.length,
-                skipped: result.skipped.length
+                successful: successful.length,
+                failed: failed.length,
+                skipped: skipped.length
             });
 
-            if (result.failed.length > 0) {
-                console.error('Failed inventory updates:', result.failed);
-                throw new Error(`${result.failed.length} inventory updates failed`);
+            if (failed.length > 0) {
+                console.error('Failed inventory updates:', failed);
+                throw new Error(`${failed.length} inventory updates failed`);
             }
 
         } catch (error) {
@@ -221,90 +328,300 @@ export class InventoryModel {
         failed: Array<{ productId: string; error: string }>;
         skipped: Array<{ productId: string; reason: string }>;
     }> {
-        const inventoryUpdates = products.map(item => ({
-            productId: item.productId,
-            quantityToDecrement: item.quantity,
-            userId: auth.userId
-        }));
+        const successful: string[] = [];
+        const failed: Array<{ productId: string; error: string }> = [];
+        const skipped: Array<{ productId: string; reason: string }> = [];
 
-        return await sealDBModel.bulkInventoryUpdate(
-            INVENTORY_DB,
-            inventoryUpdates,
-            {
-                tenantId: auth.tenantId,
-                branchId: auth.branchId
+        // Use transaction for atomic updates
+        await prisma.$transaction(async (tx) => {
+            for (const item of products) {
+                try {
+                    // Check inventory item existence and status
+                    const existingItem = await tx.inventory.findFirst({
+                        where: {
+                            productId: item.productId,
+                            tenantId: auth.tenantId,
+                            branchId: auth.branchId,
+                            NOT: { status: InventoryStatus.inactive }
+                        }
+                    });
+
+                    if (!existingItem) {
+                        skipped.push({
+                            productId: item.productId,
+                            reason: 'Inventory item not found or voided'
+                        });
+                        continue;
+                    }
+
+                    // Check quantity
+                    const newQuantity = parseInt(existingItem.quantity) - item.quantity;
+                    if (newQuantity < 0) {
+                        failed.push({
+                            productId: item.productId,
+                            error: 'Insufficient quantity'
+                        });
+                        continue;
+                    }
+
+                    // Update quantity
+                    await tx.inventory.update({
+                        where: { productId: item.productId },
+                        data: {
+                            quantity: newQuantity.toString(),
+                            userId: auth.userId,
+                            updatedAt: new Date()
+                        }
+                    });
+
+                    successful.push(item.productId);
+                } catch (error) {
+                    failed.push({
+                        productId: item.productId,
+                        error: error instanceof Error ? error.message : 'Unknown error'
+                    });
+                }
             }
-        );
+        });
+
+        return {
+            successful: successful.length,
+            failed,
+            skipped
+        };
     }
 
-    static async create(productData: Record<string, any>, auth: AuthenticatedUser): Promise<void> {
-        const productModel = ProductModel.create(productData, auth);
+    static async create(inventoryData: Record<string, any>, auth: AuthenticatedUser): Promise<void> {
+        const inventoryItemModel = InventoryItemModel.create(inventoryData, auth);
 
-        if (!productModel.validate()) {
-            throw new Error('Product validation failed');
+        if (!inventoryItemModel.validate()) {
+            throw new Error('Inventory item validation failed');
         }
 
-        await this.insert(productModel.toJSON());
+        await this.insert(inventoryItemModel.toJSON());
     }
 
-    static async updateWithValidation(productId: string, productData: Record<string, any>, auth: AuthenticatedUser): Promise<number> {
-        const productModel = ProductModel.fromParams(productData, auth);
+    static async updateWithValidation(productId: string, inventoryData: Record<string, any>, auth: AuthenticatedUser): Promise<number> {
+        const inventoryItemModel = InventoryItemModel.fromParams(inventoryData, auth);
 
-        if (!productModel.validate()) {
-            throw new Error('Product validation failed');
+        if (!inventoryItemModel.validate()) {
+            throw new Error('Inventory item validation failed');
         }
 
-        const existingProduct = await this.findById(productId, auth);
-        if (!existingProduct) {
-            throw new Error('Product not found or access denied');
+        const existingItem = await this.findById(productId, auth);
+        if (!existingItem) {
+            throw new Error('Inventory item not found or access denied');
         }
 
-        return await this.update(productId, productModel.toJSON());
+        return await this.update(productId, inventoryItemModel.toJSON());
     }
 
     static async voidWithCheck(productId: string, auth: AuthenticatedUser): Promise<number> {
-        const existingProduct = await this.findById(productId, auth);
-        if (!existingProduct) {
-            throw new Error('Product not found or access denied');
+        const existingItem = await this.findById(productId, auth);
+        if (!existingItem) {
+            throw new Error('Inventory item not found or access denied');
         }
 
         return await this.void(productId, auth);
     }
 
-    /**
-     * Delete product with existence check
-     */
     static async deleteWithCheck(productId: string, auth: AuthenticatedUser): Promise<number> {
-        const existingProduct = await this.findById(productId, auth);
-        if (!existingProduct) {
-            throw new Error('Product not found or access denied');
+        const existingItem = await this.findById(productId, auth);
+        if (!existingItem) {
+            throw new Error('Inventory item not found or access denied');
         }
 
         return await this.delete(productId);
     }
 
-    /**
-     * Check if product exists and user has access
-     */
     static async exists(productId: string, auth: AuthenticatedUser): Promise<boolean> {
-        const product = await this.findById(productId, auth);
-        return product !== null;
+        const inventoryItem = await this.findById(productId, auth);
+        return inventoryItem !== null;
     }
 
-    /**
-     * Get product count for a shop
-     */
     static async getCount(auth: AuthenticatedUser, includeVoided = false): Promise<number> {
-        const criteria: Record<string, any> = {
+        const whereClause: any = {
             tenantId: auth.tenantId,
             branchId: auth.branchId
         };
 
         if (!includeVoided) {
-            criteria.status = { $ne: 'void' };
+            whereClause.NOT = { status: InventoryStatus.inactive };
         }
 
-        const products = await this.find(criteria, auth);
-        return products.length;
+        return await prisma.inventory.count({
+            where: whereClause
+        });
+    }
+
+    // Helper methods
+    private static buildWhereClause(criteria: Record<string, any>): any {
+        const where: any = {};
+
+        for (const [key, value] of Object.entries(criteria)) {
+            if (key === '$or') {
+                where.OR = value;
+            } else if (key === '$ne') {
+                // Handle not equals - assuming criteria like { status: { $ne: 'void' } }
+                where.NOT = value;
+            } else if (typeof value === 'object' && value !== null) {
+                // Handle operators like $gte, $lte, etc.
+                const operators: Record<string, string> = {
+                    '$gte': 'gte',
+                    '$lte': 'lte',
+                    '$gt': 'gt',
+                    '$lt': 'lt',
+                    '$regex': 'contains',
+                    '$options': 'mode'
+                };
+
+                const prismaOperators: any = {};
+                for (const [op, val] of Object.entries(value)) {
+                    if (op === '$regex') {
+                        prismaOperators.contains = val;
+                        if (value.$options === 'i') {
+                            prismaOperators.mode = 'insensitive';
+                        }
+                    } else if (op in operators) {
+                        prismaOperators[operators[op]] = val;
+                    }
+                }
+
+                where[key] = prismaOperators;
+            } else {
+                where[key] = value;
+            }
+        }
+
+        return where;
+    }
+
+    private static prepareProductData(data: Record<string, any>): any {
+        // Convert data types and handle special fields to match database schema
+        const preparedData: any = {};
+
+        // Map fields to database columns
+        if (data.productId !== undefined) preparedData.productId = data.productId;
+        if (data.branchId !== undefined) preparedData.branchId = data.branchId;
+        if (data.tenantId !== undefined) preparedData.tenantId = data.tenantId;
+        if (data.userId !== undefined) preparedData.userId = data.userId;
+        if (data.categoryId !== undefined) preparedData.categoryId = data.categoryId;
+        if (data.barcode !== undefined) preparedData.barcode = String(data.barcode);
+        if (data.sku !== undefined) preparedData.sku = data.sku;
+        if (data.name !== undefined) preparedData.name = data.name;
+        if (data.description !== undefined) preparedData.description = data.description;
+        if (data.brand !== undefined) preparedData.brand = data.brand;
+        if (data.unit !== undefined) preparedData.unit = data.unit;
+
+        // Handle decimal/price fields
+        if (data.costPrice !== undefined) preparedData.costPrice = parseFloat(data.costPrice) || 0;
+        if (data.sellPrice !== undefined) preparedData.sellPrice = parseFloat(data.sellPrice) || 0;
+        if (data.promoPrice !== undefined) preparedData.promoPrice = data.promoPrice ? parseFloat(data.promoPrice) : null;
+        if (data.weight !== undefined) preparedData.weight = data.weight ? parseFloat(data.weight) : null;
+
+        // Handle date fields - convert empty strings to null for optional DateTime fields
+        if (data.promoStart !== undefined) preparedData.promoStart = data.promoStart || null;
+        if (data.promoEnd !== undefined) preparedData.promoEnd = data.promoEnd || null;
+        if (data.expirationDate !== undefined) preparedData.expirationDate = data.expirationDate || null;
+        if (data.manufactureDate !== undefined) preparedData.manufactureDate = data.manufactureDate || null;
+
+        // Handle quantity fields (stored as string in DB)
+        if (data.quantity !== undefined) preparedData.quantity = String(data.quantity || '0');
+        if (data.originalQuantity !== undefined) preparedData.originalQuantity = String(data.originalQuantity || '0');
+        if (data.reservedQuantity !== undefined) preparedData.reservedQuantity = parseInt(data.reservedQuantity) || 0;
+
+        // Handle integer fields
+        if (data.minStock !== undefined) preparedData.minStock = parseInt(data.minStock) || 0;
+        if (data.maxStock !== undefined) preparedData.maxStock = data.maxStock ? parseInt(data.maxStock) : null;
+        if (data.reorderLevel !== undefined) preparedData.reorderLevel = data.reorderLevel ? parseInt(data.reorderLevel) : null;
+
+        // Handle string fields
+        if (data.dimensions !== undefined) preparedData.dimensions = data.dimensions;
+        if (data.color !== undefined) preparedData.color = data.color;
+        if (data.size !== undefined) preparedData.size = data.size;
+
+        // Handle JSON fields
+        if (data.properties !== undefined) preparedData.properties = data.properties;
+        if (data.imageUrls !== undefined) preparedData.imageUrls = data.imageUrls;
+
+        // Handle status and boolean fields
+        if (data.status !== undefined) preparedData.status = data.status;
+        if (data.trackInventory !== undefined) preparedData.trackInventory = Boolean(data.trackInventory);
+        if (data.allowNegativeStock !== undefined) preparedData.allowNegativeStock = Boolean(data.allowNegativeStock);
+        if (data.isTaxable !== undefined) preparedData.isTaxable = Boolean(data.isTaxable);
+
+        // Handle supplier fields
+        if (data.supplierName !== undefined) preparedData.supplierName = data.supplierName;
+        if (data.supplierCode !== undefined) preparedData.supplierCode = data.supplierCode;
+
+        // Handle audit fields
+        if (data.createdBy !== undefined) preparedData.createdBy = data.createdBy;
+        if (data.lastUpdatedBy !== undefined) preparedData.lastUpdatedBy = data.lastUpdatedBy;
+        if (data.synced !== undefined) preparedData.synced = parseInt(data.synced) || 0;
+
+        // Ensure timestamps
+        if (!preparedData.updatedAt) {
+            preparedData.updatedAt = new Date();
+        }
+        if (data.createdAt !== undefined) preparedData.createdAt = data.createdAt;
+
+        return preparedData;
+    }
+
+    /**
+     * Map Prisma inventory record to InventoryItem interface
+     */
+    private static mapPrismaToInventoryItem(prismaItem: any): InventoryItem | null {
+        if (!prismaItem) return null;
+
+        return {
+            productId: prismaItem.productId,
+            branchId: prismaItem.branchId,
+            tenantId: prismaItem.tenantId,
+            userId: prismaItem.userId,
+            categoryId: prismaItem.categoryId,
+            barcode: prismaItem.barcode,
+            sku: prismaItem.sku,
+            name: prismaItem.name,
+            description: prismaItem.description,
+            brand: prismaItem.brand,
+            unit: prismaItem.unit,
+            color: prismaItem.color,
+            size: prismaItem.size,
+            dimensions: prismaItem.dimensions,
+            weight: prismaItem.weight ? Number(prismaItem.weight) : undefined,
+            properties: prismaItem.properties,
+            costPrice: Number(prismaItem.costPrice || 0),
+            sellPrice: Number(prismaItem.sellPrice || 0),
+            promoPrice: prismaItem.promoPrice ? Number(prismaItem.promoPrice) : undefined,
+            promoStart: prismaItem.promoStart,
+            promoEnd: prismaItem.promoEnd,
+            quantity: prismaItem.quantity || '0',
+            originalQuantity: prismaItem.originalQuantity || '0',
+            reservedQuantity: prismaItem.reservedQuantity,
+            minStock: prismaItem.minStock,
+            maxStock: prismaItem.maxStock,
+            stock: prismaItem.stock,
+            reorderLevel: prismaItem.reorderLevel,
+            status: prismaItem.status,
+            trackInventory: prismaItem.trackInventory,
+            allowNegativeStock: prismaItem.allowNegativeStock,
+            isTaxable: prismaItem.isTaxable,
+            expirationDate: prismaItem.expirationDate,
+            manufactureDate: prismaItem.manufactureDate,
+            imageUrls: prismaItem.imageUrls,
+            supplierName: prismaItem.supplierName,
+            supplierCode: prismaItem.supplierCode,
+            createdBy: prismaItem.createdBy,
+            lastUpdatedBy: prismaItem.lastUpdatedBy,
+            synced: prismaItem.synced,
+            createdAt: prismaItem.createdAt,
+            updatedAt: prismaItem.updatedAt
+        };
+    }
+
+    // Cleanup method
+    static async disconnect(): Promise<void> {
+        await prisma.$disconnect();
     }
 }

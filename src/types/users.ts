@@ -12,8 +12,8 @@ export interface User {
     roleId: string;
     roleName?: string | null;
     status?: UserStatus;
-    accessibleShops?: string[] | null;
-    allowedWorkstations?: string[] | null;
+    accessibleBranches?: string[] | null;
+    allowedTerminals?: string[] | null;
     maxDiscountPercent?: number;
     canOverridePrices?: boolean;
     pinCode?: string | null;
@@ -36,21 +36,31 @@ export interface PublicUser extends Omit<User, 'password'> {
     permissions?: string[];
 }
 
-export interface UserDetailsModalProps {
-    user?: User | null;
-    isOpen?: boolean;
-    onClose?: () => void;
+export interface UserQueryParams {
+    tenantId?: string;
+    branchId?: string;
+    roleId?: string;
+    status?: UserStatus;
+    currentBranchId?: string;
+    forcePasswordChange?: boolean;
+    synced?: number;
 }
 
-export interface UserDetailsModalProps {
-    user?: User | null;
-    isOpen?: boolean;
-    onClose?: () => void;
-}
-
-export interface UserFormModalProps {
-    user?: User;
-    isOpen?: boolean;
-    onClose?: () => void;
-    onUserSaved?: () => void;
+export interface CreateUserRequest {
+    tenantId: string;
+    branchId: string;
+    username: string;
+    password: string;
+    fullname: string;
+    email?: string | null;
+    phone?: string | null;
+    roleId: string;
+    status?: UserStatus;
+    accessibleBranches?: string[] | null;
+    allowedTerminals?: string[] | null;
+    maxDiscountPercent?: number;
+    canOverridePrices?: boolean;
+    pinCode?: string | null;
+    currentBranchId?: string | null;
+    forcePasswordChange?: boolean;
 }

@@ -109,28 +109,6 @@ export class RoleController extends BaseController {
         }
     }
 
-    static async getByClientUuid(req: Request<{ clientUuid: string }>, res: Response): Promise<void> {
-        try {
-            const { clientUuid } = req.params;
-            const roles = await RoleService.getRolesByClientUuid(clientUuid);
-            BaseController.sendResponse(res, 200, true, 'Client roles retrieved successfully', roles);
-        } catch (error: any) {
-            console.error('Error fetching client roles:', error);
-            BaseController.sendResponse(res, 500, false, error.message, undefined, error.message);
-        }
-    }
-
-    static async getByShopUuid(req: Request<{ shopUuid: string }>, res: Response): Promise<void> {
-        try {
-            const { shopUuid } = req.params;
-            const roles = await RoleService.getRolesByShopUuid(shopUuid);
-            BaseController.sendResponse(res, 200, true, 'Shop roles retrieved successfully', roles);
-        } catch (error: any) {
-            console.error('Error fetching shop roles:', error);
-            BaseController.sendResponse(res, 500, false, error.message, undefined, error.message);
-        }
-    }
-
     static async getSystemRoles(req: Request, res: Response): Promise<void> {
         try {
             const roles = await RoleService.getSystemRoles();

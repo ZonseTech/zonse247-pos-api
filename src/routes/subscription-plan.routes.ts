@@ -10,7 +10,6 @@ router.post('/', SubscriptionPlanController.store);
 router.put('/:id', SubscriptionPlanController.update);
 router.delete('/:id', SubscriptionPlanController.delete);
 router.patch('/:id/toggle-status', SubscriptionPlanController.toggleStatus);
-router.get('/billing-cycle/:billingCycle', SubscriptionPlanController.getByBillingCycle);
 router.get('/:id/validate', SubscriptionPlanController.validatePlan);
 
 export default router;

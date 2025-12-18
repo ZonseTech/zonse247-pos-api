@@ -18,20 +18,20 @@ export class PaymentMethodController extends BaseController {
 
     static async list(req: Request, res: Response): Promise<void> {
         try {
-            const { clientUuid, shopUuid, search } = req.query;
+            const { tenantId, branchId, search } = req.query;
 
             let paymentMethods;
 
             if (search && typeof search === 'string') {
                 paymentMethods = await PaymentMethodService.searchPaymentMethods(
                     search,
-                    clientUuid as string,
-                    shopUuid as string
+                    tenantId as string,
+                    branchId as string
                 );
-            } else if (clientUuid && shopUuid) {
-                paymentMethods = await PaymentMethodService.getPaymentMethodsByClientAndShop(
-                    clientUuid as string,
-                    shopUuid as string
+            } else if (tenantId && branchId) {
+                paymentMethods = await PaymentMethodService.getPaymentMethodsByTenantAndBranch(
+                    tenantId as string,
+                    branchId as string
                 );
             } else {
                 paymentMethods = await PaymentMethodService.getAllPaymentMethods();
@@ -188,10 +188,10 @@ export class PaymentMethodController extends BaseController {
 
     static async getCount(req: Request, res: Response): Promise<void> {
         try {
-            const { clientUuid, shopUuid } = req.query;
+            const { tenantId, shopUuid } = req.query;
 
             const conditions: any = {};
-            if (clientUuid) conditions.clientUuid = clientUuid;
+            if (tenantId) conditions.tenantId = tenantId;
             if (shopUuid) conditions.shopUuid = shopUuid;
 
             const count = await PaymentMethodService.getPaymentMethodsCount(conditions);

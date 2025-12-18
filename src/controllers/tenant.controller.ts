@@ -120,15 +120,15 @@ export class TenantController extends BaseController {
         }
     }
 
-    static async verify(req: Request<ApiResponse<Omit<Tenant, 'verificationToken'> & { isLive: boolean }>, VerifyTenantRequest>, res: Response): Promise<void> {
+    static async verify(req: Request<ApiResponse<Omit<Tenant, 'verificationToken'>>, VerifyTenantRequest>, res: Response): Promise<void> {
         try {
-            const { verificationToken: encryptedVerificationToken, isLive } = req.body;
+            const { verificationToken: encryptedVerificationToken } = req.body;
 
             if (!encryptedVerificationToken) {
                 return BaseController.sendResponse(res, 400, false, 'Verification token is required');
             }
 
-            const safeTenantData = await TenantService.verifyTenant(encryptedVerificationToken, isLive);
+            const safeTenantData = await TenantService.verifyTenant(encryptedVerificationToken);
             return BaseController.sendResponse(res, 200, true, 'Tenant verified successfully', safeTenantData);
         } catch (error: any) {
             console.error('Error verifying tenant:', error);
@@ -138,16 +138,49 @@ export class TenantController extends BaseController {
         }
     }
 
-    static async getTenantBranches(req: Request<{ tenantId: string, isLive: boolean }>, res: Response): Promise<void> {
+    static async verifyTenantAccount(req: Request<ApiResponse<Omit<Tenant, 'verificationToken'>>, VerifyTenantRequest>, res: Response): Promise<void> {
         try {
-            const query = req.query;
+            const { verificationToken: encryptedVerificationToken } = req.body;
+
+            if (!encryptedVerificationToken) {
+                return BaseController.sendResponse(res, 400, false, 'Verification token is required');
+            }
+
+            const safeTenantData = await TenantService.verifyTenantAccount(encryptedVerificationToken);
+            return BaseController.sendResponse(res, 200, true, 'Tenant verified successfully', safeTenantData);
+        } catch (error: any) {
+            console.error('Error verifying tenant:', error);
+
+            const statusCode = error.message.includes('Invalid credentials') ? 401 : 500;
+            return BaseController.sendResponse(res, statusCode, false, error.message, undefined, error.message);
+        }
+    }
+
+    static async getTenantBranches(req: Request<{ tenantId: string }>, res: Response): Promise<void> {
+        try {
             const { tenantId } = req.params;
 
             if (!tenantId) {
                 return BaseController.sendResponse(res, 400, false, 'Tenant ID is required');
             }
 
-            const branches = await BranchService.getBranchesByTenantId(tenantId, Boolean(query.isLive));
+            const branches = await BranchService.getBranchesByTenantId(tenantId);
+            return BaseController.sendResponse(res, 200, true, 'Tenant branches retrieved successfully', branches);
+        } catch (error: any) {
+            console.error('Error fetching tenant branches:', error);
+            return BaseController.sendResponse(res, 500, false, error.message, undefined, error.message);
+        }
+    }
+
+    static async getTenantAccountBranches(req: Request<{ tenantId: string }>, res: Response): Promise<void> {
+        try {
+            const { tenantId } = req.params;
+
+            if (!tenantId) {
+                return BaseController.sendResponse(res, 400, false, 'Tenant ID is required');
+            }
+
+            const branches = await BranchService.getAccountBranchesByTenantId(tenantId);
             return BaseController.sendResponse(res, 200, true, 'Tenant branches retrieved successfully', branches);
         } catch (error: any) {
             console.error('Error fetching tenant branches:', error);

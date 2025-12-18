@@ -1,4 +1,4 @@
-import { getPrismaClient, disconnectPrisma } from "./client";
+import { getPrisma, disconnectPrisma } from "./client";
 import {
     seedBranch,
     seedCategories,
@@ -9,14 +9,18 @@ import {
     seedRoles,
     seedTenant,
     seedTerminal,
-    seedUser
+    seedUser,
+    seedSubscriptionPlans,
+    seedPlanFeatures
 } from "./seeds";
 
 async function main() {
     console.log('🌱 Starting database seeding...');
-    const prisma = await getPrismaClient();
+    const prisma = await getPrisma();
 
     try {
+        await seedPlanFeatures(prisma);
+        await seedSubscriptionPlans(prisma);
         await seedRoles(prisma);
         await seedPermissions(prisma);
         await seedRolePermissions(prisma);
