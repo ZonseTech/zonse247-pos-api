@@ -1,9 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
 import { BaseController } from '../controllers/base.controller';
+import { ClientType, ClientTypeValue } from '../utils/enums';
 
-type ClientType = 'web' | 'mobile' | 'desktop';
-
-const VALID_CLIENT_TYPES: ClientType[] = ['web', 'mobile', 'desktop'];
+const VALID_CLIENT_TYPES: ClientTypeValue[] = Object.values(ClientType);
 
 export class ApiMiddleware {
     verifyClientType = (
@@ -25,7 +24,7 @@ export class ApiMiddleware {
                 );
             }
 
-            const normalizedClientType = clientType.trim().toLowerCase() as ClientType;
+            const normalizedClientType = clientType.trim().toLowerCase() as ClientTypeValue;
 
             if (!VALID_CLIENT_TYPES.includes(normalizedClientType)) {
                 return BaseController.sendResponseWithSubscription(
