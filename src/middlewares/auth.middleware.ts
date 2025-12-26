@@ -1,6 +1,5 @@
 import jwt from 'jsonwebtoken';
 import { Request, Response, NextFunction } from 'express';
-import { BaseController } from '../controllers/base.controller';
 import { User } from 'users';
 
 interface AuthRequest extends Request {
@@ -18,45 +17,6 @@ export class AuthMiddleware {
 			refreshSecret: process.env.JWT_REFRESH_SECRET || '',
 		};
 	}
-
-	verifyRequestHeaders = (
-		req: Request,
-		res: Response,
-		next: NextFunction
-	): void => {
-		try {
-			const tenantSignature = req.headers['x-tenant-signature'] as string | undefined;
-
-			if (!tenantSignature || tenantSignature.trim() === '') {
-				return BaseController.sendResponseWithSubscription(
-					res,
-					400,
-					false,
-					'Application not verified. Please verify your application before using the system.',
-					'unknown',
-					null
-				);
-			}
-
-			req.headers['x-tenant-signature'] = tenantSignature.trim();
-
-			next();
-		} catch (error) {
-			let message = 'Authentication failed. Please check your token and try again.';
-
-			if (error instanceof jwt.TokenExpiredError) {
-				message = 'Authentication failed: token has expired.';
-			} else if (error instanceof jwt.JsonWebTokenError) {
-				message = 'Authentication failed: invalid token format.';
-			}
-
-			res.status(401).json({
-				success: false,
-				error: 'Authentication Error',
-				message,
-			});
-		}
-	};
 
 	verifyToken = (req: Request & AuthRequest, res: Response, next: NextFunction): void => {
 		const token =
