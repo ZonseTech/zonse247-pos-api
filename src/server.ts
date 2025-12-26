@@ -3,7 +3,7 @@ import cors from 'cors';
 import compression from 'compression';
 import { createServer, Server as HttpServer } from 'http';
 import express, { Request, Response, Application } from 'express';
-import { corsOptions } from './config/cors';
+import { corsOptions } from './config/cors.config';
 import syncService from './services/sync.service';
 import { timeoutHandler } from './middlewares/error.middleware';
 import {
