@@ -4,8 +4,49 @@ import { BaseController } from "../controllers/base.controller";
 import { SecureSettingsService } from "../services/secure-settings.service";
 import { Tenant } from "tenant";
 import { AuthRequest } from "src/lib/express.type";
+import jwt from 'jsonwebtoken';
 
 export class TenantMiddleware {
+
+    verifyRequestHeaders = (
+        req: Request,
+        res: Response,
+        next: NextFunction
+    ): void => {
+        try {
+            const tenantSignature = req.headers['x-tenant-signature'] as string | undefined;
+
+            if (!tenantSignature || tenantSignature.trim() === '') {
+                return BaseController.sendResponseWithSubscription(
+                    res,
+                    400,
+                    false,
+                    'Application not verified. Please verify your application before using the system.',
+                    'unknown',
+                    null
+                );
+            }
+
+            req.headers['x-tenant-signature'] = tenantSignature.trim();
+
+            next();
+        } catch (error) {
+            let message = 'Authentication failed. Please check your token and try again.';
+
+            if (error instanceof jwt.TokenExpiredError) {
+                message = 'Authentication failed: token has expired.';
+            } else if (error instanceof jwt.JsonWebTokenError) {
+                message = 'Authentication failed: invalid token format.';
+            }
+
+            res.status(401).json({
+                success: false,
+                error: 'Authentication Error',
+                message,
+            });
+        }
+    };
+
     subscriptionStatus = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
         try {
             const tenantSignature = req.headers?.['x-tenant-signature'] as string;
