@@ -68,7 +68,7 @@ router.use('/plan-features', PlanFeaturesRoutes);
 
 router.use('/auth', authLimiter, AuthRoutes);
 
-router.use(tenantMiddleware.verifyRequestHeaders)
+router.use(tenantMiddleware.verifyRequestHeaders, tenantMiddleware.subscriptionStatus)
 router.use(authMiddleware.verifyToken)
 
 router.use('/terminal-settings', TerminalSettingsRoutes);
