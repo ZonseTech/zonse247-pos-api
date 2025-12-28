@@ -509,6 +509,7 @@ model Terminal {
 model Transaction {
   id                          Int       @id @default(autoincrement())
   transactionId              String    @unique @map("transaction_id")
+  externalTransactionRef     String?   @map("external_transaction_ref")
   refNumber                  String    @map("ref_number")
   discount                   Decimal?  @default(0.00) @map("discount")
   customerId                 String?   @map("customer_id")
