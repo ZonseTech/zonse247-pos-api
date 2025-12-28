@@ -420,8 +420,21 @@ export async function seedRoles(prisma: PrismaClient) {
     for (const role of roles) {
         await prisma.role.upsert({
             where: { roleId: role.roleId },
-            update: role,
-            create: role,
+            update: {
+                name: role.name,
+                displayName: role.displayName,
+                description: role.description,
+                isSystemRole: role.isSystemRole,
+                isActive: role.isActive,
+            },
+            create: {
+                roleId: role.roleId,
+                name: role.name,
+                displayName: role.displayName,
+                description: role.description,
+                isSystemRole: role.isSystemRole,
+                isActive: role.isActive,
+            },
         });
     }
 
