@@ -1,21 +1,17 @@
 import { Router } from "express";
 import { validateBody, validateParams } from "../middlewares/validation.middleware";
 import { userValidationSchemas } from "../validations/user.schemas";
-import { TenantMiddleware } from "../middlewares/tenant.middleware";
 import { asyncHandler } from "../middlewares/error.middleware";
 import { AuthController } from "../controllers/auth.controller";
 import { createUserSpecificLimiter } from "../middlewares/rate-limit.middleware";
 import { AuthMiddleware } from "../middlewares/auth.middleware";
 
 const router = Router();
-
-const tenantMiddleware = new TenantMiddleware()
 const authMiddleware = new AuthMiddleware();
 
 router.post(
     '/login',
     validateBody(userValidationSchemas.loginUser),
-    tenantMiddleware.subscriptionStatus,
     asyncHandler(AuthController.login)
 );
 

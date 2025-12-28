@@ -267,6 +267,7 @@ export class TransactionService {
     private static buildTransactionData(data: any, transactionId: string): Transaction {
         return {
             transactionId,
+            externalTransactionRef: data.transactionId || null, // External payment reference (e.g., from Airtel Money, bank transfer)
             refNumber: data.refNumber || 'TRX-' + Date.now(),
             discount: data.discount || 0,
             customerId: data.customerId || null,

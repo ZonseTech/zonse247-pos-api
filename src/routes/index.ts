@@ -24,6 +24,7 @@ import AuthRoutes from './auth.routes'
 import PermissionRoutes from './permission.routes'
 import RolePermissionRoutes from './role-permission.routes'
 import { AuthMiddleware } from '../middlewares/auth.middleware'
+import { apiMiddleware } from '../middlewares/api.middleware'
 import { preventSQLInjection, preventXSS, sanitizeInput } from '../middlewares/security.middleware'
 import { authLimiter } from '../middlewares/rate-limit.middleware'
 import PaymentServiceProviderRoutes from './payment-service-provider.routes'
@@ -35,9 +36,11 @@ import { userValidationSchemas } from '../validations/user.schemas'
 import { asyncHandler } from '../middlewares/error.middleware'
 import { AuthController } from '../controllers/auth.controller'
 import { SubscriptionController } from '../controllers/subscription.controller'
+import { TenantMiddleware } from '../middlewares/tenant.middleware'
 
 const router = Router();
 const authMiddleware = new AuthMiddleware();
+const tenantMiddleware = new TenantMiddleware();
 
 router.use(sanitizeInput);
 router.use(preventSQLInjection);
@@ -46,6 +49,8 @@ router.use(preventXSS);
 router.use((req, res, next) => {
     next();
 });
+
+router.use(apiMiddleware.verifyClientType)
 
 router.use('/on-boarding', OnboardingRoutes);
 router.use('/account-seeds', AccountSeedsRoutes)
@@ -61,10 +66,9 @@ router.post(
 
 router.use('/plan-features', PlanFeaturesRoutes);
 
-router.use(authMiddleware.verifyRequestHeaders)
-
 router.use('/auth', authLimiter, AuthRoutes);
 
+router.use(tenantMiddleware.verifyRequestHeaders, tenantMiddleware.subscriptionStatus)
 router.use(authMiddleware.verifyToken)
 
 router.use('/terminal-settings', TerminalSettingsRoutes);
