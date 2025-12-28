@@ -4,34 +4,120 @@ import { BaseController } from "../controllers/base.controller";
 import { SecureSettingsService } from "../services/secure-settings.service";
 import { Tenant } from "tenant";
 import { AuthRequest } from "src/lib/express.type";
+import { ClientType } from "../utils/enums";
+import jwt from 'jsonwebtoken';
 
 export class TenantMiddleware {
+
+    verifyRequestHeaders = (
+        req: Request,
+        res: Response,
+        next: NextFunction
+    ): void => {
+        try {
+            const clientType = req.headers['x-client-type'] as string | undefined;
+            const tenantSignature = req.headers['x-tenant-signature'] as string | undefined;
+            const tenantId = req.headers['x-tenant-id'] as string | undefined;
+
+            if (clientType === ClientType.DESKTOP) {
+                if (!tenantSignature || tenantSignature.trim() === '') {
+                    return BaseController.sendResponseWithSubscription(
+                        res,
+                        400,
+                        false,
+                        'Application not verified. Please provide X-Tenant-Signature header.',
+                        'unknown',
+                        null
+                    );
+                }
+                req.headers['x-tenant-signature'] = tenantSignature.trim();
+            }
+            else if (clientType === ClientType.WEB || clientType === ClientType.MOBILE) {
+                if (!tenantId || tenantId.trim() === '') {
+                    return BaseController.sendResponseWithSubscription(
+                        res,
+                        400,
+                        false,
+                        'Application not verified. Please provide X-Tenant-Id header.',
+                        'unknown',
+                        null
+                    );
+                }
+                req.headers['x-tenant-id'] = tenantId.trim();
+            } else {
+                if ((!tenantSignature || tenantSignature.trim() === '') &&
+                    (!tenantId || tenantId.trim() === '')) {
+                    return BaseController.sendResponseWithSubscription(
+                        res,
+                        400,
+                        false,
+                        'Application not verified. Please provide X-Tenant-Signature or X-Tenant-Id header.',
+                        'unknown',
+                        null
+                    );
+                }
+                if (tenantSignature) req.headers['x-tenant-signature'] = tenantSignature.trim();
+                if (tenantId) req.headers['x-tenant-id'] = tenantId.trim();
+            }
+
+            next();
+        } catch (error) {
+            let message = 'Authentication failed. Please check your token and try again.';
+
+            if (error instanceof jwt.TokenExpiredError) {
+                message = 'Authentication failed: token has expired.';
+            } else if (error instanceof jwt.JsonWebTokenError) {
+                message = 'Authentication failed: invalid token format.';
+            }
+
+            res.status(401).json({
+                success: false,
+                error: 'Authentication Error',
+                message,
+            });
+        }
+    };
+
     subscriptionStatus = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
         try {
-            const tenantSignature = req.headers?.['x-tenant-signature'] as string;
-
-            if (!tenantSignature) {
+            const clientType = req.headers['x-client-type'] as string | undefined;
+            if (!clientType || clientType.trim() === '') {
                 BaseController.sendForbiddenWithSubscription(
                     res,
-                    'Missing tenant signature',
+                    'Missing X-Client-Type header. Please specify the client type (web, mobile, or desktop).',
                     'unauthorized'
                 );
                 return;
             }
 
-            const verification = await SecureSettingsService.verifyTenantSignature(tenantSignature);
+            let tenantId = null;
+            const tenantSignature = req.headers?.['x-tenant-signature'] as string;
 
-            if (!verification.isValid) {
-                BaseController.sendForbiddenWithSubscription(
-                    res,
-                    'Invalid tenant signature. Please re-authenticate.',
-                    'unauthorized'
-                );
-                return;
+            if (clientType === ClientType.WEB || clientType === ClientType.MOBILE) {
+                tenantId = req.headers?.['x-tenant-id'] as string;
+            } else {
+                if (!tenantSignature) {
+                    BaseController.sendForbiddenWithSubscription(
+                        res,
+                        'Missing tenant signature',
+                        'unauthorized'
+                    );
+                    return;
+                }
+                const verification = await SecureSettingsService.verifyTenantSignature(tenantSignature);
+
+                if (!verification.isValid) {
+                    BaseController.sendForbiddenWithSubscription(
+                        res,
+                        'Invalid tenant signature. Please re-authenticate.',
+                        'unauthorized'
+                    );
+                    return;
+                }
             }
 
             const tenant: Omit<Tenant, 'verificationToken'> = await TenantService.getTenantById(
-                verification.tenantId
+                tenantId
             );
 
             if (!tenant) {
@@ -72,12 +158,6 @@ export class TenantMiddleware {
                 res.setHeader('X-Trial-Days-Remaining', subscriptionCheck.daysRemaining.toString());
                 res.setHeader('X-Subscription-Status', tenant.subscriptionStatus);
             }
-
-            (req as any).tenantContext = {
-                tenantId: verification.tenantId,
-                branchId: verification.branchId,
-                terminalId: verification.terminalId
-            };
 
             next();
         } catch (error) {

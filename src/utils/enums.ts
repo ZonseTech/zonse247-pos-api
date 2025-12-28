@@ -1,3 +1,9 @@
+export const ClientType = {
+    WEB: 'web',
+    MOBILE: 'mobile',
+    DESKTOP: 'desktop',
+} as const;
+
 export const PermissionScope = {
     USER: 'user',
     GLOBAL: 'global',
@@ -57,5 +63,6 @@ export const PermissionCategory = {
     LOGS: 'logs',
 } as const;
 
+export type ClientTypeValue = typeof ClientType[keyof typeof ClientType];
 export type PermissionScopeType = typeof PermissionScope[keyof typeof PermissionScope];
 export type PermissionCategoryType = typeof PermissionCategory[keyof typeof PermissionCategory];

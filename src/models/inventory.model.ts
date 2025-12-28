@@ -519,11 +519,11 @@ export class InventoryModel {
         if (data.promoPrice !== undefined) preparedData.promoPrice = data.promoPrice ? parseFloat(data.promoPrice) : null;
         if (data.weight !== undefined) preparedData.weight = data.weight ? parseFloat(data.weight) : null;
 
-        // Handle date fields - convert empty strings to null for optional DateTime fields
-        if (data.promoStart !== undefined) preparedData.promoStart = data.promoStart || null;
-        if (data.promoEnd !== undefined) preparedData.promoEnd = data.promoEnd || null;
-        if (data.expirationDate !== undefined) preparedData.expirationDate = data.expirationDate || null;
-        if (data.manufactureDate !== undefined) preparedData.manufactureDate = data.manufactureDate || null;
+        // Handle date fields - convert to Date objects or null for optional DateTime fields
+        if (data.promoStart !== undefined) preparedData.promoStart = this.parseDate(data.promoStart);
+        if (data.promoEnd !== undefined) preparedData.promoEnd = this.parseDate(data.promoEnd);
+        if (data.expirationDate !== undefined) preparedData.expirationDate = this.parseDate(data.expirationDate);
+        if (data.manufactureDate !== undefined) preparedData.manufactureDate = this.parseDate(data.manufactureDate);
 
         // Handle quantity fields (stored as string in DB)
         if (data.quantity !== undefined) preparedData.quantity = String(data.quantity || '0');
@@ -566,6 +566,38 @@ export class InventoryModel {
         if (data.createdAt !== undefined) preparedData.createdAt = data.createdAt;
 
         return preparedData;
+    }
+
+    /**
+     * Parse date string or Date object to a valid Date object for Prisma DateTime fields.
+     * Handles various date formats including ISO-8601, date-only strings (YYYY-MM-DD), etc.
+     * Returns null for empty/falsy values.
+     */
+    private static parseDate(value: any): Date | null {
+        if (!value) return null;
+
+        // If it's already a Date object, return it
+        if (value instanceof Date) {
+            return isNaN(value.getTime()) ? null : value;
+        }
+
+        // If it's a string, try to parse it
+        if (typeof value === 'string') {
+            const trimmed = value.trim();
+            if (!trimmed) return null;
+
+            // If it's a date-only string (YYYY-MM-DD), append time to make it a valid ISO-8601 DateTime
+            if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+                const date = new Date(trimmed + 'T00:00:00.000Z');
+                return isNaN(date.getTime()) ? null : date;
+            }
+
+            // Otherwise, try to parse as-is
+            const date = new Date(trimmed);
+            return isNaN(date.getTime()) ? null : date;
+        }
+
+        return null;
     }
 
     /**

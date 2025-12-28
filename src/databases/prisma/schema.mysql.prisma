@@ -8,49 +8,49 @@ datasource db {
 }
 
 model MRA_API_CONFIG_TABLE {
-  configId           String                            @id @default(uuid()) @map("config_id")
-  tenantId           String                            @map("tenant_id")
-  environment        MRA_API_CONFIG_TABLE_environment? @default(SANDBOX) @map("environment")
-  apiBaseUrl         String                            @map("api_base_url")
-  apiKey             String?                           @map("api_key")
-  apiSecret          String?                           @map("api_secret")
-  lastSyncTimestamp  DateTime?                         @map("last_sync_timestamp")
-  syncStatus         MRA_API_CONFIG_TABLE_sync_status? @default(SUCCESS) @map("sync_status")
-  isActive           Boolean?                          @default(true) @map("is_active")
-  createdAt          DateTime?                         @default(now()) @map("created_at")
-  updatedAt          DateTime?                         @default(now()) @map("updated_at")
-  tenant             Tenant                            @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade, onUpdate: NoAction)
+  configId          String                            @id @default(uuid()) @map("config_id")
+  tenantId          String                            @map("tenant_id")
+  environment       MRA_API_CONFIG_TABLE_environment? @default(SANDBOX) @map("environment")
+  apiBaseUrl        String                            @map("api_base_url")
+  apiKey            String?                           @map("api_key")
+  apiSecret         String?                           @map("api_secret")
+  lastSyncTimestamp DateTime?                         @map("last_sync_timestamp")
+  syncStatus        MRA_API_CONFIG_TABLE_sync_status? @default(SUCCESS) @map("sync_status")
+  isActive          Boolean?                          @default(true) @map("is_active")
+  createdAt         DateTime?                         @default(now()) @map("created_at")
+  updatedAt         DateTime?                         @default(now()) @map("updated_at")
+  tenant            Tenant                            @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade, onUpdate: NoAction)
 
   @@unique([tenantId, environment], name: "unique_tenant_env")
   @@map("MRA_API_CONFIG_TABLE")
 }
 
 model AuditLog {
-  id              Int                    @id @default(autoincrement())
-  logId           String                 @unique @map("log_id")
-  tenantId        String?                @map("tenant_id")
-  branchId        String?                @map("branch_id")
-  userId          String?                @map("user_id")
-  terminalId      String?                @map("terminal_id")
-  actionType      AuditLogActionType     @map("action_type")
-  entityType      String                 @map("entity_type")
-  entityId        String?                @map("entity_id")
-  entityName      String?                @map("entity_name")
-  oldValues       Json?                  @map("old_values")
-  newValues       Json?                  @map("new_values")
-  changesSummary  String?                @map("changes_summary")
-  ipAddress       String?                @map("ip_address")
-  userAgent       String?                @map("user_agent")
-  requestMethod   String?                @map("request_method")
-  requestUrl      String?                @map("request_url")
-  description     String?                @map("description")
-  synced          Int?                   @default(0) @map("synced")
-  severity        AuditLogSeverity?      @default(low) @map("severity")
-  createdAt       DateTime?              @default(now()) @map("created_at")
-  tenant          Tenant?                @relation(fields: [tenantId], references: [tenantId], onUpdate: NoAction)
-  branch          Branch?                @relation(fields: [branchId], references: [branchId], onUpdate: NoAction)
-  user            User?                  @relation(fields: [userId], references: [userId], onUpdate: NoAction)
-  terminal        Terminal?              @relation(fields: [terminalId], references: [terminalId], onUpdate: NoAction)
+  id             Int                @id @default(autoincrement())
+  logId          String             @unique @map("log_id")
+  tenantId       String?            @map("tenant_id")
+  branchId       String?            @map("branch_id")
+  userId         String?            @map("user_id")
+  terminalId     String?            @map("terminal_id")
+  actionType     AuditLogActionType @map("action_type")
+  entityType     String             @map("entity_type")
+  entityId       String?            @map("entity_id")
+  entityName     String?            @map("entity_name")
+  oldValues      Json?              @map("old_values")
+  newValues      Json?              @map("new_values")
+  changesSummary String?            @map("changes_summary")
+  ipAddress      String?            @map("ip_address")
+  userAgent      String?            @map("user_agent")
+  requestMethod  String?            @map("request_method")
+  requestUrl     String?            @map("request_url")
+  description    String?            @map("description")
+  synced         Int?               @default(0) @map("synced")
+  severity       AuditLogSeverity?  @default(low) @map("severity")
+  createdAt      DateTime?          @default(now()) @map("created_at")
+  tenant         Tenant?            @relation(fields: [tenantId], references: [tenantId], onUpdate: NoAction)
+  branch         Branch?            @relation(fields: [branchId], references: [branchId], onUpdate: NoAction)
+  user           User?              @relation(fields: [userId], references: [userId], onUpdate: NoAction)
+  terminal       Terminal?          @relation(fields: [terminalId], references: [terminalId], onUpdate: NoAction)
 
   @@index([actionType])
   @@index([branchId])
@@ -62,76 +62,76 @@ model AuditLog {
 }
 
 model BranchSetting {
-  id                Int                     @id @default(autoincrement())
-  branchSettingId   String                  @unique @map("branch_setting_id")
-  tenantId          String                  @map("tenant_id")
-  branchId          String                  @unique @map("branch_id")
-  terminalId        String                  @map("terminal_id")
-  app               String?                 @map("app")
-  store             String?                 @map("store")
-  addressLine1      String?                 @map("address_line1")
-  addressLine2      String?                 @map("address_line2")
-  country           String?                 @map("country")
-  city              String?                 @map("city")
-  contact           String?                 @map("contact")
-  tax               String?                 @map("tax")
-  symbol            String?                 @map("symbol")
-  footer            String?                 @map("footer")
-  status            BranchSettingStatus?    @default(inactive) @map("status")
-  synced            Int?                    @default(0) @map("synced")
-  createdAt         DateTime?               @default(now()) @map("created_at")
-  updatedAt         DateTime?               @default(now()) @map("updated_at")
-  branch            Branch                  @relation(fields: [branchId], references: [branchId], onDelete: Cascade, onUpdate: NoAction)
+  id              Int                  @id @default(autoincrement())
+  branchSettingId String               @unique @map("branch_setting_id")
+  tenantId        String               @map("tenant_id")
+  branchId        String               @unique @map("branch_id")
+  terminalId      String               @map("terminal_id")
+  app             String?              @map("app")
+  store           String?              @map("store")
+  addressLine1    String?              @map("address_line1")
+  addressLine2    String?              @map("address_line2")
+  country         String?              @map("country")
+  city            String?              @map("city")
+  contact         String?              @map("contact")
+  tax             String?              @map("tax")
+  symbol          String?              @map("symbol")
+  footer          String?              @map("footer")
+  status          BranchSettingStatus? @default(inactive) @map("status")
+  synced          Int?                 @default(0) @map("synced")
+  createdAt       DateTime?            @default(now()) @map("created_at")
+  updatedAt       DateTime?            @default(now()) @map("updated_at")
+  branch          Branch               @relation(fields: [branchId], references: [branchId], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([branchId])
   @@map("branch_settings")
 }
 
 model Branch {
-  id                                      Int                           @id @default(autoincrement())
-  branchId                                String                        @unique @map("branch_id")
-  tenantId                                String                        @map("tenant_id")
-  branchName                              String                        @map("branch_name")
-  branchCode                              String                        @map("branch_code")
-  siteId                                  String?                       @map("site_id")
-  siteName                                String?                       @map("site_name")
-  description                             String?                       @map("description")
-  addressLine1                            String?                       @map("address_line_1")
-  addressLine2                            String?                       @map("address_line_2")
-  addressLine3                            String?                       @map("address_line_3")
-  district                                String?                       @map("district")
-  city                                    String?                       @map("city")
-  state                                   String?                       @map("state")
-  postalCode                              String?                       @map("postal_code")
-  phoneNumber                             String?                       @map("phone_number")
-  email                                   String?                       @map("email")
-  currencyCode                            String?                       @default("MKW") @map("currency_code")
-  currencySymbol                          String?                       @default("K") @map("currency_symbol")
-  taxRate                                 Decimal?                      @default(0.00) @map("tax_rate")
-  chargeTax                               Boolean?                      @default(false) @map("charge_tax")
-  receiptFooter                           String?                       @map("receipt_footer")
-  logoUrl                                 String?                       @map("logo_url")
-  isVirtualWarehouse                      Boolean?                      @default(false) @map("is_virtual_warehouse")
-  isActive                                Boolean?                      @default(true) @map("is_active")
-  synced                                  Int?                          @default(0) @map("synced")
-  mraApprovalStatus                       BranchMRAApprovalStatus?      @default(PENDING) @map("mra_approval_status")
-  mraApprovalDate                         DateTime?                     @map("mra_approval_date")
-  status                                  BranchStatus?                 @default(active) @map("status")
-  createdAt                               DateTime?                     @default(now()) @map("created_at")
-  updatedAt                               DateTime?                     @default(now()) @map("updated_at")
-  auditLogs                               AuditLog[]
-  branchSetting                           BranchSetting?
-  tenant                                  Tenant                        @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade, onUpdate: NoAction)
-  categories                              Category[]
-  customers                               Customer[]
-  inventory                               Inventory[]
-  paymentMethods                          PaymentMethod[]
-  serviceProviders                        ServiceProvider[]
-  terminals                               Terminal[]
-  transactions                            Transaction[]
-  userPermissions                         UserPermission[]
-  usersBranch                             User[]                        @relation("users_branch_idTobranches")
-  usersCurrentBranch                      User[]                        @relation("users_current_branch_idTobranches")
+  id                 Int                      @id @default(autoincrement())
+  branchId           String                   @unique @map("branch_id")
+  tenantId           String                   @map("tenant_id")
+  branchName         String                   @map("branch_name")
+  branchCode         String                   @map("branch_code")
+  siteId             String?                  @map("site_id")
+  siteName           String?                  @map("site_name")
+  description        String?                  @map("description")
+  addressLine1       String?                  @map("address_line_1")
+  addressLine2       String?                  @map("address_line_2")
+  addressLine3       String?                  @map("address_line_3")
+  district           String?                  @map("district")
+  city               String?                  @map("city")
+  state              String?                  @map("state")
+  postalCode         String?                  @map("postal_code")
+  phoneNumber        String?                  @map("phone_number")
+  email              String?                  @map("email")
+  currencyCode       String?                  @default("MKW") @map("currency_code")
+  currencySymbol     String?                  @default("K") @map("currency_symbol")
+  taxRate            Decimal?                 @default(0.00) @map("tax_rate")
+  chargeTax          Boolean?                 @default(false) @map("charge_tax")
+  receiptFooter      String?                  @map("receipt_footer")
+  logoUrl            String?                  @map("logo_url")
+  isVirtualWarehouse Boolean?                 @default(false) @map("is_virtual_warehouse")
+  isActive           Boolean?                 @default(true) @map("is_active")
+  synced             Int?                     @default(0) @map("synced")
+  mraApprovalStatus  BranchMRAApprovalStatus? @default(PENDING) @map("mra_approval_status")
+  mraApprovalDate    DateTime?                @map("mra_approval_date")
+  status             BranchStatus?            @default(active) @map("status")
+  createdAt          DateTime?                @default(now()) @map("created_at")
+  updatedAt          DateTime?                @default(now()) @map("updated_at")
+  auditLogs          AuditLog[]
+  branchSetting      BranchSetting?
+  tenant             Tenant                   @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade, onUpdate: NoAction)
+  categories         Category[]
+  customers          Customer[]
+  inventory          Inventory[]
+  paymentMethods     PaymentMethod[]
+  serviceProviders   ServiceProvider[]
+  terminals          Terminal[]
+  transactions       Transaction[]
+  userPermissions    UserPermission[]
+  usersBranch        User[]                   @relation("users_branch_idTobranches")
+  usersCurrentBranch User[]                   @relation("users_current_branch_idTobranches")
 
   @@unique([tenantId, branchCode], name: "unique_tenant_branch_code")
   @@index([branchCode])
@@ -146,7 +146,7 @@ model Category {
   branchId    String      @map("branch_id")
   tenantId    String      @map("tenant_id")
   userId      String      @map("user_id")
-  terminalId  String      @map("terminal_id")
+  terminalId  String?     @map("terminal_id")
   name        String      @map("name")
   description String?     @map("description")
   color       String?     @map("color")
@@ -157,7 +157,7 @@ model Category {
   createdAt   DateTime?   @default(now()) @map("created_at")
   updatedAt   DateTime?   @default(now()) @map("updated_at")
   branch      Branch      @relation(fields: [branchId], references: [branchId], onDelete: Cascade, onUpdate: NoAction)
-  terminal    Terminal    @relation(fields: [terminalId], references: [terminalId], onDelete: Cascade, onUpdate: NoAction)
+  terminal    Terminal?   @relation(fields: [terminalId], references: [terminalId], onDelete: Cascade, onUpdate: NoAction)
   inventory   Inventory[]
 
   @@unique([branchId, name], name: "unique_branch_category")
@@ -167,69 +167,69 @@ model Category {
 }
 
 model Customer {
-  id          Int       @id @default(autoincrement())
-  customerId  String    @unique @map("customer_id")
-  tenantId    String    @map("tenant_id")
-  branchId    String    @map("branch_id")
-  userId      String?   @map("user_id")
-  name        String    @map("name")
-  synced      Int?      @default(0) @map("synced")
-  createdAt   DateTime? @default(now()) @map("created_at")
-  updatedAt   DateTime? @default(now()) @map("updated_at")
-  branch      Branch    @relation(fields: [branchId], references: [branchId], onDelete: Cascade, onUpdate: NoAction)
+  id         Int       @id @default(autoincrement())
+  customerId String    @unique @map("customer_id")
+  tenantId   String    @map("tenant_id")
+  branchId   String    @map("branch_id")
+  userId     String?   @map("user_id")
+  name       String    @map("name")
+  synced     Int?      @default(0) @map("synced")
+  createdAt  DateTime? @default(now()) @map("created_at")
+  updatedAt  DateTime? @default(now()) @map("updated_at")
+  branch     Branch    @relation(fields: [branchId], references: [branchId], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([branchId])
   @@map("customers")
 }
 
 model Inventory {
-  id                                     Int               @id @default(autoincrement())
-  productId                              String            @unique @map("product_id")
-  branchId                               String            @map("branch_id")
-  tenantId                               String            @map("tenant_id")
-  userId                                 String            @map("user_id")
-  categoryId                             String?           @map("category_id")
-  barcode                                String            @map("barcode")
-  sku                                    String?           @map("sku")
-  name                                   String            @map("name")
-  description                            String?           @map("description")
-  brand                                  String?           @map("brand")
-  unit                                   String?           @default("piece") @map("unit")
-  costPrice                              Decimal           @default(0.00) @map("cost_price")
-  sellPrice                              Decimal           @default(0.00) @map("sell_price")
-  promoPrice                             Decimal?          @map("promo_price")
-  promoStart                             DateTime?         @map("promo_start")
-  promoEnd                               DateTime?         @map("promo_end")
-  quantity                               String?           @default("0") @map("quantity")
-  reservedQuantity                       Int?              @default(0) @map("reserved_quantity")
-  minStock                               Int?              @default(0) @map("min_stock")
-  originalQuantity                       String?           @default("0") @map("original_quantity")
-  maxStock                               Int?              @map("max_stock")
-  stock                                  Int?              @map("stock")
-  reorderLevel                           Int?              @map("reorder_level")
-  weight                                 Decimal?          @map("weight")
-  dimensions                             String?           @map("dimensions")
-  color                                  String?           @map("color")
-  size                                   String?           @map("size")
-  properties                             Json?             @map("properties")
-  status                                 InventoryStatus?  @default(active) @map("status")
-  trackInventory                         Boolean?          @default(true) @map("track_inventory")
-  allowNegativeStock                     Boolean?          @default(false) @map("allow_negative_stock")
-  isTaxable                              Boolean?          @default(true) @map("is_taxable")
-  expirationDate                         DateTime?         @map("expiration_date")
-  manufactureDate                        DateTime?         @map("manufacture_date")
-  imageUrls                              Json?             @map("image_urls")
-  supplierName                           String?           @map("supplier_name")
-  supplierCode                           String?           @map("supplier_code")
-  createdBy                              String?           @map("created_by")
-  lastUpdatedBy                          String?           @map("last_updated_by")
-  synced                                 Int?              @default(0) @map("synced")
-  createdAt                              DateTime?         @default(now()) @map("created_at")
-  updatedAt                              DateTime?         @default(now()) @map("updated_at")
-  branch                                 Branch            @relation(fields: [branchId], references: [branchId], onDelete: Cascade, onUpdate: NoAction)
-  category                               Category?         @relation(fields: [categoryId], references: [categoryId], onUpdate: NoAction)
-  createdByUser                          User?             @relation("inventory_created_byTousers", fields: [createdBy], references: [userId], onUpdate: NoAction)
-  lastUpdatedByUser                      User?             @relation("inventory_last_updated_byTousers", fields: [lastUpdatedBy], references: [userId], onUpdate: NoAction)
+  id                 Int              @id @default(autoincrement())
+  productId          String           @unique @map("product_id")
+  branchId           String           @map("branch_id")
+  tenantId           String           @map("tenant_id")
+  userId             String           @map("user_id")
+  categoryId         String?          @map("category_id")
+  barcode            String           @map("barcode")
+  sku                String?          @map("sku")
+  name               String           @map("name")
+  description        String?          @map("description")
+  brand              String?          @map("brand")
+  unit               String?          @default("piece") @map("unit")
+  costPrice          Decimal          @default(0.00) @map("cost_price")
+  sellPrice          Decimal          @default(0.00) @map("sell_price")
+  promoPrice         Decimal?         @map("promo_price")
+  promoStart         DateTime?        @map("promo_start")
+  promoEnd           DateTime?        @map("promo_end")
+  quantity           String?          @default("0") @map("quantity")
+  reservedQuantity   Int?             @default(0) @map("reserved_quantity")
+  minStock           Int?             @default(0) @map("min_stock")
+  originalQuantity   String?          @default("0") @map("original_quantity")
+  maxStock           Int?             @map("max_stock")
+  stock              Int?             @map("stock")
+  reorderLevel       Int?             @map("reorder_level")
+  weight             Decimal?         @map("weight")
+  dimensions         String?          @map("dimensions")
+  color              String?          @map("color")
+  size               String?          @map("size")
+  properties         Json?            @map("properties")
+  status             InventoryStatus? @default(active) @map("status")
+  trackInventory     Boolean?         @default(true) @map("track_inventory")
+  allowNegativeStock Boolean?         @default(false) @map("allow_negative_stock")
+  isTaxable          Boolean?         @default(true) @map("is_taxable")
+  expirationDate     DateTime?        @map("expiration_date")
+  manufactureDate    DateTime?        @map("manufacture_date")
+  imageUrls          Json?            @map("image_urls")
+  supplierName       String?          @map("supplier_name")
+  supplierCode       String?          @map("supplier_code")
+  createdBy          String?          @map("created_by")
+  lastUpdatedBy      String?          @map("last_updated_by")
+  synced             Int?             @default(0) @map("synced")
+  createdAt          DateTime?        @default(now()) @map("created_at")
+  updatedAt          DateTime?        @default(now()) @map("updated_at")
+  branch             Branch           @relation(fields: [branchId], references: [branchId], onDelete: Cascade, onUpdate: NoAction)
+  category           Category?        @relation(fields: [categoryId], references: [categoryId], onUpdate: NoAction)
+  createdByUser      User?            @relation("inventory_created_byTousers", fields: [createdBy], references: [userId], onUpdate: NoAction)
+  lastUpdatedByUser  User?            @relation("inventory_last_updated_byTousers", fields: [lastUpdatedBy], references: [userId], onUpdate: NoAction)
 
   @@index([createdBy])
   @@index([barcode])
@@ -242,38 +242,38 @@ model Inventory {
 }
 
 model Order {
-  id             Int       @id @default(autoincrement())
-  orderId        String    @unique @map("order_id")
-  refNumber      String    @map("ref_number")
-  transactionId  String?   @default("1") @map("transaction_id")
-  productId      String    @map("product_id")
-  quantity       Decimal   @default(1.000) @map("quantity")
-  purchasePrice  Decimal   @default(0.00) @map("purchase_price")
-  sellPrice      Decimal   @default(0.00) @map("sell_price")
-  synced         Int?      @default(0) @map("synced")
-  createdAt      DateTime? @default(now()) @map("created_at")
-  updatedAt      DateTime? @default(now()) @map("updated_at")
+  id            Int       @id @default(autoincrement())
+  orderId       String    @unique @map("order_id")
+  refNumber     String    @map("ref_number")
+  transactionId String?   @default("1") @map("transaction_id")
+  productId     String    @map("product_id")
+  quantity      Decimal   @default(1.000) @map("quantity")
+  purchasePrice Decimal   @default(0.00) @map("purchase_price")
+  sellPrice     Decimal   @default(0.00) @map("sell_price")
+  synced        Int?      @default(0) @map("synced")
+  createdAt     DateTime? @default(now()) @map("created_at")
+  updatedAt     DateTime? @default(now()) @map("updated_at")
 
   @@index([transactionId])
   @@map("orders")
 }
 
 model PaymentMethod {
-  id         Int       @id @default(autoincrement())
-  methodId   String    @unique @map("method_id")
-  branchId   String?   @map("branch_id")
-  tenantId   String?   @map("tenant_id")
-  userId     String?   @map("user_id")
-  name       String    @map("name")
-  isActive   Boolean?  @default(true) @map("is_active")
-  icon       String?   @map("icon")
-  sortOrder  Int?      @default(0) @map("sort_order")
-  synced     Int?      @default(0) @map("synced")
-  createdAt  DateTime? @default(now()) @map("created_at")
-  updatedAt  DateTime? @default(now()) @map("updated_at")
-  branch     Branch?   @relation(fields: [branchId], references: [branchId], onDelete: Cascade, onUpdate: NoAction)
-  tenant     Tenant?   @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade, onUpdate: NoAction)
-  user       User?     @relation(fields: [userId], references: [userId], onDelete: Cascade, onUpdate: NoAction)
+  id        Int       @id @default(autoincrement())
+  methodId  String    @unique @map("method_id")
+  branchId  String?   @map("branch_id")
+  tenantId  String?   @map("tenant_id")
+  userId    String?   @map("user_id")
+  name      String    @map("name")
+  isActive  Boolean?  @default(true) @map("is_active")
+  icon      String?   @map("icon")
+  sortOrder Int?      @default(0) @map("sort_order")
+  synced    Int?      @default(0) @map("synced")
+  createdAt DateTime? @default(now()) @map("created_at")
+  updatedAt DateTime? @default(now()) @map("updated_at")
+  branch    Branch?   @relation(fields: [branchId], references: [branchId], onDelete: Cascade, onUpdate: NoAction)
+  tenant    Tenant?   @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade, onUpdate: NoAction)
+  user      User?     @relation(fields: [userId], references: [userId], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([branchId])
   @@index([tenantId])
@@ -282,19 +282,19 @@ model PaymentMethod {
 }
 
 model Permission {
-  id                   Int                @id @default(autoincrement())
-  permissionId         String             @unique @map("permission_id")
-  name                 String             @unique @map("name")
-  displayName          String             @map("display_name")
-  description          String?            @map("description")
-  category             String             @map("category")
-  scope                PermissionScope?   @default(branch) @map("scope")
-  synced               Int?               @default(0) @map("synced")
-  isSystemPermission   Boolean?           @default(true) @map("is_system_permission")
-  createdAt            DateTime?          @default(now()) @map("created_at")
-  updatedAt            DateTime?          @default(now()) @map("updated_at")
-  rolePermissions      RolePermission[]
-  userPermissions      UserPermission[]
+  id                 Int              @id @default(autoincrement())
+  permissionId       String           @unique @map("permission_id")
+  name               String           @unique @map("name")
+  displayName        String           @map("display_name")
+  description        String?          @map("description")
+  category           String           @map("category")
+  scope              PermissionScope? @default(branch) @map("scope")
+  synced             Int?             @default(0) @map("synced")
+  isSystemPermission Boolean?         @default(true) @map("is_system_permission")
+  createdAt          DateTime?        @default(now()) @map("created_at")
+  updatedAt          DateTime?        @default(now()) @map("updated_at")
+  rolePermissions    RolePermission[]
+  userPermissions    UserPermission[]
 
   @@index([category])
   @@index([name])
@@ -309,20 +309,20 @@ model PlanFeature {
   displayOrder      Int?      @default(0) @map("display_order")
   createdAt         DateTime? @default(now()) @map("created_at")
   updatedAt         DateTime? @default(now()) @map("updated_at")
-  
+
   @@map("plan_features")
 }
 
 model RolePermission {
-  id                Int         @id @default(autoincrement())
-  rolePermissionId  String      @unique @map("role_permission_id")
-  roleId            String      @map("role_id")
-  permissionId      String      @map("permission_id")
-  synced            Int?        @default(0) @map("synced")
-  createdAt         DateTime?   @default(now()) @map("created_at")
-  updatedAt         DateTime?   @default(now()) @map("updated_at")
-  role              Role        @relation(fields: [roleId], references: [roleId], onDelete: Cascade, onUpdate: NoAction)
-  permission        Permission  @relation(fields: [permissionId], references: [permissionId], onDelete: Cascade, onUpdate: NoAction)
+  id               Int        @id @default(autoincrement())
+  rolePermissionId String     @unique @map("role_permission_id")
+  roleId           String     @map("role_id")
+  permissionId     String     @map("permission_id")
+  synced           Int?       @default(0) @map("synced")
+  createdAt        DateTime?  @default(now()) @map("created_at")
+  updatedAt        DateTime?  @default(now()) @map("updated_at")
+  role             Role       @relation(fields: [roleId], references: [roleId], onDelete: Cascade, onUpdate: NoAction)
+  permission       Permission @relation(fields: [permissionId], references: [permissionId], onDelete: Cascade, onUpdate: NoAction)
 
   @@unique([roleId, permissionId], name: "unique_role_permission")
   @@index([permissionId])
@@ -331,18 +331,18 @@ model RolePermission {
 }
 
 model Role {
-  id               Int                @id @default(autoincrement())
-  roleId           String             @unique @map("role_id")
-  name             String             @unique @map("name")
-  displayName      String             @map("display_name")
-  description      String?            @map("description")
-  synced           Int?               @default(0) @map("synced")
-  isSystemRole     Boolean?           @default(false) @map("is_system_role")
-  isActive         Boolean?           @default(true) @map("is_active")
-  createdAt        DateTime?          @default(now()) @map("created_at")
-  updatedAt        DateTime?          @default(now()) @map("updated_at")
-  rolePermissions  RolePermission[]
-  users            User[]
+  id              Int              @id @default(autoincrement())
+  roleId          String           @unique @map("role_id")
+  name            String           @unique @map("name")
+  displayName     String           @map("display_name")
+  description     String?          @map("description")
+  synced          Int?             @default(0) @map("synced")
+  isSystemRole    Boolean?         @default(false) @map("is_system_role")
+  isActive        Boolean?         @default(true) @map("is_active")
+  createdAt       DateTime?        @default(now()) @map("created_at")
+  updatedAt       DateTime?        @default(now()) @map("updated_at")
+  rolePermissions RolePermission[]
+  users           User[]
 
   @@index([isActive], name: "idx_active_role")
   @@index([name], name: "idx_role_name")
@@ -372,43 +372,43 @@ model ServiceProvider {
 }
 
 model SubscriptionPlan {
-  subscriptionPlanId String                 @id @default(uuid()) @map("subscription_plan_id")
-  planCode           String                 @unique @map("plan_code")
-  name               String                 @map("name")
-  description        String?                @map("description")
-  monthlyPrice       Decimal                @default(0.00) @map("monthly_price")
-  yearlyPrice        Decimal                @default(0.00) @map("yearly_price")
-  color              String                 @default("gray") @map("color")
-  isPopular          Boolean?               @default(false) @map("is_popular")
-  isActive           Boolean?               @default(true) @map("is_active")
-  features           Json                   @map("features")
-  limits             Json                   @map("limits")
-  notes              String?                @map("notes")
-  synced             Int?                   @default(0) @map("synced")
-  createdAt          DateTime?              @default(now()) @map("created_at")
-  updatedAt          DateTime?              @default(now()) @map("updated_at")
+  subscriptionPlanId  String               @id @default(uuid()) @map("subscription_plan_id")
+  planCode            String               @unique @map("plan_code")
+  name                String               @map("name")
+  description         String?              @map("description")
+  monthlyPrice        Decimal              @default(0.00) @map("monthly_price")
+  yearlyPrice         Decimal              @default(0.00) @map("yearly_price")
+  color               String               @default("gray") @map("color")
+  isPopular           Boolean?             @default(false) @map("is_popular")
+  isActive            Boolean?             @default(true) @map("is_active")
+  features            Json                 @map("features")
+  limits              Json                 @map("limits")
+  notes               String?              @map("notes")
+  synced              Int?                 @default(0) @map("synced")
+  createdAt           DateTime?            @default(now()) @map("created_at")
+  updatedAt           DateTime?            @default(now()) @map("updated_at")
   tenantSubscriptions TenantSubscription[]
 
   @@map("subscription_plans")
 }
 
 model TenantSubscription {
-  tenantSubscriptionId String                       @id @default(uuid()) @map("tenant_subscription_id")
-  tenantId             String                       @map("tenant_id")
-  subscriptionPlanId   String                       @map("subscription_plan_id")
-  status               TenantSubscriptionStatus?    @default(active) @map("status")
-  startsAt             DateTime                     @map("starts_at")
-  endsAt               DateTime?                    @map("ends_at")
-  autoRenew            Boolean?                     @default(true) @map("auto_renew")
-  paymentMethod        String?                      @map("payment_method")
-  maxBranches          Int?                         @default(1) @map("max_branches")
-  synced               Int?                         @default(0) @map("synced")
-  lastPaymentDate      DateTime?                    @map("last_payment_date")
-  nextPaymentDate      DateTime?                    @map("next_payment_date")
-  createdAt            DateTime?                    @default(now()) @map("created_at")
-  updatedAt            DateTime?                    @default(now()) @map("updated_at")
-  tenant               Tenant                       @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade, onUpdate: NoAction)
-  subscriptionPlan     SubscriptionPlan             @relation(fields: [subscriptionPlanId], references: [subscriptionPlanId], onUpdate: NoAction)
+  tenantSubscriptionId String                    @id @default(uuid()) @map("tenant_subscription_id")
+  tenantId             String                    @map("tenant_id")
+  subscriptionPlanId   String                    @map("subscription_plan_id")
+  status               TenantSubscriptionStatus? @default(active) @map("status")
+  startsAt             DateTime                  @map("starts_at")
+  endsAt               DateTime?                 @map("ends_at")
+  autoRenew            Boolean?                  @default(true) @map("auto_renew")
+  paymentMethod        String?                   @map("payment_method")
+  maxBranches          Int?                      @default(1) @map("max_branches")
+  synced               Int?                      @default(0) @map("synced")
+  lastPaymentDate      DateTime?                 @map("last_payment_date")
+  nextPaymentDate      DateTime?                 @map("next_payment_date")
+  createdAt            DateTime?                 @default(now()) @map("created_at")
+  updatedAt            DateTime?                 @default(now()) @map("updated_at")
+  tenant               Tenant                    @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade, onUpdate: NoAction)
+  subscriptionPlan     SubscriptionPlan          @relation(fields: [subscriptionPlanId], references: [subscriptionPlanId], onUpdate: NoAction)
 
   @@index([subscriptionPlanId])
   @@index([tenantId])
@@ -416,39 +416,39 @@ model TenantSubscription {
 }
 
 model Tenant {
-  id                    Int                            @id @default(autoincrement())
-  tenantId              String                         @unique @map("tenant_id")
-  businessName          String                         @map("business_name")
-  tin                   String                         @unique @map("tin")
-  tenantCode            String                         @unique @map("tenant_code")
-  businessType          TenantBusinessType             @map("business_type")
-  phoneNumber           String                         @map("phone_number")
-  email                 String                         @unique @map("email")
-  mraPortalUsername     String?                        @map("mra_portal_username")
-  tradingName           String?                        @map("trading_name")
-  isVatRegistered       Boolean?                       @default(false) @map("is_vat_registered")
-  taxOfficeCode         String?                        @map("tax_office_code")
-  msonkhoOnlineStatus   TenantMsonkhoOnlineStatus?     @default(PENDING) @map("msonkho_online_status")
-  subscriptionPlan      String?                        @map("subscription_plan")
-  subscriptionStatus    TenantSubscriptionPlanStatus?  @default(TRIAL) @map("subscription_status")
-  verificationToken     String                        @map("verification_token")
-  ownerName             String                         @map("owner_name")
-  address               String?                        @map("address")
-  country               String?                        @map("country")
-  trialEndsAt           DateTime?                      @map("trial_ends_at")
-  status                TenantStatus?                  @default(pending) @map("status")
-  registeredAt          DateTime?                      @default(now()) @map("registered_at")
-  activatedAt           DateTime?                      @map("activated_at")
-  synced                Int?                           @default(0) @map("synced")
-  createdAt             DateTime?                      @default(now()) @map("created_at")
-  updatedAt             DateTime?                      @default(now()) @map("updated_at")
-  mraApiConfigTable     MRA_API_CONFIG_TABLE[]
-  auditLogs             AuditLog[]
-  branches              Branch[]
-  paymentMethods        PaymentMethod[]
-  tenantSubscriptions   TenantSubscription[]
-  terminals             Terminal[]
-  users                 User[]
+  id                  Int                           @id @default(autoincrement())
+  tenantId            String                        @unique @map("tenant_id")
+  businessName        String                        @map("business_name")
+  tin                 String                        @unique @map("tin")
+  tenantCode          String                        @unique @map("tenant_code")
+  businessType        TenantBusinessType            @map("business_type")
+  phoneNumber         String                        @map("phone_number")
+  email               String                        @unique @map("email")
+  mraPortalUsername   String?                       @map("mra_portal_username")
+  tradingName         String?                       @map("trading_name")
+  isVatRegistered     Boolean?                      @default(false) @map("is_vat_registered")
+  taxOfficeCode       String?                       @map("tax_office_code")
+  msonkhoOnlineStatus TenantMsonkhoOnlineStatus?    @default(PENDING) @map("msonkho_online_status")
+  subscriptionPlan    String?                       @map("subscription_plan")
+  subscriptionStatus  TenantSubscriptionPlanStatus? @default(TRIAL) @map("subscription_status")
+  verificationToken   String                        @map("verification_token")
+  ownerName           String                        @map("owner_name")
+  address             String?                       @map("address")
+  country             String?                       @map("country")
+  trialEndsAt         DateTime?                     @map("trial_ends_at")
+  status              TenantStatus?                 @default(pending) @map("status")
+  registeredAt        DateTime?                     @default(now()) @map("registered_at")
+  activatedAt         DateTime?                     @map("activated_at")
+  synced              Int?                          @default(0) @map("synced")
+  createdAt           DateTime?                     @default(now()) @map("created_at")
+  updatedAt           DateTime?                     @default(now()) @map("updated_at")
+  mraApiConfigTable   MRA_API_CONFIG_TABLE[]
+  auditLogs           AuditLog[]
+  branches            Branch[]
+  paymentMethods      PaymentMethod[]
+  tenantSubscriptions TenantSubscription[]
+  terminals           Terminal[]
+  users               User[]
 
   @@index([email])
   @@index([subscriptionStatus])
@@ -458,46 +458,46 @@ model Tenant {
 }
 
 model Terminal {
-  id                                Int                               @id @default(autoincrement())
-  terminalId                        String                            @unique @map("terminal_id")
-  tenantId                          String                            @map("tenant_id")
-  branchId                          String                            @map("branch_id")
-  mraTerminalId                     String?                           @unique @map("mra_terminal_id")
-  terminalCode                      String                            @unique @map("terminal_code")
-  terminalLabel                     String                            @map("terminal_label")
-  terminalPosition                  Int?                              @map("terminal_position")
-  deviceId                          String?                           @map("device_id")
-  osName                            String?                           @map("os_name")
-  osVersion                         String?                           @map("os_version")
-  osBuild                           String?                           @map("os_build")
-  macAddress                        String?                           @map("mac_address")
-  posProductId                      String?                           @map("pos_product_id")
-  posProductVersion                 String?                           @map("pos_product_version")
-  terminalConfigVersion             Decimal?                          @map("terminal_config_version")
-  offlineMaxTransactionAgeHours     Decimal?                          @map("offline_max_transaction_age_hours")
-  offlineMaxCumulativeAmount        Decimal?                          @map("offline_max_cumulative_amount")
-  activationCode                    String?                           @map("activation_code")
-  activationStatus                  TerminalActivationStatus?         @default(PENDING) @map("activation_status")
-  activationDate                    DateTime?                         @map("activation_date")
-  isPrimary                         Boolean?                          @default(false) @map("is_primary")
-  isBlocked                         Boolean?                          @default(false) @map("is_blocked")
-  blockingReason                    String?                           @map("blocking_reason")
-  blockedAt                         DateTime?                         @map("blocked_at")
-  mraApplicationStatus              TerminalMRAApplicationStatus?     @default(APPLIED) @map("mra_application_status")
-  mraApprovalDate                   DateTime?                         @map("mra_approval_date")
-  lastActivity                      DateTime?                         @map("last_activity")
-  lastSync                          DateTime?                         @map("last_sync")
-  lastSyncTimestamp                 DateTime?                         @map("last_sync_timestamp")
-  synced                            Int?                              @default(0) @map("synced")
-  registeredAt                      DateTime?                         @map("registered_at")
-  createdAt                         DateTime?                         @default(now()) @map("created_at")
-  updatedAt                         DateTime?                         @default(now()) @map("updated_at")
-  auditLogs                         AuditLog[]
-  categories                        Category[]
-  tenant                            Tenant                            @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade, onUpdate: NoAction)
-  branch                            Branch                            @relation(fields: [branchId], references: [branchId], onDelete: Cascade, onUpdate: NoAction)
-  userSessions                      UserSession[]
-  terminalSettings                  TerminalSettings?
+  id                            Int                           @id @default(autoincrement())
+  terminalId                    String                        @unique @map("terminal_id")
+  tenantId                      String                        @map("tenant_id")
+  branchId                      String                        @map("branch_id")
+  mraTerminalId                 String?                       @unique @map("mra_terminal_id")
+  terminalCode                  String                        @unique @map("terminal_code")
+  terminalLabel                 String                        @map("terminal_label")
+  terminalPosition              Int?                          @map("terminal_position")
+  deviceId                      String?                       @map("device_id")
+  osName                        String?                       @map("os_name")
+  osVersion                     String?                       @map("os_version")
+  osBuild                       String?                       @map("os_build")
+  macAddress                    String?                       @map("mac_address")
+  posProductId                  String?                       @map("pos_product_id")
+  posProductVersion             String?                       @map("pos_product_version")
+  terminalConfigVersion         Decimal?                      @map("terminal_config_version")
+  offlineMaxTransactionAgeHours Decimal?                      @map("offline_max_transaction_age_hours")
+  offlineMaxCumulativeAmount    Decimal?                      @map("offline_max_cumulative_amount")
+  activationCode                String?                       @map("activation_code")
+  activationStatus              TerminalActivationStatus?     @default(PENDING) @map("activation_status")
+  activationDate                DateTime?                     @map("activation_date")
+  isPrimary                     Boolean?                      @default(false) @map("is_primary")
+  isBlocked                     Boolean?                      @default(false) @map("is_blocked")
+  blockingReason                String?                       @map("blocking_reason")
+  blockedAt                     DateTime?                     @map("blocked_at")
+  mraApplicationStatus          TerminalMRAApplicationStatus? @default(APPLIED) @map("mra_application_status")
+  mraApprovalDate               DateTime?                     @map("mra_approval_date")
+  lastActivity                  DateTime?                     @map("last_activity")
+  lastSync                      DateTime?                     @map("last_sync")
+  lastSyncTimestamp             DateTime?                     @map("last_sync_timestamp")
+  synced                        Int?                          @default(0) @map("synced")
+  registeredAt                  DateTime?                     @map("registered_at")
+  createdAt                     DateTime?                     @default(now()) @map("created_at")
+  updatedAt                     DateTime?                     @default(now()) @map("updated_at")
+  auditLogs                     AuditLog[]
+  categories                    Category[]
+  tenant                        Tenant                        @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade, onUpdate: NoAction)
+  branch                        Branch                        @relation(fields: [branchId], references: [branchId], onDelete: Cascade, onUpdate: NoAction)
+  userSessions                  UserSession[]
+  terminalSettings              TerminalSettings?
 
   @@index([activationStatus])
   @@index([branchId])
@@ -507,48 +507,49 @@ model Terminal {
 }
 
 model Transaction {
-  id                          Int       @id @default(autoincrement())
-  transactionId              String    @unique @map("transaction_id")
-  refNumber                  String    @map("ref_number")
-  discount                   Decimal?  @default(0.00) @map("discount")
-  customerId                 String?   @map("customer_id")
-  subtotal                   Decimal?  @default(0.00) @map("subtotal")
-  tax                        Decimal?  @default(0.00) @map("tax")
-  date                       DateTime? @map("date")
-  paymentMethodId           String?   @map("payment_method_id")
-  phoneNumber               String?   @map("phone_number")
-  paymentServiceProviderId  String?   @map("payment_service_provider_id")
-  total                      Decimal?  @default(0.00) @map("total")
-  paid                       Decimal?  @default(0.00) @map("paid")
-  changeAmount               Decimal?  @default(0.00) @map("change_amount")
-  terminalId                String?   @map("terminal_id")
-  userId                    String?   @map("user_id")
-  tenantId                  String    @map("tenant_id")
-  branchId                  String    @map("branch_id")
-  status                    String?   @map("status")
-  synced                    Int?      @default(0) @map("synced")
-  createdAt                 DateTime? @default(now()) @map("created_at")
-  updatedAt                 DateTime? @default(now()) @map("updated_at")
-  branch                    Branch    @relation(fields: [branchId], references: [branchId], onDelete: Cascade, onUpdate: NoAction)
+  id                       Int       @id @default(autoincrement())
+  transactionId            String    @unique @map("transaction_id")
+  externalTransactionRef   String?   @map("external_transaction_ref")
+  refNumber                String    @map("ref_number")
+  discount                 Decimal?  @default(0.00) @map("discount")
+  customerId               String?   @map("customer_id")
+  subtotal                 Decimal?  @default(0.00) @map("subtotal")
+  tax                      Decimal?  @default(0.00) @map("tax")
+  date                     DateTime? @map("date")
+  paymentMethodId          String?   @map("payment_method_id")
+  phoneNumber              String?   @map("phone_number")
+  paymentServiceProviderId String?   @map("payment_service_provider_id")
+  total                    Decimal?  @default(0.00) @map("total")
+  paid                     Decimal?  @default(0.00) @map("paid")
+  changeAmount             Decimal?  @default(0.00) @map("change_amount")
+  terminalId               String?   @map("terminal_id")
+  userId                   String?   @map("user_id")
+  tenantId                 String    @map("tenant_id")
+  branchId                 String    @map("branch_id")
+  status                   String?   @map("status")
+  synced                   Int?      @default(0) @map("synced")
+  createdAt                DateTime? @default(now()) @map("created_at")
+  updatedAt                DateTime? @default(now()) @map("updated_at")
+  branch                   Branch    @relation(fields: [branchId], references: [branchId], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([branchId])
   @@map("transactions")
 }
 
 model UserPermission {
-  id                                       Int         @id @default(autoincrement())
-  userPermissionId                         String      @unique @map("user_permission_id")
-  userId                                  String      @map("user_id")
-  permissionId                            String      @map("permission_id")
-  branchId                                String?     @map("branch_id")
-  granted                                 Boolean     @map("granted")
-  createdAt                               DateTime?   @default(now()) @map("created_at")
-  createdBy                               String?     @map("created_by")
-  synced                                  Int?        @default(0) @map("synced")
-  user                                    User        @relation("user_permissions_user_idTousers", fields: [userId], references: [userId], onDelete: Cascade, onUpdate: NoAction)
-  permission                              Permission  @relation(fields: [permissionId], references: [permissionId], onDelete: Cascade, onUpdate: NoAction)
-  branch                                  Branch?     @relation(fields: [branchId], references: [branchId], onDelete: Cascade, onUpdate: NoAction)
-  createdByUser                           User?       @relation("user_permissions_created_byTousers", fields: [createdBy], references: [userId], onUpdate: NoAction)
+  id               Int        @id @default(autoincrement())
+  userPermissionId String     @unique @map("user_permission_id")
+  userId           String     @map("user_id")
+  permissionId     String     @map("permission_id")
+  branchId         String?    @map("branch_id")
+  granted          Boolean    @map("granted")
+  createdAt        DateTime?  @default(now()) @map("created_at")
+  createdBy        String?    @map("created_by")
+  synced           Int?       @default(0) @map("synced")
+  user             User       @relation("user_permissions_user_idTousers", fields: [userId], references: [userId], onDelete: Cascade, onUpdate: NoAction)
+  permission       Permission @relation(fields: [permissionId], references: [permissionId], onDelete: Cascade, onUpdate: NoAction)
+  branch           Branch?    @relation(fields: [branchId], references: [branchId], onDelete: Cascade, onUpdate: NoAction)
+  createdByUser    User?      @relation("user_permissions_created_byTousers", fields: [createdBy], references: [userId], onUpdate: NoAction)
 
   @@unique([userId, permissionId, branchId], name: "unique_user_permission_branch")
   @@index([createdBy])
@@ -559,22 +560,22 @@ model UserPermission {
 }
 
 model UserSession {
-  id              Int       @id @default(autoincrement())
-  userSessionId   String    @unique @map("user_session_id")
-  userId          String    @map("user_id")
-  terminalId      String    @map("terminal_id")
-  sessionToken    String    @unique @map("session_token")
-  ipAddress       String?   @map("ip_address")
-  userAgent       String?   @map("user_agent")
-  startedAt       DateTime? @default(now()) @map("started_at")
-  lastActivity    DateTime? @default(now()) @map("last_activity")
-  endedAt         DateTime? @map("ended_at")
-  synced          Int?      @default(0) @map("synced")
-  isActive        Boolean?  @default(true) @map("is_active")
-  createdAt       DateTime? @default(now()) @map("created_at")
-  updatedAt       DateTime? @default(now()) @map("updated_at")
-  user            User      @relation(fields: [userId], references: [userId], onDelete: Cascade, onUpdate: NoAction)
-  terminal        Terminal  @relation(fields: [terminalId], references: [terminalId], onDelete: Cascade, onUpdate: NoAction)
+  id            Int       @id @default(autoincrement())
+  userSessionId String    @unique @map("user_session_id")
+  userId        String    @map("user_id")
+  terminalId    String    @map("terminal_id")
+  sessionToken  String    @unique @map("session_token")
+  ipAddress     String?   @map("ip_address")
+  userAgent     String?   @map("user_agent")
+  startedAt     DateTime? @default(now()) @map("started_at")
+  lastActivity  DateTime? @default(now()) @map("last_activity")
+  endedAt       DateTime? @map("ended_at")
+  synced        Int?      @default(0) @map("synced")
+  isActive      Boolean?  @default(true) @map("is_active")
+  createdAt     DateTime? @default(now()) @map("created_at")
+  updatedAt     DateTime? @default(now()) @map("updated_at")
+  user          User      @relation(fields: [userId], references: [userId], onDelete: Cascade, onUpdate: NoAction)
+  terminal      Terminal  @relation(fields: [terminalId], references: [terminalId], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([sessionToken])
   @@index([terminalId])
@@ -583,41 +584,41 @@ model UserSession {
 }
 
 model User {
-  id                                                  Int                @id @default(autoincrement())
-  userId                                              String             @unique @map("user_id")
-  tenantId                                            String             @map("tenant_id")
-  branchId                                            String             @map("branch_id")
-  username                                            String             @map("username")
-  password                                            String             @map("password")
-  fullname                                            String             @map("fullname")
-  email                                               String?            @map("email")
-  phone                                               String?            @map("phone")
-  roleId                                              String             @map("role_id")
-  status                                              UserStatus?        @default(active) @map("status")
-  accessibleBranches                                  Json?              @map("accessible_branches")
-  allowedTerminals                                    Json?              @map("allowed_terminals")
-  maxDiscountPercent                                  Decimal?           @default(0.00) @map("max_discount_percent")
-  canOverridePrices                                   Boolean?           @default(false) @map("can_override_prices")
-  pinCode                                             String?            @map("pin_code")
-  currentBranchId                                     String?            @map("current_branch_id")
-  lastLogin                                           DateTime?          @map("last_login")
-  lastLogout                                          DateTime?          @map("last_logout")
-  passwordChangedAt                                   DateTime?          @default(now()) @map("password_changed_at")
-  forcePasswordChange                                 Boolean?           @default(false) @map("force_password_change")
-  synced                                              Int?               @default(0) @map("synced")
-  createdAt                                           DateTime?          @default(now()) @map("created_at")
-  updatedAt                                           DateTime?          @default(now()) @map("updated_at")
-  auditLogs                                           AuditLog[]
-  inventoryCreatedBy                                  Inventory[]        @relation("inventory_created_byTousers")
-  inventoryLastUpdatedBy                              Inventory[]        @relation("inventory_last_updated_byTousers")
-  paymentMethods                                      PaymentMethod[]
-  userPermissionsUser                                 UserPermission[]   @relation("user_permissions_user_idTousers")
-  userPermissionsCreatedBy                            UserPermission[]   @relation("user_permissions_created_byTousers")
-  userSessions                                        UserSession[]
-  tenant                                              Tenant             @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade, onUpdate: NoAction)
-  branch                                              Branch             @relation("users_branch_idTobranches", fields: [branchId], references: [branchId], onDelete: Cascade, onUpdate: NoAction)
-  role                                                Role               @relation(fields: [roleId], references: [roleId], onUpdate: NoAction)
-  currentBranch                                       Branch?            @relation("users_current_branch_idTobranches", fields: [currentBranchId], references: [branchId], onUpdate: NoAction)
+  id                       Int              @id @default(autoincrement())
+  userId                   String           @unique @map("user_id")
+  tenantId                 String           @map("tenant_id")
+  branchId                 String           @map("branch_id")
+  username                 String           @map("username")
+  password                 String           @map("password")
+  fullname                 String           @map("fullname")
+  email                    String?          @map("email")
+  phone                    String?          @map("phone")
+  roleId                   String           @map("role_id")
+  status                   UserStatus?      @default(active) @map("status")
+  accessibleBranches       Json?            @map("accessible_branches")
+  allowedTerminals         Json?            @map("allowed_terminals")
+  maxDiscountPercent       Decimal?         @default(0.00) @map("max_discount_percent")
+  canOverridePrices        Boolean?         @default(false) @map("can_override_prices")
+  pinCode                  String?          @map("pin_code")
+  currentBranchId          String?          @map("current_branch_id")
+  lastLogin                DateTime?        @map("last_login")
+  lastLogout               DateTime?        @map("last_logout")
+  passwordChangedAt        DateTime?        @default(now()) @map("password_changed_at")
+  forcePasswordChange      Boolean?         @default(false) @map("force_password_change")
+  synced                   Int?             @default(0) @map("synced")
+  createdAt                DateTime?        @default(now()) @map("created_at")
+  updatedAt                DateTime?        @default(now()) @map("updated_at")
+  auditLogs                AuditLog[]
+  inventoryCreatedBy       Inventory[]      @relation("inventory_created_byTousers")
+  inventoryLastUpdatedBy   Inventory[]      @relation("inventory_last_updated_byTousers")
+  paymentMethods           PaymentMethod[]
+  userPermissionsUser      UserPermission[] @relation("user_permissions_user_idTousers")
+  userPermissionsCreatedBy UserPermission[] @relation("user_permissions_created_byTousers")
+  userSessions             UserSession[]
+  tenant                   Tenant           @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade, onUpdate: NoAction)
+  branch                   Branch           @relation("users_branch_idTobranches", fields: [branchId], references: [branchId], onDelete: Cascade, onUpdate: NoAction)
+  role                     Role             @relation(fields: [roleId], references: [roleId], onUpdate: NoAction)
+  currentBranch            Branch?          @relation("users_current_branch_idTobranches", fields: [currentBranchId], references: [branchId], onUpdate: NoAction)
 
   @@unique([tenantId, username], name: "unique_tenant_username")
   @@index([branchId])
@@ -635,7 +636,7 @@ model SyncStatus {
   errorMessage String?  @map("errorMessage")
   createdAt    DateTime @default(now()) @map("createdAt")
   updatedAt    DateTime @updatedAt @map("updatedAt")
-  
+
   @@map("SyncStatus")
 }
 
@@ -656,188 +657,188 @@ model PaymentServiceProvider {
 }
 
 model AppSetup {
-  setupId                  String   @id @default("-1") @map("setup_id")
-  tenantId                 String   @map("tenant_id")
-  branchId                 String   @map("branch_id")
-  terminalId               String   @map("terminal_id")
-  encryptedVerificationToken String @map("encrypted_verification_token")
-  iv                       String   @map("iv")
-  dataSignature            String   @map("data_signature")
-  createdAt                DateTime @default(now()) @map("created_at")
-  updatedAt                DateTime @updatedAt @map("updated_at")
+  setupId                    String   @id @default("-1") @map("setup_id")
+  tenantId                   String   @map("tenant_id")
+  branchId                   String   @map("branch_id")
+  terminalId                 String   @map("terminal_id")
+  encryptedVerificationToken String   @map("encrypted_verification_token")
+  iv                         String   @map("iv")
+  dataSignature              String   @map("data_signature")
+  createdAt                  DateTime @default(now()) @map("created_at")
+  updatedAt                  DateTime @updatedAt @map("updated_at")
 
+  @@unique([tenantId, branchId, terminalId])
   @@index([tenantId])
   @@index([branchId])
   @@index([terminalId])
   @@index([createdAt])
-  @@unique([tenantId, branchId, terminalId])
   @@map("app_setups")
 }
 
 model TerminalSettings {
-  id                               String                           @id @default(cuid())
-  terminalId                       String                           @unique @map("terminal_id")
-  
+  id         String @id @default(cuid())
+  terminalId String @unique @map("terminal_id")
+
   // ==========================================
   // SELECTIVE COLUMNS (Frequently queried fields)
   // ==========================================
-  
+
   // General Information (Selective Columns)
-  storeName                        String?                          @map("store_name")
-  storeAddress                     String?                          @map("store_address")
-  storePhone                       String?                          @map("store_phone")
-  storeEmail                       String?                          @map("store_email")
-  currency                         String                           @default("MKW") @map("currency")
-  taxRate                          Decimal                          @default(0.00) @map("tax_rate")
-  businessLicense                  String?                          @map("business_license")
-  businessTaxId                    String?                          @map("business_tax_id")
-  
+  storeName       String? @map("store_name")
+  storeAddress    String? @map("store_address")
+  storePhone      String? @map("store_phone")
+  storeEmail      String? @map("store_email")
+  currency        String  @default("MKW") @map("currency")
+  taxRate         Decimal @default(0.00) @map("tax_rate")
+  businessLicense String? @map("business_license")
+  businessTaxId   String? @map("business_tax_id")
+
   // Localization & Display Settings (Selective Columns)
-  language                         String                           @default("en_US") @map("language")
-  timezone                         String                           @default("Africa/Blantyre") @map("timezone")
-  dateFormat                       String                           @default("DD/MM/YYYY") @map("date_format")
-  timeFormat                       String                           @default("24h") @map("time_format") // '12h' | '24h'
-  
+  language   String @default("en_US") @map("language")
+  timezone   String @default("Africa/Blantyre") @map("timezone")
+  dateFormat String @default("DD/MM/YYYY") @map("date_format")
+  timeFormat String @default("24h") @map("time_format") // '12h' | '24h'
+
   // Security & Access Control (Selective Columns - frequently used)
-  pinLength                        Int                              @default(4) @map("pin_length")
-  sessionTimeoutMinutes            Int                              @default(15) @map("session_timeout_minutes")
-  autoLogoutMinutes                Int                              @default(30) @map("auto_logout_minutes")
-  serverUrl                        String?                          @map("server_url")
-  
+  pinLength             Int     @default(4) @map("pin_length")
+  sessionTimeoutMinutes Int     @default(15) @map("session_timeout_minutes")
+  autoLogoutMinutes     Int     @default(30) @map("auto_logout_minutes")
+  serverUrl             String? @map("server_url")
+
   // ==========================================
   // HIERARCHICAL JSON COLUMNS (Grouped settings)
   // ==========================================
-  
+
   // Localization Settings (JSON) - extended settings
   // { currencyDecimalPlaces, numberSeparator, showCurrencySymbol, currencySymbolPosition }
-  localizationSettings             Json?                            @map("localization_settings")
-  
+  localizationSettings Json? @map("localization_settings")
+
   // Transaction Processing Settings (JSON)
   // { autoApplyTax, taxInclusivePricing, roundTaxAmount, roundTotalAmount, roundToNearest,
   //   minimumTransactionAmount, maximumTransactionAmount, holdTransactionMinutes, saveDraftTransactions }
-  transactionSettings              Json?                            @map("transaction_settings")
-  
+  transactionSettings Json? @map("transaction_settings")
+
   // Customer Settings (JSON)
   // { requireCustomerDetails, defaultCustomerType, collectCustomerEmail, collectCustomerPhone,
   //   collectCustomerAddress, customerDisplayMode }
-  customerSettings                 Json?                            @map("customer_settings")
-  
+  customerSettings Json? @map("customer_settings")
+
   // Receipt & Printing Settings (JSON)
   // { receiptNumberPrefix, receiptNumberSuffix, receiptStartNumber, receiptResetDaily,
   //   printDuplicateReceipt, receiptCopies, printOrderKitchen, printOrderBar, kitchenPrinterName,
   //   barPrinterName, printItemizedReceipt, receiptFooter, receiptHeader, showStoreLogo, logoUrl,
   //   receiptWidth, showTaxBreakdown, showItemCodes, showCashierName, showTerminalId,
   //   qrCodeEnabled, qrCodeContent }
-  receiptSettings                  Json?                            @map("receipt_settings")
-  
+  receiptSettings Json? @map("receipt_settings")
+
   // Payment Processing Settings (JSON)
   // { cashPaymentDefault, cardPaymentDefault, splitPaymentEnabled, maxSplitWays,
   //   changeCalculationMode, suggestChangeAmounts, giftCardEnabled, loyaltyPointsEnabled,
   //   enableCash, enableCard, enableMobileMoney, enableCredit, enableGiftCard,
   //   roundingEnabled, roundingAmount }
-  paymentSettings                  Json?                            @map("payment_settings")
-  
+  paymentSettings Json? @map("payment_settings")
+
   // VAT/MRA Compliance Settings (JSON)
   // { mraComplianceMode, requireVatNumber, vatInclusiveDisplay, zReportAutoGenerate,
   //   zReportTime, dailySalesReportTime }
-  mraComplianceSettings            Json?                            @map("mra_compliance_settings")
-  
+  mraComplianceSettings Json? @map("mra_compliance_settings")
+
   // Inventory & Product Settings (JSON)
   // { showProductImages, productDisplayMode, productsPerPage, quickProductSearch,
   //   barcodeScanMode, scaleIntegrationMode, allowNegativeStock, lowStockThreshold,
   //   showStockLevels, enableStockAlerts, autoOrderEnabled }
-  inventorySettings                Json?                            @map("inventory_settings")
-  
+  inventorySettings Json? @map("inventory_settings")
+
   // Offline & Sync Settings (JSON)
   // { enableOfflineMode, offlineDataRetentionDays, syncOnWifiOnly, autoSyncOnReconnect,
   //   syncBatchSize, syncTimeoutSeconds, enableCloudSync }
-  syncSettings                     Json?                            @map("sync_settings")
-  
+  syncSettings Json? @map("sync_settings")
+
   // Security & Access Control (JSON) - extended settings
   // { maxLoginAttempts, lockoutMinutes, requirePinForSettings, requirePinForReports,
   //   requirePinForVoid, requirePinForDiscount, requirePinForReturn, auditLogEnabled }
-  securitySettings                 Json?                            @map("security_settings")
-  
+  securitySettings Json? @map("security_settings")
+
   // Performance & Storage (JSON)
   // { cacheExpiryHours, maxCacheSizeMB, transactionHistoryDays, autoCleanupOldData,
   //   imageCompressionQuality }
-  performanceSettings              Json?                            @map("performance_settings")
-  
+  performanceSettings Json? @map("performance_settings")
+
   // Hardware & Device Settings (JSON)
   // { printerConnectionType, printerPaperWidth, cashDrawerOpenCode, scannerBeepEnabled,
   //   scannerVibrationEnabled, screenBrightness, screenTimeoutSeconds, printerType,
   //   printerName, autoPrintReceipt, paperSize, enableCashDrawer, cashDrawerOpenOn,
   //   enableBarcodeScanner, barcodeScannerPrefix, enableCardReader, cardReaderType }
-  hardwareSettings                 Json?                            @map("hardware_settings")
-  
+  hardwareSettings Json? @map("hardware_settings")
+
   // Integration & API Settings (JSON)
   // { apiBaseUrl, mraApiTimeoutSeconds, mraRetryAttempts, webhookEnabled, webhookUrl,
   //   webhookSecret, apiKeyExpiryDays, enableApiAccess, apiRateLimit }
-  integrationSettings              Json?                            @map("integration_settings")
-  
+  integrationSettings Json? @map("integration_settings")
+
   // Business Rules & Workflow (JSON)
   // { allowReturnWithoutReceipt, returnPeriodDays, requireManagerForVoid, managerOverridePin,
   //   autoCloseShift, shiftCloseTime, dailyOpeningTime, enableCashManagement,
   //   requireOpeningFloat, openingFloatAmount, enableShiftManagement, enableMultipleUsers,
   //   enableReturns, enableLayaway, enableDiscounts, maxDiscountPercentage }
-  workflowSettings                 Json?                            @map("workflow_settings")
-  
+  workflowSettings Json? @map("workflow_settings")
+
   // Backup & Recovery (JSON)
   // { backupEnabled, backupFrequency, autoBackupEnabled, backupIntervalHours,
   //   maxBackupFiles, backupLocation }
-  backupSettings                   Json?                            @map("backup_settings")
-  
+  backupSettings Json? @map("backup_settings")
+
   // Display & UI Settings (JSON)
   // { theme, fontSize, navigationMenuType, showProductImages, enableAnimations,
   //   enableNotifications, enableVirtualKeyboard, virtualKeyboardLayout,
   //   virtualKeyboardTheme, virtualKeyboardSound, virtualKeyboardHaptic }
-  displaySettings                  Json?                            @map("display_settings")
-  
+  displaySettings Json? @map("display_settings")
+
   // Taxes & Fees Settings (JSON)
   // { taxInclusive, showTaxOnReceipt, multiTaxEnabled, serviceFeeEnabled,
   //   serviceFeePercentage }
-  taxFeeSettings                   Json?                            @map("tax_fee_settings")
-  
+  taxFeeSettings Json? @map("tax_fee_settings")
+
   // Customer Management Settings (JSON)
   // { enableLoyaltyProgram, loyaltyPointsPerDollar, enableCustomerAccounts,
   //   enableCustomerCredit, maxCustomerCredit }
-  customerManagementSettings       Json?                            @map("customer_management_settings")
-  
+  customerManagementSettings Json? @map("customer_management_settings")
+
   // Reporting Settings (JSON)
   // { eodReportEnabled, eodReportTime, emailReports, reportEmail }
-  reportingSettings                Json?                            @map("reporting_settings")
-  
+  reportingSettings Json? @map("reporting_settings")
+
   // ==========================================
   // AUDIT & METADATA
   // ==========================================
-  settingsVersion                  String                           @default("2.0.0") @map("settings_version")
-  lastConfiguredBy                 String?                          @map("last_configured_by")
-  configurationDate                DateTime?                        @map("configuration_date")
-  isActive                         Boolean                          @default(true) @map("is_active")
-  createdAt                        DateTime                         @default(now()) @map("created_at")
-  updatedAt                        DateTime                         @updatedAt @map("updated_at")
-  
+  settingsVersion   String    @default("2.0.0") @map("settings_version")
+  lastConfiguredBy  String?   @map("last_configured_by")
+  configurationDate DateTime? @map("configuration_date")
+  isActive          Boolean   @default(true) @map("is_active")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
   // Relations
-  terminal                         Terminal                         @relation(fields: [terminalId], references: [terminalId], onDelete: Cascade)
-  
+  terminal Terminal @relation(fields: [terminalId], references: [terminalId], onDelete: Cascade)
+
   @@index([terminalId])
   @@map("terminal_settings")
 }
 
 model TerminalSettingsOverride {
-  id                               String                           @id @default(cuid())
-  settingKey                       String                           @map("setting_key")
-  settingValue                     Json                             @map("setting_value") // Can store different types
-  overrideLevel                    String                           @map("override_level") // TENANT, BRANCH, TERMINAL
-  overrideSourceId                 String                           @map("override_source_id") // tenantId, branchId, or terminalId
-  reason                           String?                          @map("reason")
-  effectiveFrom                    DateTime                         @map("effective_from")
-  effectiveTo                      DateTime?                        @map("effective_to")
-  isActive                         Boolean                          @default(true) @map("is_active")
-  createdBy                        String?                          @map("created_by")
-  createdAt                        DateTime                         @default(now()) @map("created_at")
-  updatedAt                        DateTime                         @updatedAt @map("updated_at")
-  
+  id               String    @id @default(cuid())
+  settingKey       String    @map("setting_key")
+  settingValue     Json      @map("setting_value") // Can store different types
+  overrideLevel    String    @map("override_level") // TENANT, BRANCH, TERMINAL
+  overrideSourceId String    @map("override_source_id") // tenantId, branchId, or terminalId
+  reason           String?   @map("reason")
+  effectiveFrom    DateTime  @map("effective_from")
+  effectiveTo      DateTime? @map("effective_to")
+  isActive         Boolean   @default(true) @map("is_active")
+  createdBy        String?   @map("created_by")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
   @@unique([overrideLevel, overrideSourceId, settingKey], name: "unique_override")
   @@index([overrideLevel, overrideSourceId])
   @@index([settingKey])
@@ -845,23 +846,23 @@ model TerminalSettingsOverride {
 }
 
 model HoldOrder {
-  id           String       @id @default(cuid())
-  itemId       String       @unique
-  reference    String       @unique
-  total        Decimal      @default(0)
-  totalItems   Int          @default(0)
-  date         DateTime
-  status       HoldOrderStatus @default(hold)
-  userId       String?
-  till         String?
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
-  tenantId     String?
-  branchId     String?
-  
+  id         String          @id @default(cuid())
+  itemId     String          @unique
+  reference  String          @unique
+  total      Decimal         @default(0)
+  totalItems Int             @default(0)
+  date       DateTime
+  status     HoldOrderStatus @default(hold)
+  userId     String?
+  till       String?
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+  tenantId   String?
+  branchId   String?
+
   // Relationship to hold order items
-  items        HoldOrderItem[]
-  
+  items HoldOrderItem[]
+
   @@index([itemId])
   @@index([reference])
   @@index([date])
@@ -871,26 +872,26 @@ model HoldOrder {
 }
 
 model HoldOrderItem {
-  id             String    @id @default(cuid())
-  holdOrderId    String
-  holdOrder      HoldOrder @relation(fields: [holdOrderId], references: [id], onDelete: Cascade)
-  
+  id          String    @id @default(cuid())
+  holdOrderId String
+  holdOrder   HoldOrder @relation(fields: [holdOrderId], references: [id], onDelete: Cascade)
+
   // CartItem fields (adjust based on your CartItem interface)
-  productId      String
-  productName    String
-  quantity       Int       @default(1)
-  price          Decimal   @default(0)
-  subtotal       Decimal   @default(0)
-  
+  productId   String
+  productName String
+  quantity    Int     @default(1)
+  price       Decimal @default(0)
+  subtotal    Decimal @default(0)
+
   // Additional fields as needed
-  sku            String?
-  barcode        String?
-  unit           String?
-  discount       Decimal?  @default(0)
-  tax            Decimal?  @default(0)
-  
-  createdAt      DateTime  @default(now())
-  
+  sku      String?
+  barcode  String?
+  unit     String?
+  discount Decimal? @default(0)
+  tax      Decimal? @default(0)
+
+  createdAt DateTime @default(now())
+
   @@index([holdOrderId])
   @@index([productId])
 }

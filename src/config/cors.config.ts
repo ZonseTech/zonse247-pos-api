@@ -22,7 +22,11 @@ export const corsOptions = {
 		'X-Access-Token',
 		'X-Key',
 		'X-Tenant-Signature',
-		'x-tenant-signature'
+		'x-tenant-signature',
+		'x-client-type',
+		'X-Client-Type',
+		'x-tenant-id',
+		'X-Tenant-Id',
 	],
 	maxAge: 86400,
 };

@@ -16,6 +16,7 @@ export type Transaction = {
     customerId?: string;
     paymentServiceProviderId?: string;
     transactionId?: string;
+    externalTransactionRef?: string; // External payment reference (e.g., from Airtel Money, bank transfer)
     paymentMethodId?: string;
     terminalId: string;
     phoneNumber: string;
