@@ -54,7 +54,7 @@ router.use(apiMiddleware.verifyClientType)
 
 router.use('/on-boarding', OnboardingRoutes);
 router.use('/account-seeds', AccountSeedsRoutes)
-router.use('/metadata', MetadataMiddleware.validateKey, MetadataRoutes);
+router.use('/metadata', MetadataMiddleware.validateKeys, MetadataRoutes);
 
 router.get('/subscriptions/live/tenant/:tenantId', SubscriptionController.getSubscriptionByTenantId);
 
