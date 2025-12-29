@@ -5,11 +5,6 @@ import { PermissionModel } from "../models/permission.model";
 import { CreateRoleRequest, Permission, Role } from "role-permission";
 
 export class RoleService {
-
-    static async selectAll(params): Promise<Array<Role>> {
-        return await RoleModel.findAllByRDBMS(params);
-    }
-
     static async getAllRoles(query: any = {}): Promise<Role[]> {
         try {
             const conditions: any = {};
@@ -18,8 +13,8 @@ export class RoleService {
                 conditions.tenantId = query.tenantId;
             }
 
-            if (query.shopUuid) {
-                conditions.shopUuid = query.shopUuid;
+            if (query.branchId) {
+                conditions.branchId = query.branchId;
             }
 
             if (query.isSystemRole !== undefined) {
