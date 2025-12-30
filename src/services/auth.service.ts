@@ -49,67 +49,43 @@ export class AuthService {
 
         const user = await UserModel.findByUsername(escapedUsername);
 
-        if (!user) return { message: 'User not found.', user: null, token: null };
-
-        if (user.status !== UserStatus.active) {
-            return { message: 'Account is not active. Please contact support.' };
-        }
-
-        const isPasswordValid = await UserModel.validatePassword(password, user.password);
-
-        if (!isPasswordValid) {
-            return { message: 'Incorrect username or password.' };
-        }
-
-        await UserModel.updateLastLogin(user.userId);
-
-        const roleData = await UserService.getRoleWithPermissions(user.roleId);
-        const completeUser = UserService.getPublicUser(user, roleData || {});
-        const token = this.generateJWTToken(completeUser);
-
-        return { user: completeUser, token, message: null };
-
-    }
-
-    static async syncUserCredentions(username: string, password: string): Promise<{ user?, token?, message?}> {
-        try {
-            const escapedUsername = validator.escape(username);
-
-            const response = await BaseService.post<{ user: User; token: string }>('/auth/live/login', {
-                username: escapedUsername,
-                password,
-            }).catch((err) => {
-
-                console.log('====================================');
-                console.log(err);
-                console.log('====================================');
-
-                throw err;
-            });
-
-            console.log('====================================');
-            console.log('post', response);
-            console.log('====================================');
-
-            if (!response.success) {
-                throw response.error
+        if (user) {
+            if (user.status !== UserStatus.active) {
+                return { message: 'Account is not active. Please contact support.' };
             }
 
-            const { user: remoteUser, token: remoteToken } = response.data;
+            const isPasswordValid = await UserModel.validatePassword(password, user.password);
 
-            if (remoteUser) {
-                remoteUser.password = password;
-                await UserModel.create(remoteUser);
+            if (!isPasswordValid) {
+                return { message: 'Incorrect username or password.' };
             }
 
-            return { user: remoteUser, token: remoteToken };
-        } catch (error) {
-            console.log('====================================');
-            console.log('catch:', error);
-            console.log('====================================');
+            await UserModel.updateLastLogin(user.userId);
 
-            return { message: error || 'Incorrect username or password.' };
+            const roleData = await UserService.getRoleWithPermissions(user.roleId);
+            const completeUser = UserService.getPublicUser(user, roleData || {});
+            const token = this.generateJWTToken(completeUser);
+
+            return { user: completeUser, token };
         }
+
+        const response = await BaseService.post<{ user: User; token: string }>('/auth/live/login', {
+            username: escapedUsername,
+            password,
+        });
+
+        if (!response.success) {
+            return { message: response.message || 'Incorrect username or password.' };
+        }
+
+        const { user: remoteUser, token: remoteToken } = response.data;
+
+        if (remoteUser) {
+            remoteUser.password = password;
+            await UserModel.create(remoteUser);
+        }
+
+        return { user: remoteUser, token: remoteToken };
     }
 
     /**
@@ -145,7 +121,7 @@ export class AuthService {
             const isPasswordValid = await UserModel.validatePassword(password, user.password);
 
             if (!isPasswordValid) {
-                return { message: 'Incorrect login password. Please check your credentials.', user: null, token: null };
+                return { message: 'Incorrect username or password.' };
             }
 
             await UserModel.updateLastLogin(user.userId);
@@ -154,10 +130,10 @@ export class AuthService {
             const completeUser = UserService.getPublicUser(user, roleData || {});
             const token = this.generateJWTToken(completeUser);
 
-            return { user: completeUser, token, message: null };
+            return { user: completeUser, token };
         }
 
-        return { message: 'Incorrect username or password from server.', user: null, token: null };
+        return { message: 'Incorrect username or password.', };
     }
 
     /**
