@@ -9,7 +9,7 @@ export class BaseService {
         timeout: parseInt(process.env.API_TIMEOUT || '10000'),
         headers: {
             'Content-Type': 'application/json',
-            'X-Client-Type': 'desktop',
+            'X-Client-Type': 'web',
         },
     };
 
