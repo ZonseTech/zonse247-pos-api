@@ -115,7 +115,7 @@ export class SubscriptionModel {
 					updatedAt: new Date()
 				}
 			});
-			return 1; // Return 1 to indicate successful update
+			return 1;
 		} catch (error) {
 			throw new Error(
 				`Error updating subscription: ${error instanceof Error ? error.message : 'Unknown error'}`
@@ -128,7 +128,7 @@ export class SubscriptionModel {
 			await prisma.tenantSubscription.delete({
 				where: { tenantSubscriptionId: uuid }
 			});
-			return 1; // Return 1 to indicate successful deletion
+			return 1;
 		} catch (error) {
 			throw new Error(
 				`Error deleting subscription: ${error instanceof Error ? error.message : 'Unknown error'}`
