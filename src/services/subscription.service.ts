@@ -129,10 +129,6 @@ export class SubscriptionService {
 			}
 		);
 
-		console.log('====================================');
-		console.log(response);
-		console.log('====================================');
-
 		if (response.success) {
 			const newSubscription = response.data
 
