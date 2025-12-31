@@ -35,7 +35,6 @@ import { validateBody } from '../middlewares/validation.middleware'
 import { userValidationSchemas } from '../validations/user.schemas'
 import { asyncHandler } from '../middlewares/error.middleware'
 import { AuthController } from '../controllers/auth.controller'
-import { SubscriptionController } from '../controllers/subscription.controller'
 import { TenantMiddleware } from '../middlewares/tenant.middleware'
 
 const router = Router();
@@ -56,8 +55,6 @@ router.use('/on-boarding', OnboardingRoutes);
 router.use('/account-seeds', AccountSeedsRoutes)
 router.use('/metadata', MetadataMiddleware.validateKeys, MetadataRoutes);
 
-router.get('/subscriptions/live/tenant/:tenantId', SubscriptionController.getSubscriptionByTenantId);
-
 router.post(
     '/auth/live/login',
     validateBody(userValidationSchemas.loginUser),
@@ -68,7 +65,8 @@ router.use('/plan-features', PlanFeaturesRoutes);
 
 router.use('/auth', authLimiter, AuthRoutes);
 
-router.use(tenantMiddleware.verifyRequestHeaders, tenantMiddleware.subscriptionStatus)
+router.use(tenantMiddleware.verifyRequestHeaders)
+router.use(tenantMiddleware.subscriptionStatus)
 router.use(authMiddleware.verifyToken)
 
 router.use('/terminal-settings', TerminalSettingsRoutes);
