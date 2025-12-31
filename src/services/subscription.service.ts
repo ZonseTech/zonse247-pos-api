@@ -120,8 +120,18 @@ export class SubscriptionService {
 		if (subscription) return subscription
 
 		const response = await BaseService.get<TenantSubscription>(
-			`/subscriptions/live/tenant/${tenantId}`
+			`/subscriptions/live/tenant/${tenantId}`,
+			{},
+			{
+				headers: {
+					'X-Client-Type': 'desktop'
+				}
+			}
 		);
+
+		console.log('====================================');
+		console.log(response);
+		console.log('====================================');
 
 		if (response.success) {
 			const newSubscription = response.data
