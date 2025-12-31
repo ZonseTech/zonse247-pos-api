@@ -15,49 +15,31 @@ export class TenantMiddleware {
         next: NextFunction
     ): void => {
         try {
+            const tenantId = req.headers['x-tenant-id'] as string | undefined;
             const clientType = req.headers['x-client-type'] as string | undefined;
             const tenantSignature = req.headers['x-tenant-signature'] as string | undefined;
-            const tenantId = req.headers['x-tenant-id'] as string | undefined;
 
-            if (clientType === ClientType.DESKTOP) {
-                if (!tenantSignature || tenantSignature.trim() === '') {
-                    return BaseController.sendResponseWithSubscription(
-                        res,
-                        400,
-                        false,
-                        'Application not verified. Please provide X-Tenant-Signature header.',
-                        'unknown',
-                        null
-                    );
-                }
-                req.headers['x-tenant-signature'] = tenantSignature.trim();
+            const isEmpty = (value: string | undefined): boolean => {
+                return !value || value.trim() === '';
+            };
+
+            const sendError = (message: string): void => {
+                BaseController.sendResponseWithSubscription(
+                    res,
+                    400,
+                    false,
+                    message,
+                    'unknown',
+                    null
+                );
+            };
+
+            if (isEmpty(clientType)) {
+                return sendError('Application not verified. Please provide X-Client-Type header.');
             }
-            else if (clientType === ClientType.WEB || clientType === ClientType.MOBILE) {
-                if (!tenantId || tenantId.trim() === '') {
-                    return BaseController.sendResponseWithSubscription(
-                        res,
-                        400,
-                        false,
-                        'Application not verified. Please provide X-Tenant-Id header.',
-                        'unknown',
-                        null
-                    );
-                }
-                req.headers['x-tenant-id'] = tenantId.trim();
-            } else {
-                if ((!tenantSignature || tenantSignature.trim() === '') &&
-                    (!tenantId || tenantId.trim() === '')) {
-                    return BaseController.sendResponseWithSubscription(
-                        res,
-                        400,
-                        false,
-                        'Application not verified. Please provide X-Tenant-Signature or X-Tenant-Id header.',
-                        'unknown',
-                        null
-                    );
-                }
-                if (tenantSignature) req.headers['x-tenant-signature'] = tenantSignature.trim();
-                if (tenantId) req.headers['x-tenant-id'] = tenantId.trim();
+
+            if (isEmpty(tenantSignature) && isEmpty(tenantId)) {
+                return sendError('Application not verified. Please provide X-Tenant-Signature or X-Tenant-Id header.');
             }
 
             next();
@@ -81,7 +63,13 @@ export class TenantMiddleware {
     subscriptionStatus = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
         try {
             const clientType = req.headers['x-client-type'] as string | undefined;
-            if (!clientType || clientType.trim() === '') {
+            const clientTypes: string[] = [
+                ClientType.DESKTOP,
+                ClientType.WEB,
+                ClientType.MOBILE,
+            ];
+
+            if (!clientType || !clientTypes.includes(clientType)) {
                 BaseController.sendForbiddenWithSubscription(
                     res,
                     'Missing X-Client-Type header. Please specify the client type (web, mobile, or desktop).',
@@ -93,18 +81,13 @@ export class TenantMiddleware {
             let tenantId = null;
             const tenantSignature = req.headers?.['x-tenant-signature'] as string;
 
-            if (clientType === ClientType.WEB || clientType === ClientType.MOBILE) {
+            if (req.headers?.['x-tenant-id']) {
                 tenantId = req.headers?.['x-tenant-id'] as string;
-            } else {
-                if (!tenantSignature) {
-                    BaseController.sendForbiddenWithSubscription(
-                        res,
-                        'Missing tenant signature',
-                        'unauthorized'
-                    );
-                    return;
-                }
+            }
+
+            if (tenantSignature) {
                 const verification = await SecureSettingsService.verifyTenantSignature(tenantSignature);
+                tenantId = verification.tenantId;
 
                 if (!verification.isValid) {
                     BaseController.sendForbiddenWithSubscription(
@@ -164,8 +147,8 @@ export class TenantMiddleware {
             console.error('Error in subscription status middleware:', error);
             BaseController.sendServerErrorWithSubscription(
                 res,
-                'Authentication error',
-                'error'
+                'Authentication error:',
+                error instanceof Error ? error.message : 'Internal server error'
             );
         }
     };
