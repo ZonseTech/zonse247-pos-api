@@ -151,10 +151,10 @@ export class TerminalModel {
         }
     }
 
-    static async exists(branchId: string): Promise<boolean> {
+    static async exists(terminalId: string): Promise<boolean> {
         try {
             const count = await prisma.terminal.count({
-                where: { branchId }
+                where: { terminalId }
             });
             return count > 0;
         } catch (error) {

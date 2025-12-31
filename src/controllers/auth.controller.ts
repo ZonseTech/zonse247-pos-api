@@ -47,7 +47,7 @@ export class AuthController extends BaseController {
             }
         } catch (error: any) {
             console.error('Error during login:', error);
-            BaseController.sendResponse(res, 500, false, 'An unexpected error occurred during login', undefined, error.message);
+            BaseController.sendResponse(res, 500, false, 'Incorrect user credentials.', undefined, error.message);
         }
     }
 
@@ -83,7 +83,7 @@ export class AuthController extends BaseController {
             }
         } catch (error: any) {
             console.error('Error during login:', error);
-            BaseController.sendResponse(res, 500, false, 'An unexpected error occurred during login', undefined, error.message);
+            BaseController.sendResponse(res, 500, false, 'Incorrect user credentials.', undefined, error.message);
         }
     }
 

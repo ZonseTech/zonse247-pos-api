@@ -8,8 +8,7 @@ export class RoleController extends BaseController {
 
     static async selectAll(req: Request, res: Response): Promise<void> {
         try {
-            const params = req.body;
-            const roles = await RoleService.selectAll(params);
+            const roles = await RoleService.getAllRoles();
             BaseController.sendResponse(res, 200, true, 'Roles retrieved successfully', roles);
         } catch (error: any) {
             console.error('Error fetching roles:', error);

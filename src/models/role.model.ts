@@ -1,20 +1,9 @@
 import { v4 as uuidv4 } from 'uuid';
-import { ValidationParams } from 'on-boarding';
-import type { CreateRoleRequest, Role } from 'role-permission';
 import prisma from '../databases/prisma/client';
+import type { CreateRoleRequest, Role } from 'role-permission';
 
 export class RoleModel {
-    static async findAllByRDBMS(_: ValidationParams): Promise<Role[]> {
-        try {
-            return await prisma.role.findMany() as unknown as Role[];
-        } catch (error) {
-            throw new Error(
-                `Error finding roles: ${error instanceof Error ? error.message : 'Unknown error'}`
-            );
-        }
-    }
-
-    static async selectAll(conditions: any = {}): Promise<Role[]> {
+    static async selectAll(conditions = {}): Promise<Role[]> {
         try {
             return await prisma.role.findMany({
                 where: conditions

@@ -6,7 +6,7 @@ export class MetadataMiddleware {
     /**
      * Verify verification key and required params
      */
-    static async validateKey(req: Request & AuthRequest, res: Response, next: NextFunction): Promise<void> {
+    static async validateKeys(req: Request & AuthRequest, res: Response, next: NextFunction): Promise<void> {
         try {
             const {
                 verificationKey,
