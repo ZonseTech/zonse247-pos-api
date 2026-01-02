@@ -1,4 +1,4 @@
-import { Request, Response, Router } from "express";
+import { Router } from "express";
 import { RoleController } from "../controllers/role.controller";
 import { PermissionController } from "../controllers/permission.controller";
 import { RolePermissionController } from "../controllers/role-permission.controller";
@@ -12,10 +12,6 @@ import { PaymentServiceProviderController } from "../controllers/payment-service
 import { MetadataController } from "../controllers/metadata.controller";
 
 const router = Router();
-
-router.get('/', function (req: Request, res: Response): void {
-    res.send('Account seeds api');
-});
 
 router.post('/roles', RoleController.selectAll)
 router.post('/permissions', PermissionController.selectAll)

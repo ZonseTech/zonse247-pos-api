@@ -133,7 +133,7 @@ export class AuthService {
             return { user: completeUser, token };
         }
 
-        return { message: 'Incorrect username or password.' };
+        return { message: 'Incorrect username or password.', };
     }
 
     /**

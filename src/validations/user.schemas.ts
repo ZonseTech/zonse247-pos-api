@@ -15,7 +15,7 @@ export const userValidationSchemas = {
 		}),
 
 		password: Joi.string()
-			.min(8)
+			.min(4)
 			.max(128)
 			.required()
 			.messages({
@@ -37,10 +37,10 @@ export const userValidationSchemas = {
 			}),
 
 		phone: Joi.string()
-			.pattern(/^[+]?[1-9][\d]{0,15}$/)
+			.pattern(/^(\+265|265|0[89])\d{7,9}$/)
 			.optional()
 			.messages({
-				'string.pattern.base': 'Please provide a valid phone number',
+				'string.pattern.base': 'Please provide a valid phone number (e.g., +265123456789, 265123456789, or 0912345678)',
 			}),
 
 		dateOfBirth: Joi.date().max('now').min('1900-01-01').optional().messages({

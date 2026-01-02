@@ -68,12 +68,10 @@ export class UserService {
 			throw new Error('User with this username or email already exists');
 		}
 
-		const newUserData = await UserModel.buildUserData({
+		const user = await UserModel.create({
 			...userData,
 			status: userData.status || 'active'
-		} as unknown as UserUncheckedCreateInput) as unknown as UserUncheckedCreateInput;
-
-		const user = await UserModel.create(newUserData);
+		} as unknown as UserUncheckedCreateInput);
 		return UserModel.getPublicUser(user);
 	}
 

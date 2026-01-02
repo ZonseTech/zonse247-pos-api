@@ -46,6 +46,7 @@ export class MetadataService {
                     timeout: API_TIMEOUT,
                     headers: {
                         'Content-Type': 'application/json',
+                        'X-Client-Type': 'desktop',
                     },
                 }
             );

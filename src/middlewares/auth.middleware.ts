@@ -98,20 +98,15 @@ export class AuthMiddleware {
 		next: NextFunction
 	): void => {
 		const { password } = req.body;
-
 		if (!password) {
 			next();
 			return;
 		}
-
 		const minLength = 8;
 		const hasUpperCase = /[A-Z]/.test(password);
 		const hasLowerCase = /[a-z]/.test(password);
 		const hasNumbers = /\d/.test(password);
-		const hasSpecialChar = /[@$!%*?&]/.test(password);
-
 		const errors: string[] = [];
-
 		if (password.length < minLength) {
 			errors.push(`Password must be at least ${minLength} characters long`);
 		}
@@ -124,12 +119,6 @@ export class AuthMiddleware {
 		if (!hasNumbers) {
 			errors.push('Password must contain at least one number');
 		}
-		if (!hasSpecialChar) {
-			errors.push(
-				'Password must contain at least one special character (@$!%*?&)'
-			);
-		}
-
 		if (errors.length > 0) {
 			res.status(400).json({
 				error: 'Password Validation Error',
@@ -138,7 +127,6 @@ export class AuthMiddleware {
 			});
 			return;
 		}
-
 		next();
 	};
 
