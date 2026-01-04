@@ -551,6 +551,22 @@ All endpoints are prefixed with the API base URL (e.g., `http://localhost:3000/a
 
 ---
 
+## Returns/Refunds
+
+**Base Path:** `/returns`
+
+| Method | Endpoint                                    | Description                         | Auth Required |
+| ------ | ------------------------------------------- | ----------------------------------- | ------------- |
+| GET    | `/returns/`                                 | Returns/Refunds API info            | Yes           |
+| POST   | `/returns/initiate`                         | Initiate a return/refund            | Yes           |
+| GET    | `/returns/transaction/:transactionId`       | Get all returns for a transaction   | Yes           |
+| GET    | `/returns/:returnTransactionId`             | Get return details by ID            | Yes           |
+| DELETE | `/returns/:returnTransactionId`             | Cancel a return                     | Yes           |
+| POST   | `/returns/:returnTransactionId/restock`     | Restock returned items              | Yes           |
+| GET    | `/returns/statistics/summary`               | Get return statistics (date range)  | Yes           |
+
+---
+
 ## Hold Orders
 
 **Base Path:** `/hold-orders`
