@@ -67,7 +67,7 @@ router.post(
 
 router.get(
 	'/:id',
-	validateParams(userValidationSchemas.userId),
+	validateParams(userValidationSchemas.id),
 	asyncHandler(UserController.show)
 );
 

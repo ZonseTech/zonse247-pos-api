@@ -29,11 +29,22 @@ export type Transaction = {
     createdAt?: Date;
     updatedAt?: Date;
 
+    // Refund/Return fields
+    isRefund?: boolean;
+    originalTransactionId?: string;
+    refundReason?: string;
+    refundedAmount?: Decimal;
+    refundedAt?: Date;
+
+    // Related data
     customer?: Customer;
     paymentMethod?: PaymentMethod;
     paymentServiceProvider?: PaymentServiceProvider;
     items?: CartItem[];
     user?: User;
+    originalTransaction?: Transaction;
+    refunds?: Transaction[];
+    totalRefunded?: number;
     synced: number;
 };
 
@@ -52,4 +63,6 @@ export interface DateRangeFilters {
     user?: number;
     till?: number;
     includeItems: boolean;
+    tenantId?: string;
+    branchId?: string;
 }
