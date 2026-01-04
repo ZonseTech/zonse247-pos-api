@@ -237,6 +237,80 @@ export class InventoryModel {
         return result ? 1 : 0;
     }
 
+    static async incrementInventory(
+        products: Array<{ productId: string; quantity: number }>,
+        auth: AuthenticatedUser
+    ): Promise<void> {
+        try {
+            const successful: string[] = [];
+            const failed: Array<{ productId: string; error: string }> = [];
+            const skipped: Array<{ productId: string; reason: string }> = [];
+
+            for (const item of products) {
+                try {
+                    const existingItem = await prisma.inventory.findFirst({
+                        where: {
+                            productId: item.productId,
+                            tenantId: auth.tenantId,
+                            branchId: auth.branchId
+                        }
+                    });
+
+                    if (!existingItem) {
+                        skipped.push({
+                            productId: item.productId,
+                            reason: 'Inventory item not found'
+                        });
+                        continue;
+                    }
+
+                    if (existingItem.status === InventoryStatus.inactive) {
+                        skipped.push({
+                            productId: item.productId,
+                            reason: 'Inventory item is voided'
+                        });
+                        continue;
+                    }
+
+                    // Increment the inventory quantity
+                    const newQuantity = parseInt(existingItem.quantity) + item.quantity;
+
+                    // Update the inventory item
+                    await prisma.inventory.update({
+                        where: { productId: item.productId },
+                        data: {
+                            quantity: newQuantity.toString(),
+                            userId: auth.userId,
+                            updatedAt: new Date()
+                        }
+                    });
+
+                    successful.push(item.productId);
+                } catch (error) {
+                    failed.push({
+                        productId: item.productId,
+                        error: error instanceof Error ? error.message : 'Unknown error'
+                    });
+                }
+            }
+
+            console.log('Inventory Increment Results:', {
+                successful: successful.length,
+                failed: failed.length,
+                skipped: skipped.length
+            });
+
+            if (failed.length > 0) {
+                console.error('Failed inventory increments:', failed);
+                throw new Error(`${failed.length} inventory increments failed`);
+            }
+
+        } catch (error) {
+            console.error('incrementInventory error:', error);
+            throw error;
+        }
+    }
+
     static async decrementInventory(
         products: CartItem[],
         auth: AuthenticatedUser

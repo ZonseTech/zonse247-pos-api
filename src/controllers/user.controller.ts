@@ -3,19 +3,19 @@ import { UserService } from '../services/user.service';
 import { BaseController } from './base.controller';
 import { ApiResponse } from 'network';
 import { PublicUser, User } from 'users';
+import { AuthRequest } from '../lib/express.type';
 
 export class UserController extends BaseController {
 	constructor() {
 		super();
 	}
 
-	static async selectAll(req: Request, res: Response): Promise<void> {
+	static async selectAll(req: Request & AuthRequest, res: Response): Promise<void> {
 		try {
-			const params = req.body;
-			const users = await UserService.selectAll(params);
+			const users = await UserService.selectAll(req.auth.tenantId, req.auth.branchId);
 			BaseController.sendResponse(res, 200, true, 'Users retrieved successfully', users);
 		} catch (error: any) {
-			console.error('Error fetching roles:', error);
+			console.error('Error fetching users:', error);
 			BaseController.sendResponse(res, 500, false, error.message, undefined, error.message);
 		}
 	}
@@ -24,10 +24,10 @@ export class UserController extends BaseController {
 		BaseController.sendResponse(res, 200, true, 'Users API is running');
 	}
 
-	static async list(req: Request, res: Response): Promise<void> {
+	static async list(req: Request & AuthRequest, res: Response): Promise<void> {
 		try {
 			const query = req.query;
-			const users = await UserService.getAllUsers(query);
+			const users = await UserService.getAllUsers(query, req.auth.tenantId, req.auth.branchId);
 			BaseController.sendResponse(res, 200, true, 'Users retrieved successfully', users);
 		} catch (error: any) {
 			console.error('Error retrieving users:', error);
@@ -35,7 +35,7 @@ export class UserController extends BaseController {
 		}
 	}
 
-	static async show(req: Request<{ id: string }, ApiResponse<PublicUser>>, res: Response): Promise<void> {
+	static async show(req: Request<{ id: string }, ApiResponse<PublicUser>> & AuthRequest, res: Response): Promise<void> {
 		try {
 			const { id } = req.params;
 
@@ -44,7 +44,7 @@ export class UserController extends BaseController {
 				return;
 			}
 
-			const user = await UserService.getUserById(id);
+			const user = await UserService.getUserById(id, req.auth.tenantId, req.auth.branchId);
 			BaseController.sendResponse(res, 200, true, 'User retrieved successfully', user);
 		} catch (error: any) {
 			console.error('Error retrieving user:', error);
@@ -54,9 +54,13 @@ export class UserController extends BaseController {
 		}
 	}
 
-	static async store(req: Request<ApiResponse<PublicUser>, Partial<User>>, res: Response): Promise<void> {
+	static async store(req: Request<ApiResponse<PublicUser>, Partial<User>> & AuthRequest, res: Response): Promise<void> {
 		try {
-			const newUser = await UserService.createUser(req.body);
+			const newUser = await UserService.createUser(req.body, {
+				tenantId: req.auth.tenantId,
+				branchId: req.auth.branchId,
+				userId: req.auth.userId,
+			});
 			BaseController.sendResponse(res, 201, true, 'User created successfully', newUser);
 		} catch (error: any) {
 			console.error('Error creating user:', error);
@@ -74,7 +78,7 @@ export class UserController extends BaseController {
 		}
 	}
 
-	static async update(req: Request<{ id: string; }, ApiResponse<PublicUser>, Partial<User>>, res: Response): Promise<void> {
+	static async update(req: Request<{ id: string; }, ApiResponse<PublicUser>, Partial<User>> & AuthRequest, res: Response): Promise<void> {
 		try {
 			const userId = req.params.id;
 			const updateData = req.body;
@@ -84,7 +88,7 @@ export class UserController extends BaseController {
 				return;
 			}
 
-			await UserService.updateUser(userId, updateData);
+			await UserService.updateUser(userId, updateData, req.auth.tenantId, req.auth.branchId);
 			BaseController.sendResponse(res, 200, true, 'User updated successfully', updateData);
 		} catch (error: any) {
 			console.error('Error updating user:', error);
@@ -104,7 +108,7 @@ export class UserController extends BaseController {
 		}
 	}
 
-	static async delete(req: Request<{ id: string }, ApiResponse<{ status: boolean }>>, res: Response): Promise<void> {
+	static async delete(req: Request<{ id: string }, ApiResponse<{ status: boolean }>> & AuthRequest, res: Response): Promise<void> {
 		try {
 			const { id } = req.params;
 
@@ -113,7 +117,7 @@ export class UserController extends BaseController {
 				return;
 			}
 
-			await UserService.deleteUser(id);
+			await UserService.deleteUser(id, req.auth.tenantId, req.auth.branchId);
 			BaseController.sendResponse(res, 200, true, 'User deleted successfully', { status: true });
 		} catch (error: any) {
 			console.error('Error deleting user:', error);
@@ -123,7 +127,7 @@ export class UserController extends BaseController {
 		}
 	}
 
-	static async getUsersByRole(req: Request<{ roleId: string }>, res: Response): Promise<void> {
+	static async getUsersByRole(req: Request<{ roleId: string }> & AuthRequest, res: Response): Promise<void> {
 		try {
 			const { roleId } = req.params;
 
@@ -132,7 +136,7 @@ export class UserController extends BaseController {
 				return;
 			}
 
-			const users = await UserService.getUsersByRole(roleId);
+			const users = await UserService.getUsersByRole(roleId, req.auth.tenantId, req.auth.branchId);
 			BaseController.sendResponse(res, 200, true, 'Users retrieved successfully', users);
 		} catch (error: any) {
 			console.error('Error retrieving users by role:', error);
@@ -140,7 +144,7 @@ export class UserController extends BaseController {
 		}
 	}
 
-	static async getUsersByBranch(req: Request<{ branchUuid: string }>, res: Response): Promise<void> {
+	static async getUsersByBranch(req: Request<{ branchUuid: string }> & AuthRequest, res: Response): Promise<void> {
 		try {
 			const { branchUuid } = req.params;
 
@@ -149,7 +153,7 @@ export class UserController extends BaseController {
 				return;
 			}
 
-			const users = await UserService.getUsersByBranch(branchUuid);
+			const users = await UserService.getUsersByBranch(branchUuid, req.auth.tenantId);
 			BaseController.sendResponse(res, 200, true, 'Users retrieved successfully', users);
 		} catch (error: any) {
 			console.error('Error retrieving users by branch:', error);
@@ -157,7 +161,7 @@ export class UserController extends BaseController {
 		}
 	}
 
-	static async updateUserStatus(req: Request<{ id: string }, ApiResponse<PublicUser>, { status: 'active' | 'inactive' | 'suspended' }>, res: Response): Promise<void> {
+	static async updateUserStatus(req: Request<{ id: string }, ApiResponse<PublicUser>, { status: 'active' | 'inactive' | 'suspended' }> & AuthRequest, res: Response): Promise<void> {
 		try {
 			const { id } = req.params;
 			const { status } = req.body;
@@ -172,7 +176,7 @@ export class UserController extends BaseController {
 				return;
 			}
 
-			const updatedUser = await UserService.updateUserStatus(id, status);
+			const updatedUser = await UserService.updateUserStatus(id, status, req.auth.tenantId, req.auth.branchId);
 			BaseController.sendResponse(res, 200, true, 'User status updated successfully', updatedUser);
 		} catch (error: any) {
 			console.error('Error updating user status:', error);

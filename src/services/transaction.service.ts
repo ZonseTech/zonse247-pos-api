@@ -14,9 +14,9 @@ import { AuthenticatedUser } from 'auth';
 
 export class TransactionService {
 
-    static async getAllTransactions(includeItems = true): Promise<Transaction[]> {
+    static async getAllTransactions(includeItems = true, tenantId: string, branchId: string): Promise<Transaction[]> {
         try {
-            const transactions = await TransactionModel.findAll();
+            const transactions = await TransactionModel.findAll({ tenantId, branchId });
             return await Promise.all(
                 transactions.map(transaction =>
                     this.enrichTransactionWithRelatedData(transaction, includeItems)
@@ -42,12 +42,12 @@ export class TransactionService {
         }
     }
 
-    static async getTransactionById(id: string, includeItems = true): Promise<Transaction> {
+    static async getTransactionById(id: string, includeItems = true, tenantId: string, branchId: string): Promise<Transaction> {
         if (!id) {
             throw new Error('Transaction ID is required');
         }
 
-        const transaction = await TransactionModel.findById(id);
+        const transaction = await TransactionModel.findById(id, tenantId, branchId);
         if (!transaction) {
             throw new Error('Transaction not found');
         }
@@ -74,12 +74,12 @@ export class TransactionService {
         return await this.enrichTransactionWithRelatedData(transaction, true);
     }
 
-    static async updateTransaction(id: string, data: Partial<Transaction>): Promise<Transaction> {
+    static async updateTransaction(id: string, data: Partial<Transaction>, tenantId: string, branchId: string): Promise<Transaction> {
         if (!id) {
             throw new Error('Transaction ID is required');
         }
 
-        const existingTransaction = await TransactionModel.findById(id);
+        const existingTransaction = await TransactionModel.findById(id, tenantId, branchId);
         if (!existingTransaction) {
             throw new Error('Transaction not found');
         }
@@ -89,7 +89,7 @@ export class TransactionService {
             throw new Error('Failed to update transaction');
         }
 
-        const updatedTransaction = await TransactionModel.findById(id);
+        const updatedTransaction = await TransactionModel.findById(id, tenantId, branchId);
         if (!updatedTransaction) {
             throw new Error('Failed to retrieve updated transaction');
         }
@@ -97,12 +97,12 @@ export class TransactionService {
         return await this.enrichTransactionWithRelatedData(updatedTransaction, true);
     }
 
-    static async deleteTransaction(id: string): Promise<{ status: boolean }> {
+    static async deleteTransaction(id: string, tenantId: string, branchId: string): Promise<{ status: boolean }> {
         if (!id) {
             throw new Error('Transaction ID is required');
         }
 
-        const existingTransaction = await TransactionModel.findById(id);
+        const existingTransaction = await TransactionModel.findById(id, tenantId, branchId);
         if (!existingTransaction) {
             throw new Error('Transaction not found');
         }
@@ -115,8 +115,8 @@ export class TransactionService {
         return { status: true };
     }
 
-    static async getTransactionSummary(id: string): Promise<Transaction & { analytics: any }> {
-        const transaction = await this.getTransactionById(id, true);
+    static async getTransactionSummary(id: string, tenantId: string, branchId: string): Promise<Transaction & { analytics: any }> {
+        const transaction = await this.getTransactionById(id, true, tenantId, branchId);
 
         const analytics = {
             totalItems: transaction.items?.reduce(
@@ -202,6 +202,39 @@ export class TransactionService {
             promises.push(Promise.resolve({ user: null }));
         }
 
+        // Get refund information
+        if (transaction.isRefund && transaction.originalTransactionId) {
+            promises.push(
+                TransactionModel.findById(transaction.originalTransactionId)
+                    .then(originalTransaction => ({ originalTransaction }))
+                    .catch(() => ({ originalTransaction: null }))
+            );
+        } else {
+            promises.push(Promise.resolve({ originalTransaction: null }));
+        }
+
+        // Get list of refunds if this is the original transaction
+        if (!transaction.isRefund) {
+            promises.push(
+                TransactionModel.findRefundsByOriginalTransaction(transaction.transactionId)
+                    .then(refunds => ({ refunds }))
+                    .catch(() => ({ refunds: [] }))
+            );
+        } else {
+            promises.push(Promise.resolve({ refunds: [] }));
+        }
+
+        // Get total refunded amount
+        if (!transaction.isRefund) {
+            promises.push(
+                TransactionModel.getTotalRefundedAmount(transaction.transactionId)
+                    .then(totalRefunded => ({ totalRefunded }))
+                    .catch(() => ({ totalRefunded: 0 }))
+            );
+        } else {
+            promises.push(Promise.resolve({ totalRefunded: 0 }));
+        }
+
 
         if (includeItems && transaction.transactionId) {
             promises.push(
@@ -235,8 +268,17 @@ export class TransactionService {
             promises.push(Promise.resolve({ items: [] }));
         }
 
-        const [customerResult, _terminalResult, paymentMethodResult, paymentServiceProviderResult, userResult, itemsResult] =
-            await Promise.all(promises);
+        const [
+            customerResult,
+            _terminalResult,
+            paymentMethodResult,
+            paymentServiceProviderResult,
+            userResult,
+            originalTransactionResult,
+            refundsResult,
+            totalRefundedResult,
+            itemsResult
+        ] = await Promise.all(promises);
 
         return {
             ...transaction,
@@ -244,6 +286,9 @@ export class TransactionService {
             customer: customerResult.customer,
             paymentMethod: paymentMethodResult.paymentMethod,
             paymentServiceProvider: paymentServiceProviderResult.paymentServiceProvider,
+            originalTransaction: originalTransactionResult.originalTransaction,
+            refunds: refundsResult.refunds,
+            totalRefunded: totalRefundedResult.totalRefunded,
             items: includeItems ? itemsResult.items : [],
         };
     }
@@ -254,6 +299,12 @@ export class TransactionService {
             { status: filters.status },
         ];
 
+        if (filters.tenantId) {
+            baseQuery.push({ tenantId: filters.tenantId });
+        }
+        if (filters.branchId) {
+            baseQuery.push({ branchId: filters.branchId });
+        }
         if (filters.user && filters.user !== 0) {
             baseQuery.push({ userId: filters.user });
         }
