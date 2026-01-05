@@ -41,7 +41,6 @@ export class CustomerService {
             synced: 0,
         };
 
-        // Only add optional fields if they have values
         if (customerData.email && customerData.email.trim()) {
             newCustomer.email = validator.normalizeEmail(customerData.email) || customerData.email;
         }

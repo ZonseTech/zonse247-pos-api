@@ -9,15 +9,11 @@ export class SaleService {
      */
     static async createSale(data: CreateSaleInput, tenantId: string, branchId: string): Promise<SaleWithItems> {
         return await prisma.$transaction(async (tx) => {
-            // Generate sale number
-            const saleNumber = await this.generateSaleNumber(tenantId, branchId, tx);
-
-            // Calculate totals
             let subtotal = 0;
             const itemsWithCost = [];
+            const saleNumber = await this.generateSaleNumber(tenantId, branchId, tx);
 
             for (const item of data.items) {
-                // Get product and inventory
                 const product = await tx.product.findFirst({
                     where: {
                         id: item.productId,
@@ -39,7 +35,6 @@ export class SaleService {
                     throw new Error(`No inventory record for product ${product.name}`);
                 }
 
-                // Check stock availability
                 if (inventory.trackInventory && !inventory.allowNegativeStock) {
                     if (inventory.availableQuantity < item.quantity) {
                         throw new Error(
@@ -77,7 +72,6 @@ export class SaleService {
                 throw new Error('Insufficient payment amount');
             }
 
-            // Create sale
             const sale = await tx.sale.create({
                 data: {
                     tenantId: tenantId,
@@ -114,9 +108,7 @@ export class SaleService {
                 },
             });
 
-            // Update inventory and create stock movements
             for (const item of itemsWithCost) {
-                // Reduce available quantity
                 await tx.inventory.update({
                     where: { id: item.inventoryId },
                     data: {
@@ -125,7 +117,6 @@ export class SaleService {
                     },
                 });
 
-                // Record stock movement
                 await StockMovementService.recordMovement(
                     {
                         tenantId: tenantId,
@@ -282,12 +273,10 @@ export class SaleService {
                 throw new Error('Sale already voided');
             }
 
-            // Reverse inventory for each item
             for (const item of sale.items) {
                 const inventory = item.product.inventories?.[0];
                 if (!inventory) continue;
 
-                // Add back to available quantity
                 await tx.inventory.update({
                     where: { id: inventory.id },
                     data: {
@@ -295,7 +284,6 @@ export class SaleService {
                     },
                 });
 
-                // Record return stock movement
                 await StockMovementService.recordMovement(
                     {
                         tenantId,
@@ -313,7 +301,6 @@ export class SaleService {
                 );
             }
 
-            // Update sale as voided
             const voidedSale = await tx.sale.update({
                 where: { id: saleId },
                 data: {

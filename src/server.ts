@@ -68,13 +68,34 @@ export class Server {
 	}
 
 	private setupRoutes() {
-		this.app.get('/api/v1/health', (req: Request, res: Response) => {
+		// Health check endpoint (root level for connectivity checks)
+		this.app.get('/health', (req: Request, res: Response) => {
 			res.json({
 				success: true,
+				status: 'healthy',
 				message: 'Server is running',
 				timestamp: new Date().toISOString(),
 				environment: process.env.NODE_ENV,
 				version: process.env.npm_package_version || '1.0.0',
+				uptime: process.uptime(),
+			});
+		});
+
+		// Also support HEAD requests for lightweight health checks
+		this.app.head('/health', (req: Request, res: Response) => {
+			res.status(200).end();
+		});
+
+		// API versioned health endpoint
+		this.app.get('/api/v1/health', (req: Request, res: Response) => {
+			res.json({
+				success: true,
+				status: 'healthy',
+				message: 'Server is running',
+				timestamp: new Date().toISOString(),
+				environment: process.env.NODE_ENV,
+				version: process.env.npm_package_version || '1.0.0',
+				uptime: process.uptime(),
 			});
 		});
 
