@@ -68,7 +68,6 @@ export class Server {
 	}
 
 	private setupRoutes() {
-		// Health check endpoint (root level for connectivity checks)
 		this.app.get('/health', (req: Request, res: Response) => {
 			res.json({
 				success: true,
@@ -81,12 +80,10 @@ export class Server {
 			});
 		});
 
-		// Also support HEAD requests for lightweight health checks
 		this.app.head('/health', (req: Request, res: Response) => {
 			res.status(200).end();
 		});
 
-		// API versioned health endpoint
 		this.app.get('/api/v1/health', (req: Request, res: Response) => {
 			res.json({
 				success: true,
