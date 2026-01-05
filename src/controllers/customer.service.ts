@@ -51,7 +51,12 @@ export class CustomerController extends BaseController {
 
     static async create(req: Request, res: Response): Promise<void> {
         try {
-            const customerData: CreateCustomerData = req.body;
+            const customerData: CreateCustomerData = {
+                ...req.body,
+                tenantId: (req as any).auth?.tenantId || '',
+                branchId: (req as any).auth?.branchId || '',
+                userId: (req as any).auth?.userId || '',
+            };
 
             if (!customerData.name || customerData.name.trim() === '') {
                 return BaseController.sendBadRequest(res, 'Customer name is required');

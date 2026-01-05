@@ -32,19 +32,27 @@ export class CustomerService {
             throw new Error('Invalid email format');
         }
 
-        const sanitizedData = {
-            ...customerData,
-            name: validator.escape(customerData.name.trim()),
-            email: customerData.email ? validator.normalizeEmail(customerData.email) || undefined : undefined,
-            phone: customerData.phone ? validator.escape(customerData.phone.trim()) : undefined,
-            address: customerData.address ? validator.escape(customerData.address.trim()) : undefined,
-        };
-
-        const newCustomer: Customer = {
-            ...sanitizedData,
+        const newCustomer: any = {
             customerId: uuidv4(),
+            name: validator.escape(customerData.name.trim()),
+            tenantId: customerData.tenantId,
+            branchId: customerData.branchId,
+            userId: customerData.userId,
             synced: 0,
         };
+
+        // Only add optional fields if they have values
+        if (customerData.email && customerData.email.trim()) {
+            newCustomer.email = validator.normalizeEmail(customerData.email) || customerData.email;
+        }
+
+        if (customerData.phone && customerData.phone.trim()) {
+            newCustomer.phone = validator.escape(customerData.phone.trim());
+        }
+
+        if (customerData.address && customerData.address.trim()) {
+            newCustomer.address = validator.escape(customerData.address.trim());
+        }
 
         return await CustomerModel.create(newCustomer);
     }
