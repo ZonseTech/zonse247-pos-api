@@ -2,6 +2,7 @@ import { Customer } from "customer";
 import { CartItem } from "order";
 import { PaymentMethod } from "payment-method";
 import { PaymentServiceProvider } from "payment-service-provider";
+import { Terminal } from "terminal";
 import { Decimal } from "../databases/prisma/generated/prisma/internal/prismaNamespace";
 import { User } from "users";
 
@@ -38,6 +39,7 @@ export type Transaction = {
 
     // Related data
     customer?: Customer;
+    terminal?: Terminal;
     paymentMethod?: PaymentMethod;
     paymentServiceProvider?: PaymentServiceProvider;
     items?: CartItem[];

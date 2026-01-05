@@ -16,11 +16,9 @@ export const returnValidationSchemas = {
             .items(
                 Joi.object({
                     orderItemId: Joi.string()
-                        .uuid()
                         .required()
                         .messages({
                             'string.empty': 'Order item ID is required',
-                            'string.uuid': 'Invalid order item ID format',
                             'any.required': 'Order item ID is required'
                         }),
 
@@ -75,12 +73,11 @@ export const returnValidationSchemas = {
             }),
 
         refundReason: Joi.string()
-            .required()
+            .optional()
+            .allow('', null, 'null')
             .max(500)
             .messages({
-                'string.empty': 'Refund reason is required',
-                'string.max': 'Refund reason cannot exceed 500 characters',
-                'any.required': 'Refund reason is required'
+                'string.max': 'Refund reason cannot exceed 500 characters'
             }),
 
         refundMethod: Joi.string()

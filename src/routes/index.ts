@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import CategoriesRoutes from './categories.routes'
 import CustomersRoutes from './customers.routes'
-import DashboardRoutes from './dashboard.routes'
+import AnalyticsRoutes from './dashboard.routes'
 import DatabaseExportRoutes from './database-export.routes'
 import HoldOrdersRoutes from './hold-orders.routes'
 import InventoryRoutes from './inventory.routes'
@@ -79,7 +79,7 @@ router.use('/export', DatabaseExportRoutes);
 router.use('/sync', SyncRoutes);
 router.use('/payment-service-providers', PaymentServiceProviderRoutes);
 router.use('/users', UsersRoutes);
-router.use('/dashboard', DashboardRoutes);
+router.use('/analytics', AnalyticsRoutes);
 router.use('/inventory', InventoryRoutes);
 router.use('/customers', CustomersRoutes);
 router.use('/categories', CategoriesRoutes);

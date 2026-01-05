@@ -69,38 +69,31 @@ export class ReturnService {
         request: ReturnRequest,
         auth: AuthenticatedUser
     ): Promise<ReturnResponse> {
-        // Validate the original transaction
-        const originalTransaction = await this.validateOriginalTransaction(request.originalTransactionId);
+        const refundReason = !request.refundReason || request.refundReason === 'null' || request.refundReason.trim() === ''
+            ? 'Customer requested return'
+            : request.refundReason;
 
-        // Get original order items
+        const originalTransaction = await this.validateOriginalTransaction(request.originalTransactionId);
         const originalOrderItems = await OrderModel.findByTransactionRefNumber(originalTransaction.refNumber);
 
-        // Validate return items
         await this.validateReturnItems(request.items, originalOrderItems);
 
-        // Calculate refund amount
         const refundCalculation = this.calculateRefundAmount(request.items, originalOrderItems);
-
-        // Check if partial or full refund
         const isFullRefund = Math.abs(refundCalculation.refundAmount - Number(originalTransaction.total)) < 0.01;
-
-        // Create refund transaction
         const returnTransaction = await this.createRefundTransaction(
             originalTransaction,
             refundCalculation.refundAmount,
-            request.refundReason,
+            refundReason,
             auth,
             isFullRefund
         );
 
-        // Create return items
         const returnItems = await this.createReturnItems(
             returnTransaction.transactionId,
             request.items,
             originalOrderItems
         );
 
-        // Update inventory (add returned items back)
         await this.updateInventoryForReturn(request.items, auth);
 
         return {

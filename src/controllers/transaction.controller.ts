@@ -7,13 +7,46 @@ export class TransactionController extends BaseController {
 
     static async list(req: Request & AuthRequest, res: Response): Promise<void> {
         try {
-            const includeItems = req.query.includeItems === 'true';
-            const transactions = await TransactionService.getAllTransactions(
+            const {
                 includeItems,
-                req.auth.tenantId,
-                req.auth.branchId
-            );
-            BaseController.sendResponse(res, 200, true, 'Transactions retrieved successfully', transactions);
+                search,
+                startDate,
+                endDate,
+                status,
+                page,
+                limit
+            } = req.query;
+
+            // Parse dates properly - ensure they're treated as local dates
+            let parsedStartDate: Date | undefined;
+            let parsedEndDate: Date | undefined;
+
+            if (startDate) {
+                // Parse as local date (YYYY-MM-DD)
+                const dateStr = startDate.toString();
+                parsedStartDate = new Date(dateStr + 'T00:00:00');
+            }
+
+            if (endDate) {
+                // Parse as local date (YYYY-MM-DD)
+                const dateStr = endDate.toString();
+                parsedEndDate = new Date(dateStr + 'T00:00:00');
+            }
+
+            const filters = {
+                includeItems: includeItems === 'true',
+                search: search?.toString(),
+                startDate: parsedStartDate,
+                endDate: parsedEndDate,
+                status: status?.toString(),
+                page: page ? parseInt(page.toString()) : 1,
+                limit: limit ? parseInt(limit.toString()) : 50,
+                tenantId: req.auth.tenantId,
+                branchId: req.auth.branchId,
+            };
+
+            const result = await TransactionService.getAllTransactions(filters);
+            BaseController.sendResponse(res, 200, true, 'Transactions retrieved successfully', result);
         } catch (error: any) {
             console.error('Error fetching transactions:', error);
             BaseController.sendResponse(res, 500, false, error.message, undefined, error.message);

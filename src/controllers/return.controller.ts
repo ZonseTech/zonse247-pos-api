@@ -51,11 +51,6 @@ export class ReturnController extends BaseController {
                 return;
             }
 
-            if (!returnRequest.refundReason) {
-                BaseController.sendResponse(res, 400, false, 'Refund reason is required');
-                return;
-            }
-
             const result = await ReturnService.initiateReturn(returnRequest, {
                 tenantId: req.auth.tenantId,
                 branchId: req.auth.branchId,

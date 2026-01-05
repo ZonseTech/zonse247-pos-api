@@ -5,32 +5,58 @@ import { TransactionOrderByWithRelationInput } from '../databases/prisma/generat
 
 export class TransactionModel {
 
-    static async findAll(conditions: any = {}): Promise<Transaction[]> {
+    static async findAll(conditions: any = {}, include: any = null, orderBy: any = null): Promise<Transaction[]> {
         return prisma.transaction.findMany({
+            where: conditions,
+            ...(include && { include }),
+            ...(orderBy && { orderBy }),
+        }) as any;
+    }
+
+    static async findAllPaginated(
+        conditions: any = {},
+        include: any = null,
+        orderBy: any = null,
+        skip = 0,
+        take = 50
+    ): Promise<Transaction[]> {
+        return prisma.transaction.findMany({
+            where: conditions,
+            ...(include && { include }),
+            ...(orderBy && { orderBy }),
+            skip,
+            take,
+        }) as any;
+    }
+
+    static async count(conditions: any = {}): Promise<number> {
+        return prisma.transaction.count({
             where: conditions,
         });
     }
 
-    static async findById(id: string, tenantId?: string, branchId?: string): Promise<Transaction | null> {
+    static async findById(id: string, tenantId?: string, branchId?: string, include: any = null): Promise<Transaction | null> {
         const where: any = { transactionId: id };
         if (tenantId) where.tenantId = tenantId;
         if (branchId) where.branchId = branchId;
 
         return prisma.transaction.findUnique({
             where: { transactionId: id },
+            ...(include && { include }),
         }).then(transaction => {
             if (transaction) {
                 if (tenantId && transaction.tenantId !== tenantId) return null;
                 if (branchId && transaction.branchId !== branchId) return null;
             }
             return transaction;
-        });
+        }) as any;
     }
 
-    static async findByConditions(conditions: any): Promise<Transaction[]> {
+    static async findByConditions(conditions: any, include: any = null): Promise<Transaction[]> {
         return prisma.transaction.findMany({
             where: conditions,
-        });
+            ...(include && { include }),
+        }) as any;
     }
 
     static async findByCustomerUuid(customerId: string): Promise<Transaction[]> {
@@ -105,12 +131,6 @@ export class TransactionModel {
             where: { transactionId: id },
         });
         return result ? 1 : 0;
-    }
-
-    static async count(conditions: any = {}): Promise<number> {
-        return prisma.transaction.count({
-            where: conditions,
-        });
     }
 
     static async findCompletedTransactions() {
