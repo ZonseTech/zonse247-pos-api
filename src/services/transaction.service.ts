@@ -4,12 +4,13 @@ import { TransactionModel } from '../models/transaction.model';
 import { OrderModel } from '../models/order.model';
 import { OrderService } from './order.service';
 import { CategoryModel } from '../models/category.model';
+import { PaymentMethodModel } from '../models/payment-methods.model';
+import { PaymentServiceProviderModel } from '../models/payment-service-provider.model';
 import { DateRangeFilters, Transaction } from 'transactions';
 import { AuthenticatedUser } from 'auth';
 
 export class TransactionService {
 
-    // Define the include object for transaction relations
     private static getTransactionInclude(_includeItems = false) {
         return {
             customer: true,
@@ -69,12 +70,12 @@ export class TransactionService {
                 // Set endDate to end of day (23:59:59.999)
                 const endOfDay = new Date(endDate);
                 endOfDay.setHours(23, 59, 59, 999);
-                
+
                 where.date = {
                     gte: startDate,
                     lte: endOfDay,
                 };
-                
+
                 console.log('Date filter applied:', {
                     startDate: startDate.toISOString(),
                     endDate: endOfDay.toISOString(),
@@ -205,6 +206,22 @@ export class TransactionService {
         const validationError = this.validateTransactionData(data);
         if (validationError) {
             throw new Error(validationError);
+        }
+
+        // Validate payment method exists if provided
+        if (data.paymentMethodId) {
+            const paymentMethod = await PaymentMethodModel.findById(data.paymentMethodId);
+            if (!paymentMethod) {
+                throw new Error(`Payment method with ID '${data.paymentMethodId}' not found. Please create the payment method first or use a valid payment method ID.`);
+            }
+        }
+
+        // Validate payment service provider exists if provided
+        if (data.paymentServiceProviderId) {
+            const provider = await PaymentServiceProviderModel.findById(data.paymentServiceProviderId);
+            if (!provider) {
+                throw new Error(`Payment service provider with ID '${data.paymentServiceProviderId}' not found. Please create the provider first or use a valid provider ID.`);
+            }
         }
 
         const transactionUuid = uuidv4();

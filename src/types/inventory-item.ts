@@ -2,74 +2,64 @@ import { Category } from "categoty";
 
 /**
  * Represents an inventory item in the system
- * Corresponds to the 'inventory' table in the database
+ * Combines Product and Inventory data from the new schema
  */
 export interface InventoryItem {
-    // Primary Key
+    // Product fields
     productId: string;
-
-    // Foreign Keys
-    branchId: string;
-    tenantId: string;
-    userId: string;
-    categoryId?: string;
-
-    // Product Identification
-    barcode: string;
-    sku?: string;
+    sku: string;
     name: string;
     description?: string;
+    unit: string;
+    sellingPrice: number;
+    primaryBarcode?: string;
+    isActive: boolean;
 
-    // Product Details
-    brand?: string;
-    unit?: string;
-    color?: string;
-    size?: string;
-    dimensions?: string;
-    weight?: number;
-    properties?: Record<string, any>;
+    // Inventory fields
+    inventoryId: string;
+    availableQuantity: number;
+    reservedQuantity: number;
+    damagedQuantity: number;
+    averageCost: number;
+    lastPurchaseCost: number;
 
-    // Pricing
-    costPrice: number;
-    sellPrice: number;
-    promoPrice?: number;
-    promoStart?: Date | string;
-    promoEnd?: Date | string;
-
-    // Stock Management
-    quantity: string;
-    originalQuantity: string;
-    reservedQuantity?: number;
-    minStock?: number;
+    // Stock management
+    reorderPoint?: number;
     maxStock?: number;
-    stock?: number;
-    reorderLevel?: number;
-
-    // Inventory Settings
-    status?: string;
-    trackInventory?: boolean;
-    allowNegativeStock?: boolean;
-    isTaxable?: boolean;
+    trackInventory: boolean;
+    allowNegativeStock: boolean;
 
     // Dates
-    expirationDate?: Date | string;
-    manufactureDate?: Date | string;
+    lastRestockedAt?: Date | string;
+    lastSoldAt?: Date | string;
+    createdAt: Date | string;
+    updatedAt: Date | string;
 
-    // Media
-    imageUrls?: string[] | any;
+    // Foreign keys
+    tenantId: string;
+    branchId: string;
 
-    // Supplier Information
-    supplierName?: string;
-    supplierCode?: string;
+    // Legacy compatibility fields (computed)
+    barcode?: string; // Mapped from primaryBarcode
+    quantity?: string; // Mapped from availableQuantity
+    costPrice?: number; // Mapped from averageCost
+    sellPrice?: number; // Mapped from sellingPrice
+    status?: string; // Computed from isActive
+    minStock?: number; // Mapped from reorderPoint
 
-    // Audit Fields
-    createdBy?: string;
-    lastUpdatedBy?: string;
-    synced?: number;
-    createdAt?: Date | string;
-    updatedAt?: Date | string;
-
-    // Additional computed/join fields
+    // Category support (from old system)
+    categoryId?: string;
     categoryDetails?: Category;
+
+    // Additional barcodes
+    barcodes?: Array<{
+        barcode: string;
+        barcodeType: string;
+        barcodeSource: string;
+        isActive: boolean;
+    }>;
+
+    // Computed fields
     isExpired?: boolean;
+    totalQuantity?: number; // availableQuantity + reservedQuantity
 }

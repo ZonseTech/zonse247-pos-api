@@ -59,15 +59,15 @@ export class PaymentServiceProviderController extends BaseController {
                 return;
             }
 
-            const { name, logoUrl } = req.body;
+            const { name, type, logoUrl } = req.body;
 
-            if (!name || !logoUrl) {
-                PaymentServiceProviderController.sendBadRequest(res, 'Name and logo URL are required');
+            if (!name || !type || !logoUrl) {
+                PaymentServiceProviderController.sendBadRequest(res, 'Name, type, and logo URL are required');
                 return;
             }
 
             const newPSP = await PaymentServiceProviderService.createPaymentServiceProvider(
-                { name, logoUrl },
+                { name, type, logoUrl },
                 user as any
             );
 

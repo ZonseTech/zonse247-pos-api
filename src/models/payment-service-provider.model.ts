@@ -72,6 +72,7 @@ export class PaymentServiceProviderModel {
         return {
             providerId: uuidv4(),
             name: data.name,
+            type: data.type || 'bank',
             tenantId: data.tenantId,
             branchId: data.branchId,
             userId: data.userId,
@@ -88,6 +89,7 @@ export class PaymentServiceProviderModel {
                 data: {
                     providerId: pspData.providerId,
                     name: pspData.name,
+                    type: pspData.type || 'bank',
                     userId: pspData.userId,
                     logoUrl: pspData.logoUrl,
                     synced: 0

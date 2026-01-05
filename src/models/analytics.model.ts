@@ -137,18 +137,17 @@ export class AnalyticsModel {
             },
         });
 
-        // Get products with category details using include
-        const products = await prisma.inventory.findMany({
+        // Get products with inventory details
+        const products = await prisma.product.findMany({
             where: {
                 tenantId,
                 branchId,
-                status: { not: InventoryStatus.inactive },
+                isActive: true,
             },
             include: {
-                category: {
-                    select: {
-                        categoryId: true,
-                        name: true,
+                inventories: {
+                    where: {
+                        branchId,
                     },
                 },
             },
@@ -156,7 +155,7 @@ export class AnalyticsModel {
 
         // Create product map for quick lookup
         const productMap = new Map(
-            products.map(p => [p.productId, p])
+            products.map(p => [p.id, p])
         );
 
         // Aggregate order quantities and sales
@@ -189,11 +188,11 @@ export class AnalyticsModel {
 
             if (product) {
                 topProducts.push({
-                    productId: product.productId,
+                    productId: product.id,
                     name: product.name,
                     quantity: summary.quantity,
                     summedSellPrice: Math.round(summary.summedSellPrice * 100) / 100,
-                    categoryName: product.category?.name || 'Uncategorized',
+                    categoryName: 'Uncategorized', // Category removed in new schema
                 });
             }
         });
@@ -222,27 +221,23 @@ export class AnalyticsModel {
                     total: true,
                 },
             }),
-            // Get inventory products to sum quantities (since quantity is a string field)
+            // Get inventory to sum quantities
             prisma.inventory.findMany({
                 where: {
                     tenantId,
                     branchId,
-                    status: { not: InventoryStatus.inactive },
                 },
                 select: {
-                    quantity: true,
-                    stock: true,
+                    availableQuantity: true,
+                    reservedQuantity: true,
                 },
             }),
-            // Count expired products
-            prisma.inventory.count({
+            // Count products (no expiration tracking in new schema)
+            prisma.product.count({
                 where: {
                     tenantId,
                     branchId,
-                    status: { not: InventoryStatus.inactive },
-                    expirationDate: {
-                        lt: new Date(),
-                    },
+                    isActive: false,
                 },
             }),
             // Count users in this branch
@@ -262,12 +257,9 @@ export class AnalyticsModel {
 
         const totalSales = Number(transactionAggregate._sum.total || 0);
 
-        // Sum quantities (prefer stock field if available, otherwise parse quantity string)
-        const totalProducts = inventoryProducts.reduce((sum, product) => {
-            const qty = product.stock !== null
-                ? product.stock
-                : Number(product.quantity || 0);
-            return sum + qty;
+        // Sum quantities from new inventory structure
+        const totalProducts = inventoryProducts.reduce((sum, inv) => {
+            return sum + inv.availableQuantity + inv.reservedQuantity;
         }, 0);
 
         return {
@@ -330,25 +322,17 @@ export class AnalyticsModel {
 
         // Fetch all products for these orders in a single query
         const productIds = orderItems.map(item => item.productId);
-        const products = await prisma.inventory.findMany({
+        const products = await prisma.product.findMany({
             where: {
-                productId: {
+                id: {
                     in: productIds,
-                },
-            },
-            include: {
-                category: {
-                    select: {
-                        categoryId: true,
-                        name: true,
-                    },
                 },
             },
         });
 
         // Create product map for quick lookup
         const productMap = new Map(
-            products.map(p => [p.productId, p])
+            products.map(p => [p.id, p])
         );
 
         // Attach product details to order items
@@ -418,28 +402,19 @@ export class AnalyticsModel {
             },
         });
 
-        // Fetch all products with categories in a single query
+        // Fetch all products in a single query
         const productIds = orderItems.map(item => item.productId);
-        const products = await prisma.inventory.findMany({
+        const products = await prisma.product.findMany({
             where: {
-                productId: {
+                id: {
                     in: productIds,
-                },
-            },
-            include: {
-                category: {
-                    select: {
-                        categoryId: true,
-                        name: true,
-                        color: true,
-                    },
                 },
             },
         });
 
         // Create product map for quick lookup
         const productMap = new Map(
-            products.map(p => [p.productId, p])
+            products.map(p => [p.id, p])
         );
 
         // Build detailed order items with calculations
@@ -452,7 +427,7 @@ export class AnalyticsModel {
             return {
                 ...item,
                 productDetails: product || null,
-                categoryDetails: product?.category || null,
+                categoryDetails: null, // Category removed in new schema
                 lineTotal: sellPrice * quantity,
                 profit: (sellPrice - purchasePrice) * quantity,
             };

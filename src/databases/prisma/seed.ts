@@ -4,6 +4,7 @@ import {
     seedCategories,
     seedCustomers,
     seedPaymentMethods,
+    seedPaymentServiceProviders,
     seedPermissions,
     seedRolePermissions,
     seedRoles,
@@ -31,6 +32,7 @@ async function main() {
         await seedCategories(prisma);
         await seedCustomers(prisma);
         await seedPaymentMethods(prisma);
+        await seedPaymentServiceProviders(prisma);
 
         console.log('🎉 Database seeding completed successfully!');
     } catch (error) {
