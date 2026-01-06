@@ -11,6 +11,7 @@ router.post('/', TerminalSettingsController.createSettings);
 router.put('/:terminalId', TerminalSettingsController.updateSettings);
 router.patch('/:terminalId/group/:groupName', TerminalSettingsController.updateSettingsGroup);
 router.patch('/:terminalId/deactivate', TerminalSettingsController.deactivateSettings);
+router.post('/:terminalId/reset', TerminalSettingsController.resetSettings);
 router.delete('/:terminalId', TerminalSettingsController.deleteSettings);
 
 export default router;
