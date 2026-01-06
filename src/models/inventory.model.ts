@@ -27,7 +27,8 @@ export class InventoryModel {
                 },
                 productBarcodes: {
                     where: { isActive: true }
-                }
+                },
+                category: true
             }
         });
 
@@ -44,7 +45,8 @@ export class InventoryModel {
                 inventories: true,
                 productBarcodes: {
                     where: { isActive: true }
-                }
+                },
+                category: true
             }
         });
 
@@ -69,7 +71,8 @@ export class InventoryModel {
                 },
                 productBarcodes: {
                     where: { isActive: true }
-                }
+                },
+                category: true
             }
         });
 
@@ -146,7 +149,8 @@ export class InventoryModel {
                 },
                 productBarcodes: {
                     where: { isActive: true }
-                }
+                },
+                category: true
             },
             skip,
             take: limit,
@@ -272,7 +276,8 @@ export class InventoryModel {
                 },
                 productBarcodes: {
                     where: { isActive: true }
-                }
+                },
+                category: true
             }
         });
 
@@ -290,6 +295,7 @@ export class InventoryModel {
                     branchId: auth.branchId,
                     sku: inventoryData.sku || inventoryData.barcode,
                     name: inventoryData.name,
+                    categoryId: inventoryData.categoryId || null,
                     description: inventoryData.description,
                     unit: inventoryData.unit || 'piece',
                     sellingPrice: parseFloat(inventoryData.sellPrice || inventoryData.sellingPrice || 0),
@@ -336,7 +342,6 @@ export class InventoryModel {
      */
     static async update(productId: string, updateData: Record<string, any>): Promise<number> {
         await prisma.$transaction(async (tx) => {
-            // Update product
             const productUpdate: any = {};
             if (updateData.name !== undefined) productUpdate.name = updateData.name;
             if (updateData.description !== undefined) productUpdate.description = updateData.description;
@@ -358,7 +363,6 @@ export class InventoryModel {
                 });
             }
 
-            // Update inventory
             const inventoryUpdate: any = {};
             if (updateData.quantity !== undefined) {
                 inventoryUpdate.availableQuantity = parseInt(updateData.quantity);
@@ -385,7 +389,7 @@ export class InventoryModel {
 
             if (Object.keys(inventoryUpdate).length > 0) {
                 await tx.inventory.updateMany({
-                    where: { productId: productId },
+                    where: { productId },
                     data: inventoryUpdate
                 });
             }
@@ -544,7 +548,6 @@ export class InventoryModel {
 
         const inventory = data.inventories?.[0];
         if (!inventory) {
-            // Product without inventory record
             return {
                 productId: data.id,
                 inventoryId: '',
@@ -564,9 +567,17 @@ export class InventoryModel {
                 allowNegativeStock: false,
                 tenantId: data.tenantId,
                 branchId: data.branchId,
+                categoryId: data.categoryId,
+                categoryDetails: data.category ? {
+                    categoryId: data.category.id,
+                    name: data.category.name,
+                    description: data.category.description,
+                    tenantId: data.category.tenantId,
+                    branchId: data.category.branchId,
+                    userId: data.category.userId
+                } : undefined,
                 createdAt: data.createdAt,
                 updatedAt: data.updatedAt,
-                // Legacy compatibility
                 barcode: data.primaryBarcode || '',
                 quantity: '0',
                 costPrice: 0,
@@ -604,9 +615,17 @@ export class InventoryModel {
             lastSoldAt: inventory.lastSoldAt,
             tenantId: data.tenantId,
             branchId: data.branchId,
+            categoryId: data.categoryId,
+            categoryDetails: data.category ? {
+                categoryId: data.category.id,
+                name: data.category.name,
+                description: data.category.description,
+                tenantId: data.category.tenantId,
+                branchId: data.category.branchId,
+                userId: data.category.userId
+            } : undefined,
             createdAt: data.createdAt,
             updatedAt: data.updatedAt,
-            // Legacy compatibility fields
             barcode: data.primaryBarcode || '',
             quantity: inventory.availableQuantity.toString(),
             costPrice: Number(inventory.averageCost),

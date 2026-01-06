@@ -2,7 +2,6 @@ import dayjs from 'dayjs';
 import { Transaction } from 'transactions';
 import { DashboardCounts, MonthlySales, TopProduct } from 'analytics';
 import prisma from '../databases/prisma/client';
-import { InventoryStatus } from '../databases/prisma/generated/prisma/enums';
 
 
 export class AnalyticsModel {

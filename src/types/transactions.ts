@@ -3,13 +3,15 @@ import { CartItem } from "order";
 import { PaymentMethod } from "payment-method";
 import { PaymentServiceProvider } from "payment-service-provider";
 import { Terminal } from "terminal";
-import { Decimal } from "../databases/prisma/generated/prisma/internal/prismaNamespace";
 import { User } from "users";
+
+// Database-agnostic decimal type (MySQL uses Decimal, SQLite uses number)
+type DecimalValue = number | { toNumber(): number };
 
 export type Transaction = {
     refNumber?: string;
-    subtotal: Decimal;
-    tax: Decimal;
+    subtotal: DecimalValue;
+    tax: DecimalValue;
     date: Date;
     userId: string;
     tenantId?: string;
@@ -21,10 +23,10 @@ export type Transaction = {
     paymentMethodId?: string;
     terminalId: string;
     phoneNumber: string;
-    total: Decimal;
-    paid: Decimal;
-    discount?: Decimal;
-    changeAmount: Decimal;
+    total: DecimalValue;
+    paid: DecimalValue;
+    discount?: DecimalValue;
+    changeAmount: DecimalValue;
 
     status?: string;
     createdAt?: Date;
@@ -34,7 +36,7 @@ export type Transaction = {
     isRefund?: boolean;
     originalTransactionId?: string;
     refundReason?: string;
-    refundedAmount?: Decimal;
+    refundedAmount?: DecimalValue;
     refundedAt?: Date;
 
     // Related data

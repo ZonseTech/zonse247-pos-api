@@ -5,7 +5,7 @@ import {
     UpdateProductInput,
     ProductWithInventory,
     SearchProductResult,
-} from '../models/product-new.model';
+} from '../models/product.model';
 
 
 export class ProductService {
@@ -335,29 +335,87 @@ export class ProductService {
         branchId: string,
         data: UpdateProductInput
     ): Promise<ProductWithInventory> {
-        const product = await prisma.product.update({
-            where: {
-                id: productId,
-                tenantId,
-                branchId,
-            },
-            data: {
-                name: data.name,
-                categoryId: data.categoryId,
-                primaryBarcode: data.primaryBarcode,
-                description: data.description,
-                unit: data.unit,
-                sellingPrice: data.sellingPrice,
-                isActive: data.isActive,
-            },
-            include: {
-                inventories: true,
-                productBarcodes: {
-                    where: { isActive: true },
+        // Use a transaction to update product, inventory settings, and barcodes
+        const product = await prisma.$transaction(async (tx) => {
+            await tx.product.update({
+                where: {
+                    id: productId,
+                    tenantId,
+                    branchId,
                 },
-                category: true,
-            },
+                data: {
+                    name: data.name,
+                    categoryId: data.categoryId,
+                    primaryBarcode: data.primaryBarcode,
+                    description: data.description,
+                    unit: data.unit,
+                    sellingPrice: data.sellingPrice,
+                    isActive: data.isActive,
+                },
+            });
+
+            if (
+                data.trackInventory !== undefined ||
+                data.allowNegativeStock !== undefined ||
+                data.minStock !== undefined ||
+                data.maxStock !== undefined ||
+                data.reorderLevel !== undefined
+            ) {
+                await tx.inventory.updateMany({
+                    where: {
+                        productId,
+                        tenantId,
+                        branchId,
+                    },
+                    data: {
+                        ...(data.trackInventory !== undefined && { trackInventory: data.trackInventory }),
+                        ...(data.allowNegativeStock !== undefined && { allowNegativeStock: data.allowNegativeStock }),
+                        ...(data.reorderLevel !== undefined && { reorderPoint: data.reorderLevel }),
+                        ...(data.minStock !== undefined && { reorderPoint: data.minStock }),
+                        ...(data.maxStock !== undefined && { maxStock: data.maxStock }),
+                    },
+                });
+            }
+
+            if (data.barcodes !== undefined) {
+                await tx.productBarcode.updateMany({
+                    where: {
+                        productId,
+                    },
+                    data: {
+                        isActive: false,
+                    },
+                });
+
+                if (data.barcodes.length > 0) {
+                    await tx.productBarcode.createMany({
+                        data: data.barcodes.map((bc) => ({
+                            productId,
+                            barcode: bc.barcode,
+                            barcodeType: bc.barcodeType || 'EAN13',
+                            barcodeSource: bc.barcodeSource || 'SUPPLIER',
+                            description: bc.description,
+                            isActive: true,
+                        })),
+                    });
+                }
+            }
+
+            return tx.product.findUnique({
+                where: { id: productId },
+                include: {
+                    inventories: true,
+                    productBarcodes: {
+                        where: { isActive: true },
+                    },
+                    category: true,
+                },
+            });
         });
+
+        if (!product) {
+            throw new Error('Product not found');
+        }
 
         return this.mapProductWithInventory(product);
     }
