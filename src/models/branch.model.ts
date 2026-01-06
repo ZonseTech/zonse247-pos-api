@@ -86,6 +86,14 @@ export class BranchModel {
         }) as unknown as Branch;
     }
 
+    static async getLastId(): Promise<number> {
+        const lastBranch = await prisma.branch.findFirst({
+            orderBy: { id: 'desc' },
+            select: { id: true }
+        });
+        return lastBranch?.id || 0;
+    }
+
     static async count(conditions = {}): Promise<number> {
         return await prisma.branch.count({
             where: conditions

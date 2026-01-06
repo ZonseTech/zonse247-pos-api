@@ -257,9 +257,12 @@ export class BranchService {
 	} | null): Promise<Branch> {
 		const now = new Date();
 
+		const lastId = await BranchModel.getLastId();
+		const branchCode = `BR${lastId + 1}`;
+
 		const data = {
 			branchName: 'Default Branch',
-			branchCode: 'BR001',
+			branchCode,
 			addressLine1: '123 Main Street',
 			city: 'Lilongwe',
 			district: 'Lilongwe Urban',
