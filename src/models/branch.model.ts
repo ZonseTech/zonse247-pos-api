@@ -29,15 +29,10 @@ export class BranchModel {
         });
     }
 
-    static async findById(branchId: string, tenantId?: string): Promise<Branch | null> {
+    static async findById(branchId: string): Promise<Branch | null> {
         const branch = await prisma.branch.findUnique({
             where: { branchId }
         });
-
-        // Verify tenant match if provided
-        if (branch && tenantId && branch.tenantId !== tenantId) {
-            return null;
-        }
 
         return branch;
     }

@@ -117,7 +117,7 @@ export class TerminalController extends BaseController {
 
     static async getTerminalsByBranch(req: Request<{ branchId: string }> & AuthRequest, res: Response): Promise<void> {
         try {
-            const terminals = await TerminalService.getTerminalsByBranchId(req.params.branchId, req.auth.tenantId);
+            const terminals = await TerminalService.getTerminalsByBranchId(req.params.branchId);
             BaseController.sendResponse(res, 200, true, 'Terminals retrieved successfully', terminals);
         } catch (error: any) {
             console.error('Error retrieving terminals:', error);

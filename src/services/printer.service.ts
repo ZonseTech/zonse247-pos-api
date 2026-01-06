@@ -34,19 +34,16 @@ export class PrinterService {
             throw new Error(validationError);
         }
 
-        // Verify branch exists and belongs to tenant
-        const branch = await BranchModel.findById(branchId, tenantId);
+        const branch = await BranchModel.findById(branchId);
         if (!branch) {
             throw new Error('Branch not found');
         }
 
-        // Check if printer name already exists in branch
         const existingPrinter = await PrinterModel.findByName(data.printerName, branchId);
         if (existingPrinter) {
             throw new Error('Printer with this name already exists in this branch');
         }
 
-        // If terminal is specified, verify it exists
         if (data.terminalId) {
             const terminal = await TerminalModel.findById(data.terminalId, tenantId, branchId);
             if (!terminal) {
@@ -54,7 +51,6 @@ export class PrinterService {
             }
         }
 
-        // If this printer should be default, unset any existing defaults
         if (data.isDefault) {
             const existingDefault = await PrinterModel.findDefaultPrinter(branchId);
             if (existingDefault) {

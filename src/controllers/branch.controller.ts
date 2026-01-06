@@ -24,8 +24,7 @@ export class BranchController extends BaseController {
 
         try {
             const { branchId } = req.params;
-
-            const terminal = await TerminalService.getTerminalsByBranchId(branchId, req.auth.tenantId);
+            const terminal = await TerminalService.getTerminalsByBranchId(branchId);
 
             BaseController.sendResponse(
                 res, 200, true,
@@ -53,7 +52,7 @@ export class BranchController extends BaseController {
         try {
             const { branchId } = req.params;
 
-            const terminal = await TerminalService.getAccountTerminalsByBranchId(branchId, req.auth.tenantId);
+            const terminal = await TerminalService.getAccountTerminalsByBranchId(branchId);
 
             BaseController.sendResponse(
                 res, 200, true,
