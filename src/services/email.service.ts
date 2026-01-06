@@ -143,11 +143,11 @@ export class EmailService {
             If you have any questions or need assistance, please don't hesitate to contact our support team.
 
             Best regards,
-            The Platform Team
+            Zonse247 Team
 
             ---
             This email was sent to ${data.email}. If you didn't register for this account, please ignore this email.
-            © 2025 Your Company Name. All rights reserved.
+            © 2026 Zonse247 POS Inc. All rights reserved.
         `;
 
         return { subject, html, text };
