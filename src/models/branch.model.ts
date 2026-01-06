@@ -65,6 +65,9 @@ export class BranchModel {
         return await prisma.branch.create({
             data: {
                 ...data,
+                taxRate: data.taxRate !== null && data.taxRate !== undefined
+                    ? parseFloat(String(data.taxRate))
+                    : null,
                 createdAt: new Date(),
                 updatedAt: new Date()
             }
