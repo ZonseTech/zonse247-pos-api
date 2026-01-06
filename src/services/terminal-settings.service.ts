@@ -9,13 +9,20 @@ import {
 export class TerminalSettingsService {
     /**
      * Get terminal settings by terminal ID
+     * If settings don't exist for the terminal, creates and saves default settings
      */
     static async getSettings(terminalId: string): Promise<TerminalSettings | null> {
         try {
             if (!terminalId) {
                 throw new Error('Terminal ID is required');
             }
-            return await TerminalSettingsModel.findByTerminalId(terminalId);
+
+            const existing = await TerminalSettingsModel.findByTerminalId(terminalId);
+            if (existing) {
+                return existing;
+            }
+
+            return await TerminalSettingsModel.create({ terminalId });
         } catch (error) {
             console.error('Error in terminal settings service - getSettings:', error);
             throw error;

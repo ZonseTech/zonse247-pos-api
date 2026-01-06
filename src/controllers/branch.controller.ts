@@ -38,6 +38,16 @@ export class BranchController extends BaseController {
         }
     }
 
+    static async getPrimaryTerminalId(req: Request & AuthRequest, res: Response): Promise<void> {
+        try {
+            const primaryTerminalId = await TerminalService.getPrimaryTerminalId(req.auth.branchId);
+            BaseController.sendResponse(res, 200, true, 'Primary Terminal ID retrieved successfully', { primaryTerminalId });
+        } catch (error: any) {
+            console.error('Error fetching primary terminal ID:', error);
+            BaseController.sendResponse(res, 500, false, error.message, undefined, error.message);
+        }
+    }
+
     static async getTenantBranchAccountTerminals(req: Request<{ branchId: string }, ApiResponse<Array<Terminal>>> & AuthRequest, res: Response): Promise<void> {
 
         try {

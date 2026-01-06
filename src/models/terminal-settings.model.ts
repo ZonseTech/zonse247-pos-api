@@ -1,4 +1,5 @@
 import prisma from '../databases/prisma/client';
+import { Decimal } from '../databases/prisma/generated/prisma/internal/prismaNamespace';
 import { SecureSettingsService } from '../services/secure-settings.service';
 import { SetupParams } from 'security';
 import {
@@ -24,12 +25,7 @@ import {
     CustomerManagementSettings,
     ReportingSettings,
 } from '../types/terminal-settings';
-import { InputJsonValue } from '../databases/prisma/generated/prisma/internal/prismaNamespace';
-
-// Helper function to convert settings to InputJsonValue
-const toJsonValue = <T extends object>(obj: T): InputJsonValue => {
-    return obj as unknown as InputJsonValue;
-};
+import { toJsonValue } from '../utils';
 
 export class TerminalSettingsModel {
     /**
@@ -542,5 +538,68 @@ export class TerminalSettingsModel {
             emailReports: false,
             reportEmail: '',
         };
+    }
+
+    /**
+     * Get default terminal settings without persisting to database
+     * Used for returning defaults to frontend when no settings exist
+     */
+    static getDefaultSettings(terminalId = '-1'): TerminalSettings {
+        const now = new Date();
+
+        return {
+            id: '',
+            terminalId,
+
+            // General Information
+            storeName: null,
+            storeAddress: null,
+            storePhone: null,
+            storeEmail: null,
+            currency: 'MKW',
+            taxRate: new Decimal(0) as any,
+            businessLicense: null,
+            businessTaxId: null,
+
+            // Localization & Display Settings
+            language: 'en_US',
+            timezone: 'Africa/Blantyre',
+            dateFormat: 'DD/MM/YYYY',
+            timeFormat: '24h',
+
+            // Security & Access Control
+            pinLength: 4,
+            sessionTimeoutMinutes: 15,
+            autoLogoutMinutes: 30,
+            serverUrl: null,
+
+            // JSON Settings Groups
+            localizationSettings: toJsonValue(this.getDefaultLocalizationSettings()),
+            transactionSettings: toJsonValue(this.getDefaultTransactionSettings()),
+            customerSettings: toJsonValue(this.getDefaultCustomerSettings()),
+            receiptSettings: toJsonValue(this.getDefaultReceiptSettings()),
+            paymentSettings: toJsonValue(this.getDefaultPaymentSettings()),
+            mraComplianceSettings: toJsonValue(this.getDefaultMraComplianceSettings()),
+            inventorySettings: toJsonValue(this.getDefaultInventorySettings()),
+            syncSettings: toJsonValue(this.getDefaultSyncSettings()),
+            securitySettings: toJsonValue(this.getDefaultSecuritySettings()),
+            performanceSettings: toJsonValue(this.getDefaultPerformanceSettings()),
+            hardwareSettings: toJsonValue(this.getDefaultHardwareSettings()),
+            integrationSettings: toJsonValue(this.getDefaultIntegrationSettings()),
+            workflowSettings: toJsonValue(this.getDefaultWorkflowSettings()),
+            backupSettings: toJsonValue(this.getDefaultBackupSettings()),
+            displaySettings: toJsonValue(this.getDefaultDisplaySettings()),
+            taxFeeSettings: toJsonValue(this.getDefaultTaxFeeSettings()),
+            customerManagementSettings: toJsonValue(this.getDefaultCustomerManagementSettings()),
+            reportingSettings: toJsonValue(this.getDefaultReportingSettings()),
+
+            // Audit & Metadata
+            settingsVersion: '2.0.0',
+            lastConfiguredBy: null,
+            configurationDate: now,
+            isActive: true,
+            createdAt: now,
+            updatedAt: now,
+        } as TerminalSettings;
     }
 }

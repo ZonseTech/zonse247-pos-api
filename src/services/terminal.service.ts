@@ -83,6 +83,15 @@ export class TerminalService {
         return terminals;
     }
 
+    static async getPrimaryTerminalId(branchId: string): Promise<string | null> {
+        const primaryTerminals = await TerminalModel.findPrimaryByBranchId(branchId);
+        if (primaryTerminals.length > 0) {
+            return primaryTerminals[0].terminalId;
+        }
+
+        return null;
+    }
+
     static async getAccountTerminalsByBranchId(branchId: string, tenantId?: string): Promise<Terminal[]> {
         if (!branchId) {
             throw new Error('Branch ID is required');
