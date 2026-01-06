@@ -53,6 +53,10 @@ export class CustomerService {
             newCustomer.address = validator.escape(customerData.address.trim());
         }
 
+        if (customerData.isDefault !== undefined) {
+            newCustomer.isDefault = customerData.isDefault;
+        }
+
         return await CustomerModel.create(newCustomer);
     }
 
@@ -86,6 +90,10 @@ export class CustomerService {
 
         if (updateData.address !== undefined) {
             sanitizedUpdateData.address = updateData.address ? validator.escape(updateData.address.trim()) : undefined;
+        }
+
+        if (updateData.isDefault !== undefined) {
+            sanitizedUpdateData.isDefault = updateData.isDefault;
         }
 
         await CustomerModel.update(sanitizedId, sanitizedUpdateData);
