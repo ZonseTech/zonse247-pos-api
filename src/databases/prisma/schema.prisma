@@ -477,6 +477,7 @@ model Category {
   description String?     @map("description")
   color       String?     @map("color")
   isActive    Boolean?    @default(true) @map("is_active")
+  isDefault   Boolean?    @default(false) @map("is_default")
   sortOrder   Int?        @default(0) @map("sort_order")
   itemCount   Int?        @map("item_count")
   synced      Int?        @default(0) @map("synced")
@@ -490,6 +491,7 @@ model Category {
   @@unique([branchId, name], name: "unique_branch_category")
   @@index([branchId])
   @@index([terminalId])
+  @@index([isDefault])
   @@map("categories")
 }
 

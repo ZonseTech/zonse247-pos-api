@@ -89,7 +89,8 @@ export interface ProductWithInventory extends Product {
         categoryId: string;
         name: string;
         description?: string;
-        isActive: boolean;
+        isActive?: boolean | null;
+        isDefault?: boolean | null;
     };
     barcodes?: ProductBarcode[];
 }

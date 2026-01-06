@@ -572,6 +572,7 @@ export class InventoryModel {
                     categoryId: data.category.id,
                     name: data.category.name,
                     description: data.category.description,
+                    isDefault: data.category.isDefault,
                     tenantId: data.category.tenantId,
                     branchId: data.category.branchId,
                     userId: data.category.userId
@@ -620,6 +621,7 @@ export class InventoryModel {
                 categoryId: data.category.id,
                 name: data.category.name,
                 description: data.category.description,
+                isDefault: data.category.isDefault,
                 tenantId: data.category.tenantId,
                 branchId: data.category.branchId,
                 userId: data.category.userId

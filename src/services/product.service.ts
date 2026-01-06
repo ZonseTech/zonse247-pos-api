@@ -526,6 +526,7 @@ export class ProductService {
                     name: product.category.name,
                     description: product.category.description,
                     isActive: product.category.isActive,
+                    isDefault: product.category.isDefault,
                 }
                 : undefined,
             barcodes: product.productBarcodes?.map((bc: any) => ({
