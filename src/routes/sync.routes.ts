@@ -15,5 +15,6 @@ router.post('/bulk', syncController.bulkSync);
 router.put('/configure/:tableName', syncController.configureTable);
 router.post('/auto-sync/start', syncController.startAutoSync);
 router.post('/auto-sync/stop', syncController.stopAutoSync);
+router.get('/auto-sync/status', syncController.getAutoSyncStatus);
 
 export default router;

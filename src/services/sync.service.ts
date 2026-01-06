@@ -21,6 +21,9 @@ export class SyncService {
 	private syncInterval: NodeJS.Timeout | null = null;
 	private tableConfigs: Map<string, TableConfig>;
 	private activeSyncs: Map<string, boolean> = new Map();
+	private autoSyncIntervalMs = 0;
+	private autoSyncStartedAt: Date | null = null;
+	private lastAutoSyncAt: Date | null = null;
 
 	constructor() {
 		this.tableConfigs = new Map();
@@ -645,10 +648,6 @@ export class SyncService {
 		return results;
 	}
 
-	// ==========================================
-	// HELPER METHODS
-	// ==========================================
-
 	private getTableConfig(tableName: string): TableConfig {
 		const config = this.tableConfigs.get(tableName);
 		if (!config) {
@@ -848,17 +847,17 @@ export class SyncService {
 		});
 	}
 
-	// ==========================================
-	// AUTO-SYNC & CONFIGURATION
-	// ==========================================
-
 	startAutoSync(intervalMs = 300000): void {
 		if (this.syncInterval) {
 			clearInterval(this.syncInterval);
 		}
 
+		this.autoSyncIntervalMs = intervalMs;
+		this.autoSyncStartedAt = new Date();
+
 		this.syncInterval = setInterval(async () => {
 			console.log('[SyncService] Starting auto-sync...');
+			this.lastAutoSyncAt = new Date();
 
 			for (const [tableName, config] of this.tableConfigs) {
 				try {
@@ -884,8 +883,37 @@ export class SyncService {
 		if (this.syncInterval) {
 			clearInterval(this.syncInterval);
 			this.syncInterval = null;
+			this.autoSyncIntervalMs = 0;
+			this.autoSyncStartedAt = null;
 			console.log('[SyncService] Auto-sync stopped');
 		}
+	}
+
+	getAutoSyncStatus(): {
+		isRunning: boolean;
+		intervalMs: number;
+		startedAt: Date | null;
+		lastSyncAt: Date | null;
+		nextSyncAt: Date | null;
+		configuredTables: string[];
+	} {
+		const isRunning = this.syncInterval !== null;
+		let nextSyncAt: Date | null = null;
+
+		if (isRunning && this.lastAutoSyncAt && this.autoSyncIntervalMs > 0) {
+			nextSyncAt = new Date(this.lastAutoSyncAt.getTime() + this.autoSyncIntervalMs);
+		} else if (isRunning && this.autoSyncStartedAt && this.autoSyncIntervalMs > 0) {
+			nextSyncAt = new Date(this.autoSyncStartedAt.getTime() + this.autoSyncIntervalMs);
+		}
+
+		return {
+			isRunning,
+			intervalMs: this.autoSyncIntervalMs,
+			startedAt: this.autoSyncStartedAt,
+			lastSyncAt: this.lastAutoSyncAt,
+			nextSyncAt,
+			configuredTables: Array.from(this.tableConfigs.keys()),
+		};
 	}
 
 	configureTable(tableName: string, config: Partial<TableConfig>): void {

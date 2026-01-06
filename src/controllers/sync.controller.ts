@@ -452,4 +452,25 @@ export class SyncController {
 			});
 		}
 	};
+
+	/**
+	 * Get auto-sync status
+	 */
+	getAutoSyncStatus = async (req: Request, res: Response): Promise<any> => {
+		try {
+			const status = syncService.getAutoSyncStatus();
+
+			res.json({
+				success: true,
+				...status,
+			});
+		} catch (error: any) {
+			console.error('Error getting auto-sync status:', error);
+			res.status(500).json({
+				success: false,
+				message: 'Failed to get auto-sync status',
+				error: error.message,
+			});
+		}
+	};
 }
