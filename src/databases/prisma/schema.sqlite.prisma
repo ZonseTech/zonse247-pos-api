@@ -450,6 +450,7 @@ model Branch {
   inventories    Inventory[]
   stockMovements StockMovement[]
   sales          Sale[]
+  printers       Printer[]
 
   // ADDED: Relation to old inventory for backward compatibility
   inventoryOld InventoryOld[]
@@ -814,6 +815,7 @@ model Tenant {
   inventories    Inventory[]
   stockMovements StockMovement[]
   sales          Sale[]
+  printers       Printer[]
 
   @@index([email])
   @@index([subscriptionStatus])
@@ -1204,6 +1206,89 @@ model HoldOrderItem {
 }
 
 // ==========================================
+// PRINTER MODELS
+// ==========================================
+
+model Printer {
+  id                Int                   @id @default(autoincrement())
+  printerId         String                @unique @map("printer_id")
+  tenantId          String                @map("tenant_id")
+  branchId          String                @map("branch_id")
+  terminalId        String?               @map("terminal_id")
+  printerName       String                @map("printer_name")
+  printerModel      String?               @map("printer_model")
+  printerType       PrinterType           @default(THERMAL) @map("printer_type")
+  connectionType    PrinterConnectionType @default(USB) @map("connection_type")
+  connectionAddress String?               @map("connection_address")
+  port              Int?                  @map("port")
+  vendorId          String?               @map("vendor_id")
+  productId         String?               @map("product_id")
+  serialNumber      String?               @map("serial_number")
+  isDefault         Boolean               @default(false) @map("is_default")
+  isReceiptPrinter  Boolean               @default(true) @map("is_receipt_printer")
+  isLabelPrinter    Boolean               @default(false) @map("is_label_printer")
+  isKitchenPrinter  Boolean               @default(false) @map("is_kitchen_printer")
+  isReportPrinter   Boolean               @default(false) @map("is_report_printer")
+  status            PrinterStatus         @default(OFFLINE) @map("status")
+  configuration     String?               @map("configuration")
+  lastConnected     DateTime?             @map("last_connected")
+  lastPrintJob      DateTime?             @map("last_print_job")
+  printJobCount     Int                   @default(0) @map("print_job_count")
+  errorCount        Int                   @default(0) @map("error_count")
+  lastError         String?               @map("last_error")
+  isActive          Boolean               @default(true) @map("is_active")
+  synced            Int?                  @default(0) @map("synced")
+  createdAt         DateTime?             @default(now()) @map("created_at")
+  updatedAt         DateTime?             @default(now()) @map("updated_at")
+
+  tenant            Tenant                @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade)
+  branch            Branch                @relation(fields: [branchId], references: [branchId], onDelete: Cascade)
+  printJobs         PrintJob[]
+
+  @@index([tenantId])
+  @@index([branchId])
+  @@index([terminalId])
+  @@index([isDefault])
+  @@index([status])
+  @@map("printers")
+}
+
+model PrintJob {
+  id               Int            @id @default(autoincrement())
+  printJobId       String         @unique @map("print_job_id")
+  printerId        String         @map("printer_id")
+  tenantId         String         @map("tenant_id")
+  branchId         String         @map("branch_id")
+  terminalId       String?        @map("terminal_id")
+  userId           String?        @map("user_id")
+  jobType          PrintJobType   @default(RECEIPT) @map("job_type")
+  jobTitle         String         @map("job_title")
+  status           PrintJobStatus @default(PENDING) @map("status")
+  content          String         @map("content")
+  contentType      String?        @map("content_type")
+  copies           Int            @default(1) @map("copies")
+  priority         Int            @default(5) @map("priority")
+  referenceId      String?        @map("reference_id")
+  referenceType    String?        @map("reference_type")
+  errorMessage     String?        @map("error_message")
+  printedAt        DateTime?      @map("printed_at")
+  scheduledAt      DateTime?      @map("scheduled_at")
+  createdAt        DateTime?      @default(now()) @map("created_at")
+  updatedAt        DateTime?      @default(now()) @map("updated_at")
+
+  printer          Printer        @relation(fields: [printerId], references: [printerId], onDelete: Cascade)
+
+  @@index([printerId])
+  @@index([tenantId])
+  @@index([branchId])
+  @@index([status])
+  @@index([jobType])
+  @@index([priority])
+  @@index([createdAt])
+  @@map("print_jobs")
+}
+
+// ==========================================
 // ENUMS
 // ==========================================
 
@@ -1381,4 +1466,48 @@ enum InventoryStatus {
   inactive
   discontinued
   out_of_stock
+}
+
+// Printer enums
+enum PrinterType {
+  THERMAL
+  INKJET
+  LASER
+  DOT_MATRIX
+  LABEL
+}
+
+enum PrinterConnectionType {
+  USB
+  NETWORK
+  BLUETOOTH
+  SERIAL
+  WIFI
+}
+
+enum PrinterStatus {
+  ONLINE
+  OFFLINE
+  BUSY
+  ERROR
+  PAPER_OUT
+  COVER_OPEN
+}
+
+enum PrintJobType {
+  RECEIPT
+  INVOICE
+  REPORT
+  LABEL
+  BARCODE
+  KITCHEN_ORDER
+  TEST_PAGE
+}
+
+enum PrintJobStatus {
+  PENDING
+  PRINTING
+  COMPLETED
+  FAILED
+  CANCELLED
 }
