@@ -4,6 +4,7 @@ import { TenantModel } from "../models/tenant.model";
 import { SubscriptionModel } from "../models/subscription.model";
 import { SubscriptionPlanModel } from "../models/subscription-plan.model";
 import { TerminalModel } from "../models/terminal.model";
+import { UserModel } from "../models/user.model";
 import { BranchService } from "./branch.service";
 import { TerminalService } from "./terminal.service";
 import { SecureSettingsService } from "./secure-settings.service";
@@ -102,6 +103,24 @@ export class TenantService {
             terminalId: uuidv4(),
         })
 
+        const defaultUsername = data.email.split('@')[0];
+        const defaultPassword = tenant.tenantCode;
+
+        await UserModel.create({
+            userId: uuidv4(),
+            tenantId: tenant.tenantId,
+            branchId: defaultBranch.branchId,
+            username: defaultUsername,
+            password: defaultPassword,
+            fullname: tenant.ownerName,
+            email: tenant.email,
+            phone: tenant.phoneNumber,
+            roleId: 'admin',
+            status: 'active',
+            accessibleBranches: ['*'],
+            allowedTerminals: ['*'],
+        });
+
         if (defaultTerminal) {
             try {
                 await EmailService.sendWelcomeEmail({
@@ -110,6 +129,8 @@ export class TenantService {
                     email: tenant.email,
                     tenantCode: tenant.tenantCode,
                     verificationToken,
+                    username: defaultUsername,
+                    password: defaultPassword,
                 });
             } catch (emailError) {
                 console.error('Failed to send welcome email:', {

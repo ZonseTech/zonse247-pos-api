@@ -63,6 +63,15 @@ export class EmailService {
                             <p><strong>Authentication Key:</strong> ${data.verificationToken}</p>
                         </div>
                         
+                        ${data.username && data.password ? `
+                        <div style="background: #fff3cd; padding: 20px; border-radius: 8px; border-left: 4px solid #ffc107; margin: 20px 0;">
+                            <h3 style="margin-top: 0; color: #856404;">🔐 Your Login Credentials:</h3>
+                            <p><strong>Username:</strong> ${data.username}</p>
+                            <p><strong>Temporary Password:</strong> ${data.password}</p>
+                            <p style="font-size: 12px; color: #856404; margin-top: 10px;"><em>Please change your password after your first login for security purposes.</em></p>
+                        </div>
+                        ` : ''}
+                        
                         <p>To complete your registration and activate your account, please click the button below:</p>
                         
                         <div style="text-align: center; margin: 30px 0;">
@@ -116,7 +125,12 @@ export class EmailService {
             - Company: ${data.businessName}
             - Email: ${data.email}
             - Client ID: ${data.tenantCode}
-
+            ${data.username && data.password ? `
+            Your Login Credentials:
+            - Username: ${data.username}
+            - Temporary Password: ${data.password}
+            (Please change your password after your first login for security purposes.)
+            ` : ''}
             To complete your registration and activate your account, please visit:
             ${verificationUrl}
 
