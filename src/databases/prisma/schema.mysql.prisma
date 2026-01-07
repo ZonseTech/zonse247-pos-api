@@ -7,6 +7,344 @@ datasource db {
   provider = "mysql"
 }
 
+// ==========================================
+// INVENTORY BUSINESS FLOW MODELS
+// ==========================================
+
+model Product {
+  id          String     @id @default(uuid()) @map("product_id")
+  tenantId    String     @map("tenant_id")
+  branchId    String     @map("branch_id")
+  categoryId  String?    @map("category_id")
+  sku         String     @unique @map("sku")
+  name        String     @map("name")
+  
+  // Primary barcode (what you sell/scan at POS)
+  primaryBarcode String? @unique @map("primary_barcode")
+  
+  description String?    @map("description")
+  unit        String     @default("piece") @map("unit")
+  sellingPrice Decimal   @default(0.00) @map("selling_price")
+  
+  // Product attributes
+  brand       String?    @map("brand")
+  color       String?    @map("color")
+  size        String?    @map("size")
+  dimensions  String?    @map("dimensions")
+  weight      Decimal?   @map("weight")
+  
+  // Promotional pricing
+  promoPrice  Decimal?   @map("promo_price")
+  promoStart  DateTime?  @map("promo_start")
+  promoEnd    DateTime?  @map("promo_end")
+  
+  // Tax
+  isTaxable   Boolean    @default(true) @map("is_taxable")
+  
+  // Dates
+  expirationDate  DateTime? @map("expiration_date")
+  manufactureDate DateTime? @map("manufacture_date")
+  
+  // Supplier info
+  supplierName String?   @map("supplier_name")
+  supplierCode String?   @map("supplier_code")
+  
+  isActive    Boolean    @default(true) @map("is_active")
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+  
+  // Relations
+  tenant      Tenant     @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade)
+  branch      Branch     @relation(fields: [branchId], references: [branchId], onDelete: Cascade)
+  category    Category?  @relation(fields: [categoryId], references: [categoryId], onDelete: SetNull)
+  
+  inventories Inventory[]
+  purchaseOrderItems PurchaseOrderItem[]
+  saleItems   SaleItem[]
+  productBarcodes ProductBarcode[] // Multiple barcodes
+  
+  @@unique([branchId, sku], name: "unique_branch_sku")
+  @@index([branchId])
+  @@index([tenantId])
+  @@index([categoryId])
+  @@index([primaryBarcode])
+  @@map("products")
+}
+
+model ProductBarcode {
+  id          String      @id @default(uuid()) @map("product_barcode_id")
+  productId   String      @map("product_id")
+  barcode     String      @unique @map("barcode")
+  barcodeType BarcodeType @default(EAN13) @map("barcode_type")
+  
+  // ADDED: Barcode source/type classification
+  barcodeSource BarcodeSource @default(SUPPLIER) @map("barcode_source")
+  description   String?       @map("description")
+  
+  isActive      Boolean    @default(true) @map("is_active")
+  createdAt     DateTime   @default(now()) @map("created_at")
+  updatedAt     DateTime   @updatedAt @map("updated_at")
+  
+  product       Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  
+  @@unique([productId, barcode], name: "unique_product_barcode")
+  @@index([productId])
+  @@index([barcode]) // Critical for fast searches
+  @@map("product_barcodes")
+}
+
+// ADD ENUM for barcode types
+enum BarcodeType {
+  EAN13       // 13-digit European Article Number
+  EAN8        // 8-digit European Article Number
+  UPCA        // 12-digit Universal Product Code
+  UPCE        // 6-digit UPC
+  CODE39      // Variable length alphanumeric
+  CODE128     // Variable length high-density
+  QR          // QR Code
+  CUSTOM      // Custom barcode format
+}
+
+// ADD NEW ENUM for barcode sources
+enum BarcodeSource {
+  MANUFACTURER  // Original manufacturer barcode
+  SUPPLIER      // Supplier/distributor barcode
+  STORE         // Your store's internal barcode
+  BUNDLE        // Barcode for product bundle
+  PACKAGING     // Different packaging barcode (6-pack, case, etc.)
+  CUSTOM        // Custom/alternate barcode
+}
+
+model Supplier {
+  id          String          @id @default(uuid()) @map("supplier_id")
+  tenantId    String          @map("tenant_id")
+  branchId    String          @map("branch_id")
+  name        String          @map("name")
+  contactPerson String?       @map("contact_person")
+  email       String?         @map("email")
+  phone       String?         @map("phone")
+  address     String?         @map("address")
+  taxId       String?         @map("tax_id")
+  paymentTerms PaymentTerms   @default(CASH_ON_DELIVERY) @map("payment_terms")
+  creditLimit Decimal         @default(0) @map("credit_limit") @db.Decimal(10, 2)
+  status      SupplierStatus  @default(ACTIVE) @map("status")
+  isActive    Boolean         @default(true) @map("is_active")
+  createdAt   DateTime        @default(now()) @map("created_at")
+  updatedAt   DateTime        @updatedAt @map("updated_at")
+  
+  tenant      Tenant          @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade)
+  branch      Branch          @relation(fields: [branchId], references: [branchId], onDelete: Cascade)
+  purchaseOrders PurchaseOrder[]
+  
+  @@index([branchId])
+  @@index([tenantId])
+  @@map("suppliers")
+}
+
+model PurchaseOrder {
+  id          String               @id @default(uuid()) @map("purchase_order_id")
+  tenantId    String               @map("tenant_id")
+  branchId    String               @map("branch_id")
+  supplierId  String               @map("supplier_id")
+  poNumber    String               @unique @map("po_number")
+  status      PurchaseOrderStatus  @default(PENDING) @map("status")
+  orderDate   DateTime             @default(now()) @map("order_date")
+  expectedDeliveryDate DateTime?   @map("expected_delivery_date")
+  receivedAt  DateTime?            @map("received_at")
+  notes       String?              @map("notes")
+  createdBy   String               @map("created_by")
+  receivedBy  String?              @map("received_by")
+  isLocked    Boolean              @default(false) @map("is_locked")
+  createdAt   DateTime             @default(now()) @map("created_at")
+  updatedAt   DateTime             @updatedAt @map("updated_at")
+  
+  tenant      Tenant               @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade)
+  branch      Branch               @relation(fields: [branchId], references: [branchId], onDelete: Cascade)
+  supplier    Supplier             @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  items       PurchaseOrderItem[]
+  createdByUser User               @relation("purchase_orders_created_by", fields: [createdBy], references: [userId], onDelete: Restrict)
+  receivedByUser User?             @relation("purchase_orders_received_by", fields: [receivedBy], references: [userId], onDelete: SetNull)
+  
+  @@index([branchId])
+  @@index([tenantId])
+  @@index([supplierId])
+  @@index([status])
+  @@index([poNumber])
+  @@map("purchase_orders")
+}
+
+model PurchaseOrderItem {
+  id              String   @id @default(uuid()) @map("purchase_order_item_id")
+  purchaseOrderId String   @map("purchase_order_id")
+  productId       String   @map("product_id")
+  orderedQuantity Int      @default(0) @map("ordered_quantity")
+  receivedQuantity Int     @default(0) @map("received_quantity")
+  damagedQuantity Int      @default(0) @map("damaged_quantity")
+  unitPrice       Decimal  @default(0.00) @map("unit_price")
+  totalPrice      Decimal  @default(0.00) @map("total_price")
+  notes           String?  @map("notes")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+  
+  purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  product       Product       @relation(fields: [productId], references: [id], onDelete: Restrict)
+  
+  @@unique([purchaseOrderId, productId], name: "unique_po_product")
+  @@index([purchaseOrderId])
+  @@index([productId])
+  @@map("purchase_order_items")
+}
+
+model Inventory {
+  id                String         @id @default(uuid()) @map("inventory_id")
+  tenantId          String         @map("tenant_id")
+  branchId          String         @map("branch_id")
+  productId         String         @unique @map("product_id")
+  
+  availableQuantity Int            @default(0) @map("available_quantity")
+  reservedQuantity  Int            @default(0) @map("reserved_quantity")
+  damagedQuantity   Int            @default(0) @map("damaged_quantity")
+  
+  averageCost       Decimal        @default(0.00) @map("average_cost")
+  lastPurchaseCost  Decimal        @default(0.00) @map("last_purchase_cost")
+  
+  reorderPoint      Int?           @map("reorder_point")
+  maxStock          Int?           @map("max_stock")
+  trackInventory    Boolean        @default(true) @map("track_inventory")
+  allowNegativeStock Boolean       @default(false) @map("allow_negative_stock")
+  
+  lastRestockedAt   DateTime?      @map("last_restocked_at")
+  lastSoldAt        DateTime?      @map("last_sold_at")
+  createdAt         DateTime       @default(now()) @map("created_at")
+  updatedAt         DateTime       @updatedAt @map("updated_at")
+  
+  tenant            Tenant         @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade)
+  branch            Branch         @relation(fields: [branchId], references: [branchId], onDelete: Cascade)
+  product           Product        @relation(fields: [productId], references: [id], onDelete: Cascade)
+  stockMovements    StockMovement[]
+  
+  @@index([branchId])
+  @@index([tenantId])
+  @@index([productId])
+  @@map("inventory")
+}
+
+model StockMovement {
+  id              String            @id @default(uuid()) @map("stock_movement_id")
+  tenantId        String            @map("tenant_id")
+  branchId        String            @map("branch_id")
+  inventoryId     String            @map("inventory_id")
+  
+  movementType    StockMovementType @map("movement_type")
+  quantity        Int               @map("quantity")
+  previousQuantity Int              @map("previous_quantity")
+  newQuantity     Int               @map("new_quantity")
+  
+  referenceType   StockReferenceType? @map("reference_type")
+  referenceId     String?            @map("reference_id")
+  
+  unitCost        Decimal           @default(0.00) @map("unit_cost")
+  totalCost       Decimal           @default(0.00) @map("total_cost")
+  
+  notes           String?           @map("notes")
+  movedBy         String            @map("moved_by")
+  movementDate    DateTime          @default(now()) @map("movement_date")
+  createdAt       DateTime          @default(now()) @map("created_at")
+  
+  tenant          Tenant            @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade)
+  branch          Branch            @relation(fields: [branchId], references: [branchId], onDelete: Cascade)
+  inventory       Inventory         @relation(fields: [inventoryId], references: [id], onDelete: Cascade)
+  movedByUser     User              @relation(fields: [movedBy], references: [userId], onDelete: Restrict)
+  
+  @@index([branchId])
+  @@index([tenantId])
+  @@index([inventoryId])
+  @@index([movementType])
+  @@index([referenceType, referenceId])
+  @@index([movementDate])
+  @@map("stock_movements")
+}
+
+model Sale {
+  id              String        @id @default(uuid()) @map("sale_id")
+  tenantId        String        @map("tenant_id")
+  branchId        String        @map("branch_id")
+  saleNumber      String        @unique @map("sale_number")
+  
+  customerId      String?       @map("customer_id")
+  terminalId      String?       @map("terminal_id")
+  userId          String        @map("user_id")
+  
+  subtotal        Decimal       @default(0.00) @map("subtotal")
+  taxAmount       Decimal       @default(0.00) @map("tax_amount")
+  discountAmount  Decimal       @default(0.00) @map("discount_amount")
+  totalAmount     Decimal       @default(0.00) @map("total_amount")
+  
+  amountPaid      Decimal       @default(0.00) @map("amount_paid")
+  changeAmount    Decimal       @default(0.00) @map("change_amount")
+  paymentMethodId String?       @map("payment_method_id")
+  
+  status          SaleStatus    @default(COMPLETED) @map("status")
+  saleDate        DateTime      @default(now()) @map("sale_date")
+  notes           String?       @map("notes")
+  
+  isVoided        Boolean       @default(false) @map("is_voided")
+  voidedAt        DateTime?     @map("voided_at")
+  voidedBy        String?       @map("voided_by")
+  voidReason      String?       @map("void_reason")
+  
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+  
+  tenant          Tenant        @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade)
+  branch          Branch        @relation(fields: [branchId], references: [branchId], onDelete: Cascade)
+  customer        Customer?     @relation(fields: [customerId], references: [customerId], onDelete: SetNull)
+  terminal        Terminal?     @relation(fields: [terminalId], references: [terminalId], onDelete: SetNull)
+  user            User          @relation(fields: [userId], references: [userId], onDelete: Restrict)
+  paymentMethod   PaymentMethod? @relation(fields: [paymentMethodId], references: [methodId], onDelete: SetNull)
+  items           SaleItem[]
+  voidedByUser    User?         @relation("sales_voided_by", fields: [voidedBy], references: [userId], onDelete: SetNull)
+  transactions    Transaction[]
+  
+  @@index([branchId])
+  @@index([tenantId])
+  @@index([customerId])
+  @@index([terminalId])
+  @@index([userId])
+  @@index([saleDate])
+  @@index([saleNumber])
+  @@map("sales")
+}
+
+model SaleItem {
+  id              String   @id @default(uuid()) @map("sale_item_id")
+  saleId          String   @map("sale_id")
+  productId       String   @map("product_id")
+  
+  quantity        Int      @map("quantity")
+  unitPrice       Decimal  @map("unit_price")
+  unitCost        Decimal  @default(0.00) @map("unit_cost")
+  
+  subtotal        Decimal  @map("subtotal")
+  taxAmount       Decimal  @default(0.00) @map("tax_amount")
+  discountAmount  Decimal  @default(0.00) @map("discount_amount")
+  totalAmount     Decimal  @map("total_amount")
+  
+  createdAt       DateTime @default(now()) @map("created_at")
+  
+  sale            Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  product         Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
+  
+  @@unique([saleId, productId], name: "unique_sale_product")
+  @@index([saleId])
+  @@index([productId])
+  @@map("sale_items")
+}
+
+// ==========================================
+// ORIGINAL MODELS (unchanged except for noted modifications)
+// ==========================================
+
 model MRA_API_CONFIG_TABLE {
   configId          String                            @id @default(uuid()) @map("config_id")
   tenantId          String                            @map("tenant_id")
@@ -119,12 +457,12 @@ model Branch {
   status             BranchStatus?            @default(active) @map("status")
   createdAt          DateTime?                @default(now()) @map("created_at")
   updatedAt          DateTime?                @default(now()) @map("updated_at")
+  
   auditLogs          AuditLog[]
   branchSetting      BranchSetting?
   tenant             Tenant                   @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade, onUpdate: NoAction)
   categories         Category[]
   customers          Customer[]
-  inventory          Inventory[]
   paymentMethods     PaymentMethod[]
   serviceProviders   ServiceProvider[]
   terminals          Terminal[]
@@ -132,6 +470,18 @@ model Branch {
   userPermissions    UserPermission[]
   usersBranch        User[]                   @relation("users_branch_idTobranches")
   usersCurrentBranch User[]                   @relation("users_current_branch_idTobranches")
+  
+  // ADDED: New inventory flow relations
+  products           Product[]
+  suppliers          Supplier[]
+  purchaseOrders     PurchaseOrder[]
+  inventories        Inventory[]
+  stockMovements     StockMovement[]
+  sales              Sale[]
+  printers           Printer[]
+  
+  // ADDED: Relation to old inventory for backward compatibility
+  inventoryOld       InventoryOld[]
 
   @@unique([tenantId, branchCode], name: "unique_tenant_branch_code")
   @@index([branchCode])
@@ -151,6 +501,7 @@ model Category {
   description String?     @map("description")
   color       String?     @map("color")
   isActive    Boolean?    @default(true) @map("is_active")
+  isDefault   Boolean?    @default(false) @map("is_default")
   sortOrder   Int?        @default(0) @map("sort_order")
   itemCount   Int?        @map("item_count")
   synced      Int?        @default(0) @map("synced")
@@ -158,31 +509,41 @@ model Category {
   updatedAt   DateTime?   @default(now()) @map("updated_at")
   branch      Branch      @relation(fields: [branchId], references: [branchId], onDelete: Cascade, onUpdate: NoAction)
   terminal    Terminal?   @relation(fields: [terminalId], references: [terminalId], onDelete: Cascade, onUpdate: NoAction)
-  inventory   Inventory[]
+  inventoryOld InventoryOld[]
+  products    Product[]
 
   @@unique([branchId, name], name: "unique_branch_category")
   @@index([branchId])
   @@index([terminalId])
+  @@index([isDefault])
   @@map("categories")
 }
 
 model Customer {
-  id         Int       @id @default(autoincrement())
-  customerId String    @unique @map("customer_id")
-  tenantId   String    @map("tenant_id")
-  branchId   String    @map("branch_id")
-  userId     String?   @map("user_id")
-  name       String    @map("name")
-  synced     Int?      @default(0) @map("synced")
-  createdAt  DateTime? @default(now()) @map("created_at")
-  updatedAt  DateTime? @default(now()) @map("updated_at")
-  branch     Branch    @relation(fields: [branchId], references: [branchId], onDelete: Cascade, onUpdate: NoAction)
+  id           Int           @id @default(autoincrement())
+  customerId   String        @unique @map("customer_id")
+  tenantId     String        @map("tenant_id")
+  branchId     String        @map("branch_id")
+  userId       String?       @map("user_id")
+  name         String        @map("name")
+  phone        String?       @map("phone")
+  email        String?       @map("email")
+  address      String?       @map("address")
+  isDefault    Boolean?      @default(false) @map("is_default")
+  synced       Int?          @default(0) @map("synced")
+  createdAt    DateTime?     @default(now()) @map("created_at")
+  updatedAt    DateTime?     @default(now()) @map("updated_at")
+  branch       Branch        @relation(fields: [branchId], references: [branchId], onDelete: Cascade, onUpdate: NoAction)
+  transactions Transaction[]
+  sales        Sale[]
 
   @@index([branchId])
+  @@index([isDefault])
   @@map("customers")
 }
 
-model Inventory {
+// RENAMED: Original Inventory model renamed to InventoryOld for backward compatibility
+model InventoryOld {
   id                 Int              @id @default(autoincrement())
   productId          String           @unique @map("product_id")
   branchId           String           @map("branch_id")
@@ -226,6 +587,7 @@ model Inventory {
   synced             Int?             @default(0) @map("synced")
   createdAt          DateTime?        @default(now()) @map("created_at")
   updatedAt          DateTime?        @default(now()) @map("updated_at")
+  
   branch             Branch           @relation(fields: [branchId], references: [branchId], onDelete: Cascade, onUpdate: NoAction)
   category           Category?        @relation(fields: [categoryId], references: [categoryId], onUpdate: NoAction)
   createdByUser      User?            @relation("inventory_created_byTousers", fields: [createdBy], references: [userId], onUpdate: NoAction)
@@ -238,7 +600,7 @@ model Inventory {
   @@index([name])
   @@index([status])
   @@index([lastUpdatedBy])
-  @@map("inventory")
+  @@map("inventory_old")
 }
 
 model Order {
@@ -284,21 +646,23 @@ model ReturnItem {
 }
 
 model PaymentMethod {
-  id        Int       @id @default(autoincrement())
-  methodId  String    @unique @map("method_id")
-  branchId  String?   @map("branch_id")
-  tenantId  String?   @map("tenant_id")
-  userId    String?   @map("user_id")
-  name      String    @map("name")
-  isActive  Boolean?  @default(true) @map("is_active")
-  icon      String?   @map("icon")
-  sortOrder Int?      @default(0) @map("sort_order")
-  synced    Int?      @default(0) @map("synced")
-  createdAt DateTime? @default(now()) @map("created_at")
-  updatedAt DateTime? @default(now()) @map("updated_at")
-  branch    Branch?   @relation(fields: [branchId], references: [branchId], onDelete: Cascade, onUpdate: NoAction)
-  tenant    Tenant?   @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade, onUpdate: NoAction)
-  user      User?     @relation(fields: [userId], references: [userId], onDelete: Cascade, onUpdate: NoAction)
+  id           Int           @id @default(autoincrement())
+  methodId     String        @unique @map("method_id")
+  branchId     String?       @map("branch_id")
+  tenantId     String?       @map("tenant_id")
+  userId       String?       @map("user_id")
+  name         String        @map("name")
+  isActive     Boolean?      @default(true) @map("is_active")
+  icon         String?       @map("icon")
+  sortOrder    Int?          @default(0) @map("sort_order")
+  synced       Int?          @default(0) @map("synced")
+  createdAt    DateTime?     @default(now()) @map("created_at")
+  updatedAt    DateTime?     @default(now()) @map("updated_at")
+  branch       Branch?       @relation(fields: [branchId], references: [branchId], onDelete: Cascade, onUpdate: NoAction)
+  tenant       Tenant?       @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade, onUpdate: NoAction)
+  user         User?         @relation(fields: [userId], references: [userId], onDelete: Cascade, onUpdate: NoAction)
+  transactions Transaction[]
+  sales        Sale[]
 
   @@index([branchId])
   @@index([tenantId])
@@ -467,6 +831,7 @@ model Tenant {
   synced              Int?                          @default(0) @map("synced")
   createdAt           DateTime?                     @default(now()) @map("created_at")
   updatedAt           DateTime?                     @default(now()) @map("updated_at")
+  
   mraApiConfigTable   MRA_API_CONFIG_TABLE[]
   auditLogs           AuditLog[]
   branches            Branch[]
@@ -474,6 +839,15 @@ model Tenant {
   tenantSubscriptions TenantSubscription[]
   terminals           Terminal[]
   users               User[]
+  
+  // ADDED: New inventory flow relations
+  products           Product[]
+  suppliers          Supplier[]
+  purchaseOrders     PurchaseOrder[]
+  inventories        Inventory[]
+  stockMovements     StockMovement[]
+  sales              Sale[]
+  printers           Printer[]
 
   @@index([email])
   @@index([subscriptionStatus])
@@ -517,12 +891,15 @@ model Terminal {
   registeredAt                  DateTime?                     @map("registered_at")
   createdAt                     DateTime?                     @default(now()) @map("created_at")
   updatedAt                     DateTime?                     @default(now()) @map("updated_at")
+  
   auditLogs                     AuditLog[]
   categories                    Category[]
   tenant                        Tenant                        @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade, onUpdate: NoAction)
   branch                        Branch                        @relation(fields: [branchId], references: [branchId], onDelete: Cascade, onUpdate: NoAction)
   userSessions                  UserSession[]
   terminalSettings              TerminalSettings?
+  transactions                  Transaction[]
+  sales                         Sale[]
 
   @@index([activationStatus])
   @@index([branchId])
@@ -531,41 +908,58 @@ model Terminal {
   @@map("terminals")
 }
 
+// MODIFIED: Added saleId field and relation to Sale
 model Transaction {
-  id                       Int           @id @default(autoincrement())
-  transactionId            String        @unique @map("transaction_id")
-  externalTransactionRef   String?       @map("external_transaction_ref")
-  refNumber                String        @map("ref_number")
-  discount                 Decimal?      @default(0.00) @map("discount")
-  customerId               String?       @map("customer_id")
-  subtotal                 Decimal?      @default(0.00) @map("subtotal")
-  tax                      Decimal?      @default(0.00) @map("tax")
-  date                     DateTime?     @map("date")
-  paymentMethodId          String?       @map("payment_method_id")
-  phoneNumber              String?       @map("phone_number")
-  paymentServiceProviderId String?       @map("payment_service_provider_id")
-  total                    Decimal?      @default(0.00) @map("total")
-  paid                     Decimal?      @default(0.00) @map("paid")
-  changeAmount             Decimal?      @default(0.00) @map("change_amount")
-  terminalId               String?       @map("terminal_id")
-  userId                   String?       @map("user_id")
-  tenantId                 String        @map("tenant_id")
-  branchId                 String        @map("branch_id")
-  status                   String?       @map("status")
-  isRefund                 Boolean?      @default(false) @map("is_refund")
-  originalTransactionId    String?       @map("original_transaction_id")
-  refundReason             String?       @map("refund_reason")
-  refundedAmount           Decimal?      @default(0.00) @map("refunded_amount")
-  refundedAt               DateTime?     @map("refunded_at")
-  synced                   Int?          @default(0) @map("synced")
-  createdAt                DateTime?     @default(now()) @map("created_at")
-  updatedAt                DateTime?     @default(now()) @map("updated_at")
-  branch                   Branch        @relation(fields: [branchId], references: [branchId], onDelete: Cascade, onUpdate: NoAction)
-  refunds                  Transaction[] @relation("RefundRelation")
-  originalTransaction      Transaction?  @relation("RefundRelation", fields: [originalTransactionId], references: [transactionId], onUpdate: NoAction)
+  id                       Int                       @id @default(autoincrement())
+  transactionId            String                    @unique @map("transaction_id")
+  externalTransactionRef   String?                   @map("external_transaction_ref")
+  refNumber                String                    @map("ref_number")
+  discount                 Decimal?                  @default(0.00) @map("discount")
+  customerId               String?                   @map("customer_id")
+  subtotal                 Decimal?                  @default(0.00) @map("subtotal")
+  tax                      Decimal?                  @default(0.00) @map("tax")
+  date                     DateTime?                 @map("date")
+  paymentMethodId          String?                   @map("payment_method_id")
+  phoneNumber              String?                   @map("phone_number")
+  paymentServiceProviderId String?                   @map("payment_service_provider_id")
+  total                    Decimal?                  @default(0.00) @map("total")
+  paid                     Decimal?                  @default(0.00) @map("paid")
+  changeAmount             Decimal?                  @default(0.00) @map("change_amount")
+  terminalId               String?                   @map("terminal_id")
+  userId                   String?                   @map("user_id")
+  tenantId                 String                    @map("tenant_id")
+  branchId                 String                    @map("branch_id")
+  status                   String?                   @map("status")
+  isRefund                 Boolean?                  @default(false) @map("is_refund")
+  originalTransactionId    String?                   @map("original_transaction_id")
+  refundReason             String?                   @map("refund_reason")
+  refundedAmount           Decimal?                  @default(0.00) @map("refunded_amount")
+  refundedAt               DateTime?                 @map("refunded_at")
+  synced                   Int?                      @default(0) @map("synced")
+  createdAt                DateTime?                 @default(now()) @map("created_at")
+  updatedAt                DateTime?                 @default(now()) @map("updated_at")
+  
+  // ADDED: Link to Sale model
+  saleId                   String?                   @map("sale_id")
+  
+  branch                   Branch                    @relation(fields: [branchId], references: [branchId], onDelete: Cascade, onUpdate: NoAction)
+  customer                 Customer?                 @relation(fields: [customerId], references: [customerId], onDelete: SetNull, onUpdate: NoAction)
+  user                     User?                     @relation(fields: [userId], references: [userId], onDelete: SetNull, onUpdate: NoAction)
+  paymentMethod            PaymentMethod?            @relation(fields: [paymentMethodId], references: [methodId], onDelete: SetNull, onUpdate: NoAction)
+  paymentServiceProvider   PaymentServiceProvider?   @relation(fields: [paymentServiceProviderId], references: [providerId], onDelete: SetNull, onUpdate: NoAction)
+  terminal                 Terminal?                 @relation(fields: [terminalId], references: [terminalId], onDelete: SetNull, onUpdate: NoAction)
+  refunds                  Transaction[]             @relation("RefundRelation")
+  originalTransaction      Transaction?              @relation("RefundRelation", fields: [originalTransactionId], references: [transactionId], onUpdate: NoAction)
+  sale                     Sale?                     @relation(fields: [saleId], references: [id], onDelete: SetNull)
 
   @@index([branchId])
+  @@index([customerId])
+  @@index([userId])
+  @@index([paymentMethodId])
+  @@index([paymentServiceProviderId])
+  @@index([terminalId])
   @@index([originalTransactionId])
+  @@index([saleId])
   @@map("transactions")
 }
 
@@ -616,6 +1010,7 @@ model UserSession {
   @@map("user_sessions")
 }
 
+// MODIFIED: Added relations to new inventory flow models
 model User {
   id                       Int              @id @default(autoincrement())
   userId                   String           @unique @map("user_id")
@@ -641,17 +1036,26 @@ model User {
   synced                   Int?             @default(0) @map("synced")
   createdAt                DateTime?        @default(now()) @map("created_at")
   updatedAt                DateTime?        @default(now()) @map("updated_at")
+  
   auditLogs                AuditLog[]
-  inventoryCreatedBy       Inventory[]      @relation("inventory_created_byTousers")
-  inventoryLastUpdatedBy   Inventory[]      @relation("inventory_last_updated_byTousers")
+  inventoryCreatedBy       InventoryOld[]   @relation("inventory_created_byTousers")
+  inventoryLastUpdatedBy   InventoryOld[]   @relation("inventory_last_updated_byTousers")
   paymentMethods           PaymentMethod[]
   userPermissionsUser      UserPermission[] @relation("user_permissions_user_idTousers")
   userPermissionsCreatedBy UserPermission[] @relation("user_permissions_created_byTousers")
   userSessions             UserSession[]
+  transactions             Transaction[]
   tenant                   Tenant           @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade, onUpdate: NoAction)
   branch                   Branch           @relation("users_branch_idTobranches", fields: [branchId], references: [branchId], onDelete: Cascade, onUpdate: NoAction)
   role                     Role             @relation(fields: [roleId], references: [roleId], onUpdate: NoAction)
   currentBranch            Branch?          @relation("users_current_branch_idTobranches", fields: [currentBranchId], references: [branchId], onUpdate: NoAction)
+  
+  // ADDED: New inventory flow relations
+  createdPurchaseOrders    PurchaseOrder[]  @relation("purchase_orders_created_by")
+  receivedPurchaseOrders   PurchaseOrder[]  @relation("purchase_orders_received_by")
+  stockMovements           StockMovement[]
+  sales                    Sale[]
+  voidedSales              Sale[]           @relation("sales_voided_by")
 
   @@unique([tenantId, username], name: "unique_tenant_username")
   @@index([branchId])
@@ -674,17 +1078,19 @@ model SyncStatus {
 }
 
 model PaymentServiceProvider {
-  id          Int       @id @default(autoincrement())
-  providerId  String    @unique @map("providerId")
-  userId      String    @map("userId")
-  name        String    @map("name")
-  description String?   @map("description")
-  logoUrl     String?   @map("logoUrl")
-  isActive    Boolean   @default(true) @map("isActive")
-  sortOrder   Int       @default(0) @map("sortOrder")
-  synced      Int       @default(0) @map("synced")
-  createdAt   DateTime? @default(now()) @map("createdAt")
-  updatedAt   DateTime? @updatedAt @map("updatedAt")
+  id           Int           @id @default(autoincrement())
+  providerId   String        @unique @map("providerId")
+  userId       String        @map("userId")
+  name         String        @map("name")
+  type         String        @map("type") // "bank" or "epayment"
+  description  String?       @map("description")
+  logoUrl      String?       @map("logoUrl")
+  isActive     Boolean       @default(true) @map("isActive")
+  sortOrder    Int           @default(0) @map("sortOrder")
+  synced       Int           @default(0) @map("synced")
+  createdAt    DateTime?     @default(now()) @map("createdAt")
+  updatedAt    DateTime?     @updatedAt @map("updatedAt")
+  transactions Transaction[]
 
   @@map("payment_service_providers")
 }
@@ -712,11 +1118,6 @@ model TerminalSettings {
   id         String @id @default(cuid())
   terminalId String @unique @map("terminal_id")
 
-  // ==========================================
-  // SELECTIVE COLUMNS (Frequently queried fields)
-  // ==========================================
-
-  // General Information (Selective Columns)
   storeName       String? @map("store_name")
   storeAddress    String? @map("store_address")
   storePhone      String? @map("store_phone")
@@ -726,124 +1127,35 @@ model TerminalSettings {
   businessLicense String? @map("business_license")
   businessTaxId   String? @map("business_tax_id")
 
-  // Localization & Display Settings (Selective Columns)
   language   String @default("en_US") @map("language")
   timezone   String @default("Africa/Blantyre") @map("timezone")
   dateFormat String @default("DD/MM/YYYY") @map("date_format")
-  timeFormat String @default("24h") @map("time_format") // '12h' | '24h'
+  timeFormat String @default("24h") @map("time_format")
 
-  // Security & Access Control (Selective Columns - frequently used)
   pinLength             Int     @default(4) @map("pin_length")
   sessionTimeoutMinutes Int     @default(15) @map("session_timeout_minutes")
   autoLogoutMinutes     Int     @default(30) @map("auto_logout_minutes")
   serverUrl             String? @map("server_url")
 
-  // ==========================================
-  // HIERARCHICAL JSON COLUMNS (Grouped settings)
-  // ==========================================
-
-  // Localization Settings (JSON) - extended settings
-  // { currencyDecimalPlaces, numberSeparator, showCurrencySymbol, currencySymbolPosition }
   localizationSettings Json? @map("localization_settings")
-
-  // Transaction Processing Settings (JSON)
-  // { autoApplyTax, taxInclusivePricing, roundTaxAmount, roundTotalAmount, roundToNearest,
-  //   minimumTransactionAmount, maximumTransactionAmount, holdTransactionMinutes, saveDraftTransactions }
   transactionSettings Json? @map("transaction_settings")
-
-  // Customer Settings (JSON)
-  // { requireCustomerDetails, defaultCustomerType, collectCustomerEmail, collectCustomerPhone,
-  //   collectCustomerAddress, customerDisplayMode }
   customerSettings Json? @map("customer_settings")
-
-  // Receipt & Printing Settings (JSON)
-  // { receiptNumberPrefix, receiptNumberSuffix, receiptStartNumber, receiptResetDaily,
-  //   printDuplicateReceipt, receiptCopies, printOrderKitchen, printOrderBar, kitchenPrinterName,
-  //   barPrinterName, printItemizedReceipt, receiptFooter, receiptHeader, showStoreLogo, logoUrl,
-  //   receiptWidth, showTaxBreakdown, showItemCodes, showCashierName, showTerminalId,
-  //   qrCodeEnabled, qrCodeContent }
   receiptSettings Json? @map("receipt_settings")
-
-  // Payment Processing Settings (JSON)
-  // { cashPaymentDefault, cardPaymentDefault, splitPaymentEnabled, maxSplitWays,
-  //   changeCalculationMode, suggestChangeAmounts, giftCardEnabled, loyaltyPointsEnabled,
-  //   enableCash, enableCard, enableMobileMoney, enableCredit, enableGiftCard,
-  //   roundingEnabled, roundingAmount }
   paymentSettings Json? @map("payment_settings")
-
-  // VAT/MRA Compliance Settings (JSON)
-  // { mraComplianceMode, requireVatNumber, vatInclusiveDisplay, zReportAutoGenerate,
-  //   zReportTime, dailySalesReportTime }
   mraComplianceSettings Json? @map("mra_compliance_settings")
-
-  // Inventory & Product Settings (JSON)
-  // { showProductImages, productDisplayMode, productsPerPage, quickProductSearch,
-  //   barcodeScanMode, scaleIntegrationMode, allowNegativeStock, lowStockThreshold,
-  //   showStockLevels, enableStockAlerts, autoOrderEnabled }
   inventorySettings Json? @map("inventory_settings")
-
-  // Offline & Sync Settings (JSON)
-  // { enableOfflineMode, offlineDataRetentionDays, syncOnWifiOnly, autoSyncOnReconnect,
-  //   syncBatchSize, syncTimeoutSeconds, enableCloudSync }
   syncSettings Json? @map("sync_settings")
-
-  // Security & Access Control (JSON) - extended settings
-  // { maxLoginAttempts, lockoutMinutes, requirePinForSettings, requirePinForReports,
-  //   requirePinForVoid, requirePinForDiscount, requirePinForReturn, auditLogEnabled }
   securitySettings Json? @map("security_settings")
-
-  // Performance & Storage (JSON)
-  // { cacheExpiryHours, maxCacheSizeMB, transactionHistoryDays, autoCleanupOldData,
-  //   imageCompressionQuality }
   performanceSettings Json? @map("performance_settings")
-
-  // Hardware & Device Settings (JSON)
-  // { printerConnectionType, printerPaperWidth, cashDrawerOpenCode, scannerBeepEnabled,
-  //   scannerVibrationEnabled, screenBrightness, screenTimeoutSeconds, printerType,
-  //   printerName, autoPrintReceipt, paperSize, enableCashDrawer, cashDrawerOpenOn,
-  //   enableBarcodeScanner, barcodeScannerPrefix, enableCardReader, cardReaderType }
   hardwareSettings Json? @map("hardware_settings")
-
-  // Integration & API Settings (JSON)
-  // { apiBaseUrl, mraApiTimeoutSeconds, mraRetryAttempts, webhookEnabled, webhookUrl,
-  //   webhookSecret, apiKeyExpiryDays, enableApiAccess, apiRateLimit }
   integrationSettings Json? @map("integration_settings")
-
-  // Business Rules & Workflow (JSON)
-  // { allowReturnWithoutReceipt, returnPeriodDays, requireManagerForVoid, managerOverridePin,
-  //   autoCloseShift, shiftCloseTime, dailyOpeningTime, enableCashManagement,
-  //   requireOpeningFloat, openingFloatAmount, enableShiftManagement, enableMultipleUsers,
-  //   enableReturns, enableLayaway, enableDiscounts, maxDiscountPercentage }
   workflowSettings Json? @map("workflow_settings")
-
-  // Backup & Recovery (JSON)
-  // { backupEnabled, backupFrequency, autoBackupEnabled, backupIntervalHours,
-  //   maxBackupFiles, backupLocation }
   backupSettings Json? @map("backup_settings")
-
-  // Display & UI Settings (JSON)
-  // { theme, fontSize, navigationMenuType, showProductImages, enableAnimations,
-  //   enableNotifications, enableVirtualKeyboard, virtualKeyboardLayout,
-  //   virtualKeyboardTheme, virtualKeyboardSound, virtualKeyboardHaptic }
   displaySettings Json? @map("display_settings")
-
-  // Taxes & Fees Settings (JSON)
-  // { taxInclusive, showTaxOnReceipt, multiTaxEnabled, serviceFeeEnabled,
-  //   serviceFeePercentage }
   taxFeeSettings Json? @map("tax_fee_settings")
-
-  // Customer Management Settings (JSON)
-  // { enableLoyaltyProgram, loyaltyPointsPerDollar, enableCustomerAccounts,
-  //   enableCustomerCredit, maxCustomerCredit }
   customerManagementSettings Json? @map("customer_management_settings")
-
-  // Reporting Settings (JSON)
-  // { eodReportEnabled, eodReportTime, emailReports, reportEmail }
   reportingSettings Json? @map("reporting_settings")
 
-  // ==========================================
-  // AUDIT & METADATA
-  // ==========================================
   settingsVersion   String    @default("2.0.0") @map("settings_version")
   lastConfiguredBy  String?   @map("last_configured_by")
   configurationDate DateTime? @map("configuration_date")
@@ -851,7 +1163,6 @@ model TerminalSettings {
   createdAt         DateTime  @default(now()) @map("created_at")
   updatedAt         DateTime  @updatedAt @map("updated_at")
 
-  // Relations
   terminal Terminal @relation(fields: [terminalId], references: [terminalId], onDelete: Cascade)
 
   @@index([terminalId])
@@ -861,9 +1172,9 @@ model TerminalSettings {
 model TerminalSettingsOverride {
   id               String    @id @default(cuid())
   settingKey       String    @map("setting_key")
-  settingValue     Json      @map("setting_value") // Can store different types
-  overrideLevel    String    @map("override_level") // TENANT, BRANCH, TERMINAL
-  overrideSourceId String    @map("override_source_id") // tenantId, branchId, or terminalId
+  settingValue     Json      @map("setting_value")
+  overrideLevel    String    @map("override_level")
+  overrideSourceId String    @map("override_source_id")
   reason           String?   @map("reason")
   effectiveFrom    DateTime  @map("effective_from")
   effectiveTo      DateTime? @map("effective_to")
@@ -893,7 +1204,6 @@ model HoldOrder {
   tenantId   String?
   branchId   String?
 
-  // Relationship to hold order items
   items HoldOrderItem[]
 
   @@index([itemId])
@@ -909,14 +1219,12 @@ model HoldOrderItem {
   holdOrderId String
   holdOrder   HoldOrder @relation(fields: [holdOrderId], references: [id], onDelete: Cascade)
 
-  // CartItem fields (adjust based on your CartItem interface)
   productId   String
   productName String
   quantity    Int     @default(1)
   price       Decimal @default(0)
   subtotal    Decimal @default(0)
 
-  // Additional fields as needed
   sku      String?
   barcode  String?
   unit     String?
@@ -929,7 +1237,144 @@ model HoldOrderItem {
   @@index([productId])
 }
 
-// Enum for better type safety
+// ==========================================
+// PRINTER MODELS
+// ==========================================
+
+model Printer {
+  id                Int                   @id @default(autoincrement())
+  printerId         String                @unique @map("printer_id")
+  tenantId          String                @map("tenant_id")
+  branchId          String                @map("branch_id")
+  terminalId        String?               @map("terminal_id")
+  printerName       String                @map("printer_name")
+  printerModel      String?               @map("printer_model")
+  printerType       PrinterType           @default(THERMAL) @map("printer_type")
+  connectionType    PrinterConnectionType @default(USB) @map("connection_type")
+  connectionAddress String?               @map("connection_address")
+  port              Int?                  @map("port")
+  vendorId          String?               @map("vendor_id")
+  productId         String?               @map("product_id")
+  serialNumber      String?               @map("serial_number")
+  isDefault         Boolean               @default(false) @map("is_default")
+  isReceiptPrinter  Boolean               @default(true) @map("is_receipt_printer")
+  isLabelPrinter    Boolean               @default(false) @map("is_label_printer")
+  isKitchenPrinter  Boolean               @default(false) @map("is_kitchen_printer")
+  isReportPrinter   Boolean               @default(false) @map("is_report_printer")
+  status            PrinterStatus         @default(OFFLINE) @map("status")
+  configuration     Json?                 @map("configuration")
+  lastConnected     DateTime?             @map("last_connected")
+  lastPrintJob      DateTime?             @map("last_print_job")
+  printJobCount     Int                   @default(0) @map("print_job_count")
+  errorCount        Int                   @default(0) @map("error_count")
+  lastError         String?               @map("last_error")
+  isActive          Boolean               @default(true) @map("is_active")
+  synced            Int?                  @default(0) @map("synced")
+  createdAt         DateTime?             @default(now()) @map("created_at")
+  updatedAt         DateTime?             @default(now()) @map("updated_at")
+
+  tenant            Tenant                @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade, onUpdate: NoAction)
+  branch            Branch                @relation(fields: [branchId], references: [branchId], onDelete: Cascade, onUpdate: NoAction)
+  printJobs         PrintJob[]
+
+  @@index([tenantId])
+  @@index([branchId])
+  @@index([terminalId])
+  @@index([isDefault])
+  @@index([status])
+  @@map("printers")
+}
+
+model PrintJob {
+  id               Int            @id @default(autoincrement())
+  printJobId       String         @unique @map("print_job_id")
+  printerId        String         @map("printer_id")
+  tenantId         String         @map("tenant_id")
+  branchId         String         @map("branch_id")
+  terminalId       String?        @map("terminal_id")
+  userId           String?        @map("user_id")
+  jobType          PrintJobType   @default(RECEIPT) @map("job_type")
+  jobTitle         String         @map("job_title")
+  status           PrintJobStatus @default(PENDING) @map("status")
+  content          String         @db.Text @map("content")
+  contentType      String?        @map("content_type")
+  copies           Int            @default(1) @map("copies")
+  priority         Int            @default(5) @map("priority")
+  referenceId      String?        @map("reference_id")
+  referenceType    String?        @map("reference_type")
+  errorMessage     String?        @map("error_message")
+  printedAt        DateTime?      @map("printed_at")
+  scheduledAt      DateTime?      @map("scheduled_at")
+  createdAt        DateTime?      @default(now()) @map("created_at")
+  updatedAt        DateTime?      @default(now()) @map("updated_at")
+
+  printer          Printer        @relation(fields: [printerId], references: [printerId], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([printerId])
+  @@index([tenantId])
+  @@index([branchId])
+  @@index([status])
+  @@index([jobType])
+  @@index([priority])
+  @@index([createdAt])
+  @@map("print_jobs")
+}
+
+// ==========================================
+// ENUMS
+// ==========================================
+
+// NEW ENUMS for inventory flow
+enum PaymentTerms {
+  CASH_ON_DELIVERY
+  NET_15
+  NET_30
+  NET_60
+  NET_90
+}
+
+enum SupplierStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+enum PurchaseOrderStatus {
+  PENDING
+  SHIPPED
+  RECEIVED
+  CANCELLED
+  PARTIALLY_RECEIVED
+}
+
+enum StockMovementType {
+  PURCHASE_RECEIPT
+  SALE
+  RETURN
+  ADJUSTMENT
+  TRANSFER_IN
+  TRANSFER_OUT
+  DAMAGE
+  EXPIRY
+}
+
+enum StockReferenceType {
+  PURCHASE_ORDER
+  SALE
+  RETURN
+  ADJUSTMENT
+  TRANSFER
+}
+
+enum SaleStatus {
+  PENDING
+  COMPLETED
+  VOIDED
+  REFUNDED
+  PARTIALLY_REFUNDED
+}
+
+// ORIGINAL ENUMS (unchanged)
 enum HoldOrderStatus {
   hold
   resumed
@@ -1059,4 +1504,48 @@ enum InventoryStatus {
   inactive
   discontinued
   out_of_stock
+}
+
+// Printer enums
+enum PrinterType {
+  THERMAL
+  INKJET
+  LASER
+  DOT_MATRIX
+  LABEL
+}
+
+enum PrinterConnectionType {
+  USB
+  NETWORK
+  BLUETOOTH
+  SERIAL
+  WIFI
+}
+
+enum PrinterStatus {
+  ONLINE
+  OFFLINE
+  BUSY
+  ERROR
+  PAPER_OUT
+  COVER_OPEN
+}
+
+enum PrintJobType {
+  RECEIPT
+  INVOICE
+  REPORT
+  LABEL
+  BARCODE
+  KITCHEN_ORDER
+  TEST_PAGE
+}
+
+enum PrintJobStatus {
+  PENDING
+  PRINTING
+  COMPLETED
+  FAILED
+  CANCELLED
 }

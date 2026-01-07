@@ -32,6 +32,12 @@ This document provides a comprehensive overview of all available API endpoints i
 - [Permissions](#permissions)
 - [Role Permissions](#role-permissions)
 - [Orders](#orders)
+- [**NEW: Inventory Business Flow**](#inventory-business-flow)
+  - [Products](#products)
+  - [Suppliers](#suppliers)
+  - [Purchase Orders](#purchase-orders)
+  - [Sales](#sales)
+  - [Stock Movements](#stock-movements)
 
 ---
 
@@ -555,15 +561,15 @@ All endpoints are prefixed with the API base URL (e.g., `http://localhost:3000/a
 
 **Base Path:** `/returns`
 
-| Method | Endpoint                                    | Description                         | Auth Required |
-| ------ | ------------------------------------------- | ----------------------------------- | ------------- |
-| GET    | `/returns/`                                 | Returns/Refunds API info            | Yes           |
-| POST   | `/returns/initiate`                         | Initiate a return/refund            | Yes           |
-| GET    | `/returns/transaction/:transactionId`       | Get all returns for a transaction   | Yes           |
-| GET    | `/returns/:returnTransactionId`             | Get return details by ID            | Yes           |
-| DELETE | `/returns/:returnTransactionId`             | Cancel a return                     | Yes           |
-| POST   | `/returns/:returnTransactionId/restock`     | Restock returned items              | Yes           |
-| GET    | `/returns/statistics/summary`               | Get return statistics (date range)  | Yes           |
+| Method | Endpoint                                | Description                        | Auth Required |
+| ------ | --------------------------------------- | ---------------------------------- | ------------- |
+| GET    | `/returns/`                             | Returns/Refunds API info           | Yes           |
+| POST   | `/returns/initiate`                     | Initiate a return/refund           | Yes           |
+| GET    | `/returns/transaction/:transactionId`   | Get all returns for a transaction  | Yes           |
+| GET    | `/returns/:returnTransactionId`         | Get return details by ID           | Yes           |
+| DELETE | `/returns/:returnTransactionId`         | Cancel a return                    | Yes           |
+| POST   | `/returns/:returnTransactionId/restock` | Restock returned items             | Yes           |
+| GET    | `/returns/statistics/summary`           | Get return statistics (date range) | Yes           |
 
 ---
 
@@ -762,6 +768,70 @@ Common HTTP Status Codes:
 - `403` - Forbidden
 - `404` - Not Found
 - `500` - Internal Server Error
+
+---
+
+## Inventory Business Flow
+
+**See detailed documentation:** [INVENTORY_FLOW_API.md](./INVENTORY_FLOW_API.md)
+
+### Products
+
+**Base Path:** `/products`
+
+| Method | Endpoint                        | Description                        | Auth Required |
+| ------ | ------------------------------- | ---------------------------------- | ------------- |
+| POST   | `/products`                     | Create a new product               | Yes           |
+| GET    | `/products`                     | List all products                  | Yes           |
+| GET    | `/products/search/:term`        | Search product by SKU/barcode/name | Yes           |
+| GET    | `/products/:productId`          | Get product details                | Yes           |
+| PUT    | `/products/:productId`          | Update product                     | Yes           |
+| DELETE | `/products/:productId`          | Delete (deactivate) product        | Yes           |
+| POST   | `/products/:productId/barcodes` | Add barcode to product             | Yes           |
+
+### Suppliers
+
+**Base Path:** `/suppliers`
+
+| Method | Endpoint                 | Description                  | Auth Required |
+| ------ | ------------------------ | ---------------------------- | ------------- |
+| POST   | `/suppliers`             | Create a new supplier        | Yes           |
+| GET    | `/suppliers`             | List all suppliers           | Yes           |
+| GET    | `/suppliers/:supplierId` | Get supplier details         | Yes           |
+| PUT    | `/suppliers/:supplierId` | Update supplier              | Yes           |
+| DELETE | `/suppliers/:supplierId` | Delete (deactivate) supplier | Yes           |
+
+### Purchase Orders
+
+**Base Path:** `/purchase-orders`
+
+| Method | Endpoint                                    | Description            | Auth Required |
+| ------ | ------------------------------------------- | ---------------------- | ------------- |
+| POST   | `/purchase-orders`                          | Create purchase order  | Yes           |
+| GET    | `/purchase-orders`                          | List purchase orders   | Yes           |
+| GET    | `/purchase-orders/:purchaseOrderId`         | Get PO details         | Yes           |
+| POST   | `/purchase-orders/:purchaseOrderId/receive` | Receive purchase order | Yes           |
+| POST   | `/purchase-orders/:purchaseOrderId/cancel`  | Cancel purchase order  | Yes           |
+
+### Sales
+
+**Base Path:** `/sales`
+
+| Method | Endpoint              | Description                   | Auth Required |
+| ------ | --------------------- | ----------------------------- | ------------- |
+| POST   | `/sales`              | Create a sale (POS)           | Yes           |
+| GET    | `/sales`              | List sales                    | Yes           |
+| GET    | `/sales/:saleId`      | Get sale details              | Yes           |
+| POST   | `/sales/:saleId/void` | Void sale (reverse inventory) | Yes           |
+
+### Stock Movements
+
+**Base Path:** `/stock-movements`
+
+| Method | Endpoint                              | Description                | Auth Required |
+| ------ | ------------------------------------- | -------------------------- | ------------- |
+| GET    | `/stock-movements/product/:productId` | Get product stock history  | Yes           |
+| GET    | `/stock-movements/branch`             | Get branch stock movements | Yes           |
 
 ---
 

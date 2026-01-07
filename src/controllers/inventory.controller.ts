@@ -214,8 +214,6 @@ export class InventoryController extends BaseController {
         }
     }
 
-    // ==================== LOW STOCK & ALERTS ====================
-
     static async getLowStockItems(req: Request & AuthRequest, res: Response): Promise<void> {
         try {
             const threshold = parseInt(req.query.threshold as string) || 10;

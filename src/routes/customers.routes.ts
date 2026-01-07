@@ -1,20 +1,16 @@
 import { Router } from 'express';
-import { CustomerController } from '../controllers/customer.service';
+import { CustomerController } from '../controllers/customer.controller';
 
 const router = Router();
 
-router.get('/', (req, res) => {
-	res.send('Customer API');
-});
-
-router.get('/all', CustomerController.list);
-router.get('/customer/:customerId', CustomerController.getById);
-router.post('/customer', CustomerController.create);
-router.put('/customer', CustomerController.update);
-router.delete('/customer/:customerId', CustomerController.delete);
-router.get('/customers/count', CustomerController.count);
-router.post('/customers/search', CustomerController.search);
-router.get('/customers/unsynced', CustomerController.getUnsynced);
-router.put('/customer/:customerId/sync', CustomerController.markSynced);
+router.get('/', CustomerController.list);
+router.get('/:customerId', CustomerController.getById);
+router.post('/', CustomerController.create);
+router.put('/:customerId', CustomerController.update);
+router.delete('/:customerId', CustomerController.delete);
+router.get('/count', CustomerController.count);
+router.post('/search', CustomerController.search);
+router.get('/unsynced', CustomerController.getUnsynced);
+router.put('/:customerId/sync', CustomerController.markSynced);
 
 export default router;

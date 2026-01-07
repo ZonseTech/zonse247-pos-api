@@ -4,12 +4,13 @@ import { TransactionModel } from '../models/transaction.model';
 import { OrderModel } from '../models/order.model';
 import { OrderService } from './order.service';
 import { CategoryModel } from '../models/category.model';
+import { PaymentMethodModel } from '../models/payment-methods.model';
+import { PaymentServiceProviderModel } from '../models/payment-service-provider.model';
 import { DateRangeFilters, Transaction } from 'transactions';
 import { AuthenticatedUser } from 'auth';
 
 export class TransactionService {
 
-    // Define the include object for transaction relations
     private static getTransactionInclude(_includeItems = false) {
         return {
             customer: true,
@@ -69,12 +70,12 @@ export class TransactionService {
                 // Set endDate to end of day (23:59:59.999)
                 const endOfDay = new Date(endDate);
                 endOfDay.setHours(23, 59, 59, 999);
-                
+
                 where.date = {
                     gte: startDate,
                     lte: endOfDay,
                 };
-                
+
                 console.log('Date filter applied:', {
                     startDate: startDate.toISOString(),
                     endDate: endOfDay.toISOString(),
@@ -205,6 +206,22 @@ export class TransactionService {
         const validationError = this.validateTransactionData(data);
         if (validationError) {
             throw new Error(validationError);
+        }
+
+        // Validate payment method exists if provided
+        if (data.paymentMethodId) {
+            const paymentMethod = await PaymentMethodModel.findById(data.paymentMethodId);
+            if (!paymentMethod) {
+                throw new Error(`Payment method with ID '${data.paymentMethodId}' not found. Please create the payment method first or use a valid payment method ID.`);
+            }
+        }
+
+        // Validate payment service provider exists if provided
+        if (data.paymentServiceProviderId) {
+            const provider = await PaymentServiceProviderModel.findById(data.paymentServiceProviderId);
+            if (!provider) {
+                throw new Error(`Payment service provider with ID '${data.paymentServiceProviderId}' not found. Please create the provider first or use a valid provider ID.`);
+            }
         }
 
         const transactionUuid = uuidv4();
@@ -432,5 +449,126 @@ export class TransactionService {
         }
 
         return null;
+    }
+
+    /**
+     * Get transaction summaries with filters
+     * Returns: Total Sales, Total Returns, Net Sales, Total Transactions
+     */
+    static async getTransactionsSummary(filters: {
+        search?: string;
+        startDate?: Date;
+        endDate?: Date;
+        status?: string;
+        tenantId: string;
+        branchId: string;
+    }): Promise<{
+        totalSales: number;
+        totalReturns: number;
+        netSales: number;
+        totalTransactions: number;
+        salesCount: number;
+        returnsCount: number;
+    }> {
+        try {
+            const {
+                search,
+                startDate,
+                endDate,
+                status,
+                tenantId,
+                branchId
+            } = filters;
+
+            const where: any = {
+                tenantId,
+                branchId,
+            };
+
+            if (status) {
+                where.status = status;
+            }
+
+            // Handle date filtering - adjust endDate to include the entire day
+            if (startDate && endDate) {
+                const endOfDay = new Date(endDate);
+                endOfDay.setHours(23, 59, 59, 999);
+
+                where.date = {
+                    gte: startDate,
+                    lte: endOfDay,
+                };
+            } else if (startDate) {
+                where.date = { gte: startDate };
+            } else if (endDate) {
+                const endOfDay = new Date(endDate);
+                endOfDay.setHours(23, 59, 59, 999);
+                where.date = { lte: endOfDay };
+            }
+
+            if (search) {
+                where.OR = [
+                    { refNumber: { contains: search, mode: 'insensitive' } },
+                    { transactionId: { contains: search, mode: 'insensitive' } },
+                    { phoneNumber: { contains: search, mode: 'insensitive' } },
+                    { externalTransactionRef: { contains: search, mode: 'insensitive' } },
+                    {
+                        customer: {
+                            name: { contains: search, mode: 'insensitive' }
+                        }
+                    },
+                    {
+                        user: {
+                            OR: [
+                                { fullname: { contains: search, mode: 'insensitive' } },
+                                { username: { contains: search, mode: 'insensitive' } },
+                            ]
+                        }
+                    },
+                ];
+            }
+
+            // Get all transactions matching filters (without pagination for summaries)
+            const transactions = await TransactionModel.findByConditions(where, {});
+
+            let totalSales = 0;
+            let totalReturns = 0;
+            let salesCount = 0;
+            let returnsCount = 0;
+
+            for (const transaction of transactions) {
+                const total = typeof transaction.total === 'object' && 'toNumber' in transaction.total
+                    ? transaction.total.toNumber()
+                    : Number(transaction.total) || 0;
+
+                if (transaction.isRefund) {
+                    // For refunds, use refundedAmount if available, otherwise use total
+                    const refundAmount = transaction.refundedAmount
+                        ? (typeof transaction.refundedAmount === 'object' && 'toNumber' in transaction.refundedAmount
+                            ? transaction.refundedAmount.toNumber()
+                            : Number(transaction.refundedAmount))
+                        : total;
+                    totalReturns += refundAmount;
+                    returnsCount++;
+                } else {
+                    totalSales += total;
+                    salesCount++;
+                }
+            }
+
+            const netSales = totalSales - totalReturns;
+            const totalTransactions = transactions.length;
+
+            return {
+                totalSales: Math.round(totalSales * 100) / 100,
+                totalReturns: Math.round(totalReturns * 100) / 100,
+                netSales: Math.round(netSales * 100) / 100,
+                totalTransactions,
+                salesCount,
+                returnsCount,
+            };
+        } catch (error: any) {
+            throw new Error(`Failed to retrieve transaction summaries: ${error.message}`);
+        }
     }
 }

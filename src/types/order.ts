@@ -1,14 +1,16 @@
 import { Category } from "categoty";
-import { Decimal } from "../databases/prisma/generated/prisma/internal/prismaNamespace";
+
+// Database-agnostic decimal type (MySQL uses Decimal, SQLite uses number)
+type DecimalValue = number | { toNumber(): number };
 
 export interface OrderItem {
     orderId: string;
     refNumber?: string;
     transactionId: string;
     productId: string;
-    quantity: Decimal;
-    purchasePrice: Decimal;
-    sellPrice: Decimal;
+    quantity: DecimalValue;
+    purchasePrice: DecimalValue;
+    sellPrice: DecimalValue;
     createdAt?: Date;
     updatedAt?: Date;
     synced: number;

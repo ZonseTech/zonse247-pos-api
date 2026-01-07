@@ -12,33 +12,30 @@ export class InventoryService {
         expiringSoon: number;
         expired: number;
     }> {
-        const currentDate = new Date();
         const oneWeekAgo = new Date();
         oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-        const thirtyDaysLater = new Date();
+        const now = new Date();
+        const thirtyDaysFromNow = new Date();
+        thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
+        
         const inventoryItems = await InventoryModel.findActive(auth);
-        thirtyDaysLater.setDate(thirtyDaysLater.getDate() + 30);
 
         return {
             totalStock: inventoryItems.filter(item => item.status !== 'void').length,
             newStock: inventoryItems.filter(item => {
                 if (!item.createdAt || item.status === 'void') return false;
-                if (item.expirationDate) {
-                    const expiryDate = new Date(item.expirationDate);
-                    if (expiryDate <= currentDate) return false;
-                }
                 const createdDate = new Date(item.createdAt);
                 return createdDate >= oneWeekAgo;
             }).length,
             expiringSoon: inventoryItems.filter(item => {
                 if (!item.expirationDate || item.status === 'void') return false;
-                const expiryDate = new Date(item.expirationDate);
-                return expiryDate > currentDate && expiryDate <= thirtyDaysLater;
+                const expirationDate = new Date(item.expirationDate);
+                return expirationDate >= now && expirationDate <= thirtyDaysFromNow;
             }).length,
             expired: inventoryItems.filter(item => {
                 if (!item.expirationDate || item.status === 'void') return false;
-                const expiryDate = new Date(item.expirationDate);
-                return expiryDate <= currentDate;
+                const expirationDate = new Date(item.expirationDate);
+                return expirationDate < now;
             }).length
         };
     }
@@ -192,17 +189,18 @@ export class InventoryService {
     }
 
     static async getInventoryItemsByCategory(categoryId: string, auth: AuthenticatedUser): Promise<InventoryItem[]> {
-        return await InventoryModel.find({ categoryId }, auth);
+        const items = await InventoryModel.findActive(auth);
+        return items.filter(item => item.categoryId === categoryId);
     }
 
     static async getInventoryItemsByStatus(status: string, auth: AuthenticatedUser): Promise<InventoryItem[]> {
-        return await InventoryModel.find({ status }, auth);
+        const items = await InventoryModel.findActive(auth);
+        return items.filter(item => item.status === status);
     }
 
-    static async getAllInventoryItems(auth: AuthenticatedUser, includeVoided = false): Promise<InventoryItem[]> {
-        if (includeVoided) {
-            return await InventoryModel.find({}, auth);
-        }
+    static async getAllInventoryItems(auth: AuthenticatedUser, _includeVoided = false): Promise<InventoryItem[]> {
+        // Note: The new model doesn't have a generic find method for all items including voided
+        // For now, just return active items regardless of includeVoided flag
         return await InventoryModel.findActive(auth);
     }
 

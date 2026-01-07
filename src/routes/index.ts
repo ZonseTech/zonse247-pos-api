@@ -24,6 +24,12 @@ import OnboardingRoutes from './onboarding.routes'
 import AuthRoutes from './auth.routes'
 import PermissionRoutes from './permission.routes'
 import RolePermissionRoutes from './role-permission.routes'
+import ProductsRoutes from './products.routes'
+import SuppliersRoutes from './suppliers.routes'
+import PurchaseOrdersRoutes from './purchase-orders.routes'
+import SalesRoutes from './sales.routes'
+import StockMovementsRoutes from './stock-movements.routes'
+import PrinterRoutes from './printer.routes'
 import { AuthMiddleware } from '../middlewares/auth.middleware'
 import { apiMiddleware } from '../middlewares/api.middleware'
 import { preventSQLInjection, preventXSS, sanitizeInput } from '../middlewares/security.middleware'
@@ -94,5 +100,11 @@ router.use('/terminals', TerminalRoutes);
 router.use('/roles', RoleRoutes);
 router.use('/permissions', PermissionRoutes);
 router.use('/role-permissions', RolePermissionRoutes);
+router.use('/products', ProductsRoutes);
+router.use('/suppliers', SuppliersRoutes);
+router.use('/purchase-orders', PurchaseOrdersRoutes);
+router.use('/sales', SalesRoutes);
+router.use('/stock-movements', StockMovementsRoutes);
+router.use('/printers', PrinterRoutes);
 
 export default router

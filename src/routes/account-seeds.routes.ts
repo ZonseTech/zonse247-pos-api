@@ -3,7 +3,7 @@ import { RoleController } from "../controllers/role.controller";
 import { PermissionController } from "../controllers/permission.controller";
 import { RolePermissionController } from "../controllers/role-permission.controller";
 import { UserController } from "../controllers/user.controller";
-import { CustomerController } from "../controllers/customer.service";
+import { CustomerController } from "../controllers/customer.controller";
 import { CategoryController } from "../controllers/category.controller";
 import { SubscriptionPlanController } from "../controllers/subscription-plan.controller";
 import { SubscriptionController } from "../controllers/subscription.controller";

@@ -9,12 +9,13 @@ export class PaymentServiceProviderService {
     }
 
     static async createPaymentServiceProvider(
-        pspData: { name: string; logoUrl: string },
+        pspData: { name: string; type: string; logoUrl: string },
         user: AuthenticatedUser
     ): Promise<PaymentServiceProvider> {
         try {
             const createRequest: CreatePaymentServiceProviderRequest = {
                 name: pspData.name,
+                type: pspData.type || 'bank',
                 logoUrl: pspData.logoUrl,
                 tenantId: user.tenantId,
                 branchId: user.branchId,

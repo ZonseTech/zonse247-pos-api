@@ -1,8 +1,12 @@
 import { PrismaClient } from "../generated/prisma/client";
 
 const PAYMENT_METHODS = [
-    { methodId: '1', name: 'Cash' },
-    { methodId: '2', name: 'Mobile Transfer' },
+    { methodId: 'cash', name: 'Cash', icon: '💵', sortOrder: 1 },
+    { methodId: 'bank-transfer', name: 'Bank Transfer', icon: '🏦', sortOrder: 2 },
+    { methodId: 'mobile-money', name: 'Mobile Money', icon: '📱', sortOrder: 3 },
+    { methodId: 'credit-card', name: 'Credit Card', icon: '💳', sortOrder: 4 },
+    { methodId: 'debit-card', name: 'Debit Card', icon: '💳', sortOrder: 5 },
+    { methodId: 'cheque', name: 'Cheque', icon: '📝', sortOrder: 6 },
 ];
 
 export async function seedPaymentMethods(prisma: PrismaClient) {

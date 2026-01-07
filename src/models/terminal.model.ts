@@ -73,7 +73,6 @@ export class TerminalModel {
                 where: { terminalId }
             }) as unknown as Terminal | null;
 
-            // Verify tenant/branch match if provided
             if (terminal) {
                 if (tenantId && terminal.tenantId !== tenantId) return null;
                 if (branchId && terminal.branchId !== branchId) return null;

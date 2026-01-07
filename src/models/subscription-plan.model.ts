@@ -37,6 +37,18 @@ export class SubscriptionPlanModel {
 		}
 	}
 
+	static async findByPlanCode(planCode: string): Promise<SubscriptionPlan | null> {
+		try {
+			return await prisma.subscriptionPlan.findUnique({
+				where: { planCode }
+			}) as unknown as SubscriptionPlan | null;
+		} catch (error) {
+			throw new Error(
+				`Error finding subscription plan by code: ${error instanceof Error ? error.message : 'Unknown error'}`
+			);
+		}
+	}
+
 	static async findActivePlans(): Promise<SubscriptionPlan[]> {
 		try {
 			return await prisma.subscriptionPlan.findMany({

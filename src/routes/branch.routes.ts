@@ -12,5 +12,6 @@ router.post('/post', BranchController.create);
 router.put('/update/:id', BranchController.update);
 router.get('/:id', BranchController.show);
 router.delete('/:id', BranchController.delete);
+router.get('/tenant-branch/primary-terminal-id', BranchController.getPrimaryTerminalId);
 
 export default router;

@@ -51,7 +51,12 @@ export class CustomerController extends BaseController {
 
     static async create(req: Request, res: Response): Promise<void> {
         try {
-            const customerData: CreateCustomerData = req.body;
+            const customerData: CreateCustomerData = {
+                ...req.body,
+                tenantId: (req as any).auth?.tenantId || '',
+                branchId: (req as any).auth?.branchId || '',
+                userId: (req as any).auth?.userId || '',
+            };
 
             if (!customerData.name || customerData.name.trim() === '') {
                 return BaseController.sendBadRequest(res, 'Customer name is required');
@@ -74,14 +79,14 @@ export class CustomerController extends BaseController {
 
     static async update(req: Request, res: Response): Promise<void> {
         try {
-            const updateData: UpdateCustomerData & { uuid?: string } = req.body;
+            const updateData: UpdateCustomerData = req.body;
+            const { customerId } = req.params;
 
-            if (!updateData.uuid) {
+            if (!customerId) {
                 return BaseController.sendBadRequest(res, 'Customer ID is required for update');
             }
 
-            const { uuid, ...customerUpdateData } = updateData;
-            const success = await CustomerService.updateCustomer(uuid, customerUpdateData);
+            const success = await CustomerService.updateCustomer(customerId, updateData);
 
             if (!success) {
                 return BaseController.sendNotFound(res, 'Customer not found');

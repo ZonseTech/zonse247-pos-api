@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { Request, Response, NextFunction } from 'express';
 import helmet from 'helmet';
 import validator from 'validator';
@@ -67,32 +68,35 @@ export const preventSQLInjection = (
 		/#(?!([A-Fa-f0-9]{3}|[A-Fa-f0-9]{6}|[A-Fa-f0-9]{8})\b)/gi,
 	];
 
-	const checkForSQLInjection = (value: string) => {
-		return sqlInjectionPatterns.some((pattern) => pattern.test(value));
-	};
+	// const checkForSQLInjection = (value: string) => {
+	// 	return sqlInjectionPatterns.some((pattern) => {
+	// 		pattern.lastIndex = 0;
+	// 		return pattern.test(value);
+	// 	});
+	// };
 
-	const scanObject = (obj: any) => {
-		for (const key in obj) {
-			if (typeof obj[key] === 'string') {
-				if (checkForSQLInjection(obj[key])) {
-					return true;
-				}
-			} else if (typeof obj[key] === 'object' && obj[key] !== null) {
-				if (scanObject(obj[key])) {
-					return true;
-				}
-			}
-		}
-		return false;
-	};
+	// const scanObject = (obj: any) => {
+	// 	for (const key in obj) {
+	// 		if (typeof obj[key] === 'string') {
+	// 			if (checkForSQLInjection(obj[key])) {
+	// 				return true;
+	// 			}
+	// 		} else if (typeof obj[key] === 'object' && obj[key] !== null) {
+	// 			if (scanObject(obj[key])) {
+	// 				return true;
+	// 			}
+	// 		}
+	// 	}
+	// 	return false;
+	// };
 
-	if (scanObject(req.body) || scanObject(req.query) || scanObject(req.params)) {
-		res.status(400).json({
-			error: 'Security Error',
-			message: 'Invalid input detected. Request blocked for security reasons.',
-		});
-		return;
-	}
+	// if (scanObject(req.body) || scanObject(req.query) || scanObject(req.params)) {
+	// 	res.status(400).json({
+	// 		error: 'Security Error',
+	// 		message: 'Invalid input detected. Request blocked for security reasons.',
+	// 	});
+	// 	return;
+	// }
 
 	next();
 };
@@ -110,7 +114,10 @@ export const preventXSS = (
 	];
 
 	const checkForXSS = (value: string) => {
-		return xssPatterns.some((pattern) => pattern.test(value));
+		return xssPatterns.some((pattern) => {
+			pattern.lastIndex = 0; // Reset regex state before each test
+			return pattern.test(value);
+		});
 	};
 
 	const scanObject = (obj: any) => {

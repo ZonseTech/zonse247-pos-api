@@ -191,4 +191,48 @@ export class TransactionController extends BaseController {
             BaseController.sendResponse(res, statusCode, false, error.message, undefined, error.message);
         }
     }
+
+    /**
+     * Get transaction summaries with filters
+     * Returns: Total Sales, Total Returns, Net Sales, Total Transactions
+     */
+    static async summaries(req: Request & AuthRequest, res: Response): Promise<void> {
+        try {
+            const {
+                search,
+                startDate,
+                endDate,
+                status,
+            } = req.query;
+
+            // Parse dates properly - ensure they're treated as local dates
+            let parsedStartDate: Date | undefined;
+            let parsedEndDate: Date | undefined;
+
+            if (startDate) {
+                const dateStr = startDate.toString();
+                parsedStartDate = new Date(dateStr + 'T00:00:00');
+            }
+
+            if (endDate) {
+                const dateStr = endDate.toString();
+                parsedEndDate = new Date(dateStr + 'T00:00:00');
+            }
+
+            const filters = {
+                search: search?.toString(),
+                startDate: parsedStartDate,
+                endDate: parsedEndDate,
+                status: status?.toString(),
+                tenantId: req.auth.tenantId,
+                branchId: req.auth.branchId,
+            };
+
+            const result = await TransactionService.getTransactionsSummary(filters);
+            BaseController.sendResponse(res, 200, true, 'Transaction summaries retrieved successfully', result);
+        } catch (error: any) {
+            console.error('Error fetching transaction summaries:', error);
+            BaseController.sendResponse(res, 500, false, error.message, undefined, error.message);
+        }
+    }
 }

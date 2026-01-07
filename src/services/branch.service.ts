@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { TenantService } from "./tenant.service";
 import { BranchModel } from "../models/branch.model";
 import { TenantModel } from "../models/tenant.model";
@@ -86,12 +87,12 @@ export class BranchService {
 		return await BranchModel.findByTenantId(tenantId);
 	}
 
-	static async getBranchById(branchId: string, tenantId: string): Promise<Branch> {
+	static async getBranchById(branchId: string, tenantId?: string): Promise<Branch> {
 		if (!branchId) {
 			throw new Error('Branch ID is required');
 		}
 
-		const branch = await BranchModel.findById(branchId, tenantId);
+		const branch = await BranchModel.findById(branchId);
 		if (!branch) {
 			throw new Error('Branch not found');
 		}
@@ -148,7 +149,7 @@ export class BranchService {
 			throw new Error('Branch ID is required');
 		}
 
-		const existingBranch = await BranchModel.findById(branchId, tenantId);
+		const existingBranch = await BranchModel.findById(branchId);
 		if (!existingBranch) {
 			throw new Error('Branch not found');
 		}
@@ -182,7 +183,7 @@ export class BranchService {
 			throw new Error('Branch ID is required');
 		}
 
-		const existingBranch = await BranchModel.findById(branchId, tenantId);
+		const existingBranch = await BranchModel.findById(branchId);
 		if (!existingBranch) {
 			throw new Error('Branch not found');
 		}
@@ -257,9 +258,12 @@ export class BranchService {
 	} | null): Promise<Branch> {
 		const now = new Date();
 
+		const lastId = await BranchModel.getLastId();
+		const branchCode = `BR${lastId + 1}`;
+
 		const data = {
 			branchName: 'Default Branch',
-			branchCode: 'BR001',
+			branchCode,
 			addressLine1: '123 Main Street',
 			city: 'Lilongwe',
 			district: 'Lilongwe Urban',

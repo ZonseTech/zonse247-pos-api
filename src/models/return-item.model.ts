@@ -1,17 +1,19 @@
 import prisma from '../databases/prisma/client';
-import { Decimal } from '../databases/prisma/generated/prisma/internal/prismaNamespace';
+
+// Database-agnostic decimal type (MySQL uses Decimal, SQLite uses number)
+type DecimalValue = number | { toNumber(): number };
 
 export interface ReturnItem {
     returnItemId: string;
     returnTransactionId: string;
     originalOrderId: string;
     productId: string;
-    returnedQuantity: Decimal;
-    originalQuantity: Decimal;
-    returnPrice: Decimal;
+    returnedQuantity: DecimalValue;
+    originalQuantity: DecimalValue;
+    returnPrice: DecimalValue;
     returnReason?: string;
     restockStatus?: string;
-    restockedQuantity?: Decimal;
+    restockedQuantity?: DecimalValue;
     restockedAt?: Date;
     condition?: string;
     notes?: string;
@@ -25,43 +27,43 @@ export class ReturnItemModel {
     static async findAll(conditions: any = {}): Promise<ReturnItem[]> {
         return prisma.returnItem.findMany({
             where: conditions,
-        });
+        }) as unknown as ReturnItem[];
     }
 
     static async findById(id: string): Promise<ReturnItem | null> {
         return prisma.returnItem.findUnique({
             where: { returnItemId: id },
-        });
+        }) as unknown as ReturnItem | null;
     }
 
     static async findByReturnTransactionId(returnTransactionId: string): Promise<ReturnItem[]> {
         return prisma.returnItem.findMany({
             where: { returnTransactionId },
-        });
+        }) as unknown as ReturnItem[];
     }
 
     static async findByOriginalOrderId(originalOrderId: string): Promise<ReturnItem[]> {
         return prisma.returnItem.findMany({
             where: { originalOrderId },
-        });
+        }) as unknown as ReturnItem[];
     }
 
     static async findByProductId(productId: string): Promise<ReturnItem[]> {
         return prisma.returnItem.findMany({
             where: { productId },
-        });
+        }) as unknown as ReturnItem[];
     }
 
     static async findByRestockStatus(status: string): Promise<ReturnItem[]> {
         return prisma.returnItem.findMany({
             where: { restockStatus: status },
-        });
+        }) as unknown as ReturnItem[];
     }
 
     static async create(data: Partial<ReturnItem>): Promise<ReturnItem> {
         return prisma.returnItem.create({
             data: data as any,
-        });
+        }) as unknown as ReturnItem;
     }
 
     static async createMany(items: Partial<ReturnItem>[]): Promise<number> {
@@ -74,7 +76,7 @@ export class ReturnItemModel {
     static async update(id: string, data: Partial<ReturnItem>): Promise<number> {
         const result = await prisma.returnItem.update({
             where: { returnItemId: id },
-            data,
+            data: data as any,
         });
         return result ? 1 : 0;
     }

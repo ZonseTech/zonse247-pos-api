@@ -154,6 +154,7 @@ export class CategoryModel {
             name: data.name,
             description: data.description,
             color: data.color,
+            isDefault: data.isDefault,
             tenantId: data.tenantId,
             branchId: data.branchId,
             terminalId: data.terminalId,

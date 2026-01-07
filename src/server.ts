@@ -68,13 +68,31 @@ export class Server {
 	}
 
 	private setupRoutes() {
-		this.app.get('/api/v1/health', (req: Request, res: Response) => {
+		this.app.get('/health', (req: Request, res: Response) => {
 			res.json({
 				success: true,
+				status: 'healthy',
 				message: 'Server is running',
 				timestamp: new Date().toISOString(),
 				environment: process.env.NODE_ENV,
 				version: process.env.npm_package_version || '1.0.0',
+				uptime: process.uptime(),
+			});
+		});
+
+		this.app.head('/health', (req: Request, res: Response) => {
+			res.status(200).end();
+		});
+
+		this.app.get('/api/v1/health', (req: Request, res: Response) => {
+			res.json({
+				success: true,
+				status: 'healthy',
+				message: 'Server is running',
+				timestamp: new Date().toISOString(),
+				environment: process.env.NODE_ENV,
+				version: process.env.npm_package_version || '1.0.0',
+				uptime: process.uptime(),
 			});
 		});
 

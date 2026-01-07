@@ -12,11 +12,10 @@ export class TerminalService {
             throw new Error(validationError);
         }
 
-        // Use tenantId and branchId from auth context
         const effectiveTenantId = tenantId;
         const effectiveBranchId = branchId;
 
-        const branch = await BranchModel.findById(effectiveBranchId, effectiveTenantId);
+        const branch = await BranchModel.findById(effectiveBranchId);
         if (!branch) {
             throw new Error('Branch not found');
         }
@@ -52,13 +51,12 @@ export class TerminalService {
         }
     }
 
-    static async getTerminalsByBranchId(branchId: string, tenantId: string): Promise<Terminal[]> {
+    static async getTerminalsByBranchId(branchId: string): Promise<Terminal[]> {
         if (!branchId) {
             throw new Error('Branch ID is required');
         }
 
-        // Verify branch belongs to tenant
-        const branch = await BranchModel.findById(branchId, tenantId);
+        const branch = await BranchModel.findById(branchId);
         if (!branch) {
             throw new Error('Branch not found');
         }
@@ -83,17 +81,23 @@ export class TerminalService {
         return terminals;
     }
 
-    static async getAccountTerminalsByBranchId(branchId: string, tenantId?: string): Promise<Terminal[]> {
+    static async getPrimaryTerminalId(branchId: string): Promise<string | null> {
+        const primaryTerminals = await TerminalModel.findPrimaryByBranchId(branchId);
+        if (primaryTerminals.length > 0) {
+            return primaryTerminals[0].terminalId;
+        }
+
+        return null;
+    }
+
+    static async getAccountTerminalsByBranchId(branchId: string): Promise<Terminal[]> {
         if (!branchId) {
             throw new Error('Branch ID is required');
         }
 
-        // Verify branch belongs to tenant if tenantId is provided
-        if (tenantId) {
-            const branch = await BranchModel.findById(branchId, tenantId);
-            if (!branch) {
-                throw new Error('Branch not found');
-            }
+        const branch = await BranchModel.findById(branchId);
+        if (!branch) {
+            throw new Error('Branch not found');
         }
 
         try {
