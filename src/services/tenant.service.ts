@@ -123,7 +123,16 @@ export class TenantService {
 
         if (defaultTerminal) {
             try {
-                await EmailService.sendWelcomeEmail({
+                // await EmailService.sendWelcomeEmail({
+                //     businessName: tenant.businessName,
+                //     ownerName: tenant.ownerName,
+                //     email: tenant.email,
+                //     tenantCode: tenant.tenantCode,
+                //     verificationToken,
+                //     username: defaultUsername,
+                //     password: defaultPassword,
+                // });
+                console.log({
                     businessName: tenant.businessName,
                     ownerName: tenant.ownerName,
                     email: tenant.email,
@@ -131,7 +140,7 @@ export class TenantService {
                     verificationToken,
                     username: defaultUsername,
                     password: defaultPassword,
-                });
+                })
             } catch (emailError) {
                 console.error('Failed to send welcome email:', {
                     tenantCode: tenant.tenantCode,
