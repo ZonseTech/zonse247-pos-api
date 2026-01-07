@@ -9,24 +9,29 @@ import { UserUncheckedCreateInput } from 'src/databases/prisma/generated/prisma/
 
 export class UserService {
 
-	static async selectAll(params): Promise<Array<User>> {
+	static async selectAll(tenantId: string, branchId: string): Promise<Array<User>> {
 		return await UserModel.findAll({
-			tenantId: params.tenantId,
+			tenantId,
+			branchId,
 		});
 	}
 
-	static async getUserById(userId: string): Promise<any> {
+	static async getUserById(userId: string, tenantId: string, branchId: string): Promise<any> {
 		if (!userId) {
 			throw new Error('ID field is required.');
 		}
-		return await UserModel.findById(userId);
+		return await UserModel.findById(userId, tenantId, branchId);
 	}
 
-	static async getAllUsers(query?: any): Promise<any[]> {
+	static async getAllUsers(query?: any, tenantId?: string, branchId?: string): Promise<any[]> {
 		let users: Array<User>;
 
 		if (query && Object.keys(query).length > 0) {
 			const searchCriteria: any = {};
+
+			// Add tenant/branch filtering
+			if (tenantId) searchCriteria.tenantId = tenantId;
+			if (branchId) searchCriteria.branchId = branchId;
 
 			if (query.status) {
 				searchCriteria.status = query.status;
@@ -47,7 +52,12 @@ export class UserService {
 			}
 
 			users = await UserModel.findAll(searchCriteria);
-		} else users = await UserModel.findAll();
+		} else {
+			const searchCriteria: any = {};
+			if (tenantId) searchCriteria.tenantId = tenantId;
+			if (branchId) searchCriteria.branchId = branchId;
+			users = await UserModel.findAll(searchCriteria);
+		}
 
 		const publicUsers = await Promise.all(
 			users.map(async (user) => {
@@ -59,7 +69,7 @@ export class UserService {
 		return publicUsers;
 	}
 
-	static async createUser(userData: Partial<User>): Promise<any> {
+	static async createUser(userData: Partial<User>, auth: { tenantId: string; branchId: string; userId: string }): Promise<any> {
 		const userExists = await UserModel.checkUserExists(
 			userData.username,
 			userData.email
@@ -70,17 +80,19 @@ export class UserService {
 
 		const user = await UserModel.create({
 			...userData,
+			tenantId: auth.tenantId,
+			branchId: userData.branchId || auth.branchId,
 			status: userData.status || 'active'
 		} as unknown as UserUncheckedCreateInput);
 		return UserModel.getPublicUser(user);
 	}
 
-	static async updateUser(userId: string, userData: any): Promise<Omit<User, 'password'>> {
+	static async updateUser(userId: string, userData: any, tenantId: string, branchId: string): Promise<Omit<User, 'password'>> {
 		if (!userId) {
 			throw new Error('ID field is required.');
 		}
 
-		const existingUser = await UserModel.findById(userId);
+		const existingUser = await UserModel.findById(userId, tenantId, branchId);
 		if (!existingUser) {
 			throw new Error('User not found');
 		}
@@ -95,23 +107,28 @@ export class UserService {
 
 		await UserModel.update(userId, updatedUserData);
 
-		const updatedUser = await UserModel.findById(userId);
+		const updatedUser = await UserModel.findById(userId, tenantId, branchId);
 		return UserModel.getPublicUser(updatedUser);
 	}
 
-	static async deleteUser(userId: string): Promise<void> {
+	static async deleteUser(userId: string, tenantId: string, branchId: string): Promise<void> {
 		if (!userId) {
 			throw new Error('ID field is required.');
+		}
+		// Verify user belongs to tenant/branch before deletion
+		const user = await UserModel.findById(userId, tenantId, branchId);
+		if (!user) {
+			throw new Error('User not found');
 		}
 		await UserModel.delete(userId);
 	}
 
-	static async getUsersByRole(roleId: string): Promise<any[]> {
+	static async getUsersByRole(roleId: string, tenantId: string, branchId: string): Promise<any[]> {
 		if (!roleId) {
 			throw new Error('Role ID is required.');
 		}
 
-		const users = await UserModel.findByRoleId(roleId);
+		const users = await UserModel.findByRoleId(roleId, tenantId, branchId);
 
 		const publicUsers = await Promise.all(
 			users.map(async (user) => {
@@ -123,12 +140,12 @@ export class UserService {
 		return publicUsers;
 	}
 
-	static async getUsersByBranch(branchId: string): Promise<any[]> {
+	static async getUsersByBranch(branchId: string, tenantId: string): Promise<any[]> {
 		if (!branchId) {
 			throw new Error('Branch ID is required.');
 		}
 
-		const users = await UserModel.findByBranchId(branchId);
+		const users = await UserModel.findByBranchId(branchId, tenantId);
 
 		const publicUsers = await Promise.all(
 			users.map(async (user) => {
@@ -142,7 +159,9 @@ export class UserService {
 
 	static async updateUserStatus(
 		userId: string,
-		status: 'active' | 'inactive' | 'suspended'
+		status: 'active' | 'inactive' | 'suspended',
+		tenantId: string,
+		branchId: string
 	): Promise<any> {
 		if (!userId) {
 			throw new Error('User ID is required.');
@@ -152,14 +171,14 @@ export class UserService {
 			throw new Error('Valid status is required (active, inactive, suspended).');
 		}
 
-		const user = await UserModel.findById(userId);
+		const user = await UserModel.findById(userId, tenantId, branchId);
 		if (!user) {
 			throw new Error('User not found');
 		}
 
 		await UserModel.update(userId, { status });
 
-		const updatedUser = await UserModel.findById(userId);
+		const updatedUser = await UserModel.findById(userId, tenantId, branchId);
 		const roleData = await this.getRoleWithPermissions(updatedUser.roleId);
 
 		return this.getPublicUser(updatedUser, roleData || {});

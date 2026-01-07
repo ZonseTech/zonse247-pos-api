@@ -6,55 +6,61 @@ import { BaseService } from "./base.service";
 
 export class TerminalService {
 
-    static async createTerminal(data: CreateTerminalRequest): Promise<Terminal> {
-        const validationError = TenantService.validateRequired(data, ['branchId', 'tenantId', 'terminalLabel', 'terminalCode']);
+    static async createTerminal(data: CreateTerminalRequest, tenantId: string, branchId: string, _userId: string): Promise<Terminal> {
+        const validationError = TenantService.validateRequired(data, ['terminalLabel', 'terminalCode']);
         if (validationError) {
             throw new Error(validationError);
         }
 
-        const branch = await BranchModel.findByBranchCode(data.branchId);
+        // Use tenantId and branchId from auth context
+        const effectiveTenantId = tenantId;
+        const effectiveBranchId = branchId;
+
+        const branch = await BranchModel.findById(effectiveBranchId, effectiveTenantId);
         if (!branch) {
             throw new Error('Branch not found');
         }
 
-        if (branch.tenantId !== data.tenantId) {
-            throw new Error('Tenant does not own this branch');
-        }
-
-        const existingTerminals = await TerminalModel.findByBranchIdAndTerminalCode(data.branchId, data.terminalCode);
+        const existingTerminals = await TerminalModel.findByBranchIdAndTerminalCode(effectiveBranchId, data.terminalCode);
         if (existingTerminals.length > 0) {
             throw new Error('Terminal code already exists for this branch');
         }
 
         if (data.isPrimary) {
-            const primaryTerminals = await TerminalModel.findPrimaryByBranchId(data.branchId);
+            const primaryTerminals = await TerminalModel.findPrimaryByBranchId(effectiveBranchId);
             for (const terminal of primaryTerminals) {
                 await TerminalModel.update(terminal.terminalId, { isPrimary: false });
             }
         }
 
-        return TerminalModel.create(data);
+        return TerminalModel.create({ ...data, tenantId: effectiveTenantId, branchId: effectiveBranchId });
     }
 
-    static async getAllTerminals(query: any = {}): Promise<Terminal[]> {
+    static async getAllTerminals(query: any = {}, tenantId: string, branchId?: string): Promise<Terminal[]> {
         try {
-            if (query.tenantId) {
-                return await TerminalModel.findByTenantId(query.tenantId);
+            const conditions: any = { tenantId };
+
+            if (branchId) {
+                conditions.branchId = branchId;
+            } else if (query.branchId) {
+                conditions.branchId = query.branchId;
             }
 
-            if (query.branchId) {
-                return await TerminalModel.findByBranchId(query.branchId);
-            }
-
-            return await TerminalModel.findAll();
+            return await TerminalModel.findAll(conditions);
         } catch (error) {
             throw new Error(`Failed to retrieve terminals: ${error}`);
         }
     }
 
-    static async getTerminalsByBranchId(branchId: string): Promise<Terminal[]> {
+    static async getTerminalsByBranchId(branchId: string, tenantId: string): Promise<Terminal[]> {
         if (!branchId) {
             throw new Error('Branch ID is required');
+        }
+
+        // Verify branch belongs to tenant
+        const branch = await BranchModel.findById(branchId, tenantId);
+        if (!branch) {
+            throw new Error('Branch not found');
         }
 
         const response = await BaseService.get<Array<Terminal>>(`/on-boarding/live/branch/${branchId}/terminals`);
@@ -77,9 +83,17 @@ export class TerminalService {
         return terminals;
     }
 
-    static async getAccountTerminalsByBranchId(branchId: string): Promise<Terminal[]> {
+    static async getAccountTerminalsByBranchId(branchId: string, tenantId?: string): Promise<Terminal[]> {
         if (!branchId) {
             throw new Error('Branch ID is required');
+        }
+
+        // Verify branch belongs to tenant if tenantId is provided
+        if (tenantId) {
+            const branch = await BranchModel.findById(branchId, tenantId);
+            if (!branch) {
+                throw new Error('Branch not found');
+            }
         }
 
         try {
@@ -90,16 +104,17 @@ export class TerminalService {
         }
     }
 
-    static async getTerminalById(terminalId: string): Promise<Terminal | null> {
+    static async getTerminalById(terminalId: string, tenantId: string, branchId?: string): Promise<Terminal | null> {
         try {
-            return await TerminalModel.findById(terminalId);
+            const terminal = await TerminalModel.findById(terminalId, tenantId, branchId);
+            return terminal;
         } catch (error) {
             throw new Error(`Failed to retrieve terminal: ${error}`);
         }
     }
 
-    static async updateTerminal(terminalId: string, data: Partial<Terminal>): Promise<Terminal | null> {
-        const existingTerminal = await TerminalModel.findById(terminalId);
+    static async updateTerminal(terminalId: string, data: Partial<Terminal>, tenantId: string, branchId?: string): Promise<Terminal | null> {
+        const existingTerminal = await TerminalModel.findById(terminalId, tenantId, branchId);
         if (!existingTerminal) {
             throw new Error('Terminal not found');
         }
@@ -132,11 +147,17 @@ export class TerminalService {
             return null;
         }
 
-        return await TerminalModel.findById(terminalId);
+        return await TerminalModel.findById(terminalId, tenantId, branchId);
     }
 
-    static async deleteTerminal(terminalId: string): Promise<boolean> {
+    static async deleteTerminal(terminalId: string, tenantId: string, branchId?: string): Promise<boolean> {
         try {
+            // Verify terminal belongs to tenant/branch before deletion
+            const terminal = await TerminalModel.findById(terminalId, tenantId, branchId);
+            if (!terminal) {
+                throw new Error('Terminal not found');
+            }
+
             const numDeleted = await TerminalModel.delete(terminalId);
             return numDeleted > 0;
         } catch (error) {
@@ -144,8 +165,14 @@ export class TerminalService {
         }
     }
 
-    static async updateTerminalStatus(terminalId: string, status: 'PENDING' | 'ACTIVATED' | 'DEACTIVATED' | 'SUSPENDED' | 'BLOCKED'): Promise<Terminal | null> {
+    static async updateTerminalStatus(terminalId: string, status: 'PENDING' | 'ACTIVATED' | 'DEACTIVATED' | 'SUSPENDED' | 'BLOCKED', tenantId: string, branchId?: string): Promise<Terminal | null> {
         try {
+            // Verify terminal belongs to tenant/branch
+            const existingTerminal = await TerminalModel.findById(terminalId, tenantId, branchId);
+            if (!existingTerminal) {
+                throw new Error('Terminal not found');
+            }
+
             const updateData = {
                 activationStatus: status,
                 lastActivity: new Date(),
@@ -157,14 +184,14 @@ export class TerminalService {
                 return null;
             }
 
-            return await TerminalModel.findById(terminalId);
+            return await TerminalModel.findById(terminalId, tenantId, branchId);
         } catch (error) {
             throw new Error(`Failed to update terminal status: ${error}`);
         }
     }
 
-    static async syncTerminal(terminalId: string): Promise<{ status: boolean; lastSync: Date }> {
-        const terminal = await TerminalModel.findById(terminalId);
+    static async syncTerminal(terminalId: string, tenantId: string, branchId?: string): Promise<{ status: boolean; lastSync: Date }> {
+        const terminal = await TerminalModel.findById(terminalId, tenantId, branchId);
         if (!terminal) {
             throw new Error('Terminal not found');
         }

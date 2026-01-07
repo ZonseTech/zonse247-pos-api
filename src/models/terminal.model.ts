@@ -67,11 +67,19 @@ export class TerminalModel {
         }
     }
 
-    static async findById(terminalId: string): Promise<Terminal | null> {
+    static async findById(terminalId: string, tenantId?: string, branchId?: string): Promise<Terminal | null> {
         try {
-            return await prisma.terminal.findUnique({
+            const terminal = await prisma.terminal.findUnique({
                 where: { terminalId }
             }) as unknown as Terminal | null;
+
+            // Verify tenant/branch match if provided
+            if (terminal) {
+                if (tenantId && terminal.tenantId !== tenantId) return null;
+                if (branchId && terminal.branchId !== branchId) return null;
+            }
+
+            return terminal;
         } catch (error) {
             throw new Error(`Error finding terminal by ID: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }

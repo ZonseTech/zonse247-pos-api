@@ -1,27 +1,153 @@
 import { v4 as uuidv4 } from 'uuid';
 import { InventoryModel } from '../models/inventory.model';
 import { TransactionModel } from '../models/transaction.model';
-import { UserModel } from '../models/user.model';
-import { PaymentMethodModel } from '../models/payment-methods.model';
-import { CustomerModel } from '../models/customer.model';
 import { OrderModel } from '../models/order.model';
 import { OrderService } from './order.service';
-import { PaymentServiceProviderModel } from '../models/payment-service-provider.model';
-import { TerminalModel } from '../models/terminal.model';
 import { CategoryModel } from '../models/category.model';
 import { DateRangeFilters, Transaction } from 'transactions';
 import { AuthenticatedUser } from 'auth';
 
 export class TransactionService {
 
-    static async getAllTransactions(includeItems = true): Promise<Transaction[]> {
+    // Define the include object for transaction relations
+    private static getTransactionInclude(_includeItems = false) {
+        return {
+            customer: true,
+            user: true,
+            paymentMethod: true,
+            paymentServiceProvider: true,
+            terminal: true,
+            originalTransaction: true,
+            refunds: true,
+        };
+    }
+
+    static async getAllTransactions(filters: {
+        includeItems?: boolean;
+        search?: string;
+        startDate?: Date;
+        endDate?: Date;
+        status?: string;
+        page?: number;
+        limit?: number;
+        tenantId: string;
+        branchId: string;
+    }): Promise<{
+        data: Transaction[];
+        pagination: {
+            page: number;
+            limit: number;
+            total: number;
+            totalPages: number;
+            hasMore: boolean;
+        };
+    }> {
         try {
-            const transactions = await TransactionModel.findAll();
-            return await Promise.all(
-                transactions.map(transaction =>
-                    this.enrichTransactionWithRelatedData(transaction, includeItems)
-                )
+            const {
+                includeItems = true,
+                search,
+                startDate,
+                endDate,
+                status,
+                page = 1,
+                limit = 50,
+                tenantId,
+                branchId
+            } = filters;
+
+            const where: any = {
+                tenantId,
+                branchId,
+            };
+
+            if (status) {
+                where.status = status;
+            }
+
+            // Handle date filtering - adjust endDate to include the entire day
+            if (startDate && endDate) {
+                // Set endDate to end of day (23:59:59.999)
+                const endOfDay = new Date(endDate);
+                endOfDay.setHours(23, 59, 59, 999);
+                
+                where.date = {
+                    gte: startDate,
+                    lte: endOfDay,
+                };
+                
+                console.log('Date filter applied:', {
+                    startDate: startDate.toISOString(),
+                    endDate: endOfDay.toISOString(),
+                });
+            } else if (startDate) {
+                where.date = { gte: startDate };
+                console.log('Start date filter:', startDate.toISOString());
+            } else if (endDate) {
+                // Set endDate to end of day (23:59:59.999)
+                const endOfDay = new Date(endDate);
+                endOfDay.setHours(23, 59, 59, 999);
+                where.date = { lte: endOfDay };
+                console.log('End date filter:', endOfDay.toISOString());
+            }
+
+            console.log('Transaction query where:', JSON.stringify(where, null, 2));
+
+            if (search) {
+                where.OR = [
+                    { refNumber: { contains: search, mode: 'insensitive' } },
+                    { transactionId: { contains: search, mode: 'insensitive' } },
+                    { phoneNumber: { contains: search, mode: 'insensitive' } },
+                    { externalTransactionRef: { contains: search, mode: 'insensitive' } },
+                    {
+                        customer: {
+                            name: { contains: search, mode: 'insensitive' }
+                        }
+                    },
+                    {
+                        user: {
+                            OR: [
+                                { fullname: { contains: search, mode: 'insensitive' } },
+                                { username: { contains: search, mode: 'insensitive' } },
+                            ]
+                        }
+                    },
+                ];
+            }
+
+            const total = await TransactionModel.count(where);
+
+            const skip = (page - 1) * limit;
+            const totalPages = Math.ceil(total / limit);
+
+            const transactions = await TransactionModel.findAllPaginated(
+                where,
+                this.getTransactionInclude(includeItems),
+                [{ date: 'desc' }, { createdAt: 'desc' }],
+                skip,
+                limit
             );
+
+            let processedTransactions: Transaction[];
+            if (includeItems) {
+                processedTransactions = await Promise.all(
+                    transactions.map(transaction => this.addItemsToTransaction(transaction))
+                );
+            } else {
+                processedTransactions = await Promise.all(
+                    transactions.map(transaction => this.calculateRefundTotals(transaction))
+                );
+            }
+
+            return {
+                data: processedTransactions,
+                pagination: {
+                    page,
+                    limit,
+                    total,
+                    totalPages,
+                    hasMore: page < totalPages,
+                },
+            };
         } catch (error: any) {
             throw new Error(`Failed to retrieve transactions: ${error.message}`);
         }
@@ -30,29 +156,49 @@ export class TransactionService {
     static async getTransactionsByDateRange(filters: DateRangeFilters): Promise<Transaction[]> {
         try {
             const conditions = this.buildDateRangeConditions(filters);
-            const transactions = await TransactionModel.findByConditions(conditions);
+            const transactions = await TransactionModel.findByConditions(
+                conditions,
+                this.getTransactionInclude(filters.includeItems)
+            );
+
+            // If items are requested, fetch them separately
+            if (filters.includeItems) {
+                return await Promise.all(
+                    transactions.map(transaction => this.addItemsToTransaction(transaction))
+                );
+            }
 
             return await Promise.all(
-                transactions.map(transaction =>
-                    this.enrichTransactionWithRelatedData(transaction, filters.includeItems)
-                )
+                transactions.map(transaction => this.calculateRefundTotals(transaction))
             );
         } catch (error: any) {
             throw new Error(`Failed to retrieve transactions by date range: ${error.message}`);
         }
     }
 
-    static async getTransactionById(id: string, includeItems = true): Promise<Transaction> {
+    static async getTransactionById(id: string, includeItems = true, tenantId: string, branchId: string): Promise<Transaction> {
         if (!id) {
             throw new Error('Transaction ID is required');
         }
 
-        const transaction = await TransactionModel.findById(id);
+        const transaction = await TransactionModel.findById(
+            id,
+            tenantId,
+            branchId,
+            this.getTransactionInclude(includeItems)
+        );
+
         if (!transaction) {
             throw new Error('Transaction not found');
         }
 
-        return await this.enrichTransactionWithRelatedData(transaction, includeItems);
+        let enrichedTransaction = await this.calculateRefundTotals(transaction);
+
+        if (includeItems) {
+            enrichedTransaction = await this.addItemsToTransaction(enrichedTransaction);
+        }
+
+        return enrichedTransaction;
     }
 
     static async createTransaction(data: any, auth: AuthenticatedUser): Promise<Transaction> {
@@ -71,15 +217,27 @@ export class TransactionService {
             await InventoryModel.decrementInventory(data.items, auth);
         }
 
-        return await this.enrichTransactionWithRelatedData(transaction, true);
+        // Fetch the transaction with relations
+        const enrichedTransaction = await TransactionModel.findById(
+            transaction.transactionId,
+            undefined,
+            undefined,
+            this.getTransactionInclude(true)
+        );
+
+        if (!enrichedTransaction) {
+            throw new Error('Failed to retrieve created transaction');
+        }
+
+        return await this.addItemsToTransaction(enrichedTransaction);
     }
 
-    static async updateTransaction(id: string, data: Partial<Transaction>): Promise<Transaction> {
+    static async updateTransaction(id: string, data: Partial<Transaction>, tenantId: string, branchId: string): Promise<Transaction> {
         if (!id) {
             throw new Error('Transaction ID is required');
         }
 
-        const existingTransaction = await TransactionModel.findById(id);
+        const existingTransaction = await TransactionModel.findById(id, tenantId, branchId);
         if (!existingTransaction) {
             throw new Error('Transaction not found');
         }
@@ -89,20 +247,26 @@ export class TransactionService {
             throw new Error('Failed to update transaction');
         }
 
-        const updatedTransaction = await TransactionModel.findById(id);
+        const updatedTransaction = await TransactionModel.findById(
+            id,
+            tenantId,
+            branchId,
+            this.getTransactionInclude(true)
+        );
+
         if (!updatedTransaction) {
             throw new Error('Failed to retrieve updated transaction');
         }
 
-        return await this.enrichTransactionWithRelatedData(updatedTransaction, true);
+        return await this.addItemsToTransaction(updatedTransaction);
     }
 
-    static async deleteTransaction(id: string): Promise<{ status: boolean }> {
+    static async deleteTransaction(id: string, tenantId: string, branchId: string): Promise<{ status: boolean }> {
         if (!id) {
             throw new Error('Transaction ID is required');
         }
 
-        const existingTransaction = await TransactionModel.findById(id);
+        const existingTransaction = await TransactionModel.findById(id, tenantId, branchId);
         if (!existingTransaction) {
             throw new Error('Transaction not found');
         }
@@ -115,8 +279,8 @@ export class TransactionService {
         return { status: true };
     }
 
-    static async getTransactionSummary(id: string): Promise<Transaction & { analytics: any }> {
-        const transaction = await this.getTransactionById(id, true);
+    static async getTransactionSummary(id: string, tenantId: string, branchId: string): Promise<Transaction & { analytics: any }> {
+        const transaction = await this.getTransactionById(id, true, tenantId, branchId);
 
         const analytics = {
             totalItems: transaction.items?.reduce(
@@ -146,105 +310,60 @@ export class TransactionService {
         };
     }
 
-    private static async enrichTransactionWithRelatedData(
-        transaction: Transaction,
-        includeItems = true
-    ): Promise<Transaction> {
-        const promises = [];
-
-        if (transaction.customerId) {
-            promises.push(
-                CustomerModel.findById(transaction.customerId)
-                    .then(customer => ({ customer }))
-                    .catch(() => ({ customer: null }))
-            );
-        } else {
-            promises.push(Promise.resolve({ customer: null }));
+    private static async addItemsToTransaction(transaction: Transaction): Promise<Transaction> {
+        if (!transaction.transactionId) {
+            return transaction;
         }
 
-        if (transaction.terminalId) {
-            promises.push(
-                TerminalModel.findById(transaction.terminalId)
-                    .then(terminal => ({ terminal }))
-                    .catch(() => ({ terminal: null }))
+        try {
+            const orderItems = await OrderModel.findByTransactionRefNumber(transaction.refNumber);
+            const itemsWithProducts = await Promise.all(
+                orderItems.map(async (item) => {
+                    try {
+                        const product = await InventoryModel.findByUuid(item.productId);
+                        product.categoryDetails = await CategoryModel.findById(product.categoryId);
+
+                        return {
+                            ...item,
+                            productDetails: product,
+                        };
+                    } catch (error) {
+                        return {
+                            ...item,
+                            productDetails: null,
+                        };
+                    }
+                })
             );
-        } else {
-            promises.push(Promise.resolve({ terminal: null }));
-        }
 
-        if (transaction.paymentMethodId) {
-            promises.push(
-                PaymentMethodModel.findById(transaction.paymentMethodId)
-                    .then(paymentMethod => ({ paymentMethod }))
-                    .catch(() => ({ paymentMethod: null }))
+            return {
+                ...transaction,
+                items: itemsWithProducts as any,
+            };
+        } catch (error) {
+            console.error(`Error fetching items for transaction ${transaction.transactionId}:`, error);
+            return {
+                ...transaction,
+                items: [],
+            };
+        }
+    }
+
+    private static async calculateRefundTotals(transaction: Transaction): Promise<Transaction> {
+        if (!transaction.isRefund && transaction.refunds && Array.isArray(transaction.refunds)) {
+            const totalRefunded = transaction.refunds.reduce(
+                (sum, refund: any) => sum + (Number(refund.refundedAmount) || 0),
+                0
             );
-        } else {
-            promises.push(Promise.resolve({ paymentMethod: null }));
+            return {
+                ...transaction,
+                totalRefunded,
+            };
         }
-
-        if (transaction.paymentServiceProviderId) {
-            promises.push(
-                PaymentServiceProviderModel.findById(transaction.paymentServiceProviderId)
-                    .then(paymentServiceProvider => ({ paymentServiceProvider }))
-                    .catch(() => ({ paymentServiceProvider: null }))
-            );
-        } else {
-            promises.push(Promise.resolve({ paymentServiceProvider: null }));
-        }
-
-        if (transaction.userId) {
-            promises.push(
-                UserModel.findById(transaction.userId)
-                    .then(user => ({ user }))
-                    .catch(() => ({ user: null }))
-            );
-        } else {
-            promises.push(Promise.resolve({ user: null }));
-        }
-
-
-        if (includeItems && transaction.transactionId) {
-            promises.push(
-                OrderModel.findByTransactionRefNumber(transaction.refNumber)
-                    .then(async (orderItems) => {
-                        const itemsWithProducts = await Promise.all(
-                            orderItems.map(async (item) => {
-                                try {
-                                    const product = await InventoryModel.findByUuid(item.productId);
-
-                                    product.categoryDetails = await CategoryModel.findById(product.categoryId)
-
-                                    return {
-                                        ...item,
-                                        productDetails: product,
-                                    };
-                                } catch (error) {
-                                    return {
-                                        ...item,
-                                        productDetails: null,
-                                    };
-                                }
-                            })
-                        );
-
-                        return { items: itemsWithProducts };
-                    })
-                    .catch(() => ({ items: [] }))
-            );
-        } else {
-            promises.push(Promise.resolve({ items: [] }));
-        }
-
-        const [customerResult, _terminalResult, paymentMethodResult, paymentServiceProviderResult, userResult, itemsResult] =
-            await Promise.all(promises);
 
         return {
             ...transaction,
-            user: userResult.user,
-            customer: customerResult.customer,
-            paymentMethod: paymentMethodResult.paymentMethod,
-            paymentServiceProvider: paymentServiceProviderResult.paymentServiceProvider,
-            items: includeItems ? itemsResult.items : [],
+            totalRefunded: 0,
         };
     }
 
@@ -254,6 +373,12 @@ export class TransactionService {
             { status: filters.status },
         ];
 
+        if (filters.tenantId) {
+            baseQuery.push({ tenantId: filters.tenantId });
+        }
+        if (filters.branchId) {
+            baseQuery.push({ branchId: filters.branchId });
+        }
         if (filters.user && filters.user !== 0) {
             baseQuery.push({ userId: filters.user });
         }

@@ -61,7 +61,9 @@ export class InventoryModel {
         limit: number,
         search = '',
         filter = 'all',
-        categoryId?: number
+        categoryId?: string,
+        startDate?: string,
+        endDate?: string
     ): Promise<InventoryItem[]> {
         const whereClause: any = {
             tenantId: auth.tenantId,
@@ -70,12 +72,12 @@ export class InventoryModel {
 
         if (filter === 'all') {
             whereClause.NOT = { status: InventoryStatus.inactive };
-        } else if (filter === 'new') {
+        } else if (filter === 'new' || filter === 'new-stock') {
             const oneWeekAgo = new Date();
             oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
             whereClause.createdAt = { gte: oneWeekAgo };
             whereClause.NOT = { status: InventoryStatus.inactive };
-        } else if (filter === 'expiring') {
+        } else if (filter === 'expiring' || filter === 'expiring-soon') {
             const now = new Date();
             const thirtyDaysLater = new Date();
             thirtyDaysLater.setDate(thirtyDaysLater.getDate() + 30);
@@ -87,17 +89,69 @@ export class InventoryModel {
         } else if (filter === 'expired') {
             const now = new Date();
             whereClause.expirationDate = { lte: now };
+        } else if (filter === 'low-stock') {
+            whereClause.NOT = { status: InventoryStatus.inactive };
+            // Low stock items where quantity is less than or equal to minStock
+            // Using raw query approach since Prisma doesn't support column comparison directly
         }
 
         if (categoryId) {
-            whereClause.categoryId = categoryId.toString();
+            whereClause.categoryId = categoryId;
+        }
+
+        if (startDate || endDate) {
+            whereClause.createdAt = {};
+            if (startDate) {
+                whereClause.createdAt.gte = new Date(startDate);
+            }
+            if (endDate) {
+                const endDateTime = new Date(endDate);
+                endDateTime.setHours(23, 59, 59, 999);
+                whereClause.createdAt.lte = endDateTime;
+            }
         }
 
         if (search) {
             whereClause.OR = [
-                { name: { contains: search, mode: 'insensitive' as const } },
-                { barcode: { contains: search, mode: 'insensitive' as const } }
+                { name: { contains: search } },
+                { barcode: { contains: search } }
             ];
+        }
+
+        // For low-stock filter, we need to use raw query since Prisma doesn't support column comparison
+        if (filter === 'low-stock') {
+            const categoryFilter = categoryId ? `AND category_id = '${categoryId}'` : '';
+            const searchFilter = search
+                ? `AND (name LIKE '%${search.replace(/'/g, "''")}%' OR barcode LIKE '%${search.replace(/'/g, "''")}%')`
+                : '';
+            const dateStartFilter = startDate ? `AND created_at >= '${new Date(startDate).toISOString()}'` : '';
+            const dateEndFilter = endDate
+                ? `AND created_at <= '${new Date(endDate).setHours(23, 59, 59, 999)}'`
+                : '';
+
+            const query = `
+                SELECT * FROM inventory 
+                WHERE tenant_id = ? 
+                AND branch_id = ? 
+                AND status != 'inactive'
+                AND CAST(quantity AS UNSIGNED) <= min_stock
+                ${categoryFilter}
+                ${searchFilter}
+                ${dateStartFilter}
+                ${dateEndFilter}
+                ORDER BY created_at DESC
+                LIMIT ? OFFSET ?
+            `;
+
+            const products = await prisma.$queryRawUnsafe(
+                query,
+                auth.tenantId,
+                auth.branchId,
+                limit,
+                skip
+            );
+
+            return (products as any[]).map(p => this.mapPrismaToInventoryItem(p));
         }
 
         const products = await prisma.inventory.findMany({
@@ -114,7 +168,9 @@ export class InventoryModel {
         auth: AuthenticatedUser,
         search = '',
         filter = 'all',
-        categoryId?: number
+        categoryId?: string,
+        startDate?: string,
+        endDate?: string
     ): Promise<number> {
         const whereClause: any = {
             tenantId: auth.tenantId,
@@ -122,17 +178,17 @@ export class InventoryModel {
         };
 
         if (categoryId) {
-            whereClause.categoryId = categoryId.toString();
+            whereClause.categoryId = categoryId;
         }
 
         if (filter === 'all') {
             whereClause.NOT = { status: InventoryStatus.inactive };
-        } else if (filter === 'new') {
+        } else if (filter === 'new' || filter === 'new-stock') {
             const oneWeekAgo = new Date();
             oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
             whereClause.createdAt = { gte: oneWeekAgo };
             whereClause.NOT = { status: InventoryStatus.inactive };
-        } else if (filter === 'expiring') {
+        } else if (filter === 'expiring' || filter === 'expiring-soon') {
             const now = new Date();
             const thirtyDaysLater = new Date();
             thirtyDaysLater.setDate(thirtyDaysLater.getDate() + 30);
@@ -144,13 +200,59 @@ export class InventoryModel {
         } else if (filter === 'expired') {
             const now = new Date();
             whereClause.expirationDate = { lte: now };
+        } else if (filter === 'low-stock') {
+            whereClause.NOT = { status: InventoryStatus.inactive };
+        }
+
+        if (startDate || endDate) {
+            whereClause.createdAt = {};
+            if (startDate) {
+                whereClause.createdAt.gte = new Date(startDate);
+            }
+            if (endDate) {
+                const endDateTime = new Date(endDate);
+                endDateTime.setHours(23, 59, 59, 999);
+                whereClause.createdAt.lte = endDateTime;
+            }
         }
 
         if (search) {
             whereClause.OR = [
-                { name: { contains: search, mode: 'insensitive' as const } },
-                { barcode: { contains: search, mode: 'insensitive' as const } }
+                { name: { contains: search } },
+                { barcode: { contains: search } }
             ];
+        }
+
+        // For low-stock filter, use raw query to count
+        if (filter === 'low-stock') {
+            const categoryFilter = categoryId ? `AND category_id = '${categoryId}'` : '';
+            const searchFilter = search
+                ? `AND (name LIKE '%${search.replace(/'/g, "''")}%' OR barcode LIKE '%${search.replace(/'/g, "''")}%')`
+                : '';
+            const dateStartFilter = startDate ? `AND created_at >= '${new Date(startDate).toISOString()}'` : '';
+            const dateEndFilter = endDate
+                ? `AND created_at <= '${new Date(endDate).setHours(23, 59, 59, 999)}'`
+                : '';
+
+            const query = `
+                SELECT COUNT(*) as count FROM inventory 
+                WHERE tenant_id = ? 
+                AND branch_id = ? 
+                AND status != 'inactive'
+                AND CAST(quantity AS UNSIGNED) <= min_stock
+                ${categoryFilter}
+                ${searchFilter}
+                ${dateStartFilter}
+                ${dateEndFilter}
+            `;
+
+            const result: any = await prisma.$queryRawUnsafe(
+                query,
+                auth.tenantId,
+                auth.branchId
+            );
+
+            return Number(result[0]?.count || 0);
         }
 
         return await prisma.inventory.count({
@@ -235,6 +337,80 @@ export class InventoryModel {
         });
 
         return result ? 1 : 0;
+    }
+
+    static async incrementInventory(
+        products: Array<{ productId: string; quantity: number }>,
+        auth: AuthenticatedUser
+    ): Promise<void> {
+        try {
+            const successful: string[] = [];
+            const failed: Array<{ productId: string; error: string }> = [];
+            const skipped: Array<{ productId: string; reason: string }> = [];
+
+            for (const item of products) {
+                try {
+                    const existingItem = await prisma.inventory.findFirst({
+                        where: {
+                            productId: item.productId,
+                            tenantId: auth.tenantId,
+                            branchId: auth.branchId
+                        }
+                    });
+
+                    if (!existingItem) {
+                        skipped.push({
+                            productId: item.productId,
+                            reason: 'Inventory item not found'
+                        });
+                        continue;
+                    }
+
+                    if (existingItem.status === InventoryStatus.inactive) {
+                        skipped.push({
+                            productId: item.productId,
+                            reason: 'Inventory item is voided'
+                        });
+                        continue;
+                    }
+
+                    // Increment the inventory quantity
+                    const newQuantity = parseInt(existingItem.quantity) + item.quantity;
+
+                    // Update the inventory item
+                    await prisma.inventory.update({
+                        where: { productId: item.productId },
+                        data: {
+                            quantity: newQuantity.toString(),
+                            userId: auth.userId,
+                            updatedAt: new Date()
+                        }
+                    });
+
+                    successful.push(item.productId);
+                } catch (error) {
+                    failed.push({
+                        productId: item.productId,
+                        error: error instanceof Error ? error.message : 'Unknown error'
+                    });
+                }
+            }
+
+            console.log('Inventory Increment Results:', {
+                successful: successful.length,
+                failed: failed.length,
+                skipped: skipped.length
+            });
+
+            if (failed.length > 0) {
+                console.error('Failed inventory increments:', failed);
+                throw new Error(`${failed.length} inventory increments failed`);
+            }
+
+        } catch (error) {
+            console.error('incrementInventory error:', error);
+            throw error;
+        }
     }
 
     static async decrementInventory(

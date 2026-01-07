@@ -57,7 +57,9 @@ export class InventoryService {
         perPage = 10,
         search = '',
         filter = 'all',
-        categoryId?: number
+        categoryId?: string,
+        startDate?: string,
+        endDate?: string
     ): Promise<{ inventoryItems: InventoryItem[]; total: number; totalPages: number }> {
         const categories: Category[] = await CategoryService.getAllCategories(auth);
 
@@ -76,10 +78,12 @@ export class InventoryService {
             perPage,
             search,
             filter,
-            categoryId
+            categoryId,
+            startDate,
+            endDate
         );
 
-        const totalItems = await InventoryModel.getFilteredCount(auth, search, filter, categoryId);
+        const totalItems = await InventoryModel.getFilteredCount(auth, search, filter, categoryId, startDate, endDate);
         const totalPages = Math.ceil(totalItems / perPage); const enhancedItems = inventoryItems.map((item) => ({
             ...item,
             categoryDetails: item.categoryId ? categoryMap.get(item.categoryId) : undefined
