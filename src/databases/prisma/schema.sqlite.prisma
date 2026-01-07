@@ -21,9 +21,33 @@ model Product {
   description  String?  @map("description")
   unit         String   @default("piece") @map("unit")
   sellingPrice Float    @default(0.00) @map("selling_price")
-  isActive     Boolean  @default(true) @map("is_active")
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  // Product attributes
+  brand      String? @map("brand")
+  color      String? @map("color")
+  size       String? @map("size")
+  dimensions String? @map("dimensions")
+  weight     Float?  @map("weight")
+
+  // Promotional pricing
+  promoPrice Float?    @map("promo_price")
+  promoStart DateTime? @map("promo_start")
+  promoEnd   DateTime? @map("promo_end")
+
+  // Tax
+  isTaxable Boolean @default(true) @map("is_taxable")
+
+  // Dates
+  expirationDate  DateTime? @map("expiration_date")
+  manufactureDate DateTime? @map("manufacture_date")
+
+  // Supplier info
+  supplierName String? @map("supplier_name")
+  supplierCode String? @map("supplier_code")
+
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relations
   tenant   Tenant    @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade)

@@ -108,6 +108,21 @@ export class InventoryModel {
         } else if (filter === 'low-stock') {
             whereClause.isActive = true;
             // We'll filter this in post-processing since we need to compare inventory fields
+        } else if (filter === 'expiring-soon') {
+            whereClause.isActive = true;
+            const now = new Date();
+            const thirtyDaysFromNow = new Date();
+            thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
+            whereClause.expirationDate = {
+                gte: now,
+                lte: thirtyDaysFromNow
+            };
+        } else if (filter === 'expired') {
+            whereClause.isActive = true;
+            const now = new Date();
+            whereClause.expirationDate = {
+                lt: now
+            };
         }
 
         // Date range
@@ -193,6 +208,21 @@ export class InventoryModel {
             oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
             whereClause.createdAt = { gte: oneWeekAgo };
             whereClause.isActive = true;
+        } else if (filter === 'expiring-soon') {
+            whereClause.isActive = true;
+            const now = new Date();
+            const thirtyDaysFromNow = new Date();
+            thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
+            whereClause.expirationDate = {
+                gte: now,
+                lte: thirtyDaysFromNow
+            };
+        } else if (filter === 'expired') {
+            whereClause.isActive = true;
+            const now = new Date();
+            whereClause.expirationDate = {
+                lt: now
+            };
         }
 
         if (startDate || endDate) {
@@ -296,10 +326,28 @@ export class InventoryModel {
                     sku: inventoryData.sku || inventoryData.barcode,
                     name: inventoryData.name,
                     categoryId: inventoryData.categoryId || null,
-                    description: inventoryData.description,
+                    description: inventoryData.description || null,
                     unit: inventoryData.unit || 'piece',
                     sellingPrice: parseFloat(inventoryData.sellPrice || inventoryData.sellingPrice || 0),
                     primaryBarcode: inventoryData.barcode || inventoryData.primaryBarcode,
+                    // Product attributes
+                    brand: inventoryData.brand || null,
+                    color: inventoryData.color || null,
+                    size: inventoryData.size || null,
+                    dimensions: inventoryData.dimensions || null,
+                    weight: inventoryData.weight ? parseFloat(inventoryData.weight) : null,
+                    // Promotional pricing
+                    promoPrice: inventoryData.promoPrice ? parseFloat(inventoryData.promoPrice) : null,
+                    promoStart: inventoryData.promoStart ? new Date(inventoryData.promoStart) : null,
+                    promoEnd: inventoryData.promoEnd ? new Date(inventoryData.promoEnd) : null,
+                    // Tax
+                    isTaxable: inventoryData.isTaxable !== false,
+                    // Dates
+                    expirationDate: inventoryData.expirationDate ? new Date(inventoryData.expirationDate) : null,
+                    manufactureDate: inventoryData.manufactureDate ? new Date(inventoryData.manufactureDate) : null,
+                    // Supplier info
+                    supplierName: inventoryData.supplierName || null,
+                    supplierCode: inventoryData.supplierCode || null,
                     isActive: inventoryData.status !== 'inactive'
                 }
             });
@@ -344,7 +392,7 @@ export class InventoryModel {
         await prisma.$transaction(async (tx) => {
             const productUpdate: any = {};
             if (updateData.name !== undefined) productUpdate.name = updateData.name;
-            if (updateData.description !== undefined) productUpdate.description = updateData.description;
+            if (updateData.description !== undefined) productUpdate.description = updateData.description || null;
             if (updateData.unit !== undefined) productUpdate.unit = updateData.unit;
             if (updateData.sellPrice !== undefined || updateData.sellingPrice !== undefined) {
                 productUpdate.sellingPrice = parseFloat(updateData.sellPrice || updateData.sellingPrice);
@@ -352,9 +400,30 @@ export class InventoryModel {
             if (updateData.barcode !== undefined || updateData.primaryBarcode !== undefined) {
                 productUpdate.primaryBarcode = updateData.barcode || updateData.primaryBarcode;
             }
+            if (updateData.categoryId !== undefined) {
+                productUpdate.categoryId = updateData.categoryId || null;
+            }
             if (updateData.status !== undefined) {
                 productUpdate.isActive = updateData.status !== 'inactive';
             }
+            // Product attributes
+            if (updateData.brand !== undefined) productUpdate.brand = updateData.brand || null;
+            if (updateData.color !== undefined) productUpdate.color = updateData.color || null;
+            if (updateData.size !== undefined) productUpdate.size = updateData.size || null;
+            if (updateData.dimensions !== undefined) productUpdate.dimensions = updateData.dimensions || null;
+            if (updateData.weight !== undefined) productUpdate.weight = updateData.weight ? parseFloat(updateData.weight) : null;
+            // Promotional pricing
+            if (updateData.promoPrice !== undefined) productUpdate.promoPrice = updateData.promoPrice ? parseFloat(updateData.promoPrice) : null;
+            if (updateData.promoStart !== undefined) productUpdate.promoStart = updateData.promoStart ? new Date(updateData.promoStart) : null;
+            if (updateData.promoEnd !== undefined) productUpdate.promoEnd = updateData.promoEnd ? new Date(updateData.promoEnd) : null;
+            // Tax
+            if (updateData.isTaxable !== undefined) productUpdate.isTaxable = updateData.isTaxable;
+            // Dates
+            if (updateData.expirationDate !== undefined) productUpdate.expirationDate = updateData.expirationDate ? new Date(updateData.expirationDate) : null;
+            if (updateData.manufactureDate !== undefined) productUpdate.manufactureDate = updateData.manufactureDate ? new Date(updateData.manufactureDate) : null;
+            // Supplier info
+            if (updateData.supplierName !== undefined) productUpdate.supplierName = updateData.supplierName || null;
+            if (updateData.supplierCode !== undefined) productUpdate.supplierCode = updateData.supplierCode || null;
 
             if (Object.keys(productUpdate).length > 0) {
                 await tx.product.update({
@@ -376,6 +445,9 @@ export class InventoryModel {
             }
             if (updateData.minStock !== undefined) {
                 inventoryUpdate.reorderPoint = updateData.minStock ? parseInt(updateData.minStock) : null;
+            }
+            if (updateData.reorderLevel !== undefined) {
+                inventoryUpdate.reorderPoint = updateData.reorderLevel ? parseInt(updateData.reorderLevel) : null;
             }
             if (updateData.maxStock !== undefined) {
                 inventoryUpdate.maxStock = updateData.maxStock ? parseInt(updateData.maxStock) : null;
@@ -558,6 +630,24 @@ export class InventoryModel {
                 sellingPrice: Number(data.sellingPrice),
                 primaryBarcode: data.primaryBarcode,
                 isActive: data.isActive,
+                // Product attributes
+                brand: data.brand,
+                color: data.color,
+                size: data.size,
+                dimensions: data.dimensions,
+                weight: data.weight ? Number(data.weight) : undefined,
+                // Promotional pricing
+                promoPrice: data.promoPrice ? Number(data.promoPrice) : undefined,
+                promoStart: data.promoStart,
+                promoEnd: data.promoEnd,
+                // Tax
+                isTaxable: data.isTaxable,
+                // Dates
+                expirationDate: data.expirationDate,
+                manufactureDate: data.manufactureDate,
+                // Supplier info
+                supplierName: data.supplierName,
+                supplierCode: data.supplierCode,
                 availableQuantity: 0,
                 reservedQuantity: 0,
                 damagedQuantity: 0,
@@ -603,12 +693,31 @@ export class InventoryModel {
             sellingPrice: Number(data.sellingPrice),
             primaryBarcode: data.primaryBarcode,
             isActive: data.isActive,
+            // Product attributes
+            brand: data.brand,
+            color: data.color,
+            size: data.size,
+            dimensions: data.dimensions,
+            weight: data.weight ? Number(data.weight) : undefined,
+            // Promotional pricing
+            promoPrice: data.promoPrice ? Number(data.promoPrice) : undefined,
+            promoStart: data.promoStart,
+            promoEnd: data.promoEnd,
+            // Tax
+            isTaxable: data.isTaxable,
+            // Dates
+            expirationDate: data.expirationDate,
+            manufactureDate: data.manufactureDate,
+            // Supplier info
+            supplierName: data.supplierName,
+            supplierCode: data.supplierCode,
             availableQuantity: inventory.availableQuantity,
             reservedQuantity: inventory.reservedQuantity,
             damagedQuantity: inventory.damagedQuantity,
             averageCost: Number(inventory.averageCost),
             lastPurchaseCost: Number(inventory.lastPurchaseCost),
             reorderPoint: inventory.reorderPoint,
+            reorderLevel: inventory.reorderPoint,
             maxStock: inventory.maxStock,
             trackInventory: inventory.trackInventory,
             allowNegativeStock: inventory.allowNegativeStock,
@@ -630,6 +739,7 @@ export class InventoryModel {
             updatedAt: data.updatedAt,
             barcode: data.primaryBarcode || '',
             quantity: inventory.availableQuantity.toString(),
+            originalQuantity: inventory.availableQuantity.toString(),
             costPrice: Number(inventory.averageCost),
             sellPrice: Number(data.sellingPrice),
             status: data.isActive ? 'active' : 'inactive',

@@ -14,6 +14,10 @@ export class InventoryService {
     }> {
         const oneWeekAgo = new Date();
         oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+        const now = new Date();
+        const thirtyDaysFromNow = new Date();
+        thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
+        
         const inventoryItems = await InventoryModel.findActive(auth);
 
         return {
@@ -23,8 +27,16 @@ export class InventoryService {
                 const createdDate = new Date(item.createdAt);
                 return createdDate >= oneWeekAgo;
             }).length,
-            expiringSoon: 0,
-            expired: 0
+            expiringSoon: inventoryItems.filter(item => {
+                if (!item.expirationDate || item.status === 'void') return false;
+                const expirationDate = new Date(item.expirationDate);
+                return expirationDate >= now && expirationDate <= thirtyDaysFromNow;
+            }).length,
+            expired: inventoryItems.filter(item => {
+                if (!item.expirationDate || item.status === 'void') return false;
+                const expirationDate = new Date(item.expirationDate);
+                return expirationDate < now;
+            }).length
         };
     }
 
