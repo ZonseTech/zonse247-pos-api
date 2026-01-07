@@ -7,6 +7,7 @@ export interface Customer {
     phone?: string;
     email?: string;
     address?: string;
+    isDefault?: boolean;
     synced: number;
 }
 
@@ -15,6 +16,7 @@ export interface CreateCustomerData {
     email?: string;
     phone?: string;
     address?: string;
+    isDefault?: boolean;
     tenantId: string;
     branchId: string;
     userId: string;
@@ -25,6 +27,7 @@ export interface UpdateCustomerData {
     email?: string;
     phone?: string;
     address?: string;
+    isDefault?: boolean;
 }
 
 export interface SearchConditions {

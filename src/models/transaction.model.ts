@@ -1,25 +1,62 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { Transaction } from 'transactions';
 import prisma from '../databases/prisma/client';
 import { TransactionOrderByWithRelationInput } from '../databases/prisma/generated/prisma/models';
 
 export class TransactionModel {
 
-    static async findAll(conditions: any = {}): Promise<Transaction[]> {
+    static async findAll(conditions: any = {}, include: any = null, orderBy: any = null): Promise<Transaction[]> {
         return prisma.transaction.findMany({
+            where: conditions,
+            ...(include && { include }),
+            ...(orderBy && { orderBy }),
+        }) as any;
+    }
+
+    static async findAllPaginated(
+        conditions: any = {},
+        include: any = null,
+        orderBy: any = null,
+        skip = 0,
+        take = 50
+    ): Promise<Transaction[]> {
+        return prisma.transaction.findMany({
+            where: conditions,
+            ...(include && { include }),
+            ...(orderBy && { orderBy }),
+            skip,
+            take,
+        }) as any;
+    }
+
+    static async count(conditions: any = {}): Promise<number> {
+        return prisma.transaction.count({
             where: conditions,
         });
     }
 
-    static async findById(id: string): Promise<Transaction | null> {
+    static async findById(id: string, tenantId?: string, branchId?: string, include: any = null): Promise<Transaction | null> {
+        const where: any = { transactionId: id };
+        if (tenantId) where.tenantId = tenantId;
+        if (branchId) where.branchId = branchId;
+
         return prisma.transaction.findUnique({
             where: { transactionId: id },
-        });
+            ...(include && { include }),
+        }).then(transaction => {
+            if (transaction) {
+                if (tenantId && transaction.tenantId !== tenantId) return null;
+                if (branchId && transaction.branchId !== branchId) return null;
+            }
+            return transaction;
+        }) as any;
     }
 
-    static async findByConditions(conditions: any): Promise<Transaction[]> {
+    static async findByConditions(conditions: any, include: any = null): Promise<Transaction[]> {
         return prisma.transaction.findMany({
             where: conditions,
-        });
+            ...(include && { include }),
+        }) as any;
     }
 
     static async findByCustomerUuid(customerId: string): Promise<Transaction[]> {
@@ -70,9 +107,21 @@ export class TransactionModel {
     }
 
     static async update(id: string, data: Partial<Transaction>): Promise<number> {
+        const {
+            customer,
+            paymentMethod,
+            paymentServiceProvider,
+            items,
+            user,
+            originalTransaction,
+            refunds,
+            totalRefunded,
+            ...updateData
+        } = data;
+
         const result = await prisma.transaction.update({
             where: { transactionId: id },
-            data,
+            data: updateData as any,
         });
         return result ? 1 : 0;
     }
@@ -82,12 +131,6 @@ export class TransactionModel {
             where: { transactionId: id },
         });
         return result ? 1 : 0;
-    }
-
-    static async count(conditions: any = {}): Promise<number> {
-        return prisma.transaction.count({
-            where: conditions,
-        });
     }
 
     static async findCompletedTransactions() {
@@ -235,6 +278,74 @@ export class TransactionModel {
         return result.count;
     }
 
+    static async findRefundsByOriginalTransaction(transactionId: string): Promise<Transaction[]> {
+        return prisma.transaction.findMany({
+            where: {
+                originalTransactionId: transactionId,
+                isRefund: true
+            },
+        });
+    }
+
+    static async findOriginalTransaction(refundTransactionId: string): Promise<Transaction | null> {
+        const refund = await prisma.transaction.findUnique({
+            where: { transactionId: refundTransactionId },
+        });
+
+        if (!refund || !refund.originalTransactionId) {
+            return null;
+        }
+
+        return this.findById(refund.originalTransactionId);
+    }
+
+    static async getTotalRefundedAmount(transactionId: string): Promise<number> {
+        const refunds = await this.findRefundsByOriginalTransaction(transactionId);
+        return refunds.reduce((sum, refund) => sum + Number(refund.refundedAmount || 0), 0);
+    }
+
+    static async hasBeenRefunded(transactionId: string): Promise<boolean> {
+        const refunds = await this.findRefundsByOriginalTransaction(transactionId);
+        return refunds.length > 0;
+    }
+
+    static async hasBeenFullyRefunded(transactionId: string): Promise<boolean> {
+        const transaction = await this.findById(transactionId);
+        if (!transaction) return false;
+
+        const totalRefunded = await this.getTotalRefundedAmount(transactionId);
+        return Number(totalRefunded) >= Number(transaction.total);
+    }
+
+    static async createRefundTransaction(data: Partial<Transaction>): Promise<Transaction> {
+        const refundData = {
+            ...data,
+            isRefund: true,
+            status: 'refunded',
+            refundedAt: new Date(),
+        };
+
+        return this.create(refundData);
+    }
+
+    static async findAllRefunds(): Promise<Transaction[]> {
+        return prisma.transaction.findMany({
+            where: { isRefund: true },
+        });
+    }
+
+    static async findRefundsByDateRange(startDate: string, endDate: string): Promise<Transaction[]> {
+        return prisma.transaction.findMany({
+            where: {
+                isRefund: true,
+                refundedAt: {
+                    gte: new Date(startDate),
+                    lte: new Date(endDate),
+                },
+            },
+        });
+    }
+
     static validateTransactionData(data: Partial<Transaction>): string | null {
         if (data.total && Number(data.total) < 0) {
             return 'Total amount cannot be negative';
@@ -276,10 +387,6 @@ export class TransactionModel {
             user,
             ...transactionData
         } = data;
-
-        console.log('====================================');
-        console.log(createdAt, customer, items, user);
-        console.log('====================================');
 
         return transactionData;
     }

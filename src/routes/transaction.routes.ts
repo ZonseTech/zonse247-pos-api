@@ -8,6 +8,7 @@ router.get('/', function (req: Request, res: Response): void {
 });
 
 router.get('/all', TransactionController.list);
+router.get('/summaries', TransactionController.summaries);
 router.get('/by-date', TransactionController.getByDateRange);
 router.post('/post', TransactionController.create);
 router.put('/update/:transactionId', TransactionController.update);

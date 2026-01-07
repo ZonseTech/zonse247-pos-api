@@ -3,12 +3,13 @@ import { BaseController } from "./base.controller";
 import { TerminalService } from "../services/terminal.service";
 import { ApiResponse } from "network";
 import { CreateTerminalRequest, Terminal } from "terminal";
+import { AuthRequest } from "../lib/express.type";
 
 export class TerminalController extends BaseController {
 
-    static async createTerminal(req: Request<ApiResponse<Terminal>, CreateTerminalRequest>, res: Response): Promise<void> {
+    static async createTerminal(req: Request<ApiResponse<Terminal>, CreateTerminalRequest> & AuthRequest, res: Response): Promise<void> {
         try {
-            const newTerminal = await TerminalService.createTerminal(req.body);
+            const newTerminal = await TerminalService.createTerminal(req.body, req.auth.tenantId, req.auth.branchId, req.auth.userId);
             BaseController.sendResponse(res, 201, true, 'Terminal created successfully', newTerminal);
         } catch (error: any) {
             console.error('Error creating terminal:', error);
@@ -26,9 +27,9 @@ export class TerminalController extends BaseController {
         }
     }
 
-    static async getAllTerminals(req: Request, res: Response): Promise<void> {
+    static async getAllTerminals(req: Request & AuthRequest, res: Response): Promise<void> {
         try {
-            const terminals = await TerminalService.getAllTerminals(req.query);
+            const terminals = await TerminalService.getAllTerminals(req.query, req.auth.tenantId, req.auth.branchId);
             BaseController.sendResponse(res, 200, true, 'Terminals retrieved successfully', terminals);
         } catch (error: any) {
             console.error('Error retrieving terminals:', error);
@@ -36,9 +37,9 @@ export class TerminalController extends BaseController {
         }
     }
 
-    static async getTerminal(req: Request<{ id: string }>, res: Response): Promise<void> {
+    static async getTerminal(req: Request<{ id: string }> & AuthRequest, res: Response): Promise<void> {
         try {
-            const terminal = await TerminalService.getTerminalById(req.params.id);
+            const terminal = await TerminalService.getTerminalById(req.params.id, req.auth.tenantId, req.auth.branchId);
             if (!terminal) {
                 BaseController.sendResponse(res, 404, false, 'Terminal not found');
                 return;
@@ -50,9 +51,9 @@ export class TerminalController extends BaseController {
         }
     }
 
-    static async updateTerminal(req: Request<{ id: string }, ApiResponse<Terminal>, Partial<Terminal>>, res: Response): Promise<void> {
+    static async updateTerminal(req: Request<{ id: string }, ApiResponse<Terminal>, Partial<Terminal>> & AuthRequest, res: Response): Promise<void> {
         try {
-            const updatedTerminal = await TerminalService.updateTerminal(req.params.id, req.body);
+            const updatedTerminal = await TerminalService.updateTerminal(req.params.id, req.body, req.auth.tenantId, req.auth.branchId);
             if (!updatedTerminal) {
                 BaseController.sendResponse(res, 404, false, 'Terminal not found');
                 return;
@@ -72,9 +73,9 @@ export class TerminalController extends BaseController {
         }
     }
 
-    static async deleteTerminal(req: Request<{ id: string }>, res: Response): Promise<void> {
+    static async deleteTerminal(req: Request<{ id: string }> & AuthRequest, res: Response): Promise<void> {
         try {
-            const deleted = await TerminalService.deleteTerminal(req.params.id);
+            const deleted = await TerminalService.deleteTerminal(req.params.id, req.auth.tenantId, req.auth.branchId);
             if (!deleted) {
                 BaseController.sendResponse(res, 404, false, 'Terminal not found');
                 return;
@@ -86,9 +87,9 @@ export class TerminalController extends BaseController {
         }
     }
 
-    static async updateTerminalStatus(req: Request<{ id: string }, ApiResponse<Terminal>, { status: 'PENDING' | 'ACTIVATED' | 'DEACTIVATED' | 'SUSPENDED' | 'BLOCKED' }>, res: Response): Promise<void> {
+    static async updateTerminalStatus(req: Request<{ id: string }, ApiResponse<Terminal>, { status: 'PENDING' | 'ACTIVATED' | 'DEACTIVATED' | 'SUSPENDED' | 'BLOCKED' }> & AuthRequest, res: Response): Promise<void> {
         try {
-            const updatedTerminal = await TerminalService.updateTerminalStatus(req.params.id, req.body.status);
+            const updatedTerminal = await TerminalService.updateTerminalStatus(req.params.id, req.body.status, req.auth.tenantId, req.auth.branchId);
             if (!updatedTerminal) {
                 BaseController.sendResponse(res, 404, false, 'Terminal not found');
                 return;
@@ -100,9 +101,9 @@ export class TerminalController extends BaseController {
         }
     }
 
-    static async syncTerminal(req: Request<{ id: string }>, res: Response): Promise<void> {
+    static async syncTerminal(req: Request<{ id: string }> & AuthRequest, res: Response): Promise<void> {
         try {
-            const syncResult = await TerminalService.syncTerminal(req.params.id);
+            const syncResult = await TerminalService.syncTerminal(req.params.id, req.auth.tenantId, req.auth.branchId);
             BaseController.sendResponse(res, 200, true, 'Terminal synced successfully', syncResult);
         } catch (error: any) {
             console.error('Error syncing terminal:', error);
@@ -114,7 +115,7 @@ export class TerminalController extends BaseController {
         }
     }
 
-    static async getTerminalsByBranch(req: Request<{ branchId: string }>, res: Response): Promise<void> {
+    static async getTerminalsByBranch(req: Request<{ branchId: string }> & AuthRequest, res: Response): Promise<void> {
         try {
             const terminals = await TerminalService.getTerminalsByBranchId(req.params.branchId);
             BaseController.sendResponse(res, 200, true, 'Terminals retrieved successfully', terminals);

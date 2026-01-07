@@ -1,17 +1,28 @@
 import { Request, Response } from 'express';
 import { formatCurrency } from '../utils';
 import { AnalyticsModel } from '../models/analytics.model';
+import { AuthRequest } from '../lib/express.type';
 
 export class AnalyticsController {
-    // GET /monthly-sales/:userUuid/:monthYear
-    static async getMonthlySales(req: Request, res: Response): Promise<void> {
+    // Helper method to extract tenant context from authenticated request
+    private static getAuthContext(req: Request & AuthRequest) {
+        return {
+            tenantId: req.auth?.tenantId || '',
+            branchId: req.auth?.branchId || '',
+            userId: req.auth?.userId || ''
+        };
+    }
+
+    // GET /monthly-sales/:monthYear
+    static async getMonthlySales(req: Request & AuthRequest, res: Response): Promise<void> {
         try {
-            const userUuid = req.params.userUuid;
+            const auth = AnalyticsController.getAuthContext(req);
             const monthYear = req.params.monthYear;
             const [year, month] = monthYear.split('-').map(Number);
 
             const salesData = await AnalyticsModel.getMonthlySalesData(
-                userUuid,
+                auth.tenantId,
+                auth.branchId,
                 year,
                 month
             );
@@ -26,16 +37,17 @@ export class AnalyticsController {
         }
     }
 
-    // GET /transactions/:userUuid/:limit/:offset
-    static async getTransactions(req: Request, res: Response): Promise<void> {
+    // GET /transactions/:limit/:offset
+    static async getTransactions(req: Request & AuthRequest, res: Response): Promise<void> {
         try {
-            const userUuid = req.params.userUuid;
+            const auth = AnalyticsController.getAuthContext(req);
             const limit = parseInt(req.params.limit);
             const offset = parseInt(req.params.offset) || 0;
             const includeItems = req.query.includeItems === 'true';
 
             const result = await AnalyticsModel.getUserTransactions(
-                userUuid,
+                auth.tenantId,
+                auth.branchId,
                 limit,
                 offset,
                 includeItems
@@ -52,9 +64,10 @@ export class AnalyticsController {
     }
 
     // GET /top-products
-    static async getTopProducts(req: Request, res: Response): Promise<void> {
+    static async getTopProducts(req: Request & AuthRequest, res: Response): Promise<void> {
         try {
-            const topProducts = await AnalyticsModel.getTopProducts();
+            const auth = AnalyticsController.getAuthContext(req);
+            const topProducts = await AnalyticsModel.getTopProducts(auth.tenantId, auth.branchId);
             res.json(topProducts);
         } catch (error) {
             console.error('Error fetching top products:', error);
@@ -65,11 +78,11 @@ export class AnalyticsController {
         }
     }
 
-    // GET /counts/:userUuid
-    static async getCounts(req: Request, res: Response): Promise<void> {
+    // GET /counts
+    static async getCounts(req: Request & AuthRequest, res: Response): Promise<void> {
         try {
-            const userUuid = req.params.userUuid;
-            const dashboardCounts = await AnalyticsModel.getDashboardCounts(userUuid);
+            const auth = AnalyticsController.getAuthContext(req);
+            const dashboardCounts = await AnalyticsModel.getDashboardCounts(auth.tenantId, auth.branchId);
 
             const formattedCounts = {
                 ...dashboardCounts,
@@ -87,10 +100,11 @@ export class AnalyticsController {
     }
 
     // GET /transaction/:transactionId/items
-    static async getTransactionItems(req: Request, res: Response): Promise<void> {
+    static async getTransactionItems(req: Request & AuthRequest, res: Response): Promise<void> {
         try {
+            const auth = AnalyticsController.getAuthContext(req);
             const transactionId = req.params.transactionId;
-            const result = await AnalyticsModel.getTransactionItems(transactionId);
+            const result = await AnalyticsModel.getTransactionItems(transactionId, auth.tenantId, auth.branchId);
 
             if (!result.transaction) {
                 res.status(404).json({
@@ -110,10 +124,11 @@ export class AnalyticsController {
     }
 
     // GET /transaction/:transactionId/details
-    static async getTransactionDetails(req: Request, res: Response): Promise<void> {
+    static async getTransactionDetails(req: Request & AuthRequest, res: Response): Promise<void> {
         try {
+            const auth = AnalyticsController.getAuthContext(req);
             const transactionId = req.params.transactionId;
-            const result = await AnalyticsModel.getTransactionDetails(transactionId);
+            const result = await AnalyticsModel.getTransactionDetails(transactionId, auth.tenantId, auth.branchId);
 
             if (!result.transaction) {
                 res.status(404).json({

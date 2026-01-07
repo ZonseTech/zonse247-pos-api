@@ -16,4 +16,6 @@ export interface WelcomeEmailData {
     email: string;
     verificationToken: string;
     verificationUrl?: string;
+    username?: string;
+    password?: string;
 }

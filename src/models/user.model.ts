@@ -16,11 +16,17 @@ export class UserModel {
         }
     }
 
-    static async findById(id: string): Promise<User | null> {
+    static async findById(id: string, tenantId?: string, branchId?: string): Promise<User | null> {
         try {
-            return await prisma.user.findUnique({
+            const user = await prisma.user.findUnique({
                 where: { userId: id }
             }) as unknown as User | null;
+
+            if (user) {
+                if (tenantId && user.tenantId !== tenantId) return null;
+                if (branchId && user.branchId !== branchId) return null;
+            }
+            return user;
         } catch (error) {
             throw new Error(`Error finding user by ID: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
@@ -50,10 +56,14 @@ export class UserModel {
         }
     }
 
-    static async findByRoleId(roleId: string): Promise<User[]> {
+    static async findByRoleId(roleId: string, tenantId?: string, branchId?: string): Promise<User[]> {
         try {
+            const where: any = { roleId };
+            if (tenantId) where.tenantId = tenantId;
+            if (branchId) where.branchId = branchId;
+
             return await prisma.user.findMany({
-                where: { roleId }
+                where
             }) as unknown as User[];
         } catch (error) {
             throw new Error(`Error finding users by role: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -70,10 +80,13 @@ export class UserModel {
         }
     }
 
-    static async findByBranchId(branchId: string): Promise<User[]> {
+    static async findByBranchId(branchId: string, tenantId?: string): Promise<User[]> {
         try {
+            const where: any = { branchId };
+            if (tenantId) where.tenantId = tenantId;
+
             return await prisma.user.findMany({
-                where: { branchId }
+                where
             }) as unknown as User[];
         } catch (error) {
             throw new Error(`Error finding users by branch ID: ${error instanceof Error ? error.message : 'Unknown error'}`);

@@ -5,13 +5,14 @@ import { TerminalService } from "../services/terminal.service";
 import { ApiResponse } from "network";
 import { Terminal } from "terminal";
 import { Branch, CreateBranchRequest } from "branch";
+import { AuthRequest } from "../lib/express.type";
 
 export class BranchController extends BaseController {
 
-    static async list(req: Request, res: Response): Promise<void> {
+    static async list(req: Request & AuthRequest, res: Response): Promise<void> {
         try {
             const query = req.query;
-            const branches = await BranchService.getAllBranches(query);
+            const branches = await BranchService.getAllBranches(query, req.auth.tenantId);
             BaseController.sendResponse(res, 200, true, 'Branches retrieved successfully', branches);
         } catch (error: any) {
             console.error('Error fetching branches:', error);
@@ -19,11 +20,10 @@ export class BranchController extends BaseController {
         }
     }
 
-    static async getBranchTerminals(req: Request<{ branchId: string }, ApiResponse<Array<Terminal>>>, res: Response): Promise<void> {
+    static async getBranchTerminals(req: Request<{ branchId: string }, ApiResponse<Array<Terminal>>> & AuthRequest, res: Response): Promise<void> {
 
         try {
             const { branchId } = req.params;
-
             const terminal = await TerminalService.getTerminalsByBranchId(branchId);
 
             BaseController.sendResponse(
@@ -37,7 +37,17 @@ export class BranchController extends BaseController {
         }
     }
 
-    static async getTenantBranchAccountTerminals(req: Request<{ branchId: string }, ApiResponse<Array<Terminal>>>, res: Response): Promise<void> {
+    static async getPrimaryTerminalId(req: Request & AuthRequest, res: Response): Promise<void> {
+        try {
+            const primaryTerminalId = await TerminalService.getPrimaryTerminalId(req.auth.branchId);
+            BaseController.sendResponse(res, 200, true, 'Primary Terminal ID retrieved successfully', { primaryTerminalId });
+        } catch (error: any) {
+            console.error('Error fetching primary terminal ID:', error);
+            BaseController.sendResponse(res, 500, false, error.message, undefined, error.message);
+        }
+    }
+
+    static async getTenantBranchAccountTerminals(req: Request<{ branchId: string }, ApiResponse<Array<Terminal>>> & AuthRequest, res: Response): Promise<void> {
 
         try {
             const { branchId } = req.params;
@@ -55,9 +65,9 @@ export class BranchController extends BaseController {
         }
     }
 
-    static async create(req: Request<ApiResponse<Branch>, CreateBranchRequest>, res: Response): Promise<void> {
+    static async create(req: Request<ApiResponse<Branch>, CreateBranchRequest> & AuthRequest, res: Response): Promise<void> {
         try {
-            const newBranch = await BranchService.createBranch(req.body);
+            const newBranch = await BranchService.createBranch(req.body, req.auth.tenantId, req.auth.userId);
             BaseController.sendResponse(res, 201, true, 'Branch created successfully', newBranch);
         } catch (error: any) {
             console.error('Error creating branch:', error);
@@ -77,10 +87,10 @@ export class BranchController extends BaseController {
         }
     }
 
-    static async update(req: Request<{ id: string }, ApiResponse<Branch>, Partial<Branch>>, res: Response): Promise<void> {
+    static async update(req: Request<{ id: string }, ApiResponse<Branch>, Partial<Branch>> & AuthRequest, res: Response): Promise<void> {
         try {
             const { id } = req.params;
-            const updatedBranch = await BranchService.updateBranch(id, req.body);
+            const updatedBranch = await BranchService.updateBranch(id, req.body, req.auth.tenantId);
             BaseController.sendResponse(res, 200, true, 'Branch updated successfully', updatedBranch);
         } catch (error: any) {
             console.error('Error updating branch:', error);
@@ -98,10 +108,10 @@ export class BranchController extends BaseController {
         }
     }
 
-    static async show(req: Request<{ id: string }>, res: Response): Promise<void> {
+    static async show(req: Request<{ id: string }> & AuthRequest, res: Response): Promise<void> {
         try {
             const { id } = req.params;
-            const branch = await BranchService.getBranchById(id);
+            const branch = await BranchService.getBranchById(id, req.auth.tenantId);
             BaseController.sendResponse(res, 200, true, 'Branch retrieved successfully', branch);
         } catch (error: any) {
             console.error('Error fetching branch:', error);
@@ -115,10 +125,10 @@ export class BranchController extends BaseController {
         }
     }
 
-    static async delete(req: Request<{ id: string }>, res: Response): Promise<void> {
+    static async delete(req: Request<{ id: string }> & AuthRequest, res: Response): Promise<void> {
         try {
             const { id } = req.params;
-            const result = await BranchService.deleteBranch(id);
+            const result = await BranchService.deleteBranch(id, req.auth.tenantId);
             BaseController.sendResponse(res, 200, true, 'Branch deleted successfully', result);
         } catch (error: any) {
             console.error('Error deleting branch:', error);

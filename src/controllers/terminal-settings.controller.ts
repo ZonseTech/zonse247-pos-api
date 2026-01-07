@@ -328,4 +328,32 @@ export class TerminalSettingsController extends BaseController {
             );
         }
     }
+
+    /**
+     * Reset terminal settings to defaults
+     */
+    static async resetSettings(req: Request, res: Response): Promise<void> {
+        try {
+            const { terminalId } = req.params;
+
+            if (!terminalId) {
+                BaseController.sendResponse(res, 400, false, 'Terminal ID is required');
+                return;
+            }
+
+            const result = await TerminalSettingsService.resetSettings(terminalId);
+
+            BaseController.sendResponse(res, 200, true, 'Terminal settings reset to defaults successfully', result);
+        } catch (error) {
+            console.error('Error in terminal settings controller - resetSettings:', error);
+            BaseController.sendResponse(
+                res,
+                500,
+                false,
+                'Internal server error',
+                null,
+                error instanceof Error ? error.message : 'Unknown error'
+            );
+        }
+    }
 }

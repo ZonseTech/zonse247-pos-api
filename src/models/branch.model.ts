@@ -30,9 +30,11 @@ export class BranchModel {
     }
 
     static async findById(branchId: string): Promise<Branch | null> {
-        return await prisma.branch.findUnique({
+        const branch = await prisma.branch.findUnique({
             where: { branchId }
         });
+
+        return branch;
     }
 
     static async exists(branchId: string, tenantId: string): Promise<boolean> {
@@ -58,6 +60,9 @@ export class BranchModel {
         return await prisma.branch.create({
             data: {
                 ...data,
+                taxRate: data.taxRate !== null && data.taxRate !== undefined
+                    ? parseFloat(String(data.taxRate))
+                    : null,
                 createdAt: new Date(),
                 updatedAt: new Date()
             }
@@ -77,6 +82,14 @@ export class BranchModel {
         return await prisma.branch.delete({
             where: { branchId }
         }) as unknown as Branch;
+    }
+
+    static async getLastId(): Promise<number> {
+        const lastBranch = await prisma.branch.findFirst({
+            orderBy: { id: 'desc' },
+            select: { id: true }
+        });
+        return lastBranch?.id || 0;
     }
 
     static async count(conditions = {}): Promise<number> {

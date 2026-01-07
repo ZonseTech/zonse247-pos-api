@@ -2,6 +2,7 @@ import { Request } from 'express';
 import fs from 'fs';
 import crypto from 'crypto';
 import { User } from 'users';
+import { InputJsonValue } from '../databases/prisma/generated/prisma/internal/prismaNamespace';
 
 const VALID_FILE_TYPES = ['image/jpg', 'image/jpeg', 'image/png', 'image/webp'];
 
@@ -17,6 +18,11 @@ export const hasPermission = (user: User, permField: string) => {
 export const hasRole = (user: User, role: string) => {
 	if (!user) return false;
 	return user?.roleName === role;
+};
+
+
+export const toJsonValue = <T extends object>(obj: T): InputJsonValue => {
+	return obj as unknown as InputJsonValue;
 };
 
 export const hasAnyPermission = (user: User, permissions: Array<string>) => {

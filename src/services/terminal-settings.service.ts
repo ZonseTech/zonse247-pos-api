@@ -9,13 +9,20 @@ import {
 export class TerminalSettingsService {
     /**
      * Get terminal settings by terminal ID
+     * If settings don't exist for the terminal, creates and saves default settings
      */
     static async getSettings(terminalId: string): Promise<TerminalSettings | null> {
         try {
             if (!terminalId) {
                 throw new Error('Terminal ID is required');
             }
-            return await TerminalSettingsModel.findByTerminalId(terminalId);
+
+            const existing = await TerminalSettingsModel.findByTerminalId(terminalId);
+            if (existing) {
+                return existing;
+            }
+
+            return await TerminalSettingsModel.create({ terminalId });
         } catch (error) {
             console.error('Error in terminal settings service - getSettings:', error);
             throw error;
@@ -43,7 +50,6 @@ export class TerminalSettingsService {
                 throw new Error('Terminal ID is required');
             }
 
-            // Check if settings already exist for this terminal
             const existing = await TerminalSettingsModel.findByTerminalId(data.terminalId);
             if (existing) {
                 throw new Error('Terminal settings already exist for this terminal');
@@ -68,7 +74,6 @@ export class TerminalSettingsService {
                 throw new Error('Terminal ID is required');
             }
 
-            // Check if settings exist
             const existing = await TerminalSettingsModel.findByTerminalId(terminalId);
             if (!existing) {
                 throw new Error('Terminal settings not found');
@@ -98,7 +103,6 @@ export class TerminalSettingsService {
                 throw new Error('Settings group name is required');
             }
 
-            // Check if settings exist
             const existing = await TerminalSettingsModel.findByTerminalId(terminalId);
             if (!existing) {
                 throw new Error('Terminal settings not found');
@@ -185,6 +189,30 @@ export class TerminalSettingsService {
         } catch (error) {
             console.error('Error in terminal settings service - getVerificationToken:', error);
             return null;
+        }
+    }
+
+    /**
+     * Reset terminal settings to defaults
+     * Deletes existing settings and creates new default settings
+     */
+    static async resetSettings(terminalId: string): Promise<TerminalSettings> {
+        try {
+            if (!terminalId) {
+                throw new Error('Terminal ID is required');
+            }
+
+            // Delete existing settings if they exist
+            const existing = await TerminalSettingsModel.findByTerminalId(terminalId);
+            if (existing) {
+                await TerminalSettingsModel.delete(terminalId);
+            }
+
+            // Create new default settings
+            return await TerminalSettingsModel.create({ terminalId });
+        } catch (error) {
+            console.error('Error in terminal settings service - resetSettings:', error);
+            throw error;
         }
     }
 }

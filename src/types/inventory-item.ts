@@ -2,74 +2,96 @@ import { Category } from "categoty";
 
 /**
  * Represents an inventory item in the system
- * Corresponds to the 'inventory' table in the database
+ * Combines Product and Inventory data from the new schema
  */
 export interface InventoryItem {
-    // Primary Key
+    // Product fields
     productId: string;
-
-    // Foreign Keys
-    branchId: string;
-    tenantId: string;
-    userId: string;
-    categoryId?: string;
-
-    // Product Identification
-    barcode: string;
-    sku?: string;
+    sku: string;
     name: string;
     description?: string;
+    unit: string;
+    sellingPrice: number;
+    primaryBarcode?: string;
+    isActive: boolean;
 
-    // Product Details
+    // Product attributes
     brand?: string;
-    unit?: string;
     color?: string;
     size?: string;
     dimensions?: string;
     weight?: number;
     properties?: Record<string, any>;
 
+    // Inventory fields
+    inventoryId: string;
+    availableQuantity: number;
+    reservedQuantity: number;
+    damagedQuantity: number;
+    averageCost: number;
+    lastPurchaseCost: number;
+
+    // Stock management
+    reorderPoint?: number;
+    reorderLevel?: number;
+    maxStock?: number;
+    trackInventory: boolean;
+    allowNegativeStock: boolean;
+
     // Pricing
-    costPrice: number;
-    sellPrice: number;
     promoPrice?: number;
     promoStart?: Date | string;
     promoEnd?: Date | string;
 
-    // Stock Management
-    quantity: string;
-    originalQuantity: string;
-    reservedQuantity?: number;
-    minStock?: number;
-    maxStock?: number;
-    stock?: number;
-    reorderLevel?: number;
-
-    // Inventory Settings
-    status?: string;
-    trackInventory?: boolean;
-    allowNegativeStock?: boolean;
+    // Tax
     isTaxable?: boolean;
 
     // Dates
+    lastRestockedAt?: Date | string;
+    lastSoldAt?: Date | string;
     expirationDate?: Date | string;
     manufactureDate?: Date | string;
+    createdAt: Date | string;
+    updatedAt: Date | string;
+
+    // Foreign keys
+    tenantId: string;
+    branchId: string;
+    userId?: string;
+
+    // Audit fields
+    createdBy?: string;
+    lastUpdatedBy?: string;
 
     // Media
-    imageUrls?: string[] | any;
+    imageUrls?: string[];
 
-    // Supplier Information
+    // Supplier info
     supplierName?: string;
     supplierCode?: string;
 
-    // Audit Fields
-    createdBy?: string;
-    lastUpdatedBy?: string;
-    synced?: number;
-    createdAt?: Date | string;
-    updatedAt?: Date | string;
+    // Legacy compatibility fields (computed)
+    barcode?: string; // Mapped from primaryBarcode
+    quantity?: string; // Mapped from availableQuantity
+    originalQuantity?: string;
+    costPrice?: number; // Mapped from averageCost
+    sellPrice?: number; // Mapped from sellingPrice
+    status?: string; // Computed from isActive
+    minStock?: number; // Mapped from reorderPoint
 
-    // Additional computed/join fields
+    // Category support (from old system)
+    categoryId?: string;
     categoryDetails?: Category;
+
+    // Additional barcodes
+    barcodes?: Array<{
+        barcode: string;
+        barcodeType: string;
+        barcodeSource: string;
+        isActive: boolean;
+    }>;
+
+    // Computed fields
     isExpired?: boolean;
+    totalQuantity?: number; // availableQuantity + reservedQuantity
 }

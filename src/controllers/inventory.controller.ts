@@ -75,7 +75,9 @@ export class InventoryController extends BaseController {
             const perPage = parseInt(req.query.perPage as string) || 10;
             const search = req.query.search as string || '';
             const filter = req.query.filter as string || 'all';
-            const categoryId = req.query.categoryId ? parseInt(req.query.categoryId as string) : undefined;
+            const categoryId = req.query.categoryId as string | undefined;
+            const startDate = req.query.startDate as string | undefined;
+            const endDate = req.query.endDate as string | undefined;
 
             const { inventoryItems, total, totalPages } = await InventoryService.getInventoryItemsWithCategories(
                 auth,
@@ -83,7 +85,9 @@ export class InventoryController extends BaseController {
                 perPage,
                 search,
                 filter,
-                categoryId
+                categoryId,
+                startDate,
+                endDate
             );
 
             BaseController.sendSuccess(res, 'Inventory items with categories retrieved successfully.', {
@@ -209,8 +213,6 @@ export class InventoryController extends BaseController {
             BaseController.sendServerError(res, 'Failed to fetch inventory items by status.');
         }
     }
-
-    // ==================== LOW STOCK & ALERTS ====================
 
     static async getLowStockItems(req: Request & AuthRequest, res: Response): Promise<void> {
         try {

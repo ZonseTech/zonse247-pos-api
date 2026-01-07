@@ -2,13 +2,16 @@ import { Customer } from "customer";
 import { CartItem } from "order";
 import { PaymentMethod } from "payment-method";
 import { PaymentServiceProvider } from "payment-service-provider";
-import { Decimal } from "../databases/prisma/generated/prisma/internal/prismaNamespace";
+import { Terminal } from "terminal";
 import { User } from "users";
+
+// Database-agnostic decimal type (MySQL uses Decimal, SQLite uses number)
+type DecimalValue = number | { toNumber(): number };
 
 export type Transaction = {
     refNumber?: string;
-    subtotal: Decimal;
-    tax: Decimal;
+    subtotal: DecimalValue;
+    tax: DecimalValue;
     date: Date;
     userId: string;
     tenantId?: string;
@@ -20,20 +23,32 @@ export type Transaction = {
     paymentMethodId?: string;
     terminalId: string;
     phoneNumber: string;
-    total: Decimal;
-    paid: Decimal;
-    discount?: Decimal;
-    changeAmount: Decimal;
+    total: DecimalValue;
+    paid: DecimalValue;
+    discount?: DecimalValue;
+    changeAmount: DecimalValue;
 
     status?: string;
     createdAt?: Date;
     updatedAt?: Date;
 
+    // Refund/Return fields
+    isRefund?: boolean;
+    originalTransactionId?: string;
+    refundReason?: string;
+    refundedAmount?: DecimalValue;
+    refundedAt?: Date;
+
+    // Related data
     customer?: Customer;
+    terminal?: Terminal;
     paymentMethod?: PaymentMethod;
     paymentServiceProvider?: PaymentServiceProvider;
     items?: CartItem[];
     user?: User;
+    originalTransaction?: Transaction;
+    refunds?: Transaction[];
+    totalRefunded?: number;
     synced: number;
 };
 
@@ -52,4 +67,6 @@ export interface DateRangeFilters {
     user?: number;
     till?: number;
     includeItems: boolean;
+    tenantId?: string;
+    branchId?: string;
 }

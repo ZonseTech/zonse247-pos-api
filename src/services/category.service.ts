@@ -25,6 +25,7 @@ export class CategoryService {
             name: string;
             description?: string;
             color?: string;
+            isDefault?: boolean;
         },
         user: AuthenticatedUser
     ): Promise<Category> {
@@ -33,6 +34,7 @@ export class CategoryService {
                 name: categoryData.name,
                 description: categoryData.description,
                 color: categoryData.color,
+                isDefault: categoryData.isDefault,
                 tenantId: user.tenantId,
                 branchId: user.branchId,
                 userId: user.userId,

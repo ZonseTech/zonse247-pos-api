@@ -2,11 +2,15 @@ import dayjs from 'dayjs';
 import { Transaction } from 'transactions';
 import { DashboardCounts, MonthlySales, TopProduct } from 'analytics';
 import prisma from '../databases/prisma/client';
-import { InventoryStatus } from '../databases/prisma/generated/prisma/enums';
 
 
 export class AnalyticsModel {
-    static async getMonthlySalesData(userId: string, year: number, month: number): Promise<Array<MonthlySales>> {
+    static async getMonthlySalesData(
+        tenantId: string,
+        branchId: string,
+        year: number,
+        month: number
+    ): Promise<Array<MonthlySales>> {
         const lastDayOfMonth = new Date(year, month, 0);
         const firstDayOfMonth = new Date(year, month - 1, 1);
         const endDate = dayjs(lastDayOfMonth).format('YYYY-MM-DD');
@@ -14,7 +18,8 @@ export class AnalyticsModel {
 
         const transactions = await prisma.transaction.findMany({
             where: {
-                userId,
+                tenantId,
+                branchId,
                 date: {
                     gte: new Date(startDate),
                     lte: new Date(endDate),
@@ -47,7 +52,8 @@ export class AnalyticsModel {
     }
 
     static async getUserTransactions(
-        userId: string,
+        tenantId: string,
+        branchId: string,
         limit: number,
         offset: number,
         includeItems = false
@@ -56,80 +62,104 @@ export class AnalyticsModel {
         transactions: Array<Transaction>;
         hasMore: boolean;
     }> {
-        const transactions = await prisma.transaction.findMany({
-            where: { userId },
-        });
-
-        const sortedTransactions = transactions
-            .sort((a, b) => {
-                const dateA = new Date(a.date || a.createdAt || '');
-                const dateB = new Date(b.date || b.createdAt || '');
-                return dateB.getTime() - dateA.getTime();
-            })
-            .slice(offset, offset + limit);
-
-        let processedTransactions = sortedTransactions;
-
-        if (includeItems) {
-            processedTransactions = await Promise.all(
-                sortedTransactions.map(async (transaction) => {
-                    const orderItems = await prisma.order.findMany({
-                        where: {
-                            transactionId: transaction.transactionId,
+        const [total, transactions] = await Promise.all([
+            prisma.transaction.count({
+                where: {
+                    tenantId,
+                    branchId,
+                },
+            }),
+            prisma.transaction.findMany({
+                where: {
+                    tenantId,
+                    branchId,
+                },
+                orderBy: [
+                    { date: 'desc' },
+                    { createdAt: 'desc' },
+                ],
+                skip: offset,
+                take: limit,
+                ...(includeItems && {
+                    include: {
+                        user: {
+                            select: {
+                                userId: true,
+                                fullname: true,
+                                username: true,
+                            },
                         },
-                    });
-
-                    const itemsWithProductDetails = await Promise.all(
-                        orderItems.map(async (item) => {
-                            const product = await prisma.inventory.findUnique({
-                                where: { productId: item.productId },
-                            });
-                            return {
-                                ...item,
-                                productDetails: product,
-                            };
-                        })
-                    );
-
-                    return {
-                        ...transaction,
-                        items: itemsWithProductDetails,
-                    };
-                })
-            );
-        }
+                        customer: {
+                            select: {
+                                customerId: true,
+                                name: true,
+                            },
+                        },
+                        paymentMethod: {
+                            select: {
+                                methodId: true,
+                                name: true,
+                            },
+                        },
+                    },
+                }),
+            }),
+        ]);
 
         return {
-            total: transactions.length,
-            transactions: processedTransactions as any,
-            hasMore: offset + limit < transactions.length,
+            total,
+            transactions: transactions as any,
+            hasMore: offset + limit < total,
         };
     }
 
-    static async getTopProducts(): Promise<Array<TopProduct>> {
-        const [orders, products, categories] = await Promise.all([
-            prisma.order.findMany(),
-            prisma.inventory.findMany({
-                where: { status: { not: InventoryStatus.inactive } },
-            }),
-            prisma.category.findMany(),
-        ]);
-
-        const productMap = new Map();
-        products.forEach((product) => {
-            const key = product.productId;
-            if (key !== null && key !== undefined) {
-                productMap.set(key, product);
-            }
+    static async getTopProducts(tenantId: string, branchId: string): Promise<Array<TopProduct>> {
+        // Get all transactions for this tenant and branch to get their IDs
+        const transactionIds = await prisma.transaction.findMany({
+            where: {
+                tenantId,
+                branchId,
+            },
+            select: {
+                transactionId: true,
+            },
         });
 
-        const categoryMap = new Map();
-        categories.forEach((category) => {
-            categoryMap.set(category.categoryId.toString(), category);
+        const ids = transactionIds.map(t => t.transactionId);
+
+        // Get orders with product details using relations
+        const orders = await prisma.order.findMany({
+            where: {
+                transactionId: {
+                    in: ids,
+                },
+            },
         });
 
+        // Get products with inventory details
+        const products = await prisma.product.findMany({
+            where: {
+                tenantId,
+                branchId,
+                isActive: true,
+            },
+            include: {
+                inventories: {
+                    where: {
+                        branchId,
+                    },
+                },
+            },
+        });
+
+        // Create product map for quick lookup
+        const productMap = new Map(
+            products.map(p => [p.id, p])
+        );
+
+        // Aggregate order quantities and sales
         const productSummary = new Map<
-            string | number,
+            string,
             {
                 quantity: number;
                 summedSellPrice: number;
@@ -144,31 +174,24 @@ export class AnalyticsModel {
             };
 
             productSummary.set(productId, {
-                quantity: parseInt(existing.quantity?.toString()) + parseInt(order.quantity.toString()),
-                summedSellPrice:
-                    existing.summedSellPrice + parseFloat(order.sellPrice.toString()) * parseInt(order.quantity.toString()),
+                quantity: existing.quantity + Number(order.quantity),
+                summedSellPrice: existing.summedSellPrice + (Number(order.sellPrice) * Number(order.quantity)),
             });
         });
 
-        const topProducts = [] as Array<TopProduct>;
+        // Build top products array
+        const topProducts: Array<TopProduct> = [];
 
-        productSummary.forEach((summary, productId: string) => {
+        productSummary.forEach((summary, productId) => {
             const product = productMap.get(productId);
 
             if (product) {
-                if (product.productId) {
-                    const categoryKey = product.categoryId.toString();
-                    if (categoryMap.has(categoryKey)) {
-                        product.categoryDetails = categoryMap.get(categoryKey);
-                    }
-                }
-
                 topProducts.push({
-                    productId: product.productId || productId,
-                    name: product.name || 'Unknown Product',
+                    productId: product.id,
+                    name: product.name,
                     quantity: summary.quantity,
                     summedSellPrice: Math.round(summary.summedSellPrice * 100) / 100,
-                    categoryName: product.categoryDetails?.name || 'Uncategorized',
+                    categoryName: 'Uncategorized', // Category removed in new schema
                 });
             }
         });
@@ -178,78 +201,144 @@ export class AnalyticsModel {
             .slice(0, 10);
     }
 
-    static async getDashboardCounts(userId: string): Promise<DashboardCounts> {
-        const transactions = await prisma.transaction.findMany({
-            where: { userId },
-        });
-
-        const inventoryProducts = await prisma.inventory.findMany({
-            where: { status: { not: InventoryStatus.inactive } },
-        });
-
-        const [userCount, customerCount] = await Promise.all([
-            prisma.user.count(),
-            prisma.customer.count(),
+    static async getDashboardCounts(tenantId: string, branchId: string): Promise<DashboardCounts> {
+        const [
+            transactionAggregate,
+            inventoryProducts,
+            expiredProductsCount,
+            userCount,
+            customerCount,
+        ] = await Promise.all([
+            // Aggregate transaction totals and count
+            prisma.transaction.aggregate({
+                where: {
+                    tenantId,
+                    branchId,
+                },
+                _count: true,
+                _sum: {
+                    total: true,
+                },
+            }),
+            // Get inventory to sum quantities
+            prisma.inventory.findMany({
+                where: {
+                    tenantId,
+                    branchId,
+                },
+                select: {
+                    availableQuantity: true,
+                    reservedQuantity: true,
+                },
+            }),
+            // Count products (no expiration tracking in new schema)
+            prisma.product.count({
+                where: {
+                    tenantId,
+                    branchId,
+                    isActive: false,
+                },
+            }),
+            // Count users in this branch
+            prisma.user.count({
+                where: {
+                    tenantId,
+                    branchId,
+                },
+            }),
+            // Count customers for this tenant
+            prisma.customer.count({
+                where: {
+                    tenantId,
+                },
+            }),
         ]);
 
-        const myTotalTransactions = transactions.length;
+        const totalSales = Number(transactionAggregate._sum.total || 0);
 
-        const totalSales =
-            (Math.round(
-                transactions.reduce(
-                    (sum, transaction) => sum + (parseInt(transaction.total.toString()) || 0),
-                    0
-                ) * 100
-            ) / 100)?.toString();
-
-        const expiredProducts = inventoryProducts.filter((product) => {
-            const expirationDate = new Date(product.expirationDate);
-            return expirationDate < new Date() && product.status !== InventoryStatus.inactive;
-        }).length;
-
-        const totalProducts = inventoryProducts.reduce(
-            (sum, product) => sum + (parseInt(product.quantity.toString()) || 0),
-            0
-        );
+        // Sum quantities from new inventory structure
+        const totalProducts = inventoryProducts.reduce((sum, inv) => {
+            return sum + inv.availableQuantity + inv.reservedQuantity;
+        }, 0);
 
         return {
-            totalSales,
+            totalSales: (Math.round(totalSales * 100) / 100).toString(),
             stock: totalProducts,
             totalUsers: userCount,
             allCustomers: customerCount,
-            expiredProducts: expiredProducts,
-            myTotalTransactions: myTotalTransactions,
+            expiredProducts: expiredProductsCount,
+            myTotalTransactions: transactionAggregate._count,
         };
     }
 
-    static async getTransactionItems(transactionId: string): Promise<{
+    static async getTransactionItems(
+        transactionId: string,
+        tenantId: string,
+        branchId: string
+    ): Promise<{
         transaction: any;
         orderItems: Array<any>;
     }> {
-        const [transaction, orderItems] = await Promise.all([
-            prisma.transaction.findUnique({
-                where: { transactionId },
-            }),
-            prisma.order.findMany({
-                where: { transactionId },
-            }),
-        ]);
+        const transaction = await prisma.transaction.findFirst({
+            where: {
+                transactionId,
+                tenantId,
+                branchId,
+            },
+            include: {
+                user: {
+                    select: {
+                        userId: true,
+                        fullname: true,
+                        username: true,
+                    },
+                },
+                customer: {
+                    select: {
+                        customerId: true,
+                        name: true,
+                    },
+                },
+                paymentMethod: {
+                    select: {
+                        methodId: true,
+                        name: true,
+                    },
+                },
+            },
+        });
 
         if (!transaction) {
             return { transaction: null, orderItems: [] };
         }
 
-        const itemsWithProductDetails = await Promise.all(
-            orderItems.map(async (item) => {
-                const product = await prisma.inventory.findUnique({
-                    where: { productId: item.productId },
-                });
-                return {
-                    ...item,
-                    productDetails: product,
-                };
-            })
+        // Get orders and fetch their product details
+        const orderItems = await prisma.order.findMany({
+            where: {
+                transactionId,
+            },
+        });
+
+        // Fetch all products for these orders in a single query
+        const productIds = orderItems.map(item => item.productId);
+        const products = await prisma.product.findMany({
+            where: {
+                id: {
+                    in: productIds,
+                },
+            },
+        });
+
+        // Create product map for quick lookup
+        const productMap = new Map(
+            products.map(p => [p.id, p])
         );
+
+        // Attach product details to order items
+        const itemsWithProductDetails = orderItems.map(item => ({
+            ...item,
+            productDetails: productMap.get(item.productId) || null,
+        }));
 
         return {
             transaction,
@@ -257,65 +346,100 @@ export class AnalyticsModel {
         };
     }
 
-    static async getTransactionDetails(transactionId: string): Promise<{
+    static async getTransactionDetails(
+        transactionId: string,
+        tenantId: string,
+        branchId: string
+    ): Promise<{
         transaction: any;
         orderItems: Array<any>;
         summary: any;
     }> {
-        const [transaction, orderItems, categories] = await Promise.all([
-            prisma.transaction.findUnique({
-                where: { transactionId },
-            }),
-            prisma.order.findMany({
-                where: { transactionId },
-            }),
-            prisma.category.findMany(),
-        ]);
+        const transaction = await prisma.transaction.findFirst({
+            where: {
+                transactionId,
+                tenantId,
+                branchId,
+            },
+            include: {
+                user: {
+                    select: {
+                        userId: true,
+                        fullname: true,
+                        username: true,
+                    },
+                },
+                customer: {
+                    select: {
+                        customerId: true,
+                        name: true,
+                    },
+                },
+                paymentMethod: {
+                    select: {
+                        methodId: true,
+                        name: true,
+                    },
+                },
+                paymentServiceProvider: {
+                    select: {
+                        providerId: true,
+                        name: true,
+                    },
+                },
+            },
+        });
 
         if (!transaction) {
             return { transaction: null, orderItems: [], summary: {} };
         }
 
-        const categoryMap = new Map<string, any>();
-        categories.forEach((category) => {
-            categoryMap.set(category.categoryId.toString(), category);
+        // Get order items
+        const orderItems = await prisma.order.findMany({
+            where: {
+                transactionId,
+            },
         });
 
-        const detailedOrderItems = await Promise.all(
-            orderItems.map(async (item) => {
-                const product = await prisma.inventory.findUnique({
-                    where: { productId: item.productId },
-                });
+        // Fetch all products in a single query
+        const productIds = orderItems.map(item => item.productId);
+        const products = await prisma.product.findMany({
+            where: {
+                id: {
+                    in: productIds,
+                },
+            },
+        });
 
-                let categoryDetails = null;
-                if (product && product.categoryId) {
-                    categoryDetails = categoryMap.get(product.categoryId.toString());
-                }
-
-                return {
-                    ...item,
-                    productDetails: product,
-                    categoryDetails,
-                    lineTotal: parseFloat(item.sellPrice.toString()) * parseInt(item.quantity?.toString()),
-                    profit: (parseFloat(item.sellPrice.toString()) - parseFloat(item.purchasePrice?.toString())) * parseInt(item.quantity?.toString()),
-                };
-            })
+        // Create product map for quick lookup
+        const productMap = new Map(
+            products.map(p => [p.id, p])
         );
 
+        // Build detailed order items with calculations
+        const detailedOrderItems = orderItems.map((item) => {
+            const product = productMap.get(item.productId);
+            const quantity = Number(item.quantity);
+            const sellPrice = Number(item.sellPrice);
+            const purchasePrice = Number(item.purchasePrice || 0);
+
+            return {
+                ...item,
+                productDetails: product || null,
+                categoryDetails: null, // Category removed in new schema
+                lineTotal: sellPrice * quantity,
+                profit: (sellPrice - purchasePrice) * quantity,
+            };
+        });
+
+        // Calculate summary
         const summary = {
-            totalItems: orderItems.reduce((sum, item) => sum + parseInt(item.quantity?.toString()), 0),
-            totalAmount: detailedOrderItems.reduce(
-                (sum, item) => sum + item.lineTotal,
-                0
-            ),
-            totalProfit: detailedOrderItems.reduce(
-                (sum, item) => sum + item.profit,
-                0
-            ),
+            totalItems: detailedOrderItems.reduce((sum, item) => sum + Number(item.quantity), 0),
+            totalAmount: detailedOrderItems.reduce((sum, item) => sum + item.lineTotal, 0),
+            totalProfit: detailedOrderItems.reduce((sum, item) => sum + item.profit, 0),
             averageItemPrice:
                 detailedOrderItems.length > 0
-                    ? detailedOrderItems.reduce((sum, item) => sum + parseFloat(item.sellPrice.toString()), 0) /
-                    detailedOrderItems.length
+                    ? detailedOrderItems.reduce((sum, item) => sum + Number(item.sellPrice), 0) / detailedOrderItems.length
                     : 0,
         };
 
