@@ -121,6 +121,16 @@ export class TenantService {
             allowedTerminals: ['*'],
         });
 
+        console.log({
+            businessName: tenant.businessName,
+            ownerName: tenant.ownerName,
+            email: tenant.email,
+            tenantCode: tenant.tenantCode,
+            verificationToken,
+            username: defaultUsername,
+            password: defaultPassword,
+        })
+
         if (defaultTerminal) {
             try {
                 // await EmailService.sendWelcomeEmail({
