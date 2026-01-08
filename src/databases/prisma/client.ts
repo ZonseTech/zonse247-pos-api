@@ -16,9 +16,56 @@ let remoteClient: PrismaClient | null = null;
 let prismaInstance: PrismaClient | null = null;
 let isInitialized = false;
 
+/**
+ * Flag to indicate if database file has been verified to exist.
+ * This MUST be set to true before any SQLite connection is allowed.
+ */
+let databaseVerified = false;
+
+/**
+ * Custom database URL that can be set after verification.
+ * Takes precedence over DATABASE_URL environment variable.
+ */
+let verifiedDatabaseUrl: string | null = null;
+
+/**
+ * Mark the database as verified and ready for connections.
+ * Call this AFTER ensuring the database file exists (e.g., after copying template).
+ * 
+ * @param dbUrl - The verified database URL (e.g., 'file:/path/to/local.db')
+ */
+export const setDatabaseReady = (dbUrl?: string): void => {
+    if (dbUrl) {
+        verifiedDatabaseUrl = dbUrl;
+    }
+    databaseVerified = true;
+    console.log('✓ Database marked as ready for connections');
+};
+
+/**
+ * Check if database has been verified
+ */
+export const isDatabaseReady = (): boolean => databaseVerified;
+
+/**
+ * Get the effective database URL (verified URL or fallback to env)
+ */
+const getEffectiveDatabaseUrl = (): string => {
+    return verifiedDatabaseUrl || DATABASE_URL || 'file:./local.db';
+};
+
 const initializeLocalClient = () => {
+    if (!databaseVerified) {
+        throw new Error(
+            'Database not verified! Call DatabaseInitializer.ensureReady() before using Prisma. ' +
+            'This prevents SQLite from creating an empty database file.'
+        );
+    }
+
     if (!localClient) {
-        const adapter = new PrismaBetterSqlite3({ url: DATABASE_URL || 'file:./local.db' });
+        const dbUrl = getEffectiveDatabaseUrl();
+        console.log(`📂 Opening SQLite database: ${dbUrl}`);
+        const adapter = new PrismaBetterSqlite3({ url: dbUrl });
         localClient = new PrismaClient({
             adapter,
             log: ['error', 'warn']
@@ -79,15 +126,25 @@ const initializePrisma = async (): Promise<PrismaClient> => {
 /**
  * Prisma client wrapper that ensures initialization before any operation
  * Use directly: prisma.model.findMany()
+ * 
+ * IMPORTANT: Initialization is now LAZY - it only happens when a method is called.
+ * This prevents the "Database not verified" error when the module is imported
+ * before DatabaseInitializer.ensureReady() is called.
  */
 class PrismaClientWrapper {
-    private clientPromise: Promise<PrismaClient>;
+    private clientPromise: Promise<PrismaClient> | null = null;
 
     constructor() {
-        this.clientPromise = initializePrisma();
+        // Don't initialize immediately - wait for first use
+        // This allows DatabaseInitializer.ensureReady() to be called first
     }
 
     private async getClient(): Promise<PrismaClient> {
+        // Lazy initialization - only create promise on first access
+        if (!this.clientPromise) {
+            this.clientPromise = initializePrisma();
+        }
+        
         if (!isInitialized) {
             await this.clientPromise;
         }
