@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import prisma from '../databases/prisma/client';
 import { RoleModel } from "../models/role.model";
 import { PermissionModel } from "../models/permission.model";
@@ -9,6 +10,7 @@ import { SubscriptionModel } from '../models/subscription.model';
 import { UserModel } from '../models/user.model';
 import { CustomerModel } from '../models/customer.model';
 import { CategoryModel } from '../models/category.model';
+import { BranchModel } from '../models/branch.model';
 import { ValidationParams } from 'on-boarding';
 import { SubscriptionPlan } from '../databases/prisma/generated/prisma/browser';
 import { BaseService } from './base.service';
@@ -285,24 +287,44 @@ export class MetadataService {
 
             for (const data of customerData) {
                 try {
-                    const existingRole = await CustomerModel.findById(data.customerId);
+                    // Remove relation objects that shouldn't be passed to Prisma
+                    const { branch, user, transactions, sales, ...customerFields } = data;
 
-                    if (existingRole) {
+                    // Ensure branch exists before creating customer (FK constraint)
+                    if (customerFields.branchId) {
+                        const existingBranch = await BranchModel.findById(customerFields.branchId);
+                        if (!existingBranch) {
+                            // Create a placeholder branch to satisfy FK constraint
+                            await prisma.branch.create({
+                                data: {
+                                    branchId: customerFields.branchId,
+                                    tenantId: customerFields.tenantId,
+                                    branchCode: `SYNC-${customerFields.branchId.substring(0, 8)}`,
+                                    branchName: 'Synced Branch (Placeholder)',
+                                    synced: 1
+                                }
+                            });
+                        }
+                    }
+
+                    const existingCustomer = await CustomerModel.findById(data.customerId);
+
+                    if (existingCustomer) {
                         await CustomerModel.update(data.customerId, {
-                            ...data,
+                            ...customerFields,
                             updatedAt: new Date()
                         });
                         result.recordsUpdated++;
                     } else {
                         await CustomerModel.create({
-                            ...data,
+                            ...customerFields,
                             createdAt: new Date(),
                             updatedAt: new Date()
                         });
                         result.recordsInserted++;
                     }
                 } catch (error: any) {
-                    result.errors.push(`User ${data.customerId}: ${error.message}`);
+                    result.errors.push(`Customer ${data.customerId}: ${error.message}`);
                 }
             }
 
@@ -395,17 +417,27 @@ export class MetadataService {
 
             for (const planData of subscriptionPlans) {
                 try {
+                    const normalizedPlanData = {
+                        ...planData,
+                        monthlyPrice: typeof planData.monthlyPrice === 'string'
+                            ? parseFloat(planData.monthlyPrice) || 0
+                            : planData.monthlyPrice,
+                        yearlyPrice: typeof planData.yearlyPrice === 'string'
+                            ? parseFloat(planData.yearlyPrice) || 0
+                            : planData.yearlyPrice,
+                    };
+
                     const existingPlan = await SubscriptionPlanModel.findById(planData.subscriptionPlanId);
 
                     if (existingPlan) {
                         await SubscriptionPlanModel.update(planData.subscriptionPlanId, {
-                            ...planData,
+                            ...normalizedPlanData,
                             updatedAt: new Date()
                         });
                         result.recordsUpdated++;
                     } else {
                         await SubscriptionPlanModel.create({
-                            ...planData,
+                            ...normalizedPlanData,
                             createdAt: new Date(),
                             updatedAt: new Date()
                         });
