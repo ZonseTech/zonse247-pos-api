@@ -5,6 +5,7 @@ import { createServer, Server as HttpServer } from 'http';
 import express, { Request, Response, Application } from 'express';
 import { corsOptions } from './config/cors.config';
 import syncService from './services/sync.service';
+import { DatabaseInitializer } from './databases/prisma/databaseInitializer';
 import { timeoutHandler } from './middlewares/error.middleware';
 import {
 	apiAnalytics,
@@ -132,6 +133,11 @@ export class Server {
 
 	public async start() {
 		try {
+			// Initialize database before starting server
+			const userDataPath = this.electron?.getPath('userData');
+			await DatabaseInitializer.ensureReady(userDataPath);
+			console.log('✓ Database ready');
+
 			this.server.listen(
 				parseInt(process.env.SERVER_PORT || '3000'),
 				'0.0.0.0',
