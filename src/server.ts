@@ -20,13 +20,18 @@ import {
 } from './middlewares/security.middleware';
 import ApiRoutes from './routes';
 import { initializeEmailService } from './config/email.config';
+import { BaseService } from './services/base.service';
+import { initializeConfig, RuntimeConfig } from './config/app.config';
 
 export class Server {
 	private server: HttpServer;
 	private app: Application;
 	private electron: any | null;
+	private config: RuntimeConfig;
 
-	constructor(electronApp?: any) {
+	constructor(electronApp?: any, configOverrides?: Partial<RuntimeConfig>) {
+		this.config = initializeConfig(configOverrides);
+
 		this.app = express();
 		this.electron = electronApp || null;
 
@@ -41,12 +46,12 @@ export class Server {
 	}
 
 	private setupMiddleware() {
-		this.app.set('trust proxy', process.env.TRUST_PROXY === 'true');
-		this.app.use(timeoutHandler(parseInt(process.env.SERVER_TIMEOUT || '0')));
+		this.app.set('trust proxy', this.config.trustProxy);
+		this.app.use(timeoutHandler(this.config.serverTimeout));
 		this.app.use(requestTracker);
 		this.app.use(apiAnalytics);
 
-		if (process.env.NODE_ENV === 'production') {
+		if (this.config.nodeEnv === 'production') {
 			this.app.use(productionLogger);
 		} else {
 			this.app.use(developmentLogger);
@@ -55,15 +60,15 @@ export class Server {
 		this.app.use(helmetConfig);
 		this.app.use(cors(corsOptions));
 		this.app.use(compression());
-		this.app.use(limitRequestSize(process.env.CORS_REQUEST_SIZE_LIMIT));
+		this.app.use(limitRequestSize(this.config.corsRequestSizeLimit));
 		this.app.use(securityLogger);
 		this.app.use(
-			express.json({ limit: process.env.CORS_REQUEST_SIZE_LIMIT })
+			express.json({ limit: this.config.corsRequestSizeLimit })
 		);
 		this.app.use(
 			express.urlencoded({
 				extended: true,
-				limit: process.env.CORS_REQUEST_SIZE_LIMIT,
+				limit: this.config.corsRequestSizeLimit,
 			})
 		);
 	}
@@ -75,8 +80,8 @@ export class Server {
 				status: 'healthy',
 				message: 'Server is running',
 				timestamp: new Date().toISOString(),
-				environment: process.env.NODE_ENV,
-				version: process.env.npm_package_version || '1.0.0',
+				environment: this.config.nodeEnv,
+				version: this.config.appVersion,
 				uptime: process.uptime(),
 			});
 		});
@@ -91,8 +96,8 @@ export class Server {
 				status: 'healthy',
 				message: 'Server is running',
 				timestamp: new Date().toISOString(),
-				environment: process.env.NODE_ENV,
-				version: process.env.npm_package_version || '1.0.0',
+				environment: this.config.nodeEnv,
+				version: this.config.appVersion,
 				uptime: process.uptime(),
 			});
 		});
@@ -110,13 +115,14 @@ export class Server {
 	}
 
 	private setupErrorHandling() {
+		const nodeEnv = this.config.nodeEnv;
 		this.app.use((err: Error, req: Request, res: Response) => {
 			console.error('Error:', err);
 			res.status(500).json({
 				success: false,
 				message: 'Internal server error',
 				error:
-					process.env.NODE_ENV === 'development' ? err.message : undefined,
+					nodeEnv === 'development' ? err.message : undefined,
 			});
 		});
 
@@ -138,14 +144,19 @@ export class Server {
 			await DatabaseInitializer.ensureReady(userDataPath);
 			console.log('✓ Database ready');
 
+			const port = parseInt(this.config.serverPort);
 			this.server.listen(
-				parseInt(process.env.SERVER_PORT || '3000'),
+				port,
 				'0.0.0.0',
 				async () => {
 					console.log(
-						`🚀 Server running on port ${process.env.SERVER_PORT}`
+						`🚀 Server running on port ${port}`
 					);
-					console.log(`📊 Environment: ${process.env.NODE_ENV}`);
+					console.log(`📊 Config: ${JSON.stringify(this.config, null, 2)}`);
+
+					const health = await BaseService.get('/health')
+
+					console.log('External API Health Check:', JSON.stringify(health, null, 2));
 
 					if (!this.electron) {
 						await initializeEmailService()
