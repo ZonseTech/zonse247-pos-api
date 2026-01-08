@@ -215,28 +215,40 @@ export class TenantService {
     }
 
     static async verifyTenant(verificationToken: string): Promise<Omit<Tenant, 'verificationToken'>> {
-        const response = await BaseService.post<TenantFormValues>('/on-boarding/live/verify-account', {
-            verificationToken,
-        });
+        try {
+            const response = await BaseService.post<TenantFormValues>('/on-boarding/live/verify-account', {
+                verificationToken,
+            });
 
-        if (!response.success) {
-            throw new Error(response.message || 'Failed to verify tenant');
+            if (!response.success) {
+                throw new Error(response.message || 'Failed to verify tenant');
+            }
+
+            const tenant = response.data;
+
+            const tenantExists = await TenantModel.exists(tenant.tenantId)
+
+            if (tenantExists)
+                return TenantModel.sanitizeTenant(tenant as unknown as Tenant);
+
+            const localTenant = await TenantModel.insert(tenant as undefined);
+
+            if (!localTenant) {
+                throw new Error('Something went wrong. External server down');
+            }
+
+            return TenantModel.sanitizeTenant(localTenant);
+        } catch (error: any) {
+            console.error('External API error during tenant verification:', error.message);
+
+            if (error.message?.includes('timeout') ||
+                error.message?.includes('ECONNREFUSED') ||
+                error.message?.includes('No response')) {
+                throw new Error('Unable to connect to live server. Please check your internet connection or try again later.');
+            }
+
+            throw error;
         }
-
-        const tenant = response.data;
-
-        const tenantExists = await TenantModel.exists(tenant.tenantId)
-
-        if (tenantExists)
-            return TenantModel.sanitizeTenant(tenant as unknown as Tenant);
-
-        const localTenant = await TenantModel.insert(tenant as undefined);
-
-        if (!localTenant) {
-            throw new Error('Something went wrong. External server down');
-        }
-
-        return TenantModel.sanitizeTenant(localTenant);
     }
 
     static async verifyTenantAccount(verificationToken: string): Promise<Omit<Tenant, 'verificationToken'>> {

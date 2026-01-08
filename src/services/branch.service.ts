@@ -59,24 +59,36 @@ export class BranchService {
 			throw new Error('Tenant ID is required');
 		}
 
-		const response = await BaseService.get<Array<Branch>>(`/on-boarding/live/tenant/${tenantId}/branches`);
+		try {
+			const response = await BaseService.get<Array<Branch>>(`/on-boarding/live/tenant/${tenantId}/branches`);
 
-		if (!response.success) {
-			throw new Error(response.message || 'Failed to fetch branches. External application down');
-		}
+			if (!response.success) {
+				throw new Error(response.message || 'Failed to fetch branches. External application down');
+			}
 
-		const branches = response.data;
+			const branches = response.data;
 
-		if (branches && branches.length > 0) {
-			for (const branch of branches) {
-				const branchExists = await BranchModel.exists(branch.branchId, tenantId);
-				if (!branchExists) {
-					await BranchModel.insert(branch);
+			if (branches && branches.length > 0) {
+				for (const branch of branches) {
+					const branchExists = await BranchModel.exists(branch.branchId, tenantId);
+					if (!branchExists) {
+						await BranchModel.insert(branch);
+					}
 				}
 			}
-		}
 
-		return branches;
+			return branches;
+		} catch (error: any) {
+			console.error('External API error fetching branches:', error.message);
+			
+			if (error.message?.includes('timeout') || 
+				error.message?.includes('ECONNREFUSED') || 
+				error.message?.includes('No response')) {
+				throw new Error('Unable to connect to live server. Please check your internet connection or try again later.');
+			}
+			
+			throw error;
+		}
 	}
 
 	static async getAccountBranchesByTenantId(tenantId: string): Promise<Branch[]> {

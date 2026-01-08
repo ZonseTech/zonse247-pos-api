@@ -61,24 +61,36 @@ export class TerminalService {
             throw new Error('Branch not found');
         }
 
-        const response = await BaseService.get<Array<Terminal>>(`/on-boarding/live/branch/${branchId}/terminals`);
+        try {
+            const response = await BaseService.get<Array<Terminal>>(`/on-boarding/live/branch/${branchId}/terminals`);
 
-        if (!response.success) {
-            throw new Error(response.message || 'Failed to fetch terminals. External application down');
-        }
+            if (!response.success) {
+                throw new Error(response.message || 'Failed to fetch terminals. External application down');
+            }
 
-        const terminals = response.data;
+            const terminals = response.data;
 
-        if (terminals && terminals.length > 0) {
-            for (const terminal of terminals) {
-                const terminalExists = await TerminalModel.exists(terminal.terminalId);
-                if (!terminalExists) {
-                    await TerminalModel.insert(terminal);
+            if (terminals && terminals.length > 0) {
+                for (const terminal of terminals) {
+                    const terminalExists = await TerminalModel.exists(terminal.terminalId);
+                    if (!terminalExists) {
+                        await TerminalModel.insert(terminal);
+                    }
                 }
             }
-        }
 
-        return terminals;
+            return terminals;
+        } catch (error: any) {
+            console.error('External API error fetching terminals:', error.message);
+            
+            if (error.message?.includes('timeout') || 
+                error.message?.includes('ECONNREFUSED') || 
+                error.message?.includes('No response')) {
+                throw new Error('Unable to connect to live server. Please check your internet connection or try again later.');
+            }
+            
+            throw error;
+        }
     }
 
     static async getPrimaryTerminalId(branchId: string): Promise<string | null> {

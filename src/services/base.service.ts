@@ -1,20 +1,33 @@
 import axios, { AxiosRequestConfig, AxiosResponse } from 'axios';
 import { ApiResponse, ServiceConfig } from 'network';
+import { getConfig } from '../config/app.config';
 
 export class BaseService {
-    private static config: ServiceConfig = {
-        baseURL: process.env.API_HOST
-            ? `http://${process.env.API_HOST}:${process.env.API_PORT || '3000'}/api/v1`
-            : 'http://localhost:3000/api/v1',
-        timeout: parseInt(process.env.API_TIMEOUT || '10000'),
-        headers: {
-            'Content-Type': 'application/json',
-            'X-Client-Type': 'web',
-        },
-    };
+    private static config: ServiceConfig | null = null;
+
+    private static getServiceConfig(): ServiceConfig {
+        if (!this.config) {
+            const appConfig = getConfig();
+            this.config = {
+                baseURL: appConfig.liveApiUrl,
+                timeout: appConfig.apiTimeout,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Client-Type': 'web',
+                },
+            };
+        }
+        return this.config;
+    }
 
     static initialize(config?: Partial<ServiceConfig>): void {
-        this.config = { ...this.config, ...config };
+        const currentConfig = this.getServiceConfig();
+        this.config = { ...currentConfig, ...config };
+    }
+
+    static reinitialize(): void {
+        // Force re-read from app config
+        this.config = null;
     }
 
     private static async request<T = any>(
@@ -24,9 +37,10 @@ export class BaseService {
         config?: AxiosRequestConfig
     ): Promise<ApiResponse<T>> {
         try {
-            const url = `${this.config.baseURL}${endpoint}`;
+            const serviceConfig = this.getServiceConfig();
+            const url = `${serviceConfig.baseURL}${endpoint}`;
             const fullConfig: AxiosRequestConfig = {
-                ...this.config,
+                ...serviceConfig,
                 ...config,
                 method,
                 url,

@@ -1,4 +1,3 @@
-import axios from 'axios';
 import prisma from '../databases/prisma/client';
 import { RoleModel } from "../models/role.model";
 import { PermissionModel } from "../models/permission.model";
@@ -12,8 +11,7 @@ import { CustomerModel } from '../models/customer.model';
 import { CategoryModel } from '../models/category.model';
 import { ValidationParams } from 'on-boarding';
 import { SubscriptionPlan } from '../databases/prisma/generated/prisma/browser';
-
-const API_TIMEOUT = 30000;
+import { BaseService } from './base.service';
 
 interface SyncResult {
     type: string;
@@ -32,42 +30,6 @@ export class MetadataService {
     }
 
     /**
-     * Fetch data from external API
-     */
-    private static async fetchFromExternalAPI(endpoint: string, params: ValidationParams): Promise<any> {
-        try {
-            const host = process.env.API_HOST || 'localhost'
-            const port = process.env.API_PORT || '3000'
-            const url = `http://${host}:${port}/api/v1${endpoint}`;
-
-            const response = await axios.post(url,
-                params,
-                {
-                    timeout: API_TIMEOUT,
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-Client-Type': 'desktop',
-                    },
-                }
-            );
-
-            if (response.status !== 200) {
-                throw new Error(`API returned status ${response.status}`);
-            }
-
-            return response.data;
-        } catch (error: any) {
-            if (error.code === 'ECONNABORTED') {
-                throw new Error('Request timeout - external API took too long to respond');
-            }
-            if (error.code === 'ECONNREFUSED') {
-                throw new Error('Connection refused - external API is not accessible');
-            }
-            throw new Error(`Failed to fetch from external API: ${error.message}`);
-        }
-    }
-
-    /**
      * Sync roles from external API
      */
     static async syncRoles(params: ValidationParams): Promise<SyncResult> {
@@ -81,7 +43,7 @@ export class MetadataService {
         };
 
         try {
-            const response = await this.fetchFromExternalAPI('/account-seeds/roles', params);
+            const response = await BaseService.post('/account-seeds/roles', params);
             const roles = response.data || response;
 
             if (!Array.isArray(roles)) {
@@ -136,7 +98,7 @@ export class MetadataService {
         };
 
         try {
-            const response = await this.fetchFromExternalAPI('/account-seeds/permissions', params);
+            const response = await BaseService.post('/account-seeds/permissions', params);
             const permissions = response.data || response;
 
             if (!Array.isArray(permissions)) {
@@ -191,7 +153,7 @@ export class MetadataService {
         };
 
         try {
-            const response = await this.fetchFromExternalAPI('/account-seeds/role-permissions', params);
+            const response = await BaseService.post('/account-seeds/role-permissions', params);
             const rolePermissions = response.data || response;
 
             if (!Array.isArray(rolePermissions)) {
@@ -241,7 +203,7 @@ export class MetadataService {
         };
 
         try {
-            const response = await this.fetchFromExternalAPI('/account-seeds/default-user', params);
+            const response = await BaseService.post('/account-seeds/default-user', params);
             const userData = response.data || response;
 
             if (!Array.isArray(userData)) {
@@ -312,7 +274,7 @@ export class MetadataService {
         };
 
         try {
-            const response = await this.fetchFromExternalAPI('/account-seeds/customer', params);
+            const response = await BaseService.post('/account-seeds/customer', params);
             const customerData = response.data || response;
 
             if (!Array.isArray(customerData)) {
@@ -367,7 +329,7 @@ export class MetadataService {
         };
 
         try {
-            const response = await this.fetchFromExternalAPI('/account-seeds/category', params);
+            const response = await BaseService.post('/account-seeds/category', params);
             const categoryData = response.data || response;
 
             if (!Array.isArray(categoryData)) {
@@ -422,7 +384,7 @@ export class MetadataService {
         };
 
         try {
-            const response = await this.fetchFromExternalAPI('/account-seeds/subscription-plans', params);
+            const response = await BaseService.post('/account-seeds/subscription-plans', params);
             const subscriptionPlans: Array<SubscriptionPlan> = response.data || response;
 
             if (!Array.isArray(subscriptionPlans)) {
@@ -477,7 +439,7 @@ export class MetadataService {
         };
 
         try {
-            const response = await this.fetchFromExternalAPI('/account-seeds/tenant-subscription', params);
+            const response = await BaseService.post('/account-seeds/tenant-subscription', params);
             const tenantSubscriptions = response.data || response;
 
             if (!Array.isArray(tenantSubscriptions)) {
@@ -532,7 +494,7 @@ export class MetadataService {
         };
 
         try {
-            const response = await this.fetchFromExternalAPI('/account-seeds/payment-methods', params);
+            const response = await BaseService.post('/account-seeds/payment-methods', params);
             const paymentMethods = response.data || response;
 
             if (!Array.isArray(paymentMethods)) {
@@ -587,7 +549,7 @@ export class MetadataService {
         };
 
         try {
-            const response = await this.fetchFromExternalAPI('/account-seeds/payment-service-provider', params);
+            const response = await BaseService.post('/account-seeds/payment-service-provider', params);
             const providers = response.data || response;
 
             if (!Array.isArray(providers)) {
