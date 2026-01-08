@@ -5,7 +5,12 @@ export const DATABASE_PROVIDER = process.env.DATABASE_PROVIDER || "sqlite";
 export const DATABASE_URL = process.env.DATABASE_URL || "file:./local.db";
 export const MYSQL_URL = process.env.MYSQL_URL || process.env.DATABASE_URL;
 
-export const DATABASE_OFFLINE_MODE = (process.env.DATABASE_OFFLINE_MODE || "false").toLowerCase() === "true";
+// Offline mode is true by default for SQLite provider, or when explicitly set
+// This ensures Electron apps default to SQLite without needing explicit config
+export const DATABASE_OFFLINE_MODE =
+    process.env.DATABASE_OFFLINE_MODE
+        ? process.env.DATABASE_OFFLINE_MODE.toLowerCase() === "true"
+        : DATABASE_PROVIDER === "sqlite";  // Default to offline if provider is sqlite
 
 export const DATABASE_HOST = process.env.DATABASE_HOST || "localhost";
 export const DATABASE_USER = process.env.DATABASE_USER || "root";
