@@ -1,5 +1,23 @@
 import 'dotenv/config';
+import { getConfig } from './app.config';
 
+// Helper functions that use runtime config
+export const getDatabaseConfig = () => {
+    const config = getConfig();
+    return {
+        provider: config.databaseProvider,
+        url: config.databaseUrl,
+        mysqlUrl: config.mysqlUrl,
+        offlineMode: config.databaseOfflineMode,
+        host: config.databaseHost,
+        user: config.databaseUser,
+        password: config.databasePassword,
+        name: config.databaseName,
+        port: config.databasePort,
+    };
+};
+
+// Legacy exports for backward compatibility (use getConfig() in new code)
 export const NODE_ENV = process.env.NODE_ENV || "development";
 export const DATABASE_PROVIDER = process.env.DATABASE_PROVIDER || "sqlite";
 export const DATABASE_URL = process.env.DATABASE_URL || "file:./local.db";

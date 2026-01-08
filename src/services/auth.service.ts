@@ -5,6 +5,7 @@ import { UserService } from './user.service';
 import { BaseService } from './base.service';
 import { UserModel } from '../models/user.model';
 import { UserStatus } from '../databases/prisma/generated/prisma/enums';
+import { getConfig } from '../config/app.config';
 
 /**
  * Service layer for authentication and authorization operations
@@ -78,14 +79,20 @@ export class AuthService {
             return { message: response.message || 'Incorrect username or password.' };
         }
 
-        const { user: remoteUser, token: remoteToken } = response.data;
+        const { user: remoteUser } = response.data;
 
         if (remoteUser) {
             remoteUser.password = password;
             await UserModel.create(remoteUser);
+
+            const roleData = await UserService.getRoleWithPermissions(remoteUser.roleId);
+            const completeUser = UserService.getPublicUser(remoteUser, roleData || {});
+            const token = this.generateJWTToken(completeUser);
+
+            return { user: completeUser, token };
         }
 
-        return { user: remoteUser, token: remoteToken };
+        return { message: 'Incorrect username or password.' };
     }
 
     /**
@@ -160,14 +167,15 @@ export class AuthService {
      * issuer and audience from configuration
      */
     static generateJWTToken(user: any): string {
+        const config = getConfig();
         const payload = {
             ...user,
             iat: Math.floor(Date.now() / 1000),
         };
 
-        return (jwt as any).sign(payload, process.env.JWT_SECRET, {
-            expiresIn: process.env.JWT_EXPIRES_IN || '',
-            issuer: process.env.APP_NAME || '',
+        return (jwt as any).sign(payload, config.jwtSecret, {
+            expiresIn: config.jwtExpiresIn,
+            issuer: config.appName,
             audience: 'users',
         });
     }
@@ -190,8 +198,9 @@ export class AuthService {
      * ```
      */
     static verifyJWTToken(token: string): any {
+        const config = getConfig();
         try {
-            return jwt.verify(token, process.env.JWT_SECRET);
+            return jwt.verify(token, config.jwtSecret);
         } catch (error) {
             if (error instanceof jwt.TokenExpiredError) {
                 throw new Error('Token has expired');
@@ -215,8 +224,9 @@ export class AuthService {
      * but verifies user still exists and is active
      */
     static async refreshToken(oldToken: string): Promise<string> {
+        const config = getConfig();
         try {
-            const decoded = jwt.verify(oldToken, process.env.JWT_SECRET, {
+            const decoded = jwt.verify(oldToken, config.jwtSecret, {
                 ignoreExpiration: true,
             }) as any;
 

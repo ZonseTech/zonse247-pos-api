@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import { getConfig } from '../config/app.config';
 
 export interface AppError extends Error {
 	statusCode?: number;
@@ -94,7 +95,7 @@ export const globalErrorHandler = (
 		message = 'Resource already exists';
 	}
 
-	if (process.env.NODE_ENV === 'production' && !error.isOperational) {
+	if (getConfig().nodeEnv === 'production' && !error.isOperational) {
 		message = 'Something went wrong';
 		details = null;
 	}
@@ -103,7 +104,7 @@ export const globalErrorHandler = (
 		error: code,
 		message,
 		...(details && { details }),
-		...(process.env.NODE_ENV === 'development' && { stack: error.stack }),
+		...(getConfig().nodeEnv === 'development' && { stack: error.stack }),
 	});
 };
 

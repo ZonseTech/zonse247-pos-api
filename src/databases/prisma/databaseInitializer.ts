@@ -3,6 +3,7 @@ import path from 'path';
 import fs from 'fs/promises';
 import { setDatabaseReady, isDatabaseReady } from './client';
 import { MigrationManager, CURRENT_DB_VERSION, initializeVersionTracking, getDatabaseType } from './migrations';
+import { getConfig } from '../../config/app.config';
 
 /**
  * Template database filename - created at build time with all tables ready.
@@ -391,7 +392,7 @@ export class DatabaseInitializer {
      * Gets the target database path based on DATABASE_URL or default location.
      */
     private static getTargetDatabasePath(): string {
-        const dbUrl = process.env.DATABASE_URL || '';
+        const dbUrl = getConfig().databaseUrl;
 
         // Parse file: URL if present
         if (dbUrl.startsWith('file:')) {

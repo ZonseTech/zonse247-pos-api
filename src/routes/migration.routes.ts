@@ -4,15 +4,17 @@ import fs from 'fs';
 import path from 'path';
 import { Request, Response, NextFunction } from 'express';
 import { MigrationController } from '../controllers/migration.controller';
+import { getConfig } from '../config/app.config';
 
 const router = Router();
 const migrationController = new MigrationController();
 
-const UPLOAD_DIR = process.env.UPLOAD_PATH || './.backups/uploads';
+const getUploadDir = () => getConfig().uploadPath;
 
 const ensureUploadDirectory = (): void => {
 	try {
-		const absolutePath = path.resolve(UPLOAD_DIR);
+		const uploadDir = getUploadDir();
+		const absolutePath = path.resolve(uploadDir);
 		if (!fs.existsSync(absolutePath)) {
 			fs.mkdirSync(absolutePath, { recursive: true });
 			console.log(`Created upload directory: ${absolutePath}`);
@@ -28,11 +30,12 @@ ensureUploadDirectory();
 const storage = multer.diskStorage({
 	destination: (req, file, cb) => {
 		try {
-			const absolutePath = path.resolve(UPLOAD_DIR);
+			const uploadDir = getUploadDir();
+			const absolutePath = path.resolve(uploadDir);
 			if (!fs.existsSync(absolutePath)) {
 				fs.mkdirSync(absolutePath, { recursive: true });
 			}
-			cb(null, UPLOAD_DIR);
+			cb(null, uploadDir);
 		} catch (error) {
 			cb(error as Error, '');
 		}

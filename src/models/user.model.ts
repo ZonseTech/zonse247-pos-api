@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import prisma from '../databases/prisma/client';
 import type { PublicUser, User, UserQueryParams, UserStatus } from 'users';
 import { UserCreateManyInput } from '../databases/prisma/generated/prisma/models';
+import { getConfig } from '../config/app.config';
 
 export class UserModel {
     static async findAll(conditions: UserQueryParams = {}): Promise<User[]> {
@@ -173,7 +174,8 @@ export class UserModel {
 
     static async buildUserData(data: UserCreateManyInput) {
         const now = new Date();
-        const hashedPassword = await bcrypt.hash(data.password, parseInt(process.env.BCRYPT_SALT_ROUNDS));
+        const config = getConfig();
+        const hashedPassword = await bcrypt.hash(data.password, config.bcryptSaltRounds);
 
         return {
             userId: data.userId || uuidv4(),
@@ -244,7 +246,8 @@ export class UserModel {
             delete updateDataWithTimestamp.createdAt;
 
             if (updateData.password && updateData.password !== '') {
-                updateDataWithTimestamp.password = await bcrypt.hash(updateData.password, parseInt(process.env.BCRYPT_SALT_ROUNDS));
+                const config = getConfig();
+                updateDataWithTimestamp.password = await bcrypt.hash(updateData.password, config.bcryptSaltRounds);
                 updateDataWithTimestamp.passwordChangedAt = new Date();
             }
 
@@ -289,7 +292,8 @@ export class UserModel {
 
     static async updatePassword(id: string, newPassword: string): Promise<number> {
         try {
-            const hashedPassword = await bcrypt.hash(newPassword, parseInt(process.env.BCRYPT_SALT_ROUNDS));
+            const config = getConfig();
+            const hashedPassword = await bcrypt.hash(newPassword, config.bcryptSaltRounds);
             return await this.update(id, {
                 password: hashedPassword,
                 passwordChangedAt: new Date(),

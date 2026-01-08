@@ -1,20 +1,24 @@
 import { EmailService } from '../services/email.service';
 import { EmailConfig } from 'email';
+import { getConfig } from './app.config';
 
-export const emailConfig: EmailConfig = {
-    host: process.env.SMTP_HOST || 'smtp.gmail.com',
-    port: parseInt(process.env.SMTP_PORT?.toString() || '587'),
-    secure: process.env.SMTP_SECURE === 'true',
-    auth: {
-        user: process.env.SMTP_USER || '',
-        pass: process.env.SMTP_PASS || '',
-    },
-    from: process.env.SMTP_FROM || 'noreply-zonse247@gmail.com',
+export const getEmailConfig = (): EmailConfig => {
+    const config = getConfig();
+    return {
+        host: config.smtpHost,
+        port: config.smtpPort,
+        secure: config.smtpSecure,
+        auth: {
+            user: config.smtpUser,
+            pass: config.smtpPass,
+        },
+        from: config.smtpFrom,
+    };
 };
 
 export const initializeEmailService = async (): Promise<void> => {
     try {
-        EmailService.initialize(emailConfig);
+        EmailService.initialize(getEmailConfig());
 
         const isConnected = await EmailService.verifyConnection();
         if (isConnected) {

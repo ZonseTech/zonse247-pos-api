@@ -1,5 +1,6 @@
 import { EmailConfig, WelcomeEmailData } from 'email';
 import { createTransport, Transporter } from 'nodemailer';
+import { getConfig } from '../config/app.config';
 
 export class EmailService {
     private static transporter: Transporter | null = null;
@@ -33,7 +34,7 @@ export class EmailService {
     }
 
     static generateWelcomeEmailTemplate(data: WelcomeEmailData): { subject: string; html: string; text: string } {
-        const baseUrl = process.env.CLIENT_PORTAL_URL || 'https://pos.zonse247.com';
+        const baseUrl = getConfig().clientPortalUrl;
         const verificationUrl = data.verificationUrl || `${baseUrl}/verify?clientId=${data.tenantCode}&verificationToken=${data.verificationToken}`;
 
         const subject = `Welcome to Our Platform, ${data.businessName}!`;

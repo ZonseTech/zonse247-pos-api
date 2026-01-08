@@ -3,6 +3,7 @@ import { BranchModel } from "../models/branch.model";
 import { TerminalModel } from "../models/terminal.model";
 import { CreateTerminalRequest, Terminal } from "terminal";
 import { BaseService } from "./base.service";
+import { getConfig } from "../config/app.config";
 
 export class TerminalService {
 
@@ -238,7 +239,7 @@ export class TerminalService {
         const terminalCode = `TERM-${timestamp}-${random}`;
 
         const terminalNumber = existingTerminals.length + 1;
-        const appVersion = process.env.npm_package_version || '1.4.1';
+        const appVersion = getConfig().appVersion;
 
         const deviceId = `DEVICE_${Date.now()}_${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
 

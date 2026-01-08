@@ -1,20 +1,20 @@
 import jwt from 'jsonwebtoken';
 import { Request, Response, NextFunction } from 'express';
 import { User } from 'users';
+import { getConfig } from '../config/app.config';
 
 interface AuthRequest extends Request {
 	auth?: User;
 }
 
 export class AuthMiddleware {
-	private config: Record<string, string>;
-
-	constructor() {
-		this.config = {
-			secret: process.env.JWT_SECRET || '',
-			expiresIn: process.env.JWT_EXPIRES_IN || '24h',
-			refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
-			refreshSecret: process.env.JWT_REFRESH_SECRET || '',
+	private getJwtConfig() {
+		const config = getConfig();
+		return {
+			secret: config.jwtSecret,
+			expiresIn: config.jwtExpiresIn,
+			refreshExpiresIn: config.jwtRefreshExpiresIn,
+			refreshSecret: config.jwtRefreshSecret,
 		};
 	}
 
@@ -32,7 +32,7 @@ export class AuthMiddleware {
 		}
 
 		try {
-			const decoded = jwt.verify(token, this.config.secret);
+			const decoded = jwt.verify(token, this.getJwtConfig().secret);
 			req.auth = decoded as User;
 			next();
 		} catch (error) {
@@ -138,7 +138,7 @@ export class AuthMiddleware {
 		if (!token) return null;
 
 		try {
-			return jwt.verify(token, this.config.secret);
+			return jwt.verify(token, this.getJwtConfig().secret);
 		} catch (error) {
 			return null;
 		}

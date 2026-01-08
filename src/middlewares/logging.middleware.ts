@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import morgan from 'morgan';
 import { AuthRequest } from '../lib/express.type';
+import { getConfig } from '../config/app.config';
 
 morgan.token('user', (req: Request & AuthRequest) => {
 	return req.auth ? `User:${req.auth?.username}(${req?.auth?.userId})` : 'Anonymous';
@@ -80,7 +81,7 @@ export const requestTracker = (
 
 	req.requestStartTime = Date.now();
 
-	if (process.env.NODE_ENV === 'development') {
+	if (getConfig().nodeEnv === 'development') {
 		console.log(
 			`[${req.headers['x-request-id']}] ${req.method} ${req.url} - Request started`
 		);
@@ -89,7 +90,7 @@ export const requestTracker = (
 	res.on('finish', () => {
 		const duration = Date.now() - req.requestStartTime;
 
-		if (process.env.NODE_ENV === 'development') {
+		if (getConfig().nodeEnv === 'development') {
 			console.log(
 				`[${req.headers['x-request-id']}] ${req.method} ${req.url} - ${res.statusCode} (${duration}ms)`
 			);
@@ -130,7 +131,7 @@ export const apiAnalytics = (
 			duration: Date.now() - req.requestStartTime,
 		};
 
-		if (process.env.ENABLE_ANALYTICS === 'true') {
+		if (getConfig().enableAnalytics) {
 			console.log('API_ANALYTICS:', analyticsData);
 		}
 

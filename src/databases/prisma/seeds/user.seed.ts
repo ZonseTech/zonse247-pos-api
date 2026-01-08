@@ -1,10 +1,12 @@
 import { PrismaClient } from "../generated/prisma/client";
 import bcrypt from 'bcryptjs';
+import { getConfig } from '../../../config/app.config';
 
 export async function seedUser(prisma: PrismaClient) {
     console.log('📝 Seeding user...');
 
-    const hashedPassword = await bcrypt.hash('admin', parseInt(process.env.BCRYPT_SALT_ROUNDS));
+    const config = getConfig();
+    const hashedPassword = await bcrypt.hash('admin', config.bcryptSaltRounds);
 
     await prisma.user.upsert({
         where: { userId: '-1' },

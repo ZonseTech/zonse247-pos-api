@@ -2,13 +2,14 @@ import fs from 'fs';
 import path from 'path';
 import { ExportDBModel } from '../models/exports.model';
 import { ExportOptions, ExportResult } from 'db-export';
+import { getConfig } from '../config/app.config';
 
 export class DatabaseExportService {
 	private exportDBModel: ExportDBModel;
 	private readonly databasePath: string;
 
 	constructor(tableName?: string) {
-		this.databasePath = path.join(process.env.MIGRATIONS_PATH || './.backups/migrations');
+		this.databasePath = path.join(getConfig().migrationsPath);
 
 		if (tableName)
 			this.exportDBModel = new ExportDBModel(tableName);
