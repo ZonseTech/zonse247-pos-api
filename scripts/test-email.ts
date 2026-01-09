@@ -34,23 +34,38 @@ async function testEmailConnection() {
 
     // Create transporter
     console.log('🔌 Creating transporter...');
+    // const transporter = createTransport({
+    //     host: EMAIL_CONFIG.host,
+    //     port: EMAIL_CONFIG.port,
+    //     secure: EMAIL_CONFIG.secure,
+    //     auth: {
+    //         user: EMAIL_CONFIG.user,
+    //         pass: EMAIL_CONFIG.pass,
+    //     },
+    //     tls: {
+    //         rejectUnauthorized: false,
+    //     },
+    //     connectionTimeout: 10000,
+    //     greetingTimeout: 10000,
+    //     socketTimeout: 15000,
+    //     debug: true, // Enable debug output
+    //     logger: true, // Log to console
+    // });
+
     const transporter = createTransport({
-        host: EMAIL_CONFIG.host,
-        port: EMAIL_CONFIG.port,
-        secure: EMAIL_CONFIG.secure,
+        host: 'smtp.gmail.com',
+        port: 465,
+        secure: true,
         auth: {
             user: EMAIL_CONFIG.user,
             pass: EMAIL_CONFIG.pass,
         },
-        tls: {
-            rejectUnauthorized: false,
-        },
-        connectionTimeout: 10000,
-        greetingTimeout: 10000,
-        socketTimeout: 15000,
-        debug: true, // Enable debug output
-        logger: true, // Log to console
+        connectionTimeout: 20000,
+        socketTimeout: 20000,
+        logger: true,
+        debug: true,
     });
+
 
     // Step 1: Verify connection
     console.log('\n📡 Step 1: Verifying SMTP connection...');
