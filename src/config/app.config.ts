@@ -101,7 +101,7 @@ const DEFAULT_CONFIG: RuntimeConfig = {
     smtpHost: 'smtp.gmail.com',
     smtpPort: 587,
     smtpSecure: false,
-    smtpUser: 'zonse247@gmail.com',
+    smtpUser: 'mcleankasambala@gmail.com',
     smtpPass: 'beyx utjh idqi bamr',
     smtpFrom: 'Zonse247 POS <onboarding@resend.dev>',
     resendApiKey: 're_aTopQu7g_EgryxMiNwqehvq6gNHEBue1V',
