@@ -12,11 +12,17 @@ export class EmailService {
         this.transporter = createTransport({
             host: config.host,
             port: config.port,
-            secure: config.secure,
+            secure: config.port === 465, // true for 465, false for other ports
             auth: {
                 user: config.auth.user,
                 pass: config.auth.pass,
             },
+            tls: {
+                rejectUnauthorized: false, // Allow self-signed certificates
+            },
+            connectionTimeout: 10000, // 10 seconds
+            greetingTimeout: 10000,
+            socketTimeout: 15000,
         });
         console.log('✓ Email service initialized with SMTP');
         this.initialized = true;
@@ -139,7 +145,7 @@ export class EmailService {
                     
                     <div style="text-align: center; margin-top: 20px; padding: 20px; color: #666; font-size: 12px;">
                         <p>This email was sent to ${data.email}. If you didn't register for this account, please ignore this email.</p>
-                        <p>&copy; 2025 Your Company Name. All rights reserved.</p>
+                        <p>&copy; 29026 Zonse247. All rights reserved.</p>
                     </div>
                 </body>
             </html>
