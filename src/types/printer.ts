@@ -79,6 +79,7 @@ export interface Printer {
     connectionType: PrinterConnectionType;
     connectionAddress?: string | null;    // IP address, MAC address, or device path
     port?: number | null;                 // Network port for network printers
+    baudRate?: number | null;             // Baud rate for serial/USB printers (default: 9600)
     vendorId?: string | null;             // USB vendor ID
     productId?: string | null;            // USB product ID
     serialNumber?: string | null;
@@ -110,6 +111,7 @@ export interface CreatePrinterRequest {
     connectionType: PrinterConnectionType;
     connectionAddress?: string;
     port?: number;
+    baudRate?: number;
     vendorId?: string;
     productId?: string;
     serialNumber?: string;
@@ -128,6 +130,7 @@ export interface UpdatePrinterRequest {
     connectionType?: PrinterConnectionType;
     connectionAddress?: string;
     port?: number;
+    baudRate?: number;
     vendorId?: string;
     productId?: string;
     serialNumber?: string;

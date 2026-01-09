@@ -1,6 +1,10 @@
 import { Request, Response } from "express";
 import { BaseController } from "./base.controller";
 import { PrinterService } from "../services/printer.service";
+import { PrinterDiscoveryService } from "../services/printer-discovery.service";
+import { getPrintAgent } from "../services/print-agent.service";
+import { getPrintQueue } from "../services/print-queue.service";
+import { PrintJobService } from "../services/print-job.service";
 import { AuthRequest } from "../lib/express.type";
 import {
     CreatePrinterRequest,
@@ -274,9 +278,131 @@ export class PrinterController extends BaseController {
         try {
             const connectionType = req.query.connectionType as PrinterConnectionType | undefined;
             const printers = await PrinterService.discoverPrinters(connectionType);
-            BaseController.sendSuccess(res, 'Printer discovery completed', printers);
+            BaseController.sendSuccess(res, 'Printer discovery completed', {
+                count: printers.length,
+                printers,
+                discoveredAt: new Date().toISOString()
+            });
         } catch (error: any) {
             console.error('Error discovering printers:', error);
+            BaseController.sendResponse(res, 500, false, error.message, undefined, error.message);
+        }
+    }
+
+    /**
+     * Scan network range for printers
+     */
+    static async scanNetworkRange(req: Request & AuthRequest, res: Response): Promise<void> {
+        try {
+            const { baseIP, startHost, endHost, port } = req.query;
+
+            if (!baseIP) {
+                BaseController.sendResponse(res, 400, false, 'baseIP is required (e.g., 192.168.1.0)');
+                return;
+            }
+
+            const printers = await PrinterDiscoveryService.scanNetworkRange(
+                baseIP as string,
+                startHost ? parseInt(startHost as string) : 1,
+                endHost ? parseInt(endHost as string) : 254,
+                port ? parseInt(port as string) : 9100
+            );
+
+            BaseController.sendSuccess(res, 'Network scan completed', {
+                baseIP,
+                scannedRange: `${startHost || 1}-${endHost || 254}`,
+                port: port || 9100,
+                count: printers.length,
+                printers,
+                scannedAt: new Date().toISOString()
+            });
+        } catch (error: any) {
+            console.error('Error scanning network:', error);
+            BaseController.sendResponse(res, 500, false, error.message, undefined, error.message);
+        }
+    }
+
+    /**
+     * Get available serial ports
+     */
+    static async getSerialPorts(req: Request & AuthRequest, res: Response): Promise<void> {
+        try {
+            const ports = await PrinterDiscoveryService.getAvailableSerialPorts();
+            BaseController.sendSuccess(res, 'Serial ports retrieved', {
+                count: ports.length,
+                ports
+            });
+        } catch (error: any) {
+            console.error('Error getting serial ports:', error);
+            BaseController.sendResponse(res, 500, false, error.message, undefined, error.message);
+        }
+    }
+
+    /**
+     * Get common printer ports info
+     */
+    static async getCommonPorts(req: Request & AuthRequest, res: Response): Promise<void> {
+        try {
+            const ports = PrinterDiscoveryService.getCommonPrinterPorts();
+            BaseController.sendSuccess(res, 'Common printer ports retrieved', ports);
+        } catch (error: any) {
+            console.error('Error getting common ports:', error);
+            BaseController.sendResponse(res, 500, false, error.message, undefined, error.message);
+        }
+    }
+
+    /**
+     * Validate printer configuration before creating
+     */
+    static async validatePrinterConfig(req: Request & AuthRequest, res: Response): Promise<void> {
+        try {
+            const validation = PrinterDiscoveryService.validatePrinterConfig(req.body);
+            if (validation.valid) {
+                BaseController.sendSuccess(res, 'Printer configuration is valid', validation);
+            } else {
+                BaseController.sendResponse(res, 400, false, 'Invalid printer configuration', validation);
+            }
+        } catch (error: any) {
+            console.error('Error validating printer config:', error);
+            BaseController.sendResponse(res, 500, false, error.message, undefined, error.message);
+        }
+    }
+
+    /**
+     * Get printer health status for branch
+     */
+    static async getBranchPrinterHealth(req: Request & AuthRequest, res: Response): Promise<void> {
+        try {
+            const results = await PrinterDiscoveryService.getBranchPrinterStatus(req.auth.branchId);
+            const summary = {
+                total: results.length,
+                online: results.filter(r => r.printerStatus === 'ONLINE').length,
+                offline: results.filter(r => r.printerStatus === 'OFFLINE').length,
+                error: results.filter(r => r.printerStatus === 'ERROR').length
+            };
+            BaseController.sendSuccess(res, 'Branch printer health retrieved', {
+                summary,
+                printers: results,
+                checkedAt: new Date().toISOString()
+            });
+        } catch (error: any) {
+            console.error('Error getting branch printer health:', error);
+            BaseController.sendResponse(res, 500, false, error.message, undefined, error.message);
+        }
+    }
+
+    /**
+     * Monitor all tenant printer health
+     */
+    static async monitorPrinterHealth(req: Request & AuthRequest, res: Response): Promise<void> {
+        try {
+            const health = await PrinterDiscoveryService.monitorPrinterHealth(req.auth.tenantId);
+            BaseController.sendSuccess(res, 'Printer health monitoring completed', {
+                ...health,
+                checkedAt: new Date().toISOString()
+            });
+        } catch (error: any) {
+            console.error('Error monitoring printer health:', error);
             BaseController.sendResponse(res, 500, false, error.message, undefined, error.message);
         }
     }
@@ -415,6 +541,170 @@ export class PrinterController extends BaseController {
         } catch (error: any) {
             console.error('Error cleaning up print jobs:', error);
             BaseController.sendResponse(res, 500, false, error.message, undefined, error.message);
+        }
+    }
+
+    // ==================== PRINT AGENT ENDPOINTS ====================
+
+    /**
+     * Start the print agent
+     */
+    static async startPrintAgent(req: Request & AuthRequest, res: Response): Promise<void> {
+        try {
+            const agent = getPrintAgent({
+                defaultTenantId: req.auth?.tenantId || '-1',
+                defaultBranchId: req.auth?.branchId || '-1'
+            });
+            await agent.start();
+            BaseController.sendSuccess(res, 'Print agent started', agent.getStatus());
+        } catch (error: any) {
+            console.error('Error starting print agent:', error);
+            BaseController.sendResponse(res, 500, false, error.message, undefined, error.message);
+        }
+    }
+
+    /**
+     * Stop the print agent
+     */
+    static async stopPrintAgent(req: Request & AuthRequest, res: Response): Promise<void> {
+        try {
+            const agent = getPrintAgent();
+            await agent.stop();
+            BaseController.sendSuccess(res, 'Print agent stopped', { isRunning: false });
+        } catch (error: any) {
+            console.error('Error stopping print agent:', error);
+            BaseController.sendResponse(res, 500, false, error.message, undefined, error.message);
+        }
+    }
+
+    /**
+     * Get print agent status
+     */
+    static async getPrintAgentStatus(req: Request & AuthRequest, res: Response): Promise<void> {
+        try {
+            const agent = getPrintAgent();
+            const status = agent.getStatus();
+            BaseController.sendSuccess(res, 'Print agent status', status);
+        } catch (error: any) {
+            console.error('Error getting print agent status:', error);
+            BaseController.sendResponse(res, 500, false, error.message, undefined, error.message);
+        }
+    }
+
+    /**
+     * Check system permissions for printing
+     */
+    static async checkPermissions(req: Request & AuthRequest, res: Response): Promise<void> {
+        try {
+            const agent = getPrintAgent();
+            const permissions = await agent.checkPermissions();
+            BaseController.sendSuccess(res, 'Permission check completed', permissions);
+        } catch (error: any) {
+            console.error('Error checking permissions:', error);
+            BaseController.sendResponse(res, 500, false, error.message, undefined, error.message);
+        }
+    }
+
+    /**
+     * Get setup instructions for the current platform
+     */
+    static async getSetupInstructions(req: Request & AuthRequest, res: Response): Promise<void> {
+        try {
+            const agent = getPrintAgent();
+            const instructions = agent.getSetupInstructions();
+            BaseController.sendSuccess(res, 'Setup instructions', instructions);
+        } catch (error: any) {
+            console.error('Error getting setup instructions:', error);
+            BaseController.sendResponse(res, 500, false, error.message, undefined, error.message);
+        }
+    }
+
+    // ==================== PRINT QUEUE ENDPOINTS ====================
+
+    /**
+     * Get print queue status
+     */
+    static async getQueueStatus(req: Request & AuthRequest, res: Response): Promise<void> {
+        try {
+            const queue = getPrintQueue();
+            const status = queue.getQueueStatus();
+            BaseController.sendSuccess(res, 'Queue status', status);
+        } catch (error: any) {
+            console.error('Error getting queue status:', error);
+            BaseController.sendResponse(res, 500, false, error.message, undefined, error.message);
+        }
+    }
+
+    /**
+     * Retry all queued jobs
+     */
+    static async retryAllQueuedJobs(req: Request & AuthRequest, res: Response): Promise<void> {
+        try {
+            const queue = getPrintQueue();
+            queue.forceRetryAll();
+            BaseController.sendSuccess(res, 'All queued jobs scheduled for retry', queue.getQueueStatus());
+        } catch (error: any) {
+            console.error('Error retrying queued jobs:', error);
+            BaseController.sendResponse(res, 500, false, error.message, undefined, error.message);
+        }
+    }
+
+    /**
+     * Clear print queue
+     */
+    static async clearPrintQueue(req: Request & AuthRequest, res: Response): Promise<void> {
+        try {
+            const queue = getPrintQueue();
+            queue.clearQueue();
+            BaseController.sendSuccess(res, 'Print queue cleared', { queueSize: 0 });
+        } catch (error: any) {
+            console.error('Error clearing print queue:', error);
+            BaseController.sendResponse(res, 500, false, error.message, undefined, error.message);
+        }
+    }
+
+    /**
+     * Register a discovered printer
+     */
+    static async registerDiscoveredPrinter(req: Request & AuthRequest, res: Response): Promise<void> {
+        try {
+            const agent = getPrintAgent();
+            const printer = await agent.registerPrinter(req.body.discoveredPrinter, {
+                printerName: req.body.printerName,
+                tenantId: req.auth?.tenantId,
+                branchId: req.auth?.branchId,
+                isDefault: req.body.isDefault,
+                isReceiptPrinter: req.body.isReceiptPrinter,
+                isLabelPrinter: req.body.isLabelPrinter,
+                isKitchenPrinter: req.body.isKitchenPrinter
+            });
+            BaseController.sendCreated(res, 'Printer registered successfully', printer);
+        } catch (error: any) {
+            console.error('Error registering printer:', error);
+            BaseController.sendResponse(res, 500, false, error.message, undefined, error.message);
+        }
+    }
+
+    /**
+     * Retry a failed print job
+     */
+    static async retryPrintJob(req: Request<{ jobId: string }> & AuthRequest, res: Response): Promise<void> {
+        try {
+            const printJob = await PrintJobService.retryPrintJob(req.params.jobId);
+            if (!printJob) {
+                BaseController.sendResponse(res, 404, false, 'Print job not found');
+                return;
+            }
+            BaseController.sendSuccess(res, 'Print job retry initiated', printJob);
+        } catch (error: any) {
+            console.error('Error retrying print job:', error);
+            let statusCode = 500;
+            if (error.message.includes('not found')) {
+                statusCode = 404;
+            } else if (error.message.includes('Only failed')) {
+                statusCode = 400;
+            }
+            BaseController.sendResponse(res, statusCode, false, error.message, undefined, error.message);
         }
     }
 }
