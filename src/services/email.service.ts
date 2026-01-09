@@ -1,54 +1,83 @@
 import { EmailConfig, WelcomeEmailData } from 'email';
 import { createTransport, Transporter } from 'nodemailer';
+import { Resend } from 'resend';
 import { getConfig } from '../config/app.config';
 
 export class EmailService {
     private static transporter: Transporter | null = null;
+    private static resend: Resend | null = null;
     private static config: EmailConfig | null = null;
     private static initialized = false;
 
     static initialize(config: EmailConfig): void {
         this.config = config;
-        this.transporter = createTransport({
-            host: config.host,
-            port: config.port,
-            secure: config.secure,
-            auth: {
-                user: config.auth.user,
-                pass: config.auth.pass,
-            },
-        });
+
+        if (config.provider === 'resend') {
+            if (!config.resendApiKey) {
+                throw new Error('Resend API key is required when using Resend provider');
+            }
+            this.resend = new Resend(config.resendApiKey);
+            this.transporter = null;
+            console.log('✓ Email service initialized with Resend');
+        } else {
+            this.transporter = createTransport({
+                host: config.host,
+                port: config.port,
+                secure: config.secure,
+                auth: {
+                    user: config.auth.user,
+                    pass: config.auth.pass,
+                },
+            });
+            this.resend = null;
+            console.log('✓ Email service initialized with SMTP');
+        }
         this.initialized = true;
     }
 
-    private static ensureInitialized(): { transporter: Transporter; config: EmailConfig } {
-        if (!this.initialized || !this.transporter || !this.config) {
-            const config = getConfig();
+    private static ensureInitialized(): { config: EmailConfig } {
+        if (!this.initialized || !this.config) {
+            const appConfig = getConfig();
             this.initialize({
-                host: config.smtpHost,
-                port: config.smtpPort,
-                secure: config.smtpSecure,
+                provider: appConfig.emailProvider,
+                host: appConfig.smtpHost,
+                port: appConfig.smtpPort,
+                secure: appConfig.smtpSecure,
                 auth: {
-                    user: config.smtpUser,
-                    pass: config.smtpPass,
+                    user: appConfig.smtpUser,
+                    pass: appConfig.smtpPass,
                 },
-                from: config.smtpFrom,
+                from: appConfig.smtpFrom,
+                resendApiKey: appConfig.resendApiKey,
             });
         }
 
-        if (!this.transporter || !this.config) {
+        if (!this.config) {
             throw new Error('Email service failed to initialize');
         }
 
-        return { transporter: this.transporter, config: this.config };
+        return { config: this.config };
     }
 
     static async verifyConnection(): Promise<boolean> {
-        const { transporter } = this.ensureInitialized();
+        const { config } = this.ensureInitialized();
 
         try {
-            await transporter.verify();
-            return true;
+            if (config.provider === 'resend') {
+                // Resend doesn't have a verify method, but we can check if the API key is set
+                if (!this.resend) {
+                    return false;
+                }
+                // Try to get domains to verify the API key works
+                const domains = await this.resend.domains.list();
+                return !domains.error;
+            } else {
+                if (!this.transporter) {
+                    return false;
+                }
+                await this.transporter.verify();
+                return true;
+            }
         } catch (error) {
             console.error('Email service verification failed:', error);
             return false;
@@ -57,7 +86,8 @@ export class EmailService {
 
     static generateWelcomeEmailTemplate(data: WelcomeEmailData): { subject: string; html: string; text: string } {
         const baseUrl = getConfig().clientPortalUrl;
-        const verificationUrl = data.verificationUrl || `${baseUrl}/verify?clientId=${data.tenantCode}&verificationToken=${data.verificationToken}`;
+        const verificationUrl =
+            data.verificationUrl || `${baseUrl}/verify?clientId=${data.tenantCode}&verificationToken=${data.verificationToken}`;
 
         const subject = `Welcome to Our Platform, ${data.businessName}!`;
 
@@ -86,14 +116,18 @@ export class EmailService {
                             <p><strong>Authentication Key:</strong> ${data.verificationToken}</p>
                         </div>
                         
-                        ${data.username && data.password ? `
+                        ${
+                            data.username && data.password
+                                ? `
                         <div style="background: #fff3cd; padding: 20px; border-radius: 8px; border-left: 4px solid #ffc107; margin: 20px 0;">
                             <h3 style="margin-top: 0; color: #856404;">🔐 Your Login Credentials:</h3>
                             <p><strong>Username:</strong> ${data.username}</p>
                             <p><strong>Temporary Password:</strong> ${data.password}</p>
                             <p style="font-size: 12px; color: #856404; margin-top: 10px;"><em>Please change your password after your first login for security purposes.</em></p>
                         </div>
-                        ` : ''}
+                        `
+                                : ''
+                        }
                         
                         <p>To complete your registration and activate your account, please click the button below:</p>
                         
@@ -148,12 +182,16 @@ export class EmailService {
             - Company: ${data.businessName}
             - Email: ${data.email}
             - Client ID: ${data.tenantCode}
-            ${data.username && data.password ? `
+            ${
+                data.username && data.password
+                    ? `
             Your Login Credentials:
             - Username: ${data.username}
             - Temporary Password: ${data.password}
             (Please change your password after your first login for security purposes.)
-            ` : ''}
+            `
+                    : ''
+            }
             To complete your registration and activate your account, please visit:
             ${verificationUrl}
 
@@ -177,63 +215,87 @@ export class EmailService {
     }
 
     static async sendWelcomeEmail(clientData: WelcomeEmailData): Promise<boolean> {
-        const { transporter, config } = this.ensureInitialized();
+        const { config } = this.ensureInitialized();
 
         try {
             const { subject, html, text } = this.generateWelcomeEmailTemplate(clientData);
 
-            const mailOptions = {
-                from: config.from,
-                to: clientData.email,
-                subject,
-                html,
-                text,
-            };
-
-            const result = await transporter.sendMail(mailOptions);
-
-            console.log('Welcome email sent successfully:', {
-                messageId: result.messageId,
-                to: clientData.email,
-                company: clientData.businessName
-            });
-
-            return true;
+            if (config.provider === 'resend') {
+                return await this.sendWithResend(clientData.email, subject, html, text);
+            } else {
+                return await this.sendWithSmtp(clientData.email, subject, html, text);
+            }
         } catch (error) {
             console.error('Failed to send welcome email:', error);
             throw new Error(`Failed to send welcome email: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
     }
 
-    static async sendEmail(
-        to: string,
-        subject: string,
-        html: string,
-        text?: string
-    ): Promise<boolean> {
-        const { transporter, config } = this.ensureInitialized();
+    static async sendEmail(to: string, subject: string, html: string, text?: string): Promise<boolean> {
+        const { config } = this.ensureInitialized();
 
         try {
-            const mailOptions = {
-                from: config.from,
-                to,
-                subject,
-                html,
-                text: text || html.replace(/<[^>]*>/g, ''),
-            };
+            const plainText = text || html.replace(/<[^>]*>/g, '');
 
-            const result = await transporter.sendMail(mailOptions);
-
-            console.log('Email sent successfully:', {
-                messageId: result.messageId,
-                to,
-                subject
-            });
-
-            return true;
+            if (config.provider === 'resend') {
+                return await this.sendWithResend(to, subject, html, plainText);
+            } else {
+                return await this.sendWithSmtp(to, subject, html, plainText);
+            }
         } catch (error) {
             console.error('Failed to send email:', error);
             throw new Error(`Failed to send email: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
+    }
+
+    private static async sendWithResend(to: string, subject: string, html: string, text: string): Promise<boolean> {
+        if (!this.resend || !this.config) {
+            throw new Error('Resend client not initialized');
+        }
+
+        const result = await this.resend.emails.send({
+            from: this.config.from,
+            to: [to],
+            subject,
+            html,
+            text,
+        });
+
+        if (result.error) {
+            console.error('Resend error:', result.error);
+            throw new Error(result.error.message);
+        }
+
+        console.log('Email sent successfully via Resend:', {
+            id: result.data?.id,
+            to,
+            subject,
+        });
+
+        return true;
+    }
+
+    private static async sendWithSmtp(to: string, subject: string, html: string, text: string): Promise<boolean> {
+        if (!this.transporter || !this.config) {
+            throw new Error('SMTP transporter not initialized');
+        }
+
+        const mailOptions = {
+            from: this.config.from,
+            to,
+            subject,
+            html,
+            text,
+        };
+
+        const result = await this.transporter.sendMail(mailOptions);
+
+        console.log('Email sent successfully via SMTP:', {
+            messageId: result.messageId,
+            to,
+            subject,
+        });
+
+        return true;
     }
 }

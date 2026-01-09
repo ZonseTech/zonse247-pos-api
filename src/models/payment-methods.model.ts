@@ -11,6 +11,7 @@ export class PaymentMethodModel {
                 where: {
                     // tenantId: conditions.tenantId,
                 },
+                orderBy: { sortOrder: 'asc' }
             }) as unknown as PaymentMethod[];
         } catch (error) {
             throw new Error(
@@ -21,7 +22,9 @@ export class PaymentMethodModel {
 
     static async findAll(): Promise<PaymentMethod[]> {
         try {
-            return await prisma.paymentMethod.findMany() as unknown as PaymentMethod[];
+            return await prisma.paymentMethod.findMany({
+                orderBy: { sortOrder: 'asc' }
+            }) as unknown as PaymentMethod[];
         } catch (error) {
             console.error('Error finding all payment methods:', error);
             throw error;
@@ -100,18 +103,9 @@ export class PaymentMethodModel {
         }
     }
 
-    static async findByTenantAndBranch(tenantId: string, branchId: string): Promise<PaymentMethod[]> {
+    static async findByName(name: string): Promise<PaymentMethod | null> {
         try {
-            return await this.find({ tenantId, branchId });
-        } catch (error) {
-            console.error(`Error finding payment methods for tenant ${tenantId} and branch ${branchId}:`, error);
-            throw error;
-        }
-    }
-
-    static async findByName(name: string, tenantId: string, branchId: string): Promise<PaymentMethod | null> {
-        try {
-            const results = await this.find({ name, tenantId, branchId });
+            const results = await this.find({ name });
             return results.length > 0 ? results[0] : null;
         } catch (error) {
             console.error(`Error finding payment method by name ${name}:`, error);

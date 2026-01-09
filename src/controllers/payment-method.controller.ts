@@ -18,21 +18,12 @@ export class PaymentMethodController extends BaseController {
 
     static async list(req: Request, res: Response): Promise<void> {
         try {
-            const { tenantId, branchId, search } = req.query;
+            const { search } = req.query;
 
             let paymentMethods;
 
             if (search && typeof search === 'string') {
-                paymentMethods = await PaymentMethodService.searchPaymentMethods(
-                    search,
-                    tenantId as string,
-                    branchId as string
-                );
-            } else if (tenantId && branchId) {
-                paymentMethods = await PaymentMethodService.getPaymentMethodsByTenantAndBranch(
-                    tenantId as string,
-                    branchId as string
-                );
+                paymentMethods = await PaymentMethodService.searchPaymentMethods(search);
             } else {
                 paymentMethods = await PaymentMethodService.getAllPaymentMethods();
             }
@@ -79,11 +70,10 @@ export class PaymentMethodController extends BaseController {
         try {
             const paymentMethodData: CreatePaymentMethodDto = req.body;
 
-            if (!paymentMethodData.name || !paymentMethodData.tenantId ||
-                !paymentMethodData.branchId || !paymentMethodData.userId) {
+            if (!paymentMethodData.name) {
                 PaymentMethodController.sendBadRequest(
                     res,
-                    'Name, tenantId, branchId, and userId are required'
+                    'Name is required'
                 );
                 return;
             }
@@ -188,13 +178,7 @@ export class PaymentMethodController extends BaseController {
 
     static async getCount(req: Request, res: Response): Promise<void> {
         try {
-            const { tenantId, shopUuid } = req.query;
-
-            const conditions: any = {};
-            if (tenantId) conditions.tenantId = tenantId;
-            if (shopUuid) conditions.shopUuid = shopUuid;
-
-            const count = await PaymentMethodService.getPaymentMethodsCount(conditions);
+            const count = await PaymentMethodService.getPaymentMethodsCount();
 
             PaymentMethodController.sendSuccess(res, 'Payment methods count retrieved successfully', { count });
         } catch (error) {

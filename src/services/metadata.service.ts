@@ -290,6 +290,13 @@ export class MetadataService {
                     // Remove relation objects that shouldn't be passed to Prisma
                     const { branch, user, transactions, sales, ...customerFields } = data;
 
+                    const customerId = customerFields.customerId;
+
+                    if (!customerId) {
+                        result.errors.push(`Customer missing customerId field`);
+                        continue;
+                    }
+
                     // Ensure branch exists before creating customer (FK constraint)
                     if (customerFields.branchId) {
                         const existingBranch = await BranchModel.findById(customerFields.branchId);
@@ -307,10 +314,10 @@ export class MetadataService {
                         }
                     }
 
-                    const existingCustomer = await CustomerModel.findById(data.customerId);
+                    const existingCustomer = await CustomerModel.findById(customerId);
 
                     if (existingCustomer) {
-                        await CustomerModel.update(data.customerId, {
+                        await CustomerModel.update(customerId, {
                             ...customerFields,
                             updatedAt: new Date()
                         });
@@ -324,7 +331,8 @@ export class MetadataService {
                         result.recordsInserted++;
                     }
                 } catch (error: any) {
-                    result.errors.push(`Customer ${data.customerId}: ${error.message}`);
+                    const custId = data.customerId || 'unknown';
+                    result.errors.push(`Customer ${custId}: ${error.message}`);
                 }
             }
 
@@ -362,24 +370,35 @@ export class MetadataService {
 
             for (const data of categoryData) {
                 try {
-                    const existingRole = await CategoryModel.findById(data.categoryId);
+                    // Remove relation objects that shouldn't be passed to Prisma
+                    const { branch, tenant, products, inventories, ...categoryFields } = data;
 
-                    if (existingRole) {
-                        await CategoryModel.update(data.categoryId, {
-                            ...data,
+                    const categoryId = categoryFields.categoryId;
+
+                    if (!categoryId) {
+                        result.errors.push(`Category missing categoryId field`);
+                        continue;
+                    }
+
+                    const existingCategory = await CategoryModel.findById(categoryId);
+
+                    if (existingCategory) {
+                        await CategoryModel.update(categoryId, {
+                            ...categoryFields,
                             updatedAt: new Date()
                         });
                         result.recordsUpdated++;
                     } else {
                         await CategoryModel.create({
-                            ...data,
+                            ...categoryFields,
                             createdAt: new Date(),
                             updatedAt: new Date()
                         });
                         result.recordsInserted++;
                     }
                 } catch (error: any) {
-                    result.errors.push(`User ${data.categoryId}: ${error.message}`);
+                    const catId = data.categoryId || 'unknown';
+                    result.errors.push(`Category ${catId}: ${error.message}`);
                 }
             }
 
@@ -482,24 +501,34 @@ export class MetadataService {
 
             for (const subscriptionData of tenantSubscriptions) {
                 try {
-                    const existingSubscription = await SubscriptionModel.findById(subscriptionData.subscriptionId);
+                    const subscriptionId = subscriptionData.tenantSubscriptionId || subscriptionData.subscriptionId;
+
+                    if (!subscriptionId) {
+                        result.errors.push(`Tenant subscription missing ID field`);
+                        continue;
+                    }
+
+                    const existingSubscription = await SubscriptionModel.findById(subscriptionId);
 
                     if (existingSubscription) {
-                        await SubscriptionModel.update(subscriptionData.subscriptionId, {
+                        await SubscriptionModel.update(subscriptionId, {
                             ...subscriptionData,
+                            tenantSubscriptionId: subscriptionId,
                             updatedAt: new Date()
                         });
                         result.recordsUpdated++;
                     } else {
                         await SubscriptionModel.create({
                             ...subscriptionData,
+                            tenantSubscriptionId: subscriptionId,
                             createdAt: new Date(),
                             updatedAt: new Date()
                         });
                         result.recordsInserted++;
                     }
                 } catch (error: any) {
-                    result.errors.push(`Tenant subscription ${subscriptionData.subscriptionId}: ${error.message}`);
+                    const subId = subscriptionData.tenantSubscriptionId || subscriptionData.subscriptionId || 'unknown';
+                    result.errors.push(`Tenant subscription ${subId}: ${error.message}`);
                 }
             }
 

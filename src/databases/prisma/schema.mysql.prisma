@@ -463,7 +463,6 @@ model Branch {
   tenant             Tenant                   @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade, onUpdate: NoAction)
   categories         Category[]
   customers          Customer[]
-  paymentMethods     PaymentMethod[]
   serviceProviders   ServiceProvider[]
   terminals          Terminal[]
   transactions       Transaction[]
@@ -648,9 +647,6 @@ model ReturnItem {
 model PaymentMethod {
   id           Int           @id @default(autoincrement())
   methodId     String        @unique @map("method_id")
-  branchId     String?       @map("branch_id")
-  tenantId     String?       @map("tenant_id")
-  userId       String?       @map("user_id")
   name         String        @map("name")
   isActive     Boolean?      @default(true) @map("is_active")
   icon         String?       @map("icon")
@@ -658,15 +654,9 @@ model PaymentMethod {
   synced       Int?          @default(0) @map("synced")
   createdAt    DateTime?     @default(now()) @map("created_at")
   updatedAt    DateTime?     @default(now()) @map("updated_at")
-  branch       Branch?       @relation(fields: [branchId], references: [branchId], onDelete: Cascade, onUpdate: NoAction)
-  tenant       Tenant?       @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade, onUpdate: NoAction)
-  user         User?         @relation(fields: [userId], references: [userId], onDelete: Cascade, onUpdate: NoAction)
   transactions Transaction[]
   sales        Sale[]
 
-  @@index([branchId])
-  @@index([tenantId])
-  @@index([userId])
   @@map("payment_methods")
 }
 
@@ -835,7 +825,6 @@ model Tenant {
   mraApiConfigTable   MRA_API_CONFIG_TABLE[]
   auditLogs           AuditLog[]
   branches            Branch[]
-  paymentMethods      PaymentMethod[]
   tenantSubscriptions TenantSubscription[]
   terminals           Terminal[]
   users               User[]
@@ -1040,7 +1029,6 @@ model User {
   auditLogs                AuditLog[]
   inventoryCreatedBy       InventoryOld[]   @relation("inventory_created_byTousers")
   inventoryLastUpdatedBy   InventoryOld[]   @relation("inventory_last_updated_byTousers")
-  paymentMethods           PaymentMethod[]
   userPermissionsUser      UserPermission[] @relation("user_permissions_user_idTousers")
   userPermissionsCreatedBy UserPermission[] @relation("user_permissions_created_byTousers")
   userSessions             UserSession[]

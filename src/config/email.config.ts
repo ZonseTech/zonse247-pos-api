@@ -5,6 +5,7 @@ import { getConfig } from './app.config';
 export const getEmailConfig = (): EmailConfig => {
     const config = getConfig();
     return {
+        provider: config.emailProvider,
         host: config.smtpHost,
         port: config.smtpPort,
         secure: config.smtpSecure,
@@ -13,13 +14,14 @@ export const getEmailConfig = (): EmailConfig => {
             pass: config.smtpPass,
         },
         from: config.smtpFrom,
+        resendApiKey: config.resendApiKey,
     };
 };
 
 export const initializeEmailService = async (): Promise<void> => {
     try {
-        EmailService.initialize(getEmailConfig());
-        console.log('✓ Email service initialized');
+        const config = getEmailConfig();
+        EmailService.initialize(config);
 
         verifyEmailConnectionAsync();
     } catch (error) {

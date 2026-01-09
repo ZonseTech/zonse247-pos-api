@@ -31,37 +31,23 @@ export class PaymentMethodService {
         }
     }
 
-    static async getPaymentMethodsByTenantAndBranch(tenantId: string, branchId: string): Promise<PaymentMethod[]> {
-        try {
-            if (!tenantId || !branchId) {
-                throw new Error('Tenant UUID and Branch UUID are required');
-            }
-
-            return await PaymentMethodModel.findByTenantAndBranch(tenantId, branchId);
-        } catch (error) {
-            console.error(`Service: Error getting payment methods for tenant ${tenantId} and branch ${branchId}:`, error);
-            throw new Error('Failed to retrieve payment methods');
-        }
-    }
-
     static async createPaymentMethod(data: CreatePaymentMethodDto): Promise<PaymentMethod> {
         try {
-            if (!data.name || !data.tenantId || !data.branchId || !data.userId) {
-                throw new Error('Name, tenantId, branchId, and userId are required');
+            if (!data.name) {
+                throw new Error('Name is required');
             }
 
-            const existingPaymentMethod = await PaymentMethodModel.findByName(
-                data.name,
-                data.tenantId,
-                data.branchId
-            );
+            const existingPaymentMethod = await PaymentMethodModel.findByName(data.name);
 
             if (existingPaymentMethod) {
                 throw new Error('Payment method with this name already exists');
             }
 
             const paymentMethodData = {
-                ...data,
+                name: data.name,
+                icon: data.icon,
+                sortOrder: data.sortOrder,
+                isActive: data.isActive ?? true,
                 methodId: uuidv4(),
             } as unknown as PaymentMethodCreateInput
 
@@ -84,11 +70,7 @@ export class PaymentMethodService {
             }
 
             if (data.name && data.name !== existingPaymentMethod.name) {
-                const duplicatePaymentMethod = await PaymentMethodModel.findByName(
-                    data.name,
-                    existingPaymentMethod.tenantId,
-                    existingPaymentMethod.branchId
-                );
+                const duplicatePaymentMethod = await PaymentMethodModel.findByName(data.name);
 
                 if (duplicatePaymentMethod && duplicatePaymentMethod.methodId !== methodId) {
                     throw new Error('Payment method with this name already exists');
@@ -136,14 +118,11 @@ export class PaymentMethodService {
         }
     }
 
-    static async searchPaymentMethods(searchTerm: string, tenantId?: string, branchId?: string): Promise<PaymentMethod[]> {
+    static async searchPaymentMethods(searchTerm: string): Promise<PaymentMethod[]> {
         try {
             const conditions: any = {
-                name: { $regex: new RegExp(searchTerm, 'i') }
+                name: { contains: searchTerm }
             };
-
-            if (tenantId) conditions.tenantId = tenantId;
-            if (branchId) conditions.branchId = branchId;
 
             return await PaymentMethodModel.find(conditions);
         } catch (error) {

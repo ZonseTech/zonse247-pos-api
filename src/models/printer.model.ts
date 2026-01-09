@@ -207,7 +207,7 @@ export class PrinterModel {
                     isKitchenPrinter: data.isKitchenPrinter ?? false,
                     isReportPrinter: data.isReportPrinter ?? false,
                     status: 'OFFLINE',
-                    configuration: configuration as any,
+                    configuration: JSON.stringify(configuration),
                     printJobCount: 0,
                     errorCount: 0,
                     isActive: true,
@@ -239,11 +239,17 @@ export class PrinterModel {
                 });
 
                 if (existingPrinter) {
-                    const existingConfig = (existingPrinter.configuration as any) || {};
-                    updateData.configuration = {
+                    const existingConfig = existingPrinter.configuration 
+                        ? (typeof existingPrinter.configuration === 'string' 
+                            ? JSON.parse(existingPrinter.configuration) 
+                            : existingPrinter.configuration)
+                        : {};
+                    updateData.configuration = JSON.stringify({
                         ...existingConfig,
                         ...data.configuration
-                    };
+                    });
+                } else {
+                    updateData.configuration = JSON.stringify(data.configuration);
                 }
             }
 
@@ -326,7 +332,11 @@ export class PrinterModel {
 
             if (!existingPrinter) return null;
 
-            const existingConfig = (existingPrinter.configuration as any) || {};
+            const existingConfig = existingPrinter.configuration 
+                ? (typeof existingPrinter.configuration === 'string' 
+                    ? JSON.parse(existingPrinter.configuration) 
+                    : existingPrinter.configuration)
+                : {};
             const newConfig = {
                 ...existingConfig,
                 ...configuration
@@ -335,7 +345,7 @@ export class PrinterModel {
             const printer = await prisma.printer.update({
                 where: { printerId },
                 data: {
-                    configuration: newConfig as any,
+                    configuration: JSON.stringify(newConfig),
                     updatedAt: new Date()
                 }
             });
