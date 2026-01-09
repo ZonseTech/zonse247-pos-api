@@ -9,6 +9,8 @@ import {
     PrintLabelRequest
 } from '../types/printer';
 import { PrintContentService } from './print-content.service';
+import * as net from 'net';
+import { SerialPort } from 'serialport';
 
 export class PrintJobService {
     /**
@@ -70,22 +72,250 @@ export class PrintJobService {
     }
 
     /**
-     * Send data to printer (implementation placeholder)
+     * Send data to printer based on connection type
      */
     private static async sendToPrinter(printer: Printer, printJob: PrintJob): Promise<boolean> {
-        // In production, implement actual printing using appropriate libraries
-        // Examples:
-        // - node-thermal-printer for thermal receipt printers
-        // - escpos for ESC/POS printers
-        // - node-printer for system printers
-        // - Raw socket for network printers
-
         console.log(`[Print Job ${printJob.printJobId}] Sending to printer ${printer.printerName}`);
+        console.log(`Connection type: ${printer.connectionType}`);
         console.log(`Content type: ${printJob.contentType}`);
         console.log(`Copies: ${printJob.copies}`);
 
-        // Simulate successful print
+        const content = printJob.content;
+        if (!content) {
+            throw new Error('Print job has no content');
+        }
+
+        // Convert string content to Buffer
+        const data = Buffer.from(content, 'binary');
+
+        // Send to printer based on connection type
+        for (let copy = 0; copy < (printJob.copies || 1); copy++) {
+            let success = false;
+
+            switch (printer.connectionType) {
+                case 'NETWORK':
+                case 'WIFI':
+                    success = await this.sendToNetworkPrinter(printer, data);
+                    break;
+                case 'USB':
+                    success = await this.sendToUSBPrinter(printer, data);
+                    break;
+                case 'SERIAL':
+                    success = await this.sendToSerialPrinter(printer, data);
+                    break;
+                case 'BLUETOOTH':
+                    // Bluetooth printing is typically handled by client apps
+                    console.warn('Bluetooth printing should be handled by client applications');
+                    success = false;
+                    break;
+                default:
+                    throw new Error(`Unsupported connection type: ${printer.connectionType}`);
+            }
+
+            if (!success) {
+                return false;
+            }
+
+            // Small delay between copies
+            if (copy < (printJob.copies || 1) - 1) {
+                await this.delay(500);
+            }
+        }
+
         return true;
+    }
+
+    /**
+     * Send data to network printer via TCP socket
+     */
+    private static async sendToNetworkPrinter(printer: Printer, data: Buffer): Promise<boolean> {
+        const address = printer.connectionAddress;
+        const port = printer.port || 9100;
+
+        if (!address) {
+            throw new Error('Network printer has no IP address configured');
+        }
+
+        return new Promise<boolean>((resolve, reject) => {
+            const socket = new net.Socket();
+            const timeout = 30000; // 30 second timeout
+
+            socket.setTimeout(timeout);
+
+            socket.on('connect', () => {
+                console.log(`[Network Printer] Connected to ${address}:${port}`);
+                
+                socket.write(data, (err) => {
+                    if (err) {
+                        console.error(`[Network Printer] Write error:`, err);
+                        socket.destroy();
+                        reject(err);
+                    } else {
+                        console.log(`[Network Printer] Data sent successfully (${data.length} bytes)`);
+                        // Give the printer time to receive all data before closing
+                        setTimeout(() => {
+                            socket.end(() => {
+                                resolve(true);
+                            });
+                        }, 100);
+                    }
+                });
+            });
+
+            socket.on('timeout', () => {
+                console.error(`[Network Printer] Connection timeout`);
+                socket.destroy();
+                reject(new Error('Connection timeout'));
+            });
+
+            socket.on('error', (err) => {
+                console.error(`[Network Printer] Socket error:`, err);
+                socket.destroy();
+                reject(err);
+            });
+
+            socket.on('close', (hadError) => {
+                if (hadError) {
+                    console.error(`[Network Printer] Connection closed with error`);
+                }
+            });
+
+            try {
+                console.log(`[Network Printer] Connecting to ${address}:${port}...`);
+                socket.connect(port, address);
+            } catch (err) {
+                reject(err);
+            }
+        });
+    }
+
+    /**
+     * Send data to USB printer (via serial port interface)
+     */
+    private static async sendToUSBPrinter(printer: Printer, data: Buffer): Promise<boolean> {
+        // USB printers often appear as serial devices
+        // Try to find the printer's serial port path
+        let portPath = printer.connectionAddress;
+
+        if (!portPath) {
+            // Try to auto-detect USB printer port
+            try {
+                const ports = await SerialPort.list();
+                
+                if (printer.vendorId && printer.productId) {
+                    const vendorId = printer.vendorId.toLowerCase();
+                    const productId = printer.productId.toLowerCase();
+                    
+                    const matchingPort = ports.find(p => 
+                        p.vendorId?.toLowerCase() === vendorId &&
+                        p.productId?.toLowerCase() === productId
+                    );
+                    
+                    if (matchingPort) {
+                        portPath = matchingPort.path;
+                    }
+                }
+
+                if (!portPath) {
+                    // Look for any USB serial device
+                    const usbPort = ports.find(p => p.vendorId !== undefined);
+                    if (usbPort) {
+                        portPath = usbPort.path;
+                        console.log(`[USB Printer] Auto-detected port: ${portPath}`);
+                    }
+                }
+            } catch (err) {
+                console.error('[USB Printer] Error listing ports:', err);
+            }
+        }
+
+        if (!portPath) {
+            throw new Error('USB printer port not found. Please configure the connection address or connect the printer.');
+        }
+
+        return this.sendToSerialPort(portPath, data, printer.baudRate || 9600);
+    }
+
+    /**
+     * Send data to serial printer
+     */
+    private static async sendToSerialPrinter(printer: Printer, data: Buffer): Promise<boolean> {
+        const portPath = printer.connectionAddress;
+
+        if (!portPath) {
+            throw new Error('Serial printer has no port path configured');
+        }
+
+        return this.sendToSerialPort(portPath, data, printer.baudRate || 9600);
+    }
+
+    /**
+     * Send data to a serial port
+     */
+    private static async sendToSerialPort(portPath: string, data: Buffer, baudRate: number): Promise<boolean> {
+        return new Promise<boolean>((resolve, reject) => {
+            console.log(`[Serial Printer] Opening port ${portPath} at ${baudRate} baud...`);
+
+            const port = new SerialPort({
+                path: portPath,
+                baudRate: baudRate,
+                autoOpen: false
+            });
+
+            port.open((err) => {
+                if (err) {
+                    console.error(`[Serial Printer] Error opening port:`, err);
+                    reject(err);
+                    return;
+                }
+
+                console.log(`[Serial Printer] Port opened, sending ${data.length} bytes...`);
+
+                port.write(data, (writeErr) => {
+                    if (writeErr) {
+                        console.error(`[Serial Printer] Write error:`, writeErr);
+                        port.close();
+                        reject(writeErr);
+                        return;
+                    }
+
+                    // Drain the buffer to ensure all data is sent
+                    port.drain((drainErr) => {
+                        if (drainErr) {
+                            console.error(`[Serial Printer] Drain error:`, drainErr);
+                            port.close();
+                            reject(drainErr);
+                            return;
+                        }
+
+                        console.log(`[Serial Printer] Data sent successfully`);
+
+                        // Close the port after a brief delay
+                        setTimeout(() => {
+                            port.close((closeErr) => {
+                                if (closeErr) {
+                                    console.error(`[Serial Printer] Error closing port:`, closeErr);
+                                }
+                                resolve(true);
+                            });
+                        }, 100);
+                    });
+                });
+            });
+
+            // Handle port errors
+            port.on('error', (err) => {
+                console.error(`[Serial Printer] Port error:`, err);
+                reject(err);
+            });
+        });
+    }
+
+    /**
+     * Utility delay function
+     */
+    private static delay(ms: number): Promise<void> {
+        return new Promise(resolve => setTimeout(resolve, ms));
     }
 
     /**
