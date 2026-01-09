@@ -2,6 +2,9 @@ import { Request, Response } from "express";
 import { BaseController } from "./base.controller";
 import { PrinterService } from "../services/printer.service";
 import { PrinterDiscoveryService } from "../services/printer-discovery.service";
+import { getPrintAgent } from "../services/print-agent.service";
+import { getPrintQueue } from "../services/print-queue.service";
+import { PrintJobService } from "../services/print-job.service";
 import { AuthRequest } from "../lib/express.type";
 import {
     CreatePrinterRequest,
@@ -538,6 +541,170 @@ export class PrinterController extends BaseController {
         } catch (error: any) {
             console.error('Error cleaning up print jobs:', error);
             BaseController.sendResponse(res, 500, false, error.message, undefined, error.message);
+        }
+    }
+
+    // ==================== PRINT AGENT ENDPOINTS ====================
+
+    /**
+     * Start the print agent
+     */
+    static async startPrintAgent(req: Request & AuthRequest, res: Response): Promise<void> {
+        try {
+            const agent = getPrintAgent({
+                defaultTenantId: req.auth?.tenantId || '-1',
+                defaultBranchId: req.auth?.branchId || '-1'
+            });
+            await agent.start();
+            BaseController.sendSuccess(res, 'Print agent started', agent.getStatus());
+        } catch (error: any) {
+            console.error('Error starting print agent:', error);
+            BaseController.sendResponse(res, 500, false, error.message, undefined, error.message);
+        }
+    }
+
+    /**
+     * Stop the print agent
+     */
+    static async stopPrintAgent(req: Request & AuthRequest, res: Response): Promise<void> {
+        try {
+            const agent = getPrintAgent();
+            await agent.stop();
+            BaseController.sendSuccess(res, 'Print agent stopped', { isRunning: false });
+        } catch (error: any) {
+            console.error('Error stopping print agent:', error);
+            BaseController.sendResponse(res, 500, false, error.message, undefined, error.message);
+        }
+    }
+
+    /**
+     * Get print agent status
+     */
+    static async getPrintAgentStatus(req: Request & AuthRequest, res: Response): Promise<void> {
+        try {
+            const agent = getPrintAgent();
+            const status = agent.getStatus();
+            BaseController.sendSuccess(res, 'Print agent status', status);
+        } catch (error: any) {
+            console.error('Error getting print agent status:', error);
+            BaseController.sendResponse(res, 500, false, error.message, undefined, error.message);
+        }
+    }
+
+    /**
+     * Check system permissions for printing
+     */
+    static async checkPermissions(req: Request & AuthRequest, res: Response): Promise<void> {
+        try {
+            const agent = getPrintAgent();
+            const permissions = await agent.checkPermissions();
+            BaseController.sendSuccess(res, 'Permission check completed', permissions);
+        } catch (error: any) {
+            console.error('Error checking permissions:', error);
+            BaseController.sendResponse(res, 500, false, error.message, undefined, error.message);
+        }
+    }
+
+    /**
+     * Get setup instructions for the current platform
+     */
+    static async getSetupInstructions(req: Request & AuthRequest, res: Response): Promise<void> {
+        try {
+            const agent = getPrintAgent();
+            const instructions = agent.getSetupInstructions();
+            BaseController.sendSuccess(res, 'Setup instructions', instructions);
+        } catch (error: any) {
+            console.error('Error getting setup instructions:', error);
+            BaseController.sendResponse(res, 500, false, error.message, undefined, error.message);
+        }
+    }
+
+    // ==================== PRINT QUEUE ENDPOINTS ====================
+
+    /**
+     * Get print queue status
+     */
+    static async getQueueStatus(req: Request & AuthRequest, res: Response): Promise<void> {
+        try {
+            const queue = getPrintQueue();
+            const status = queue.getQueueStatus();
+            BaseController.sendSuccess(res, 'Queue status', status);
+        } catch (error: any) {
+            console.error('Error getting queue status:', error);
+            BaseController.sendResponse(res, 500, false, error.message, undefined, error.message);
+        }
+    }
+
+    /**
+     * Retry all queued jobs
+     */
+    static async retryAllQueuedJobs(req: Request & AuthRequest, res: Response): Promise<void> {
+        try {
+            const queue = getPrintQueue();
+            queue.forceRetryAll();
+            BaseController.sendSuccess(res, 'All queued jobs scheduled for retry', queue.getQueueStatus());
+        } catch (error: any) {
+            console.error('Error retrying queued jobs:', error);
+            BaseController.sendResponse(res, 500, false, error.message, undefined, error.message);
+        }
+    }
+
+    /**
+     * Clear print queue
+     */
+    static async clearPrintQueue(req: Request & AuthRequest, res: Response): Promise<void> {
+        try {
+            const queue = getPrintQueue();
+            queue.clearQueue();
+            BaseController.sendSuccess(res, 'Print queue cleared', { queueSize: 0 });
+        } catch (error: any) {
+            console.error('Error clearing print queue:', error);
+            BaseController.sendResponse(res, 500, false, error.message, undefined, error.message);
+        }
+    }
+
+    /**
+     * Register a discovered printer
+     */
+    static async registerDiscoveredPrinter(req: Request & AuthRequest, res: Response): Promise<void> {
+        try {
+            const agent = getPrintAgent();
+            const printer = await agent.registerPrinter(req.body.discoveredPrinter, {
+                printerName: req.body.printerName,
+                tenantId: req.auth?.tenantId,
+                branchId: req.auth?.branchId,
+                isDefault: req.body.isDefault,
+                isReceiptPrinter: req.body.isReceiptPrinter,
+                isLabelPrinter: req.body.isLabelPrinter,
+                isKitchenPrinter: req.body.isKitchenPrinter
+            });
+            BaseController.sendCreated(res, 'Printer registered successfully', printer);
+        } catch (error: any) {
+            console.error('Error registering printer:', error);
+            BaseController.sendResponse(res, 500, false, error.message, undefined, error.message);
+        }
+    }
+
+    /**
+     * Retry a failed print job
+     */
+    static async retryPrintJob(req: Request<{ jobId: string }> & AuthRequest, res: Response): Promise<void> {
+        try {
+            const printJob = await PrintJobService.retryPrintJob(req.params.jobId);
+            if (!printJob) {
+                BaseController.sendResponse(res, 404, false, 'Print job not found');
+                return;
+            }
+            BaseController.sendSuccess(res, 'Print job retry initiated', printJob);
+        } catch (error: any) {
+            console.error('Error retrying print job:', error);
+            let statusCode = 500;
+            if (error.message.includes('not found')) {
+                statusCode = 404;
+            } else if (error.message.includes('Only failed')) {
+                statusCode = 400;
+            }
+            BaseController.sendResponse(res, statusCode, false, error.message, undefined, error.message);
         }
     }
 }

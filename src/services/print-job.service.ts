@@ -9,8 +9,28 @@ import {
     PrintLabelRequest
 } from '../types/printer';
 import { PrintContentService } from './print-content.service';
+import { getPrintQueue } from './print-queue.service';
 import * as net from 'net';
 import { SerialPort } from 'serialport';
+
+// Error types for better handling
+export enum PrintErrorType {
+    PERMISSION_DENIED = 'PERMISSION_DENIED',
+    CONNECTION_REFUSED = 'CONNECTION_REFUSED',
+    TIMEOUT = 'TIMEOUT',
+    DEVICE_NOT_FOUND = 'DEVICE_NOT_FOUND',
+    DEVICE_BUSY = 'DEVICE_BUSY',
+    PRINTER_OFFLINE = 'PRINTER_OFFLINE',
+    NO_CONTENT = 'NO_CONTENT',
+    UNKNOWN = 'UNKNOWN'
+}
+
+export interface PrintError {
+    type: PrintErrorType;
+    message: string;
+    hint: string;
+    retryable: boolean;
+}
 
 export class PrintJobService {
     /**
@@ -35,9 +55,9 @@ export class PrintJobService {
     }
 
     /**
-     * Execute a print job
+     * Execute a print job (with optional queue integration)
      */
-    static async executePrintJob(printJobId: string): Promise<PrintJob | null> {
+    static async executePrintJob(printJobId: string, useQueue = false): Promise<PrintJob | null> {
         const printJob = await PrintJobModel.findById(printJobId);
         if (!printJob) {
             throw new Error('Print job not found');
@@ -63,12 +83,104 @@ export class PrintJobService {
                 await PrinterModel.incrementPrintJobCount(printer.printerId);
                 return PrintJobModel.updateStatus(printJobId, PrintJobStatus.COMPLETED);
             } else {
-                return PrintJobModel.updateStatus(printJobId, PrintJobStatus.FAILED, 'Print execution failed');
+                const errorMsg = 'Print execution failed';
+
+                // Add to queue for retry if enabled
+                if (useQueue) {
+                    const updatedJob = await PrintJobModel.updateStatus(printJobId, PrintJobStatus.PENDING, errorMsg);
+                    if (updatedJob) {
+                        getPrintQueue().addJob(updatedJob);
+                    }
+                    return updatedJob;
+                }
+
+                return PrintJobModel.updateStatus(printJobId, PrintJobStatus.FAILED, errorMsg);
             }
         } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            const printError = this.parseError(error);
+            const errorMessage = `${printError.message}. ${printError.hint}`;
+
+            // Add to queue for retry if error is retryable
+            if (useQueue && printError.retryable) {
+                const updatedJob = await PrintJobModel.updateStatus(printJobId, PrintJobStatus.PENDING, errorMessage);
+                if (updatedJob) {
+                    getPrintQueue().addJob(updatedJob);
+                    console.log(`[PrintJob] Job ${printJobId} added to retry queue`);
+                }
+                return updatedJob;
+            }
+
             return PrintJobModel.updateStatus(printJobId, PrintJobStatus.FAILED, errorMessage);
         }
+    }
+
+    /**
+     * Parse error and provide helpful information
+     */
+    static parseError(error: unknown): PrintError {
+        const message = error instanceof Error ? error.message : String(error);
+        const lowerMessage = message.toLowerCase();
+
+        if (lowerMessage.includes('permission denied') || lowerMessage.includes('eacces')) {
+            return {
+                type: PrintErrorType.PERMISSION_DENIED,
+                message: message,
+                hint: 'On Linux, add your user to the "dialout" group: sudo usermod -a -G dialout $USER (then log out and back in)',
+                retryable: false
+            };
+        }
+
+        if (lowerMessage.includes('econnrefused') || lowerMessage.includes('connection refused')) {
+            return {
+                type: PrintErrorType.CONNECTION_REFUSED,
+                message: message,
+                hint: 'Check if printer is powered on and connected to the network. Verify IP address and port.',
+                retryable: true
+            };
+        }
+
+        if (lowerMessage.includes('etimedout') || lowerMessage.includes('timeout')) {
+            return {
+                type: PrintErrorType.TIMEOUT,
+                message: message,
+                hint: 'Printer may be busy or network is slow. Will retry automatically.',
+                retryable: true
+            };
+        }
+
+        if (lowerMessage.includes('enoent') || lowerMessage.includes('not found') || lowerMessage.includes('no such file')) {
+            return {
+                type: PrintErrorType.DEVICE_NOT_FOUND,
+                message: message,
+                hint: 'Serial port or device not found. Check cable connections and verify port path.',
+                retryable: true
+            };
+        }
+
+        if (lowerMessage.includes('ebusy') || lowerMessage.includes('resource busy')) {
+            return {
+                type: PrintErrorType.DEVICE_BUSY,
+                message: message,
+                hint: 'Device is busy. Another application may be using it. Close other apps and retry.',
+                retryable: true
+            };
+        }
+
+        if (lowerMessage.includes('offline')) {
+            return {
+                type: PrintErrorType.PRINTER_OFFLINE,
+                message: message,
+                hint: 'Printer is offline. Check power and connections.',
+                retryable: true
+            };
+        }
+
+        return {
+            type: PrintErrorType.UNKNOWN,
+            message: message,
+            hint: 'An unexpected error occurred. Check printer status and try again.',
+            retryable: true
+        };
     }
 
     /**
@@ -144,7 +256,7 @@ export class PrintJobService {
 
             socket.on('connect', () => {
                 console.log(`[Network Printer] Connected to ${address}:${port}`);
-                
+
                 socket.write(data, (err) => {
                     if (err) {
                         console.error(`[Network Printer] Write error:`, err);
@@ -201,16 +313,16 @@ export class PrintJobService {
             // Try to auto-detect USB printer port
             try {
                 const ports = await SerialPort.list();
-                
+
                 if (printer.vendorId && printer.productId) {
                     const vendorId = printer.vendorId.toLowerCase();
                     const productId = printer.productId.toLowerCase();
-                    
-                    const matchingPort = ports.find(p => 
+
+                    const matchingPort = ports.find(p =>
                         p.vendorId?.toLowerCase() === vendorId &&
                         p.productId?.toLowerCase() === productId
                     );
-                    
+
                     if (matchingPort) {
                         portPath = matchingPort.path;
                     }

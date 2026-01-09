@@ -145,30 +145,61 @@ export class PrintContentService {
         tenantId?: string,
         branchId?: string
     ): Promise<ReceiptData | null> {
+        // Transaction links to Sale which has the items
         const transaction = await TransactionModel.findById(transactionId, tenantId, branchId, {
-            items: {
+            sale: {
                 include: {
-                    product: true
+                    items: {
+                        include: {
+                            product: true
+                        }
+                    }
                 }
             },
             customer: true,
             paymentMethod: true,
-            user: true
+            user: true,
+            branch: true
         });
 
         if (!transaction) return null;
 
-        // Fetch branch details
-        const branch = await BranchModel.findById(transaction.branchId);
+        // Get branch from included relation or fetch separately
+        const branch = (transaction as any).branch || await BranchModel.findById(transaction.branchId);
 
-        const items = ((transaction as any).items || []).map((item: any) => ({
+        // Get items from sale relation
+        const saleItems = (transaction as any).sale?.items || [];
+        const items = saleItems.map((item: any) => ({
             name: item.product?.name || item.productName || 'Unknown Product',
             quantity: item.quantity || 1,
-            unitPrice: parseFloat(item.unitPrice || item.price || 0),
-            total: parseFloat(item.totalAmount || item.total || 0),
+            unitPrice: parseFloat(item.unitPrice || 0),
+            total: parseFloat(item.subtotal || item.totalAmount || 0),
             discount: parseFloat(item.discountAmount || 0),
             tax: parseFloat(item.taxAmount || 0)
         }));
+
+        // If no sale items, try to fetch from Order model using refNumber
+        if (items.length === 0) {
+            const orders = await OrderModel.findByRefNumber((transaction as any).refNumber);
+            if (orders && orders.length > 0) {
+                for (const order of orders) {
+                    // Fetch product name for each order
+                    const product = await ProductService.getProductById(
+                        (order as any).productId,
+                        tenantId || transaction.tenantId,
+                        branchId || transaction.branchId
+                    );
+                    items.push({
+                        name: product?.name || 'Product',
+                        quantity: parseFloat((order as any).quantity || 1),
+                        unitPrice: parseFloat((order as any).sellPrice || 0),
+                        total: parseFloat((order as any).quantity || 1) * parseFloat((order as any).sellPrice || 0),
+                        discount: 0,
+                        tax: 0
+                    });
+                }
+            }
+        }
 
         return {
             businessName: branch?.branchName || 'Store',
@@ -188,12 +219,12 @@ export class PrintContentService {
             } : undefined,
             items,
             subtotal: parseFloat((transaction as any).subtotal || 0),
-            taxAmount: parseFloat((transaction as any).taxAmount || 0),
-            discountAmount: parseFloat((transaction as any).discountAmount || 0),
-            totalAmount: parseFloat((transaction as any).totalAmount || (transaction as any).total || 0),
-            amountPaid: parseFloat((transaction as any).amountPaid || (transaction as any).totalAmount || 0),
+            taxAmount: parseFloat((transaction as any).tax || 0),
+            discountAmount: parseFloat((transaction as any).discount || 0),
+            totalAmount: parseFloat((transaction as any).total || 0),
+            amountPaid: parseFloat((transaction as any).paid || (transaction as any).total || 0),
             changeAmount: parseFloat((transaction as any).changeAmount || 0),
-            paymentMethod: (transaction as any).paymentMethod?.name || (transaction as any).paymentMethodName || 'Cash',
+            paymentMethod: (transaction as any).paymentMethod?.name || 'Cash',
             currency: (branch as any)?.currency || 'MWK'
         };
     }
