@@ -4,12 +4,18 @@ export {
 
 export { DatabaseInitializer } from './databases/prisma/databaseInitializer';
 
-export { 
-    initializeConfig, 
-    getConfig, 
+export {
+    initializeConfig,
+    getConfig,
     updateConfig,
-    type RuntimeConfig 
+    type RuntimeConfig
 } from './config/app.config';
+
+export {
+    PrintAgentService,
+    type PrintAgentConfig,
+    type PrintAgentStatus
+} from './services/print-agent.service';
 
 import { Server } from './server';
 

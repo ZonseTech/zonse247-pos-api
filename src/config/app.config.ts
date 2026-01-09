@@ -80,7 +80,7 @@ const DEFAULT_CONFIG: RuntimeConfig = {
     trustProxy: false,
     nodeEnv: 'production',
     corsRequestSizeLimit: '10mb',
-    corsAllowedOrigins: 'http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000',
+    corsAllowedOrigins: 'http://localhost:5173,http://localhost:3000,http://localhost:3001,http://pos.vitalitymw.com,http://127.0.0.1:3000',
     jwtSecret: 'b206c54227610532d1ddb46c207c7fb9f5d181d662eec89fa228fa2ca20dd2a4',
     jwtExpiresIn: '7d',
     jwtRefreshSecret: 'refresh-b206c54227610532d1ddb46c207c7fb9f5d181d662eec89fa228fa2ca20dd2a4',
