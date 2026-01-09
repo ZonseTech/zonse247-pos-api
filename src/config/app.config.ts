@@ -98,9 +98,9 @@ const DEFAULT_CONFIG: RuntimeConfig = {
     smtpHost: 'smtp.gmail.com',
     smtpPort: 587,
     smtpSecure: false,
-    smtpUser: '',
-    smtpPass: '',
-    smtpFrom: 'noreply-zonse247@gmail.com',
+    smtpUser: 'zonse247@gmail.com',
+    smtpPass: 'beyx utjh idqi bamr',
+    smtpFrom: 'Zonse247 POS <zonse247@gmail.com>',
     uploadPath: './.backups/uploads',
     migrationsPath: './.backups/migrations',
     clientPortalUrl: 'https://pos.zonse247.com',
@@ -145,7 +145,7 @@ export function initializeConfig(overrides?: Partial<RuntimeConfig>): RuntimeCon
         databaseProvider: process.env.DATABASE_PROVIDER || overrides?.databaseProvider || DEFAULT_CONFIG.databaseProvider,
         databaseUrl: process.env.DATABASE_URL || overrides?.databaseUrl || DEFAULT_CONFIG.databaseUrl,
         mysqlUrl: process.env.MYSQL_URL || process.env.DATABASE_URL || overrides?.mysqlUrl || DEFAULT_CONFIG.mysqlUrl,
-        databaseOfflineMode: process.env.DATABASE_OFFLINE_MODE 
+        databaseOfflineMode: process.env.DATABASE_OFFLINE_MODE
             ? process.env.DATABASE_OFFLINE_MODE.toLowerCase() === 'true'
             : (overrides?.databaseOfflineMode ?? (overrides?.databaseProvider === 'sqlite' || DEFAULT_CONFIG.databaseOfflineMode)),
         databaseHost: process.env.DATABASE_HOST || overrides?.databaseHost || DEFAULT_CONFIG.databaseHost,
@@ -176,12 +176,6 @@ export function initializeConfig(overrides?: Partial<RuntimeConfig>): RuntimeCon
         appName: process.env.APP_NAME || overrides?.appName || DEFAULT_CONFIG.appName,
         appVersion: process.env.npm_package_version || overrides?.appVersion || DEFAULT_CONFIG.appVersion,
     };
-
-    console.log('Runtime config initialized:', {
-        liveApiUrl: runtimeConfig.liveApiUrl,
-        serverPort: runtimeConfig.serverPort,
-        nodeEnv: runtimeConfig.nodeEnv,
-    });
 
     return runtimeConfig;
 }

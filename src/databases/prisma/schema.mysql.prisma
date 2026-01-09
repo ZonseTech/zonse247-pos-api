@@ -360,7 +360,7 @@ model MRA_API_CONFIG_TABLE {
   tenant            Tenant                            @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade, onUpdate: NoAction)
 
   @@unique([tenantId, environment], name: "unique_tenant_env")
-  @@map("MRA_API_CONFIG_TABLE")
+  @@map("mra_api_config_table")
 }
 
 model AuditLog {
