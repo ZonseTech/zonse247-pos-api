@@ -46,14 +46,12 @@ export interface RuntimeConfig {
     databasePort: number;
 
     // Email config
-    emailProvider: 'smtp' | 'resend';
     smtpHost: string;
     smtpPort: number;
     smtpSecure: boolean;
     smtpUser: string;
     smtpPass: string;
     smtpFrom: string;
-    resendApiKey: string;
 
     // Paths config
     uploadPath: string;
@@ -97,14 +95,12 @@ const DEFAULT_CONFIG: RuntimeConfig = {
     databasePassword: '',
     databaseName: 'app',
     databasePort: 3306,
-    emailProvider: 'resend',
     smtpHost: 'smtp.gmail.com',
     smtpPort: 587,
     smtpSecure: false,
-    smtpUser: 'mcleankasambala@gmail.com',
+    smtpUser: 'zonse247@gmail.com',
     smtpPass: 'beyx utjh idqi bamr',
-    smtpFrom: 'Zonse247 POS <onboarding@resend.dev>',
-    resendApiKey: 're_aTopQu7g_EgryxMiNwqehvq6gNHEBue1V',
+    smtpFrom: 'Zonse247 POS <zonse247@gmail.com>',
     uploadPath: './.backups/uploads',
     migrationsPath: './.backups/migrations',
     clientPortalUrl: 'https://pos.zonse247.com',
@@ -159,14 +155,12 @@ export function initializeConfig(overrides?: Partial<RuntimeConfig>): RuntimeCon
         databasePort: parseInt(process.env.DATABASE_PORT || '') || overrides?.databasePort || DEFAULT_CONFIG.databasePort,
 
         // Email config
-        emailProvider: (process.env.EMAIL_PROVIDER as 'smtp' | 'resend') || overrides?.emailProvider || DEFAULT_CONFIG.emailProvider,
         smtpHost: process.env.SMTP_HOST || overrides?.smtpHost || DEFAULT_CONFIG.smtpHost,
         smtpPort: parseInt(process.env.SMTP_PORT || '') || overrides?.smtpPort || DEFAULT_CONFIG.smtpPort,
         smtpSecure: process.env.SMTP_SECURE === 'true' || overrides?.smtpSecure || DEFAULT_CONFIG.smtpSecure,
         smtpUser: process.env.SMTP_USER || overrides?.smtpUser || DEFAULT_CONFIG.smtpUser,
         smtpPass: process.env.SMTP_PASS || overrides?.smtpPass || DEFAULT_CONFIG.smtpPass,
         smtpFrom: process.env.SMTP_FROM || overrides?.smtpFrom || DEFAULT_CONFIG.smtpFrom,
-        resendApiKey: process.env.RESEND_API_KEY || overrides?.resendApiKey || DEFAULT_CONFIG.resendApiKey,
 
         // Paths config
         uploadPath: process.env.UPLOAD_PATH || overrides?.uploadPath || DEFAULT_CONFIG.uploadPath,

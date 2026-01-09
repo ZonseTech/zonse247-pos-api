@@ -1,5 +1,4 @@
 export interface EmailConfig {
-    provider: 'smtp' | 'resend';
     host: string;
     port: number;
     secure: boolean;
@@ -8,7 +7,6 @@ export interface EmailConfig {
         pass: string;
     };
     from: string;
-    resendApiKey: string;
 }
 
 export interface WelcomeEmailData {

@@ -140,7 +140,6 @@
     "papaparse": "^5.5.3",
     "ping": "^0.4.4",
     "prisma": "^7.0.1",
-    "resend": "^6.7.0",
     "rollup": "^4.53.3",
     "sanitize-filename": "^1.6.3",
     "serialport": "^13.0.0",
