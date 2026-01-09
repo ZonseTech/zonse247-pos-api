@@ -41,6 +41,10 @@ router.put(
 	asyncHandler(UserController.update)
 );
 
+router.get('/list', asyncHandler(UserController.list));
+
+router.use(authMiddleware.requireAdmin);
+
 router.delete(
 	'/profile/:id',
 	validateParams(userValidationSchemas.userId),
@@ -52,10 +56,6 @@ router.delete(
 	),
 	asyncHandler(UserController.delete)
 );
-
-router.get('/list', asyncHandler(UserController.list));
-
-router.use(authMiddleware.requireAdmin);
 
 router.post(
 	'/',
