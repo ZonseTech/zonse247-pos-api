@@ -4,7 +4,8 @@ import { getConfig } from '../config/app.config';
 
 export class EmailService {
     private static transporter: Transporter | null = null;
-    private static config: EmailConfig;
+    private static config: EmailConfig | null = null;
+    private static initialized = false;
 
     static initialize(config: EmailConfig): void {
         this.config = config;
@@ -17,15 +18,36 @@ export class EmailService {
                 pass: config.auth.pass,
             },
         });
+        this.initialized = true;
+    }
+
+    private static ensureInitialized(): { transporter: Transporter; config: EmailConfig } {
+        if (!this.initialized || !this.transporter || !this.config) {
+            const config = getConfig();
+            this.initialize({
+                host: config.smtpHost,
+                port: config.smtpPort,
+                secure: config.smtpSecure,
+                auth: {
+                    user: config.smtpUser,
+                    pass: config.smtpPass,
+                },
+                from: config.smtpFrom,
+            });
+        }
+
+        if (!this.transporter || !this.config) {
+            throw new Error('Email service failed to initialize');
+        }
+
+        return { transporter: this.transporter, config: this.config };
     }
 
     static async verifyConnection(): Promise<boolean> {
-        if (!this.transporter) {
-            throw new Error('Email service not initialized');
-        }
+        const { transporter } = this.ensureInitialized();
 
         try {
-            await this.transporter.verify();
+            await transporter.verify();
             return true;
         } catch (error) {
             console.error('Email service verification failed:', error);
@@ -155,22 +177,20 @@ export class EmailService {
     }
 
     static async sendWelcomeEmail(clientData: WelcomeEmailData): Promise<boolean> {
-        if (!this.transporter) {
-            throw new Error('Email service not initialized');
-        }
+        const { transporter, config } = this.ensureInitialized();
 
         try {
             const { subject, html, text } = this.generateWelcomeEmailTemplate(clientData);
 
             const mailOptions = {
-                from: this.config.from,
+                from: config.from,
                 to: clientData.email,
                 subject,
                 html,
                 text,
             };
 
-            const result = await this.transporter.sendMail(mailOptions);
+            const result = await transporter.sendMail(mailOptions);
 
             console.log('Welcome email sent successfully:', {
                 messageId: result.messageId,
@@ -191,20 +211,18 @@ export class EmailService {
         html: string,
         text?: string
     ): Promise<boolean> {
-        if (!this.transporter) {
-            throw new Error('Email service not initialized');
-        }
+        const { transporter, config } = this.ensureInitialized();
 
         try {
             const mailOptions = {
-                from: this.config.from,
+                from: config.from,
                 to,
                 subject,
                 html,
                 text: text || html.replace(/<[^>]*>/g, ''),
             };
 
-            const result = await this.transporter.sendMail(mailOptions);
+            const result = await transporter.sendMail(mailOptions);
 
             console.log('Email sent successfully:', {
                 messageId: result.messageId,

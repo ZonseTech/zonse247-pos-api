@@ -19,17 +19,33 @@ export const getEmailConfig = (): EmailConfig => {
 export const initializeEmailService = async (): Promise<void> => {
     try {
         EmailService.initialize(getEmailConfig());
+        console.log('✓ Email service initialized');
 
-        const isConnected = await EmailService.verifyConnection();
-        if (isConnected) {
-            console.log('✓ Email service initialized successfully');
-        } else {
-            console.warn('⚠️  Email service initialized but connection verification failed');
-        }
+        verifyEmailConnectionAsync();
     } catch (error) {
         console.error('❌ Failed to initialize email service:', error);
         throw error;
     }
+};
+
+const verifyEmailConnectionAsync = (): void => {
+    const VERIFICATION_TIMEOUT = 10000;
+
+    const timeoutPromise = new Promise<boolean>((_, reject) => {
+        setTimeout(() => reject(new Error('Email verification timed out')), VERIFICATION_TIMEOUT);
+    });
+
+    Promise.race([EmailService.verifyConnection(), timeoutPromise])
+        .then((isConnected) => {
+            if (isConnected) {
+                console.log('✓ Email service connection verified');
+            } else {
+                console.warn('⚠️  Email service connection verification failed');
+            }
+        })
+        .catch((error) => {
+            console.warn('⚠️  Email service verification skipped:', error.message);
+        });
 };
 
 export const checkEmailServiceHealth = async (): Promise<{

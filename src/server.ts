@@ -20,7 +20,6 @@ import {
 } from './middlewares/security.middleware';
 import ApiRoutes from './routes';
 import { initializeEmailService } from './config/email.config';
-import { BaseService } from './services/base.service';
 import { initializeConfig, RuntimeConfig } from './config/app.config';
 
 export class Server {
@@ -139,7 +138,6 @@ export class Server {
 
 	public async start() {
 		try {
-			// Initialize database before starting server
 			const userDataPath = this.electron?.getPath('userData');
 			await DatabaseInitializer.ensureReady(userDataPath);
 			console.log('✓ Database ready');
@@ -148,27 +146,18 @@ export class Server {
 			this.server.listen(
 				port,
 				'0.0.0.0',
-				async () => {
+				() => {
 					console.log(
 						`🚀 Server running on port ${port}`
 					);
-					console.log(`📊 Config: ${JSON.stringify(this.config, null, 2)}`);
-
-					const health = await BaseService.get('/health')
-
-					console.log('External API Health Check:', JSON.stringify(health, null, 2));
 
 					if (!this.electron) {
-						await initializeEmailService()
-							.then(() => {
-								console.log('✓ Email service ready');
-							})
-							.catch((error) => {
-								console.error(
-									'❌ Email service initialization failed:',
-									error
-								);
-							});
+						initializeEmailService().catch((error) => {
+							console.error(
+								'❌ Email service initialization failed:',
+								error
+							);
+						});
 					}
 				}
 			);

@@ -133,15 +133,15 @@ export class TenantService {
 
         if (defaultTerminal) {
             try {
-                // await EmailService.sendWelcomeEmail({
-                //     businessName: tenant.businessName,
-                //     ownerName: tenant.ownerName,
-                //     email: tenant.email,
-                //     tenantCode: tenant.tenantCode,
-                //     verificationToken,
-                //     username: defaultUsername,
-                //     password: defaultPassword,
-                // });
+                await EmailService.sendWelcomeEmail({
+                    businessName: tenant.businessName,
+                    ownerName: tenant.ownerName,
+                    email: tenant.email,
+                    tenantCode: tenant.tenantCode,
+                    verificationToken,
+                    username: defaultUsername,
+                    password: defaultPassword,
+                });
                 console.log({
                     businessName: tenant.businessName,
                     ownerName: tenant.ownerName,
