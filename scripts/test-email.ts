@@ -10,10 +10,10 @@ import { createTransport } from 'nodemailer';
 // Email configuration - update these values as needed
 const EMAIL_CONFIG = {
     host: 'smtp.gmail.com',
-    port: 587,
-    secure: false, // true for 465, false for 587
+    port: 465,
+    secure: true, // true for 465, false for 587
     user: 'zonse247@gmail.com',
-    pass: 'bbhs mvxd qmir gsga', // App password from Google
+    pass: 'bbhsmvxdqmirgsga', // App password from Google
     from: 'Zonse247 API <zonse247@gmail.com>',
 };
 
