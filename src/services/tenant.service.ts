@@ -1,6 +1,7 @@
 import { EmailService } from "./email.service";
 import { BranchModel } from "../models/branch.model";
 import { TenantModel } from "../models/tenant.model";
+import { TenantRegistrationDetailModel } from "../models/tenant-registration-detail.model";
 import { SubscriptionModel } from "../models/subscription.model";
 import { SubscriptionPlanModel } from "../models/subscription-plan.model";
 import { TerminalModel } from "../models/terminal.model";
@@ -121,7 +122,9 @@ export class TenantService {
             allowedTerminals: ['*'],
         });
 
-        console.log({
+        // Store tenant registration details for later processing
+        const registrationDetails = {
+            tenantId: tenant.tenantId,
             businessName: tenant.businessName,
             ownerName: tenant.ownerName,
             email: tenant.email,
@@ -129,28 +132,24 @@ export class TenantService {
             verificationToken,
             username: defaultUsername,
             password: defaultPassword,
-        })
+        };
+
+        await TenantRegistrationDetailModel.create(registrationDetails);
 
         if (defaultTerminal) {
             try {
-                await EmailService.sendWelcomeEmail({
-                    businessName: tenant.businessName,
-                    ownerName: tenant.ownerName,
-                    email: tenant.email,
-                    tenantCode: tenant.tenantCode,
-                    verificationToken,
-                    username: defaultUsername,
-                    password: defaultPassword,
-                });
-                console.log({
-                    businessName: tenant.businessName,
-                    ownerName: tenant.ownerName,
-                    email: tenant.email,
-                    tenantCode: tenant.tenantCode,
-                    verificationToken,
-                    username: defaultUsername,
-                    password: defaultPassword,
-                })
+                // await EmailService.sendWelcomeEmail({
+                //     businessName: tenant.businessName,
+                //     ownerName: tenant.ownerName,
+                //     email: tenant.email,
+                //     tenantCode: tenant.tenantCode,
+                //     verificationToken,
+                //     username: defaultUsername,
+                //     password: defaultPassword,
+                // });
+
+                // Registration details already stored above
+                console.log('Tenant registration details stored successfully for:', tenant.email);
             } catch (emailError) {
                 console.error('Failed to send welcome email:', {
                     tenantCode: tenant.tenantCode,
@@ -158,9 +157,9 @@ export class TenantService {
                     error: emailError instanceof Error ? emailError.message : 'Unknown error'
                 });
 
-                if (tenant.tenantId) {
-                    await TenantModel.update(tenant.tenantId, { synced: 0 });
-                }
+                // if (tenant.tenantId) {
+                //     await TenantModel.update(tenant.tenantId, { synced: 0 });
+                // }
             }
         }
 
