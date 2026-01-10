@@ -40,7 +40,7 @@ export class SubscriptionController extends BaseController {
     static async show(req: Request, res: Response): Promise<void> {
         try {
             const { id } = req.params;
-            const subscription = await SubscriptionService.getById(id);
+            const subscription = await SubscriptionService.getById(id as string);
 
             if (!subscription) {
                 BaseController.sendResponse(res, 404, false, 'Subscription not found');
@@ -81,7 +81,7 @@ export class SubscriptionController extends BaseController {
     static async update(req: Request, res: Response): Promise<void> {
         try {
             const { id } = req.params;
-            const updatedSubscription = await SubscriptionService.update(id, req.body);
+            const updatedSubscription = await SubscriptionService.update(id as string, req.body);
 
             if (!updatedSubscription) {
                 BaseController.sendResponse(res, 404, false, 'Subscription not found');
@@ -106,7 +106,7 @@ export class SubscriptionController extends BaseController {
     static async delete(req: Request, res: Response): Promise<void> {
         try {
             const { id } = req.params;
-            const deleted = await SubscriptionService.delete(id);
+            const deleted = await SubscriptionService.delete(id as string);
 
             if (!deleted) {
                 BaseController.sendResponse(res, 404, false, 'Subscription not found');
@@ -123,7 +123,7 @@ export class SubscriptionController extends BaseController {
     static async cancel(req: Request, res: Response): Promise<void> {
         try {
             const { id } = req.params;
-            const cancelledSubscription = await SubscriptionService.cancel(id);
+            const cancelledSubscription = await SubscriptionService.cancel(id as string);
 
             if (!cancelledSubscription) {
                 BaseController.sendResponse(res, 404, false, 'Subscription not found');
@@ -148,7 +148,7 @@ export class SubscriptionController extends BaseController {
     static async reactivate(req: Request, res: Response): Promise<void> {
         try {
             const { id } = req.params;
-            const reactivatedSubscription = await SubscriptionService.reactivate(id);
+            const reactivatedSubscription = await SubscriptionService.reactivate(id as string);
 
             if (!reactivatedSubscription) {
                 BaseController.sendResponse(res, 404, false, 'Subscription not found');
@@ -187,7 +187,7 @@ export class SubscriptionController extends BaseController {
                 return;
             }
 
-            const updatedSubscription = await SubscriptionService.processPayment(id, { amount, paymentMethod });
+            const updatedSubscription = await SubscriptionService.processPayment(id as string, { amount, paymentMethod });
 
             if (!updatedSubscription) {
                 BaseController.sendResponse(res, 404, false, 'Subscription not found');
@@ -261,7 +261,7 @@ export class SubscriptionController extends BaseController {
     static async getByStatus(req: Request, res: Response): Promise<void> {
         try {
             const { status } = req.params;
-            const subscriptions = await SubscriptionService.getByStatus(status);
+            const subscriptions = await SubscriptionService.getByStatus(status as string);
             BaseController.sendResponse(res, 200, true, 'Subscriptions retrieved by status', subscriptions);
         } catch (error: any) {
             console.error('Error fetching subscriptions by status:', error);
@@ -272,7 +272,7 @@ export class SubscriptionController extends BaseController {
     static async getByTenantId(req: Request, res: Response): Promise<void> {
         try {
             const { tenantId } = req.params;
-            const subscription = await SubscriptionService.getByTenantId(tenantId);
+            const subscription = await SubscriptionService.getByTenantId(tenantId as string);
 
             BaseController.sendResponse(res, 200, true, 'Subscription retrieved by tenant', subscription);
         } catch (error: any) {
@@ -283,7 +283,7 @@ export class SubscriptionController extends BaseController {
     static async getSubscriptionByTenantId(req: Request, res: Response): Promise<void> {
         try {
             const { tenantId } = req.params;
-            const subscription = await SubscriptionService.getActiveSubscriptionByTenantId(tenantId);
+            const subscription = await SubscriptionService.getActiveSubscriptionByTenantId(tenantId as string);
             BaseController.sendResponse(res, 200, true, 'Subscription retrieved by tenant', subscription);
         } catch (error: any) {
             console.error('Error fetching subscription by tenant:', error);
@@ -294,7 +294,7 @@ export class SubscriptionController extends BaseController {
     static async getByPlanId(req: Request, res: Response): Promise<void> {
         try {
             const { planId } = req.params;
-            const subscriptions = await SubscriptionService.getByPlanId(planId);
+            const subscriptions = await SubscriptionService.getByPlanId(planId as string);
             BaseController.sendResponse(res, 200, true, 'Subscriptions retrieved by plan', subscriptions);
         } catch (error: any) {
             console.error('Error fetching subscriptions by plan:', error);

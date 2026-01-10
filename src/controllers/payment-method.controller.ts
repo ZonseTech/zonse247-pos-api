@@ -48,7 +48,7 @@ export class PaymentMethodController extends BaseController {
                 return;
             }
 
-            const paymentMethod = await PaymentMethodService.getPaymentMethodById(paymentMethodId);
+            const paymentMethod = await PaymentMethodService.getPaymentMethodById(paymentMethodId as string);
 
             if (!paymentMethod) {
                 PaymentMethodController.sendNotFound(res, 'Payment method not found');
@@ -113,7 +113,7 @@ export class PaymentMethodController extends BaseController {
                 return;
             }
 
-            const updatedPaymentMethod = await PaymentMethodService.updatePaymentMethod(paymentMethodId, updateData);
+            const updatedPaymentMethod = await PaymentMethodService.updatePaymentMethod(paymentMethodId as string, updateData);
 
             if (!updatedPaymentMethod) {
                 PaymentMethodController.sendNotFound(res, 'Payment method not found');
@@ -152,7 +152,7 @@ export class PaymentMethodController extends BaseController {
                 return;
             }
 
-            const deleted = await PaymentMethodService.deletePaymentMethod(paymentMethodId);
+            const deleted = await PaymentMethodService.deletePaymentMethod(paymentMethodId as string);
 
             if (!deleted) {
                 PaymentMethodController.sendNotFound(res, 'Payment method not found');
@@ -219,7 +219,7 @@ export class PaymentMethodController extends BaseController {
                 return;
             }
 
-            const marked = await PaymentMethodService.markPaymentMethodAsSynced(paymentMethodId);
+            const marked = await PaymentMethodService.markPaymentMethodAsSynced(paymentMethodId as string);
 
             if (!marked) {
                 PaymentMethodController.sendNotFound(res, 'Payment method not found');

@@ -109,7 +109,7 @@ export class PaymentServiceProviderController extends BaseController {
                 return;
             }
 
-            await PaymentServiceProviderService.updatePaymentServiceProvider(pspId, updateData, user as any);
+            await PaymentServiceProviderService.updatePaymentServiceProvider(pspId as string, updateData, user as any);
             PaymentServiceProviderController.sendSuccess(res, 'Payment service provider updated successfully');
         } catch (error) {
             console.error('Error in updatePaymentServiceProvider:', error);
@@ -152,7 +152,7 @@ export class PaymentServiceProviderController extends BaseController {
                 return;
             }
 
-            await PaymentServiceProviderService.deletePaymentServiceProvider(pspId, user as any);
+            await PaymentServiceProviderService.deletePaymentServiceProvider(pspId as string, user as any);
             PaymentServiceProviderController.sendSuccess(res, 'Payment service provider deleted successfully');
         } catch (error) {
             console.error('Error in deletePaymentServiceProvider:', error);
@@ -195,7 +195,7 @@ export class PaymentServiceProviderController extends BaseController {
                 branchId: user.branchId
             };
 
-            const psp = await PaymentServiceProviderService.getPaymentServiceProviderById(pspId, filters);
+            const psp = await PaymentServiceProviderService.getPaymentServiceProviderById(pspId as string, filters);
 
             if (!psp) {
                 PaymentServiceProviderController.sendNotFound(res, 'Payment service provider not found');
@@ -260,7 +260,7 @@ export class PaymentServiceProviderController extends BaseController {
                 return;
             }
 
-            await PaymentServiceProviderService.markPaymentServiceProviderAsSynced(pspId, user as any);
+            await PaymentServiceProviderService.markPaymentServiceProviderAsSynced(pspId as string, user as any);
             PaymentServiceProviderController.sendSuccess(res, 'Payment service provider marked as synced successfully');
         } catch (error) {
             console.error('Error in markPaymentServiceProviderAsSynced:', error);

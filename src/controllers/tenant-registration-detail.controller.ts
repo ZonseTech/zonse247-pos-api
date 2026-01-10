@@ -56,7 +56,7 @@ export class TenantRegistrationDetailController extends BaseController {
                 return BaseController.sendResponse(res, 400, false, 'Detail ID is required');
             }
 
-            const detail = await TenantRegistrationDetailModel.findById(detailId);
+            const detail = await TenantRegistrationDetailModel.findById(detailId as string);
 
             if (!detail) {
                 return BaseController.sendResponse(res, 404, false, 'Registration detail not found');
@@ -94,7 +94,7 @@ export class TenantRegistrationDetailController extends BaseController {
                 return BaseController.sendResponse(res, 400, false, 'Detail ID is required');
             }
 
-            const detail = await TenantRegistrationDetailModel.markAsProcessed(detailId);
+            const detail = await TenantRegistrationDetailModel.markAsProcessed(detailId as string);
 
             if (!detail) {
                 return BaseController.sendResponse(res, 404, false, 'Registration detail not found');
@@ -132,7 +132,7 @@ export class TenantRegistrationDetailController extends BaseController {
                 return BaseController.sendResponse(res, 400, false, 'Detail ID is required');
             }
 
-            const deleted = await TenantRegistrationDetailModel.delete(detailId);
+            const deleted = await TenantRegistrationDetailModel.delete(detailId as string);
 
             if (!deleted) {
                 return BaseController.sendResponse(res, 404, false, 'Registration detail not found');

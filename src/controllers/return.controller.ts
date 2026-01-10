@@ -185,7 +185,7 @@ export class ReturnController extends BaseController {
                 return;
             }
 
-            await ReturnService.cancelReturn(returnTransactionId, {
+            await ReturnService.cancelReturn(returnTransactionId as string, {
                 tenantId: req.auth.tenantId,
                 branchId: req.auth.branchId,
                 userId: req.auth.userId,

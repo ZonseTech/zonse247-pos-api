@@ -24,7 +24,7 @@ export class SupplierController extends BaseController {
             const { supplierId } = req.params;
 
             const supplier = await SupplierService.getSupplierById(
-                supplierId,
+                supplierId as string,
                 req.auth.tenantId,
                 req.auth.branchId
             );
@@ -79,7 +79,7 @@ export class SupplierController extends BaseController {
             const { supplierId } = req.params;
 
             const supplier = await SupplierService.updateSupplier(
-                supplierId,
+                supplierId as string,
                 req.auth.tenantId,
                 req.auth.branchId,
                 req.body
@@ -99,7 +99,7 @@ export class SupplierController extends BaseController {
             const { supplierId } = req.params;
 
             await SupplierService.deleteSupplier(
-                supplierId,
+                supplierId as string,
                 req.auth.tenantId,
                 req.auth.branchId
             );

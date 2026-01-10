@@ -91,7 +91,7 @@ export class CategoryController extends BaseController {
             }
 
             await CategoryService.updateCategory(
-                categoryId,
+                categoryId as string,
                 updateData,
                 {
                     userId: req.auth.userId,
@@ -122,7 +122,7 @@ export class CategoryController extends BaseController {
                 return;
             }
 
-            await CategoryService.deleteCategory(categoryId, {
+            await CategoryService.deleteCategory(categoryId as string, {
                 userId: req.auth.userId,
                 tenantId: req.auth.tenantId,
                 branchId: req.auth.branchId,

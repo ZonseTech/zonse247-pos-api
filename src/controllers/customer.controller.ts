@@ -24,7 +24,7 @@ export class CustomerController extends BaseController {
                 return BaseController.sendBadRequest(res, 'Customer ID is required');
             }
 
-            const customer = await CustomerService.getCustomerById(customerId);
+            const customer = await CustomerService.getCustomerById(customerId as string);
 
             if (!customer) {
                 return BaseController.sendNotFound(res, 'Customer not found');
@@ -86,7 +86,7 @@ export class CustomerController extends BaseController {
                 return BaseController.sendBadRequest(res, 'Customer ID is required for update');
             }
 
-            const success = await CustomerService.updateCustomer(customerId, updateData);
+            const success = await CustomerService.updateCustomer(customerId as string, updateData);
 
             if (!success) {
                 return BaseController.sendNotFound(res, 'Customer not found');
@@ -113,7 +113,7 @@ export class CustomerController extends BaseController {
                 return BaseController.sendBadRequest(res, 'Customer ID is required');
             }
 
-            const success = await CustomerService.deleteCustomer(customerId);
+            const success = await CustomerService.deleteCustomer(customerId as string);
 
             if (!success) {
                 return BaseController.sendNotFound(res, 'Customer not found');
@@ -169,7 +169,7 @@ export class CustomerController extends BaseController {
                 return BaseController.sendBadRequest(res, 'Customer ID is required');
             }
 
-            const success = await CustomerService.markCustomerAsSynced(customerId);
+            const success = await CustomerService.markCustomerAsSynced(customerId as string);
 
             if (!success) {
                 return BaseController.sendNotFound(res, 'Customer not found');

@@ -14,7 +14,7 @@ export class StockMovementController extends BaseController {
             const perPage = parseInt(req.query.perPage as string) || 50;
 
             const { movements, total, totalPages } = await StockMovementService.getMovementsByProduct(
-                productId,
+                productId as string,
                 req.auth.tenantId,
                 req.auth.branchId,
                 page,

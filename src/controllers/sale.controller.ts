@@ -24,7 +24,7 @@ export class SaleController extends BaseController {
             const { saleId } = req.params;
 
             const sale = await SaleService.getSaleById(
-                saleId,
+                saleId as string,
                 req.auth.tenantId,
                 req.auth.branchId
             );
@@ -83,7 +83,7 @@ export class SaleController extends BaseController {
             const { saleId } = req.params;
 
             const sale = await SaleService.voidSale(
-                saleId,
+                saleId as string,
                 req.auth.tenantId,
                 req.auth.branchId,
                 req.body

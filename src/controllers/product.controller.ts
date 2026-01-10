@@ -26,7 +26,7 @@ export class ProductController extends BaseController {
             const { productId } = req.params;
 
             const product = await ProductService.getProductById(
-                productId,
+                productId as string,
                 req.auth.tenantId,
                 req.auth.branchId
             );
@@ -50,7 +50,7 @@ export class ProductController extends BaseController {
             const { term } = req.params;
 
             const result = await ProductService.searchProduct(
-                term,
+                term as string,
                 req.auth.tenantId,
                 req.auth.branchId
             );
@@ -113,7 +113,7 @@ export class ProductController extends BaseController {
             const { productId } = req.params;
 
             const product = await ProductService.updateProduct(
-                productId,
+                productId as string,
                 req.auth.tenantId,
                 req.auth.branchId,
                 req.body
@@ -133,7 +133,7 @@ export class ProductController extends BaseController {
             const { productId } = req.params;
 
             await ProductService.deleteProduct(
-                productId,
+                productId as string,
                 req.auth.tenantId,
                 req.auth.branchId
             );
@@ -153,7 +153,7 @@ export class ProductController extends BaseController {
             const { barcode, barcodeType, barcodeSource, description } = req.body;
 
             await ProductService.addBarcode(
-                productId,
+                productId as string,
                 req.auth.tenantId,
                 req.auth.branchId,
                 barcode,

@@ -38,7 +38,7 @@ export class SubscriptionPlanController extends BaseController {
     static async show(req: Request, res: Response): Promise<void> {
         try {
             const { id } = req.params;
-            const plan = await SubscriptionPlanService.getById(id);
+            const plan = await SubscriptionPlanService.getById(id as string);
 
             if (!plan) {
                 BaseController.sendResponse(res, 404, false, 'Subscription plan not found');
@@ -71,7 +71,7 @@ export class SubscriptionPlanController extends BaseController {
     static async update(req: Request, res: Response): Promise<void> {
         try {
             const { id } = req.params;
-            const updatedPlan = await SubscriptionPlanService.update(id, req.body);
+            const updatedPlan = await SubscriptionPlanService.update(id as string, req.body);
 
             if (!updatedPlan) {
                 BaseController.sendResponse(res, 404, false, 'Subscription plan not found');
@@ -96,7 +96,7 @@ export class SubscriptionPlanController extends BaseController {
     static async delete(req: Request, res: Response): Promise<void> {
         try {
             const { id } = req.params;
-            const deleted = await SubscriptionPlanService.delete(id);
+            const deleted = await SubscriptionPlanService.delete(id as string);
 
             if (!deleted) {
                 BaseController.sendResponse(res, 404, false, 'Subscription plan not found');
@@ -113,7 +113,7 @@ export class SubscriptionPlanController extends BaseController {
     static async toggleStatus(req: Request, res: Response): Promise<void> {
         try {
             const { id } = req.params;
-            const updatedPlan = await SubscriptionPlanService.toggleStatus(id);
+            const updatedPlan = await SubscriptionPlanService.toggleStatus(id as string);
 
             if (!updatedPlan) {
                 BaseController.sendResponse(res, 404, false, 'Subscription plan not found');
@@ -140,7 +140,7 @@ export class SubscriptionPlanController extends BaseController {
     static async validatePlan(req: Request, res: Response): Promise<void> {
         try {
             const { id } = req.params;
-            const isValid = await SubscriptionPlanService.validatePlan(id);
+            const isValid = await SubscriptionPlanService.validatePlan(id as string);
 
             BaseController.sendResponse(res, 200, true, 'Plan validation completed', {
                 valid: isValid,

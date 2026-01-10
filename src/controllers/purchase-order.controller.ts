@@ -46,7 +46,7 @@ export class PurchaseOrderController extends BaseController {
             };
 
             const purchaseOrder = await PurchaseOrderService.receivePurchaseOrder(
-                purchaseOrderId,
+                purchaseOrderId as string,
                 req.auth.tenantId,
                 req.auth.branchId,
                 data
@@ -79,7 +79,7 @@ export class PurchaseOrderController extends BaseController {
             const { purchaseOrderId } = req.params;
 
             const purchaseOrder = await PurchaseOrderService.getPurchaseOrderById(
-                purchaseOrderId,
+                purchaseOrderId as string,
                 req.auth.tenantId,
                 req.auth.branchId
             );
@@ -161,7 +161,7 @@ export class PurchaseOrderController extends BaseController {
             const { purchaseOrderId } = req.params;
 
             await PurchaseOrderService.cancelPurchaseOrder(
-                purchaseOrderId,
+                purchaseOrderId as string,
                 req.auth.tenantId,
                 req.auth.branchId
             );

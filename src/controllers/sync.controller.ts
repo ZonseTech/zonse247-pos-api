@@ -198,7 +198,7 @@ export class SyncController {
 	getSyncStatus = async (req: Request, res: Response): Promise<any> => {
 		try {
 			const { tableName } = req.params;
-			const status = await syncService.getSyncStatus(tableName);
+			const status = await syncService.getSyncStatus(tableName as string);
 
 			if (!status) {
 				return res.status(404).json({
@@ -308,7 +308,7 @@ export class SyncController {
 				});
 			}
 
-			const stats = await syncService.getTableStats(tableName);
+			const stats = await syncService.getTableStats(tableName as string);
 
 			res.json({
 				success: true,
@@ -340,7 +340,7 @@ export class SyncController {
 				});
 			}
 
-			const allRecords = await syncService.getAllRecords(tableName);
+			const allRecords = await syncService.getAllRecords(tableName as string);
 			const startIndex = parseInt(offset as string) || 0;
 			const endIndex = startIndex + (parseInt(limit as string) || 100);
 			const paginatedRecords = allRecords.slice(startIndex, endIndex);
@@ -385,7 +385,7 @@ export class SyncController {
 				});
 			}
 
-			syncService.configureTable(tableName, {
+			syncService.configureTable(tableName as string, {
 				endpoint,
 				syncDirection,
 				conflictStrategy,

@@ -27,8 +27,8 @@ export class DatabaseExportController {
 	public getTableStats = async (req: Request, res: Response): Promise<void> => {
 		try {
 			const { tableName } = req.params;
-			const exportService = new DatabaseExportService(tableName);
-			const stats = await exportService.getTableStats(tableName);
+			const exportService = new DatabaseExportService(tableName as string);
+			const stats = await exportService.getTableStats(tableName as string);
 
 			res.json({
 				success: true,
@@ -164,7 +164,7 @@ export class DatabaseExportController {
 	public downloadFile = async (req: Request, res: Response): Promise<void> => {
 		try {
 			const { filename } = req.params;
-			const filepath = path.join(process.cwd(), 'exports', filename);
+			const filepath = path.join(process.cwd(), 'exports', filename as string);
 
 			if (!fs.existsSync(filepath)) {
 				res.status(404).json({
@@ -176,7 +176,7 @@ export class DatabaseExportController {
 			}
 
 			const stats = fs.statSync(filepath);
-			const fileExtension = path.extname(filename).toLowerCase();
+			const fileExtension = path.extname(filename as string).toLowerCase();
 
 			let mimeType = 'application/octet-stream';
 			if (fileExtension === '.json') {

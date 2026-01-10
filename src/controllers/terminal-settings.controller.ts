@@ -16,7 +16,7 @@ export class TerminalSettingsController extends BaseController {
                 return;
             }
 
-            const result = await TerminalSettingsService.getSettings(terminalId);
+            const result = await TerminalSettingsService.getSettings(terminalId as string);
 
             if (!result) {
                 BaseController.sendResponse(res, 404, false, 'Terminal settings not found');
@@ -106,7 +106,7 @@ export class TerminalSettingsController extends BaseController {
                 return;
             }
 
-            const result = await TerminalSettingsService.updateSettings(terminalId, updateData);
+            const result = await TerminalSettingsService.updateSettings(terminalId as string, updateData);
 
             if (!result) {
                 BaseController.sendResponse(res, 404, false, 'Terminal settings not found or update failed');
@@ -177,7 +177,7 @@ export class TerminalSettingsController extends BaseController {
             }
 
             const result = await TerminalSettingsService.updateSettingsGroup(
-                terminalId,
+                terminalId as string,
                 groupName as SettingsGroupName,
                 groupData
             );
@@ -223,7 +223,7 @@ export class TerminalSettingsController extends BaseController {
                 return;
             }
 
-            const result = await TerminalSettingsService.deleteSettings(terminalId);
+            const result = await TerminalSettingsService.deleteSettings(terminalId as string);
 
             if (!result) {
                 BaseController.sendResponse(res, 404, false, 'Terminal settings not found or deletion failed');
@@ -256,7 +256,7 @@ export class TerminalSettingsController extends BaseController {
                 return;
             }
 
-            const result = await TerminalSettingsService.deactivateSettings(terminalId);
+            const result = await TerminalSettingsService.deactivateSettings(terminalId as string);
 
             if (!result) {
                 BaseController.sendResponse(res, 404, false, 'Terminal settings not found or deactivation failed');
@@ -341,7 +341,7 @@ export class TerminalSettingsController extends BaseController {
                 return;
             }
 
-            const result = await TerminalSettingsService.resetSettings(terminalId);
+            const result = await TerminalSettingsService.resetSettings(terminalId as string);
 
             BaseController.sendResponse(res, 200, true, 'Terminal settings reset to defaults successfully', result);
         } catch (error) {

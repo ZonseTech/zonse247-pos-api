@@ -43,7 +43,7 @@ export class InventoryController extends BaseController {
             }
 
             const auth = InventoryController.getAuthContext(req);
-            const inventoryItem = await InventoryService.getInventoryItemByUuid(req.params.itemId, auth);
+            const inventoryItem = await InventoryService.getInventoryItemByUuid(req.params.itemId as string, auth);
 
             if (!inventoryItem) {
                 BaseController.sendNotFound(res, 'Inventory item not found.');
@@ -166,7 +166,7 @@ export class InventoryController extends BaseController {
             }
 
             const auth = InventoryController.getAuthContext(req);
-            const inventoryItem = await InventoryService.findInventoryItemBySku(barcode, auth);
+            const inventoryItem = await InventoryService.findInventoryItemBySku(barcode as string, auth);
 
             if (!inventoryItem) {
                 BaseController.sendNotFound(res, 'Inventory item not found.');
@@ -189,7 +189,7 @@ export class InventoryController extends BaseController {
             }
 
             const auth = InventoryController.getAuthContext(req);
-            const inventoryItems = await InventoryService.getInventoryItemsByCategory(categoryId, auth);
+            const inventoryItems = await InventoryService.getInventoryItemsByCategory(categoryId as string, auth);
             BaseController.sendSuccess(res, 'Inventory items by category retrieved successfully.', inventoryItems);
         } catch (error) {
             console.error('Error fetching inventory items by category:', error);
@@ -206,7 +206,7 @@ export class InventoryController extends BaseController {
             }
 
             const auth = InventoryController.getAuthContext(req);
-            const inventoryItems = await InventoryService.getInventoryItemsByStatus(status, auth);
+            const inventoryItems = await InventoryService.getInventoryItemsByStatus(status as string, auth);
             BaseController.sendSuccess(res, 'Inventory items by status retrieved successfully.', inventoryItems);
         } catch (error) {
             console.error('Error fetching inventory items by status:', error);
@@ -249,7 +249,7 @@ export class InventoryController extends BaseController {
         try {
             const auth = InventoryController.getAuthContext(req);
             const numReplaced = await InventoryService.updateInventoryItem(
-                req.params.itemId,
+                req.params.itemId as string,
                 req.body,
                 auth
             );
@@ -282,7 +282,7 @@ export class InventoryController extends BaseController {
 
             const auth = InventoryController.getAuthContext(req);
             const result = await InventoryService.updateInventoryItemQuantity(
-                req.params.itemId,
+                req.params.itemId as string,
                 parseInt(quantity),
                 auth
             );
@@ -312,7 +312,7 @@ export class InventoryController extends BaseController {
 
             const auth = InventoryController.getAuthContext(req);
             const result = await InventoryService.adjustInventory(
-                req.params.itemId,
+                req.params.itemId as string,
                 parseInt(adjustment),
                 auth
             );
@@ -386,7 +386,7 @@ export class InventoryController extends BaseController {
     static async voidInventoryItem(req: Request & AuthRequest, res: Response): Promise<void> {
         try {
             const auth = InventoryController.getAuthContext(req);
-            const numReplaced = await InventoryService.voidInventoryItem(req.params.itemId, auth);
+            const numReplaced = await InventoryService.voidInventoryItem(req.params.itemId as string, auth);
 
             if (numReplaced === 0) {
                 BaseController.sendNotFound(res, 'Inventory item not found.');
@@ -406,7 +406,7 @@ export class InventoryController extends BaseController {
     static async deleteInventoryItem(req: Request & AuthRequest, res: Response): Promise<void> {
         try {
             const auth = InventoryController.getAuthContext(req);
-            const numDeleted = await InventoryService.deleteInventoryItem(req.params.itemId, auth);
+            const numDeleted = await InventoryService.deleteInventoryItem(req.params.itemId as string, auth);
 
             if (numDeleted === 0) {
                 BaseController.sendNotFound(res, 'Inventory item not found.');
@@ -443,7 +443,7 @@ export class InventoryController extends BaseController {
             }
 
             const auth = InventoryController.getAuthContext(req);
-            const exists = await InventoryService.inventoryItemExists(itemId, auth);
+            const exists = await InventoryService.inventoryItemExists(itemId as string, auth);
             BaseController.sendSuccess(res, 'Inventory item existence checked.', { exists });
         } catch (error) {
             console.error('Error checking inventory item existence:', error);

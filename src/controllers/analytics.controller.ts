@@ -17,7 +17,7 @@ export class AnalyticsController {
     static async getMonthlySales(req: Request & AuthRequest, res: Response): Promise<void> {
         try {
             const auth = AnalyticsController.getAuthContext(req);
-            const monthYear = req.params.monthYear;
+            const monthYear = req.params.monthYear as string;
             const [year, month] = monthYear.split('-').map(Number);
 
             const salesData = await AnalyticsModel.getMonthlySalesData(
@@ -41,8 +41,8 @@ export class AnalyticsController {
     static async getTransactions(req: Request & AuthRequest, res: Response): Promise<void> {
         try {
             const auth = AnalyticsController.getAuthContext(req);
-            const limit = parseInt(req.params.limit);
-            const offset = parseInt(req.params.offset) || 0;
+            const limit = parseInt(req.params.limit as string);
+            const offset = parseInt(req.params.offset as string) || 0;
             const includeItems = req.query.includeItems === 'true';
 
             const result = await AnalyticsModel.getUserTransactions(
@@ -103,7 +103,7 @@ export class AnalyticsController {
     static async getTransactionItems(req: Request & AuthRequest, res: Response): Promise<void> {
         try {
             const auth = AnalyticsController.getAuthContext(req);
-            const transactionId = req.params.transactionId;
+            const transactionId = req.params.transactionId as string;
             const result = await AnalyticsModel.getTransactionItems(transactionId, auth.tenantId, auth.branchId);
 
             if (!result.transaction) {
@@ -127,7 +127,7 @@ export class AnalyticsController {
     static async getTransactionDetails(req: Request & AuthRequest, res: Response): Promise<void> {
         try {
             const auth = AnalyticsController.getAuthContext(req);
-            const transactionId = req.params.transactionId;
+            const transactionId = req.params.transactionId as string;
             const result = await AnalyticsModel.getTransactionDetails(transactionId, auth.tenantId, auth.branchId);
 
             if (!result.transaction) {

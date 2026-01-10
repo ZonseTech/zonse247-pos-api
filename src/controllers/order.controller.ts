@@ -16,7 +16,7 @@ export class OrderController extends BaseController {
     static async getById(req: Request, res: Response): Promise<void> {
         try {
             const { orderId } = req.params;
-            const order = await OrderService.getOrderById(orderId);
+            const order = await OrderService.getOrderById(orderId as string);
 
             if (!order) {
                 OrderController.sendNotFound(res, 'Order not found');
@@ -33,7 +33,7 @@ export class OrderController extends BaseController {
     static async getByRefNumber(req: Request, res: Response): Promise<void> {
         try {
             const { refNumber } = req.params;
-            const orders = await OrderService.getOrdersByRefNumber(refNumber);
+            const orders = await OrderService.getOrdersByRefNumber(refNumber as string);
 
             if (orders.length === 0) {
                 OrderController.sendNotFound(res, 'No orders found for this reference number');
@@ -50,7 +50,7 @@ export class OrderController extends BaseController {
     static async getByProductId(req: Request, res: Response): Promise<void> {
         try {
             const { productId } = req.params;
-            const orders = await OrderService.getOrdersByProductId(productId);
+            const orders = await OrderService.getOrdersByProductId(productId as string);
             OrderController.sendSuccess(res, 'Orders retrieved successfully', orders);
         } catch (error) {
             console.error('Error fetching orders by product:', error);
@@ -105,7 +105,7 @@ export class OrderController extends BaseController {
             const { orderId } = req.params;
             const updateData = req.body;
 
-            const success = await OrderService.updateOrder(orderId, updateData);
+            const success = await OrderService.updateOrder(orderId as string, updateData);
 
             if (!success) {
                 OrderController.sendNotFound(res, 'Order not found');
@@ -122,7 +122,7 @@ export class OrderController extends BaseController {
     static async delete(req: Request, res: Response): Promise<void> {
         try {
             const { orderId } = req.params;
-            const success = await OrderService.deleteOrder(orderId);
+            const success = await OrderService.deleteOrder(orderId as string);
 
             if (!success) {
                 OrderController.sendNotFound(res, 'Order not found');
@@ -139,7 +139,7 @@ export class OrderController extends BaseController {
     static async deleteByRefNumber(req: Request, res: Response): Promise<void> {
         try {
             const { refNumber } = req.params;
-            const result = await OrderService.deleteOrdersByRefNumber(refNumber);
+            const result = await OrderService.deleteOrdersByRefNumber(refNumber as string);
 
             if (!result.success) {
                 OrderController.sendNotFound(res, 'No orders found for this reference number');
@@ -169,7 +169,7 @@ export class OrderController extends BaseController {
     static async getSummary(req: Request, res: Response): Promise<void> {
         try {
             const { refNumber } = req.params;
-            const summary = await OrderService.getOrderSummary(refNumber);
+            const summary = await OrderService.getOrderSummary(refNumber as string);
 
             if (!summary) {
                 OrderController.sendNotFound(res, 'No orders found for this reference number');
@@ -196,7 +196,7 @@ export class OrderController extends BaseController {
     static async markAsSynced(req: Request, res: Response): Promise<void> {
         try {
             const { orderId } = req.params;
-            const success = await OrderService.markOrderAsSynced(orderId);
+            const success = await OrderService.markOrderAsSynced(orderId as string);
 
             if (!success) {
                 OrderController.sendNotFound(res, 'Order not found');
