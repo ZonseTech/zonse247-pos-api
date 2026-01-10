@@ -264,8 +264,9 @@ export class MigrationManager {
 
     /**
      * Run all pending migrations
+     * @param dbPath - Path to database file (required for SQLite backups, optional for MySQL)
      */
-    async migrate(dbPath: string): Promise<{
+    async migrate(dbPath?: string): Promise<{
         success: boolean;
         migrationsApplied: string[];
         error?: string;
@@ -282,12 +283,14 @@ export class MigrationManager {
         console.log(`   Target version: ${CURRENT_DB_VERSION}`);
         console.log(`   Pending migrations: ${pendingMigrations.length}\n`);
 
-        // Create backup before migration
+        // Create backup before migration (SQLite only)
         let backupPath: string | undefined;
-        try {
-            backupPath = await this.createBackup(dbPath);
-        } catch (backupError) {
-            console.error('⚠️ Failed to create backup, proceeding anyway...');
+        if (dbPath && this.dbType === 'sqlite') {
+            try {
+                backupPath = await this.createBackup(dbPath);
+            } catch (backupError) {
+                console.error('⚠️ Failed to create backup, proceeding anyway...');
+            }
         }
 
         const migrationsApplied: string[] = [];
@@ -314,8 +317,8 @@ export class MigrationManager {
                 const errorMessage = (error as Error).message;
                 console.error(`   ❌ Migration ${migration.version} failed: ${errorMessage}`);
 
-                // Attempt rollback to backup
-                if (backupPath) {
+                // Attempt rollback to backup (SQLite only)
+                if (backupPath && dbPath) {
                     console.log('🔙 Attempting rollback to backup...');
                     try {
                         await this.restoreBackup(backupPath, dbPath);

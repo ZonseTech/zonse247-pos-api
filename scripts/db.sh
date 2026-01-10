@@ -12,6 +12,9 @@ SCHEMA_DIR="src/databases/prisma"
 MYSQL_SCHEMA="$SCHEMA_DIR/schema.mysql.prisma"
 SQLITE_SCHEMA="$SCHEMA_DIR/schema.sqlite.prisma"
 ACTIVE_SCHEMA="$SCHEMA_DIR/schema.prisma"
+MYSQL_CLIENT="$SCHEMA_DIR/client.mysql.ts"
+SQLITE_CLIENT="$SCHEMA_DIR/client.sqlite.ts"
+ACTIVE_CLIENT="$SCHEMA_DIR/client.ts"
 MIGRATIONS_DIR="$SCHEMA_DIR/migrations"
 MYSQL_MIGRATIONS="$SCHEMA_DIR/migrations-mysql"
 SQLITE_MIGRATIONS="$SCHEMA_DIR/migrations-sqlite"
@@ -25,18 +28,22 @@ switch_schema() {
     local db=$1
     if [ "$db" = "mysql" ]; then
         cp "$MYSQL_SCHEMA" "$ACTIVE_SCHEMA"
+        cp "$MYSQL_CLIENT" "$ACTIVE_CLIENT"
         # Switch to MySQL migrations directory
         if [ -d "$MYSQL_MIGRATIONS" ]; then
             rm -rf "$MIGRATIONS_DIR"
             ln -sf "$(basename $MYSQL_MIGRATIONS)" "$MIGRATIONS_DIR"
         fi
+        print_info "Switched to MySQL schema and client"
     elif [ "$db" = "sqlite" ]; then
         cp "$SQLITE_SCHEMA" "$ACTIVE_SCHEMA"
+        cp "$SQLITE_CLIENT" "$ACTIVE_CLIENT"
         # Switch to SQLite migrations directory
         if [ -d "$SQLITE_MIGRATIONS" ]; then
             rm -rf "$MIGRATIONS_DIR"
             ln -sf "$(basename $SQLITE_MIGRATIONS)" "$MIGRATIONS_DIR"
         fi
+        print_info "Switched to SQLite schema and client"
     else
         print_error "Unknown database: $db. Use 'mysql' or 'sqlite'"
         exit 1

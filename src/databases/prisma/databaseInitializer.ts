@@ -1,9 +1,17 @@
 import os from 'os';
 import path from 'path';
 import fs from 'fs/promises';
-import { setDatabaseReady, isDatabaseReady } from './client';
-import { MigrationManager, CURRENT_DB_VERSION, initializeVersionTracking, getDatabaseType } from './migrations';
+import { setDatabaseReady, isDatabaseReady, getConnectionStatus } from './client';
+import { MigrationManager, CURRENT_DB_VERSION, initializeVersionTracking } from './migrations';
 import { getConfig } from '../../config/app.config';
+
+/**
+ * Get the current database provider from the active client
+ */
+const getCurrentProvider = (): 'sqlite' | 'mysql' => {
+    const status = getConnectionStatus();
+    return status.provider as 'sqlite' | 'mysql';
+};
 
 /**
  * Template database filename - created at build time with all tables ready.
@@ -45,10 +53,10 @@ export class DatabaseInitializer {
             return true;
         }
 
-        const dbType = getDatabaseType();
+        const provider = getCurrentProvider();
 
         // For MySQL mode (server/online), handle differently
-        if (dbType === 'mysql') {
+        if (provider === 'mysql') {
             return this.ensureReadyForMySQL();
         }
 
@@ -61,7 +69,30 @@ export class DatabaseInitializer {
      */
     private static async ensureReadyForMySQL(): Promise<boolean> {
         try {
+            // MySQL doesn't need file verification, just mark as ready
             setDatabaseReady();
+
+            // Import Prisma now that DB is ready
+            const { default: prisma } = await import('./client');
+
+            // Initialize migration manager for MySQL
+            this.migrationManager = new MigrationManager(prisma, process.cwd(), 'mysql');
+
+            // Check for and run migrations if needed
+            if (await this.migrationManager.needsMigration()) {
+                console.log('📦 Running MySQL migrations...');
+                const result = await this.migrationManager.migrate();
+
+                if (!result.success) {
+                    console.error('❌ MySQL migration failed:', result.error);
+                    return false;
+                }
+            }
+
+            // Test connection
+            await prisma.$queryRaw`SELECT 1`;
+
+            console.log(`✓ MySQL database ready (version: ${CURRENT_DB_VERSION})\n`);
             return true;
         } catch (error) {
             console.error('\n❌ Failed to setup MySQL database:', (error as Error).message);
@@ -364,6 +395,7 @@ export class DatabaseInitializer {
      */
     static async getStatus(): Promise<{
         initialized: boolean;
+        provider: 'sqlite' | 'mysql';
         version: string | null;
         targetVersion: string;
         needsMigration: boolean;
@@ -371,6 +403,7 @@ export class DatabaseInitializer {
         backupsPath: string;
     }> {
         const initialized = isDatabaseReady();
+        const provider = getCurrentProvider();
         let version: string | null = null;
         let needsMigration = false;
 
@@ -381,11 +414,12 @@ export class DatabaseInitializer {
 
         return {
             initialized,
+            provider,
             version,
             targetVersion: CURRENT_DB_VERSION,
             needsMigration,
-            dbPath: this.targetDbPath || 'not set',
-            backupsPath: path.join(this.userDataPath || '', 'backups'),
+            dbPath: provider === 'sqlite' ? (this.targetDbPath || 'not set') : 'N/A (MySQL)',
+            backupsPath: provider === 'sqlite' ? path.join(this.userDataPath || '', 'backups') : 'N/A (MySQL)',
         };
     }
 

@@ -1,8 +1,14 @@
+/**
+ * MySQL Prisma Client Template
+ * 
+ * Copy this file's content to client.ts when using MySQL database.
+ * 
+ * Provider: MySQL/MariaDB
+ */
+
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 import { PrismaMariaDb } from '@prisma/adapter-mariadb';
 import {
-    DATABASE_OFFLINE_MODE,
-    DATABASE_URL,
     DATABASE_HOST,
     DATABASE_USER,
     DATABASE_PASSWORD,
@@ -10,107 +16,48 @@ import {
     DATABASE_PORT
 } from '../../config/db';
 
-// Conditional imports based on mode to avoid loading native modules unnecessarily
-// MySQL client is always needed for type definitions
+// MySQL client is always loaded (no native dependencies like SQLite)
 import { PrismaClient as MySQLPrismaClient } from './generated/mysql/client';
 
-// SQLite client - only import if in offline mode (to avoid loading native better-sqlite3 on servers)
-let SQLitePrismaClient: any;
-let PrismaBetterSqlite3: any;
-
 // Use 'any' to avoid circular type reference errors in Prisma's complex generated types
-// This is a known issue with Prisma's recursive type definitions
 type PrismaClientInstance = any;
 
-// Re-export the type for external usage (use any to avoid circular reference errors)
+// Re-export the type for external usage
 export type PrismaClient = any;
 
-// Use 'any' for internal client variables to avoid complex type issues between the two generated clients
-// The clients are structurally identical but TypeScript treats them as incompatible due to different module origins
-let localClient: PrismaClientInstance | null = null;
-let remoteClient: any = null;  // MySQLPrismaClient - use any to avoid type conflicts
-let prismaInstance: PrismaClientInstance | null = null;
+let prismaClient: PrismaClientInstance | null = null;
 let isInitialized = false;
 
 /**
- * Flag to indicate if database file has been verified to exist.
- * This MUST be set to true before any SQLite connection is allowed.
+ * For MySQL, database is always "ready" - no file verification needed.
+ * These functions exist for API compatibility with SQLite client.
  */
-let databaseVerified = false;
-
-/**
- * Custom database URL that can be set after verification.
- * Takes precedence over DATABASE_URL environment variable.
- */
-let verifiedDatabaseUrl: string | null = null;
-
-/**
- * Mark the database as verified and ready for connections.
- * Call this AFTER ensuring the database file exists (e.g., after copying template).
- * 
- * @param dbUrl - The verified database URL (e.g., 'file:/path/to/local.db')
- */
-export const setDatabaseReady = (dbUrl?: string): void => {
-    if (dbUrl) {
-        verifiedDatabaseUrl = dbUrl;
-    }
-    databaseVerified = true;
-    console.log('✓ Database marked as ready for connections');
+export const setDatabaseReady = (_dbUrl?: string): void => {
+    console.log('✓ MySQL database marked as ready for connections');
 };
 
 /**
- * Check if database has been verified
+ * For MySQL, always return true - no pre-verification needed
  */
-export const isDatabaseReady = (): boolean => databaseVerified;
+export const isDatabaseReady = (): boolean => true;
 
 /**
- * Get the effective database URL (verified URL or fallback to env)
+ * Reset state (for testing)
  */
-const getEffectiveDatabaseUrl = (): string => {
-    return verifiedDatabaseUrl || DATABASE_URL || 'file:./local.db';
+export const resetDatabaseState = (): void => {
+    // No-op for MySQL
 };
 
 /**
- * Dynamically load SQLite dependencies only when needed
- * This prevents loading native modules on production servers using MySQL
+ * Initialize the Prisma client
  */
-const loadSqliteDependencies = async () => {
-    if (!SQLitePrismaClient) {
-        const sqliteClientModule = await import('./generated/prisma/client');
-        SQLitePrismaClient = sqliteClientModule.PrismaClient;
-    }
-    if (!PrismaBetterSqlite3) {
-        const adapterModule = await import('@prisma/adapter-better-sqlite3');
-        PrismaBetterSqlite3 = adapterModule.PrismaBetterSqlite3;
-    }
-};
+const initializeClient = async (): Promise<PrismaClientInstance> => {
+    if (!prismaClient) {
+        console.log('🌐 Attempting to connect to MySQL database...');
+        console.log(`   Host: ${DATABASE_HOST}:${DATABASE_PORT}`);
+        console.log(`   Database: ${DATABASE_NAME}`);
+        console.log(`   User: ${DATABASE_USER}`);
 
-const initializeLocalClient = async () => {
-    if (!databaseVerified) {
-        throw new Error(
-            'Database not verified! Call DatabaseInitializer.ensureReady() before using Prisma. ' +
-            'This prevents SQLite from creating an empty database file.'
-        );
-    }
-
-    if (!localClient) {
-        // Dynamically load SQLite dependencies
-        await loadSqliteDependencies();
-
-        const dbUrl = getEffectiveDatabaseUrl();
-        console.log(`📂 Opening SQLite database: ${dbUrl}`);
-        const adapter = new PrismaBetterSqlite3({ url: dbUrl });
-        // Use SQLite-generated client for SQLite adapter
-        localClient = new SQLitePrismaClient({
-            adapter,
-            log: ['error', 'warn']
-        }) as unknown as PrismaClientInstance;
-    }
-    return localClient;
-};
-
-const initializeRemoteClient = async () => {
-    if (!remoteClient) {
         const adapter = new PrismaMariaDb({
             host: DATABASE_HOST,
             port: DATABASE_PORT,
@@ -120,48 +67,31 @@ const initializeRemoteClient = async () => {
             connectionLimit: 5,
             connectTimeout: 5000  // 5 second timeout for faster fallback
         });
-        // Use MySQL-generated client for MariaDB/MySQL adapter
-        remoteClient = new MySQLPrismaClient({
+
+        prismaClient = new MySQLPrismaClient({
             adapter,
             log: ['error', 'warn']
         });
+
         try {
-            await remoteClient.$connect();
+            await prismaClient.$connect();
             // Actually test the connection with a simple query
             // $connect() for MySQL adapter doesn't always verify the connection
-            await remoteClient.$queryRaw`SELECT 1`;
+            await prismaClient.$queryRaw`SELECT 1`;
+            isInitialized = true;
+            console.log('✓ Connected to MySQL database');
         } catch (error) {
             // Clean up the failed client
             try {
-                await remoteClient.$disconnect();
+                await prismaClient.$disconnect();
             } catch {
                 // Ignore disconnect errors
             }
-            remoteClient = null;
-            throw error;
-        }
-    }
-    return remoteClient;
-};
+            prismaClient = null;
+            isInitialized = false;
 
-const initializePrisma = async (): Promise<PrismaClientInstance> => {
-    if (prismaInstance) return prismaInstance;
-
-    if (!DATABASE_OFFLINE_MODE) {
-        try {
-            console.log('🌐 Attempting to connect to remote MySQL database...');
-            console.log(`   Host: ${DATABASE_HOST}:${DATABASE_PORT}`);
-            console.log(`   Database: ${DATABASE_NAME}`);
-            console.log(`   User: ${DATABASE_USER}`);
-            prismaInstance = await initializeRemoteClient();
-            console.log('✓ Connected to remote MySQL database');
-            isInitialized = true;
-            return prismaInstance;
-        } catch (error) {
-            // In server mode (MySQL), do NOT fallback to SQLite
-            // SQLite native modules are not compatible with server environments
             const errorMessage = error instanceof Error ? error.message : String(error);
-            console.error('❌ Failed to connect to remote database');
+            console.error('❌ Failed to connect to MySQL database');
             console.error(`   Error: ${errorMessage}`);
             console.error(`   Host: ${DATABASE_HOST}:${DATABASE_PORT}`);
             console.error(`   Database: ${DATABASE_NAME}`);
@@ -170,46 +100,37 @@ const initializePrisma = async (): Promise<PrismaClientInstance> => {
             throw new Error(
                 `Failed to connect to MySQL database at ${DATABASE_HOST}:${DATABASE_PORT}. ` +
                 `Error: ${errorMessage}. ` +
-                'SQLite fallback is disabled in server mode. ' +
                 'Please check your database configuration and ensure MySQL is running.'
             );
         }
     }
 
-    console.log('📦 Using local SQLite database');
-    prismaInstance = await initializeLocalClient();
-    isInitialized = true;
-    console.log('✓ Connected to local SQLite database');
-    return prismaInstance;
+    return prismaClient;
 };
 
 /**
  * Prisma client wrapper that ensures initialization before any operation
  * Use directly: prisma.model.findMany()
  * 
- * IMPORTANT: Initialization is now LAZY - it only happens when a method is called.
- * This prevents the "Database not verified" error when the module is imported
- * before DatabaseInitializer.ensureReady() is called.
+ * IMPORTANT: Initialization is LAZY - it only happens when a method is called.
  */
 class PrismaClientWrapper {
     private clientPromise: Promise<PrismaClientInstance> | null = null;
 
     constructor() {
         // Don't initialize immediately - wait for first use
-        // This allows DatabaseInitializer.ensureReady() to be called first
     }
 
     private async getClient(): Promise<PrismaClientInstance> {
-        // Lazy initialization - only create promise on first access
         if (!this.clientPromise) {
-            this.clientPromise = initializePrisma();
+            this.clientPromise = initializeClient();
         }
 
         if (!isInitialized) {
             await this.clientPromise;
         }
 
-        return prismaInstance!;
+        return prismaClient!;
     }
 
     private createProxy(): any {
@@ -263,9 +184,9 @@ class PrismaClientWrapper {
  */
 export const getPrisma = async (): Promise<PrismaClientInstance> => {
     if (!isInitialized) {
-        await initializePrisma();
+        await initializeClient();
     }
-    return prismaInstance!;
+    return prismaClient!;
 };
 
 /**
@@ -277,18 +198,13 @@ export const getPrismaClient = async (): Promise<PrismaClientInstance> => {
 };
 
 /**
- * Disconnect all Prisma clients and reset state
+ * Disconnect Prisma client and reset state
  */
 export const disconnectPrisma = async () => {
-    if (localClient) {
-        await localClient.$disconnect();
+    if (prismaClient) {
+        await prismaClient.$disconnect();
     }
-    if (remoteClient) {
-        await remoteClient.$disconnect();
-    }
-    prismaInstance = null;
-    localClient = null;
-    remoteClient = null;
+    prismaClient = null;
     isInitialized = false;
 };
 
@@ -298,9 +214,11 @@ export const disconnectPrisma = async () => {
 export const getConnectionStatus = () => {
     return {
         isInitialized,
-        isLocal: prismaInstance === localClient,
-        isRemote: prismaInstance === remoteClient,
-        offlineMode: DATABASE_OFFLINE_MODE
+        host: DATABASE_HOST,
+        port: DATABASE_PORT,
+        database: DATABASE_NAME,
+        user: DATABASE_USER,
+        provider: 'mysql'
     };
 };
 
