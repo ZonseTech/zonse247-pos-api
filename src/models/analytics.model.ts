@@ -183,7 +183,7 @@ export class AnalyticsModel {
         const topProducts: Array<TopProduct> = [];
 
         productSummary.forEach((summary, productId) => {
-            const product = productMap.get(productId);
+            const product = productMap.get(productId) as { id: string; name: string } | undefined;
 
             if (product) {
                 topProducts.push({

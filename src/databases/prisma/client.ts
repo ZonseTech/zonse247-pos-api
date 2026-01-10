@@ -1,6 +1,5 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 import { PrismaMariaDb } from '@prisma/adapter-mariadb';
-import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
 import {
     DATABASE_OFFLINE_MODE,
     DATABASE_URL,
@@ -10,16 +9,21 @@ import {
     DATABASE_NAME,
     DATABASE_PORT
 } from '../../config/db';
-// Import SQLite-generated client (default for offline/Electron)
-import { PrismaClient as SQLitePrismaClient } from './generated/prisma/client';
-// Import MySQL-generated client (for remote database)
+
+// Conditional imports based on mode to avoid loading native modules unnecessarily
+// MySQL client is always needed for type definitions
 import { PrismaClient as MySQLPrismaClient } from './generated/mysql/client';
 
-// Use SQLite client type as the canonical PrismaClient type (both clients have identical interface)
-type PrismaClientInstance = SQLitePrismaClient;
+// SQLite client - only import if in offline mode (to avoid loading native better-sqlite3 on servers)
+let SQLitePrismaClient: any;
+let PrismaBetterSqlite3: any;
 
-// Re-export the type for external usage
-export type { SQLitePrismaClient as PrismaClient };
+// Use 'any' to avoid circular type reference errors in Prisma's complex generated types
+// This is a known issue with Prisma's recursive type definitions
+type PrismaClientInstance = any;
+
+// Re-export the type for external usage (use any to avoid circular reference errors)
+export type PrismaClient = any;
 
 // Use 'any' for internal client variables to avoid complex type issues between the two generated clients
 // The clients are structurally identical but TypeScript treats them as incompatible due to different module origins
@@ -66,7 +70,22 @@ const getEffectiveDatabaseUrl = (): string => {
     return verifiedDatabaseUrl || DATABASE_URL || 'file:./local.db';
 };
 
-const initializeLocalClient = () => {
+/**
+ * Dynamically load SQLite dependencies only when needed
+ * This prevents loading native modules on production servers using MySQL
+ */
+const loadSqliteDependencies = async () => {
+    if (!SQLitePrismaClient) {
+        const sqliteClientModule = await import('./generated/prisma/client');
+        SQLitePrismaClient = sqliteClientModule.PrismaClient;
+    }
+    if (!PrismaBetterSqlite3) {
+        const adapterModule = await import('@prisma/adapter-better-sqlite3');
+        PrismaBetterSqlite3 = adapterModule.PrismaBetterSqlite3;
+    }
+};
+
+const initializeLocalClient = async () => {
     if (!databaseVerified) {
         throw new Error(
             'Database not verified! Call DatabaseInitializer.ensureReady() before using Prisma. ' +
@@ -75,6 +94,9 @@ const initializeLocalClient = () => {
     }
 
     if (!localClient) {
+        // Dynamically load SQLite dependencies
+        await loadSqliteDependencies();
+
         const dbUrl = getEffectiveDatabaseUrl();
         console.log(`📂 Opening SQLite database: ${dbUrl}`);
         const adapter = new PrismaBetterSqlite3({ url: dbUrl });
@@ -82,7 +104,7 @@ const initializeLocalClient = () => {
         localClient = new SQLitePrismaClient({
             adapter,
             log: ['error', 'warn']
-        });
+        }) as unknown as PrismaClientInstance;
     }
     return localClient;
 };
@@ -134,14 +156,14 @@ const initializePrisma = async (): Promise<PrismaClientInstance> => {
             return prismaInstance;
         } catch (error) {
             console.warn('⚠️  Failed to connect to remote database, falling back to local:', error);
-            prismaInstance = initializeLocalClient();
+            prismaInstance = await initializeLocalClient();
             isInitialized = true;
             return prismaInstance;
         }
     }
 
     console.log('📦 Using local SQLite database');
-    prismaInstance = initializeLocalClient();
+    prismaInstance = await initializeLocalClient();
     isInitialized = true;
     console.log('✓ Connected to local SQLite database');
     return prismaInstance;
