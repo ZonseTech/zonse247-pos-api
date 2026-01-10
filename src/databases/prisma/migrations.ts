@@ -12,7 +12,7 @@
 
 import fs from 'fs/promises';
 import path from 'path';
-import { DATABASE_OFFLINE_MODE } from '../../config/db';
+import { getDatabaseConfig } from '../../config/db';
 
 /**
  * Current schema version - INCREMENT THIS when schema changes
@@ -34,12 +34,9 @@ export type DatabaseType = 'sqlite' | 'mysql';
  * Get the current database type based on configuration
  */
 export const getDatabaseType = (): DatabaseType => {
-    // If offline mode is forced, use SQLite
-    if (DATABASE_OFFLINE_MODE) {
-        return 'sqlite';
-    }
-    // Default to MySQL when not in offline mode (server mode)
-    return 'mysql';
+    const config = getDatabaseConfig()
+
+    return config.provider as unknown as DatabaseType;
 };
 
 /**
@@ -301,7 +298,7 @@ export class MigrationManager {
             try {
                 // Get database-specific SQL statements
                 const sqlStatements = getSqlStatements(migration.up, this.dbType);
-                
+
                 // Run each SQL statement in the migration
                 for (const sql of sqlStatements) {
                     if (sql.trim()) {
@@ -431,7 +428,7 @@ export class MigrationManager {
  */
 export async function initializeVersionTracking(prismaClient: any, dbType?: DatabaseType): Promise<void> {
     const currentDbType = dbType || getDatabaseType();
-    
+
     try {
         if (currentDbType === 'mysql') {
             // MySQL syntax
