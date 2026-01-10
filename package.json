@@ -16,7 +16,7 @@
   "scripts": {
     "task": "task",
     "task:list": "task --list-all",
-    "prebuild": "prisma generate",
+    "prebuild": "prisma generate --schema=src/databases/prisma/schema.sqlite.prisma && prisma generate --schema=src/databases/prisma/schema.mysql.prisma",
     "build": "tsc",
     "build:clean": "npm run clean && npm run build",
     "build:watch": "tsc --watch",
