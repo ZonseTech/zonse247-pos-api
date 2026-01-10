@@ -23,6 +23,17 @@ export interface TenantRegistrationDetail extends TenantRegistrationDetailInput 
 
 export class TenantRegistrationDetailModel {
     /**
+     * Find all registration details
+     */
+    static async findAll(): Promise<TenantRegistrationDetail[]> {
+        const results = await prisma.tenantRegistrationDetail.findMany({
+            orderBy: { createdAt: 'desc' },
+        });
+
+        return results as unknown as TenantRegistrationDetail[];
+    }
+
+    /**
      * Create a new tenant registration detail record
      */
     static async create(data: TenantRegistrationDetailInput): Promise<TenantRegistrationDetail> {

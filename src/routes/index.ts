@@ -30,6 +30,7 @@ import PurchaseOrdersRoutes from './purchase-orders.routes'
 import SalesRoutes from './sales.routes'
 import StockMovementsRoutes from './stock-movements.routes'
 import PrinterRoutes from './printer.routes'
+import TenantRegistrationDetailRoutes from './tenant-registration-detail.routes'
 import { AuthMiddleware } from '../middlewares/auth.middleware'
 import { apiMiddleware } from '../middlewares/api.middleware'
 import { preventSQLInjection, preventXSS, sanitizeInput } from '../middlewares/security.middleware'
@@ -106,5 +107,6 @@ router.use('/purchase-orders', PurchaseOrdersRoutes);
 router.use('/sales', SalesRoutes);
 router.use('/stock-movements', StockMovementsRoutes);
 router.use('/printers', PrinterRoutes);
+router.use('/tenant-registration-details', TenantRegistrationDetailRoutes);
 
 export default router
