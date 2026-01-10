@@ -66,58 +66,12 @@ export class DatabaseInitializer {
             // Mark database as ready - MySQL doesn't need file verification
             setDatabaseReady();
 
-            // Import Prisma client
-            const { default: prisma } = await import('./client');
+            // Migrations disabled - schema should be managed via Prisma CLI:
+            // npx prisma db push --schema=src/databases/prisma/schema.mysql.prisma
+            // or
+            // npx prisma migrate deploy --schema=src/databases/prisma/schema.mysql.prisma
 
-            // Initialize version tracking for MySQL
-            await initializeVersionTracking(prisma, 'mysql');
-
-            // Check for and run migrations if needed
-            this.migrationManager = new MigrationManager(prisma, this.userDataPath, 'mysql');
-
-            if (await this.migrationManager.needsMigration()) {
-                // For MySQL, we don't do file-based backup/restore
-                // Just run the migrations
-                const pendingMigrations = await this.migrationManager.getPendingMigrations();
-                
-                console.log(`\n📊 Database Migration (MySQL)`);
-                console.log(`   Current version: ${await this.migrationManager.getCurrentVersion() || 'unknown'}`);
-                console.log(`   Target version: ${CURRENT_DB_VERSION}`);
-                console.log(`   Pending migrations: ${pendingMigrations.length}\n`);
-
-                for (const migration of pendingMigrations) {
-                    console.log(`🔄 Applying migration ${migration.version}: ${migration.description}`);
-                    try {
-                        // Get MySQL-specific SQL statements
-                        const sqlStatements = Array.isArray(migration.up) 
-                            ? migration.up 
-                            : migration.up.mysql || [];
-                        
-                        for (const sql of sqlStatements) {
-                            if (sql.trim()) {
-                                await prisma.$executeRawUnsafe(sql);
-                            }
-                        }
-                        
-                        // Update version using MySQL syntax
-                        await prisma.$executeRawUnsafe(
-                            "REPLACE INTO db_meta (`key`, `value`, updated_at) VALUES ('schema_version', ?, CURRENT_TIMESTAMP)",
-                            migration.version
-                        );
-                        console.log(`   ✓ Migration ${migration.version} applied`);
-                    } catch (error) {
-                        console.error(`   ❌ Migration ${migration.version} failed:`, (error as Error).message);
-                        return false;
-                    }
-                }
-
-                if (pendingMigrations.length > 0) {
-                    console.log(`\n✓ All migrations applied successfully`);
-                    console.log(`   New version: ${CURRENT_DB_VERSION}\n`);
-                }
-            }
-
-            console.log(`✓ Database ready (version: ${CURRENT_DB_VERSION})\n`);
+            console.log(`✓ MySQL database ready\n`);
             return true;
         } catch (error) {
             console.error('\n❌ Failed to setup MySQL database:', (error as Error).message);
