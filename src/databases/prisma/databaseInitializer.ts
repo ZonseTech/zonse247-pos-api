@@ -46,7 +46,7 @@ export class DatabaseInitializer {
         }
 
         const dbType = getDatabaseType();
-        
+
         // For MySQL mode (server/online), handle differently
         if (dbType === 'mysql') {
             return this.ensureReadyForMySQL(userDataPath);
