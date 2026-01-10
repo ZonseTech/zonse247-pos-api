@@ -112,6 +112,7 @@
     "@prisma/adapter-better-sqlite3": "^7.0.1",
     "@prisma/adapter-mariadb": "^7.0.1",
     "@prisma/client": "^7.0.1",
+    "better-sqlite3": "^11.8.1",
     "@rollup/plugin-commonjs": "^29.0.0",
     "@rollup/plugin-node-resolve": "^16.0.3",
     "@rollup/plugin-typescript": "^12.3.0",
