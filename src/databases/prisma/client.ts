@@ -150,6 +150,9 @@ const initializePrisma = async (): Promise<PrismaClientInstance> => {
     if (!DATABASE_OFFLINE_MODE) {
         try {
             console.log('🌐 Attempting to connect to remote MySQL database...');
+            console.log(`   Host: ${DATABASE_HOST}:${DATABASE_PORT}`);
+            console.log(`   Database: ${DATABASE_NAME}`);
+            console.log(`   User: ${DATABASE_USER}`);
             prismaInstance = await initializeRemoteClient();
             console.log('✓ Connected to remote MySQL database');
             isInitialized = true;
@@ -157,9 +160,17 @@ const initializePrisma = async (): Promise<PrismaClientInstance> => {
         } catch (error) {
             // In server mode (MySQL), do NOT fallback to SQLite
             // SQLite native modules are not compatible with server environments
-            console.error('❌ Failed to connect to remote database:', error);
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            console.error('❌ Failed to connect to remote database');
+            console.error(`   Error: ${errorMessage}`);
+            console.error(`   Host: ${DATABASE_HOST}:${DATABASE_PORT}`);
+            console.error(`   Database: ${DATABASE_NAME}`);
+            console.error(`   User: ${DATABASE_USER}`);
+
             throw new Error(
-                'Failed to connect to MySQL database. SQLite fallback is disabled in server mode. ' +
+                `Failed to connect to MySQL database at ${DATABASE_HOST}:${DATABASE_PORT}. ` +
+                `Error: ${errorMessage}. ` +
+                'SQLite fallback is disabled in server mode. ' +
                 'Please check your database configuration and ensure MySQL is running.'
             );
         }
