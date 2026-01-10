@@ -155,10 +155,13 @@ const initializePrisma = async (): Promise<PrismaClientInstance> => {
             isInitialized = true;
             return prismaInstance;
         } catch (error) {
-            console.warn('⚠️  Failed to connect to remote database, falling back to local:', error);
-            prismaInstance = await initializeLocalClient();
-            isInitialized = true;
-            return prismaInstance;
+            // In server mode (MySQL), do NOT fallback to SQLite
+            // SQLite native modules are not compatible with server environments
+            console.error('❌ Failed to connect to remote database:', error);
+            throw new Error(
+                'Failed to connect to MySQL database. SQLite fallback is disabled in server mode. ' +
+                'Please check your database configuration and ensure MySQL is running.'
+            );
         }
     }
 
