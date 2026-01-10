@@ -1528,3 +1528,25 @@ enum PrintJobStatus {
   FAILED
   CANCELLED
 }
+// Tenant Registration Details - stores temporary registration info
+model TenantRegistrationDetail {
+  id                Int       @id @default(autoincrement())
+  detailId          String    @unique @map("detail_id")
+  tenantId          String    @map("tenant_id")
+  businessName      String    @map("business_name")
+  ownerName         String    @map("owner_name")
+  email             String    @map("email")
+  tenantCode        String    @map("tenant_code")
+  verificationToken String    @map("verification_token")
+  username          String    @map("username")
+  password          String    @map("password")
+  isProcessed       Boolean   @default(false) @map("is_processed")
+  processedAt       DateTime? @map("processed_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  @@index([tenantId])
+  @@index([email])
+  @@index([isProcessed])
+  @@map("tenant_registration_details")
+}
