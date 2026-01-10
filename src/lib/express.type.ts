@@ -14,3 +14,12 @@ interface AuthRequestBase {
 }
 
 export type AuthRequest = AuthRequestBase;
+
+/**
+ * Safely extract a route parameter as string.
+ * Express types req.params values as string | string[] but route params are always strings.
+ */
+export const getParam = (param: string | string[] | undefined): string => {
+    if (Array.isArray(param)) return param[0] || '';
+    return param || '';
+};
