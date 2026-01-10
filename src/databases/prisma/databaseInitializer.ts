@@ -49,7 +49,7 @@ export class DatabaseInitializer {
 
         // For MySQL mode (server/online), handle differently
         if (dbType === 'mysql') {
-            return this.ensureReadyForMySQL(userDataPath);
+            return this.ensureReadyForMySQL();
         }
 
         // SQLite mode (Electron/offline)
@@ -59,19 +59,9 @@ export class DatabaseInitializer {
     /**
      * Ensure MySQL database is ready (server mode)
      */
-    private static async ensureReadyForMySQL(userDataPath?: string): Promise<boolean> {
-        this.userDataPath = userDataPath || this.resolveDefaultDataPath();
-
+    private static async ensureReadyForMySQL(): Promise<boolean> {
         try {
-            // Mark database as ready - MySQL doesn't need file verification
             setDatabaseReady();
-
-            // Migrations disabled - schema should be managed via Prisma CLI:
-            // npx prisma db push --schema=src/databases/prisma/schema.mysql.prisma
-            // or
-            // npx prisma migrate deploy --schema=src/databases/prisma/schema.mysql.prisma
-
-            console.log(`✓ MySQL database ready\n`);
             return true;
         } catch (error) {
             console.error('\n❌ Failed to setup MySQL database:', (error as Error).message);
