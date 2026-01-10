@@ -587,8 +587,108 @@ export class PrintContentService {
 
     /**
      * Generate test page content
+     * For laser/inkjet printers, generates plain text
+     * For thermal printers, generates ESC/POS commands
      */
     static generateTestPageContent(printer: Printer): string {
+        // Use plain text for laser and inkjet printers
+        const usePlainText = printer.printerType === 'LASER' || printer.printerType === 'INKJET';
+
+        if (usePlainText) {
+            return this.generatePlainTextTestPage(printer);
+        }
+
+        return this.generateEscPosTestPage(printer);
+    }
+
+    /**
+     * Generate plain text test page for laser/inkjet printers
+     */
+    private static generatePlainTextTestPage(printer: Printer): string {
+        const lineWidth = 60;
+        let content = '';
+
+        content += '\n';
+        content += '='.repeat(lineWidth) + '\n';
+        content += this.centerText('PRINTER TEST PAGE', lineWidth) + '\n';
+        content += this.centerText('Zonse247 POS System', lineWidth) + '\n';
+        content += '='.repeat(lineWidth) + '\n\n';
+
+        content += 'PRINTER INFORMATION\n';
+        content += '-'.repeat(lineWidth) + '\n';
+        content += `Printer Name:   ${printer.printerName}\n`;
+        content += `Printer Type:   ${printer.printerType}\n`;
+        content += `Printer Model:  ${printer.printerModel || 'N/A'}\n`;
+        content += `Connection:     ${printer.connectionType}\n`;
+        content += `Test Date:      ${new Date().toLocaleString()}\n\n`;
+
+        content += 'CHARACTER SET TEST\n';
+        content += '-'.repeat(lineWidth) + '\n';
+        content += 'Numbers:    0123456789\n';
+        content += 'Uppercase:  ABCDEFGHIJKLMNOPQRSTUVWXYZ\n';
+        content += 'Lowercase:  abcdefghijklmnopqrstuvwxyz\n';
+        content += 'Symbols:    !@#$%^&*()_+-=[]{}|;:\'",.<>?/\\\n\n';
+
+        content += 'ALIGNMENT TEST\n';
+        content += '-'.repeat(lineWidth) + '\n';
+        content += 'Left Aligned Text\n';
+        content += this.centerText('Center Aligned Text', lineWidth) + '\n';
+        content += this.rightAlignText('Right Aligned Text', lineWidth) + '\n\n';
+
+        content += 'LINE TEST\n';
+        content += '-'.repeat(lineWidth) + '\n';
+        content += 'Single line: ' + '-'.repeat(lineWidth - 13) + '\n';
+        content += 'Double line: ' + '='.repeat(lineWidth - 13) + '\n';
+        content += 'Dotted line: ' + '.'.repeat(lineWidth - 13) + '\n\n';
+
+        content += 'SAMPLE RECEIPT FORMAT\n';
+        content += '-'.repeat(lineWidth) + '\n';
+        content += this.formatReceiptLine('Item 1', 'K 1,000.00', lineWidth) + '\n';
+        content += this.formatReceiptLine('Item 2 (x2)', 'K 2,500.00', lineWidth) + '\n';
+        content += this.formatReceiptLine('Item 3', 'K 750.00', lineWidth) + '\n';
+        content += '-'.repeat(lineWidth) + '\n';
+        content += this.formatReceiptLine('SUBTOTAL', 'K 4,250.00', lineWidth) + '\n';
+        content += this.formatReceiptLine('TAX (16.5%)', 'K 701.25', lineWidth) + '\n';
+        content += '='.repeat(lineWidth) + '\n';
+        content += this.formatReceiptLine('TOTAL', 'K 4,951.25', lineWidth) + '\n';
+        content += '='.repeat(lineWidth) + '\n\n';
+
+        content += '='.repeat(lineWidth) + '\n';
+        content += this.centerText('TEST COMPLETE', lineWidth) + '\n';
+        content += this.centerText('Printer is functioning correctly!', lineWidth) + '\n';
+        content += '='.repeat(lineWidth) + '\n\n';
+
+        return content;
+    }
+
+    /**
+     * Center text within a given width
+     */
+    private static centerText(text: string, width: number): string {
+        const padding = Math.max(0, Math.floor((width - text.length) / 2));
+        return ' '.repeat(padding) + text;
+    }
+
+    /**
+     * Right align text within a given width
+     */
+    private static rightAlignText(text: string, width: number): string {
+        const padding = Math.max(0, width - text.length);
+        return ' '.repeat(padding) + text;
+    }
+
+    /**
+     * Format a receipt line with left and right text
+     */
+    private static formatReceiptLine(left: string, right: string, width: number): string {
+        const spaces = Math.max(1, width - left.length - right.length);
+        return left + ' '.repeat(spaces) + right;
+    }
+
+    /**
+     * Generate ESC/POS test page for thermal printers
+     */
+    private static generateEscPosTestPage(printer: Printer): string {
         let content = '';
         const lineWidth = 48;
 

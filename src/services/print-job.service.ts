@@ -12,6 +12,13 @@ import { PrintContentService } from './print-content.service';
 import { getPrintQueue } from './print-queue.service';
 import * as net from 'net';
 import { SerialPort } from 'serialport';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+import * as fs from 'fs';
+import * as path from 'path';
+import * as os from 'os';
+
+const execAsync = promisify(exec);
 
 // Error types for better handling
 export enum PrintErrorType {
@@ -188,6 +195,7 @@ export class PrintJobService {
      */
     private static async sendToPrinter(printer: Printer, printJob: PrintJob): Promise<boolean> {
         console.log(`[Print Job ${printJob.printJobId}] Sending to printer ${printer.printerName}`);
+        console.log(`Printer type: ${printer.printerType}`);
         console.log(`Connection type: ${printer.connectionType}`);
         console.log(`Content type: ${printJob.contentType}`);
         console.log(`Copies: ${printJob.copies}`);
@@ -197,7 +205,15 @@ export class PrintJobService {
             throw new Error('Print job has no content');
         }
 
-        // Convert string content to Buffer
+        // Check if this is a standard printer (laser/inkjet) that should use CUPS
+        const useCups = this.shouldUseCups(printer, printJob);
+
+        if (useCups) {
+            console.log(`[Print Job ${printJob.printJobId}] Using CUPS for ${printer.printerType} printer`);
+            return this.sendToCupsPrinter(printer, printJob);
+        }
+
+        // Convert string content to Buffer for ESC/POS printers
         const data = Buffer.from(content, 'binary');
 
         // Send to printer based on connection type
@@ -428,6 +444,183 @@ export class PrintJobService {
      */
     private static delay(ms: number): Promise<void> {
         return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    /**
+     * Determine if a printer should use CUPS for printing
+     * CUPS is used for standard printers (laser, inkjet) that don't support ESC/POS
+     */
+    private static shouldUseCups(printer: Printer, printJob: PrintJob): boolean {
+        // Laser and inkjet printers should use CUPS
+        const cupsTypes = ['LASER', 'INKJET'];
+        if (cupsTypes.includes(printer.printerType)) {
+            return true;
+        }
+
+        // If content type is explicitly TEXT or HTML (not ESC_POS), use CUPS
+        if (printJob.contentType === 'TEXT' || printJob.contentType === 'HTML') {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Get CUPS printer name from printer configuration
+     * Tries to match by vendor/product ID or printer name
+     */
+    private static async getCupsPrinterName(printer: Printer): Promise<string | null> {
+        try {
+            // List CUPS printers
+            const { stdout } = await execAsync('lpstat -p -d 2>/dev/null || true');
+            const lines = stdout.split('\n');
+
+            // Extract printer names
+            const cupsPrinters: string[] = [];
+            for (const line of lines) {
+                const match = line.match(/^printer\s+(\S+)/);
+                if (match) {
+                    cupsPrinters.push(match[1]);
+                }
+            }
+
+            if (cupsPrinters.length === 0) {
+                console.warn('[CUPS] No printers found');
+                return null;
+            }
+
+            console.log(`[CUPS] Available printers: ${cupsPrinters.join(', ')}`);
+
+            // Try to find a matching printer
+            // 1. Check if printer name contains the model
+            if (printer.printerModel) {
+                const modelParts = printer.printerModel.toLowerCase().replace(/[^a-z0-9]/g, '');
+                for (const cupsPrinter of cupsPrinters) {
+                    const cupsNameNormalized = cupsPrinter.toLowerCase().replace(/[^a-z0-9]/g, '');
+                    if (cupsNameNormalized.includes(modelParts) || modelParts.includes(cupsNameNormalized)) {
+                        console.log(`[CUPS] Matched printer by model: ${cupsPrinter}`);
+                        return cupsPrinter;
+                    }
+                }
+            }
+
+            // 2. Check if any CUPS printer name contains the printer name
+            const nameParts = printer.printerName.toLowerCase().replace(/[^a-z0-9]/g, '');
+            for (const cupsPrinter of cupsPrinters) {
+                const cupsNameNormalized = cupsPrinter.toLowerCase().replace(/[^a-z0-9]/g, '');
+                if (cupsNameNormalized.includes(nameParts) || nameParts.includes(cupsNameNormalized)) {
+                    console.log(`[CUPS] Matched printer by name: ${cupsPrinter}`);
+                    return cupsPrinter;
+                }
+            }
+
+            // 3. Check connectionAddress if it looks like a CUPS printer name
+            if (printer.connectionAddress && cupsPrinters.includes(printer.connectionAddress)) {
+                console.log(`[CUPS] Matched printer by address: ${printer.connectionAddress}`);
+                return printer.connectionAddress;
+            }
+
+            // 4. Get default printer
+            const defaultMatch = stdout.match(/system default destination:\s+(\S+)/);
+            if (defaultMatch) {
+                console.log(`[CUPS] Using default printer: ${defaultMatch[1]}`);
+                return defaultMatch[1];
+            }
+
+            // 5. Use first available printer
+            console.log(`[CUPS] Using first available printer: ${cupsPrinters[0]}`);
+            return cupsPrinters[0];
+        } catch (error) {
+            console.error('[CUPS] Error getting printer name:', error);
+            return null;
+        }
+    }
+
+    /**
+     * Send print job to CUPS printer using lp command
+     */
+    private static async sendToCupsPrinter(printer: Printer, printJob: PrintJob): Promise<boolean> {
+        const cupsPrinterName = await this.getCupsPrinterName(printer);
+
+        if (!cupsPrinterName) {
+            throw new Error('No CUPS printer found. Please ensure CUPS is installed and a printer is configured.');
+        }
+
+        // Create a temporary file for the print content
+        const tempDir = os.tmpdir();
+        const tempFile = path.join(tempDir, `printjob_${printJob.printJobId}.txt`);
+
+        try {
+            // Convert ESC/POS content to plain text if needed
+            let content = printJob.content;
+            if (printJob.contentType === 'ESC_POS') {
+                content = this.convertEscPosToText(content);
+            }
+
+            // Write content to temp file
+            fs.writeFileSync(tempFile, content, 'utf8');
+            console.log(`[CUPS] Created temp file: ${tempFile}`);
+
+            // Build lp command
+            const copies = printJob.copies || 1;
+            const lpCommand = `lp -d "${cupsPrinterName}" -n ${copies} "${tempFile}"`;
+
+            console.log(`[CUPS] Executing: ${lpCommand}`);
+            const { stdout, stderr } = await execAsync(lpCommand);
+
+            if (stderr && !stderr.includes('request id')) {
+                console.error(`[CUPS] stderr: ${stderr}`);
+            }
+
+            console.log(`[CUPS] Print job submitted: ${stdout.trim()}`);
+            return true;
+        } catch (error: any) {
+            console.error(`[CUPS] Error printing:`, error);
+            throw new Error(`CUPS print failed: ${error.message}`);
+        } finally {
+            // Clean up temp file
+            try {
+                if (fs.existsSync(tempFile)) {
+                    fs.unlinkSync(tempFile);
+                    console.log(`[CUPS] Cleaned up temp file`);
+                }
+            } catch (cleanupError) {
+                console.warn(`[CUPS] Failed to clean up temp file:`, cleanupError);
+            }
+        }
+    }
+
+    /**
+     * Convert ESC/POS formatted content to plain text
+     * Strips ESC/POS commands and keeps readable text
+     */
+    private static convertEscPosToText(content: string): string {
+        // Remove ESC/POS control codes
+        let text = content;
+
+        // Remove ESC sequences (ESC followed by various commands)
+        // eslint-disable-next-line no-control-regex
+        text = text.replace(/\x1b[\x00-\x7f]/g, '');
+        // eslint-disable-next-line no-control-regex
+        text = text.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '');
+
+        // Remove GS sequences
+        // eslint-disable-next-line no-control-regex
+        text = text.replace(/\x1d[\x00-\x7f]/g, '');
+        // eslint-disable-next-line no-control-regex
+        text = text.replace(/\x1d\([a-zA-Z][\x00-\xff]*/g, '');
+
+        // Remove other control characters except newlines and tabs
+        // eslint-disable-next-line no-control-regex
+        text = text.replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g, '');
+
+        // Clean up multiple blank lines
+        text = text.replace(/\n{3,}/g, '\n\n');
+
+        // Trim whitespace
+        text = text.trim();
+
+        return text;
     }
 
     /**
