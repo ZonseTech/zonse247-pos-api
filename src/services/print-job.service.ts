@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-non-null-assertion */
 import { PrinterModel, PrintJobModel } from '../models/printer.model';
 import {
     Printer,
@@ -318,11 +319,67 @@ export class PrintJobService {
     }
 
     /**
-     * Send data to USB printer (via serial port interface)
+     * Send data to USB printer (cross-platform: Windows, macOS, Linux)
      */
     private static async sendToUSBPrinter(printer: Printer, data: Buffer): Promise<boolean> {
-        // USB printers often appear as serial devices
-        // Try to find the printer's serial port path
+        const platform = os.platform();
+        console.log(`[USB Printer] Detected platform: ${platform}`);
+
+        // Windows: Use RAW printing via PowerShell or printer name
+        if (platform === 'win32') {
+            return this.sendToWindowsPrinter(printer, data);
+        }
+
+        // Linux: Try /dev/usb/lp* device files first
+        if (platform === 'linux') {
+            const usbDevicePaths = ['/dev/usb/lp0', '/dev/usb/lp1', '/dev/usb/lp2', '/dev/usb/lp3'];
+
+            for (const devicePath of usbDevicePaths) {
+                try {
+                    await fs.promises.access(devicePath, fs.constants.W_OK);
+                    console.log(`[USB Printer] Found USB printer device at: ${devicePath}`);
+                    return this.sendToUsbDevice(devicePath, data);
+                } catch (err) {
+                    // Device doesn't exist or not writable, try next
+                    continue;
+                }
+            }
+            console.log(`[USB Printer] No /dev/usb/lp* device found, trying libusb...`);
+        }
+
+        // macOS: Try /dev/cu.* USB modem devices
+        if (platform === 'darwin') {
+            try {
+                const devFiles = await fs.promises.readdir('/dev');
+                const usbModems = devFiles.filter(f =>
+                    f.startsWith('cu.usbmodem') || f.startsWith('cu.usbserial')
+                );
+
+                if (usbModems.length > 0) {
+                    const devicePath = `/dev/${usbModems[0]}`;
+                    console.log(`[USB Printer] Found macOS USB device at: ${devicePath}`);
+                    return this.sendToSerialPort(devicePath, data, printer.baudRate || 9600);
+                }
+            } catch (err) {
+                console.log(`[USB Printer] macOS device detection failed: ${err}`);
+            }
+        }
+
+        console.log(`[USB Printer] Trying libusb (cross-platform)...`);
+
+        // Second, try direct USB communication via libusb
+        if (printer.vendorId && printer.productId) {
+            try {
+                const success = await this.sendViaLibUsb(printer, data);
+                if (success) {
+                    return true;
+                }
+            } catch (err) {
+                console.log(`[USB Printer] libusb failed: ${err}, trying serial port...`);
+            }
+        }
+
+        // Fallback: USB printers may appear as serial devices
         let portPath = printer.connectionAddress;
 
         if (!portPath) {
@@ -349,19 +406,292 @@ export class PrintJobService {
                     const usbPort = ports.find(p => p.vendorId !== undefined);
                     if (usbPort) {
                         portPath = usbPort.path;
-                        console.log(`[USB Printer] Auto-detected port: ${portPath}`);
+                        console.log(`[USB Printer] Auto-detected serial port: ${portPath}`);
                     }
                 }
             } catch (err) {
-                console.error('[USB Printer] Error listing ports:', err);
+                console.error('[USB Printer] Error listing serial ports:', err);
             }
         }
 
         if (!portPath) {
-            throw new Error('USB printer port not found. Please configure the connection address or connect the printer.');
+            throw new Error('USB printer not found. Please connect the printer or configure the connection address.');
         }
 
         return this.sendToSerialPort(portPath, data, printer.baudRate || 9600);
+    }
+
+    /**
+     * Send data via libusb (direct USB communication)
+     */
+    private static async sendViaLibUsb(printer: Printer, data: Buffer): Promise<boolean> {
+        try {
+            const usb = await import('usb');
+            const vendorId = parseInt(printer.vendorId!, 16);
+            const productId = parseInt(printer.productId!, 16);
+
+            console.log(`[USB Printer] Looking for device VID:${printer.vendorId} PID:${printer.productId}`);
+
+            const device = usb.findByIds(vendorId, productId);
+            if (!device) {
+                console.log(`[USB Printer] Device not found via libusb`);
+                return false;
+            }
+
+            device.open();
+            console.log(`[USB Printer] Device opened via libusb`);
+
+            // Find the OUT endpoint (usually endpoint 1 or 2 with direction OUT)
+            const iface = device.interfaces[0];
+            if (!iface) {
+                device.close();
+                throw new Error('No interface found on USB device');
+            }
+
+            // Detach kernel driver if attached (Linux)
+            if (iface.isKernelDriverActive()) {
+                try {
+                    iface.detachKernelDriver();
+                    console.log(`[USB Printer] Kernel driver detached`);
+                } catch (err) {
+                    console.log(`[USB Printer] Could not detach kernel driver: ${err}`);
+                }
+            }
+
+            iface.claim();
+            console.log(`[USB Printer] Interface claimed`);
+
+            // Find OUT endpoint (bulk transfer)
+            // LIBUSB_TRANSFER_TYPE_BULK = 2
+            let outEndpoint: any = null;
+            for (const endpoint of iface.endpoints) {
+                if (endpoint.direction === 'out' && endpoint.transferType === 2) {
+                    outEndpoint = endpoint;
+                    break;
+                }
+            }
+
+            if (!outEndpoint) {
+                // Try first endpoint with OUT direction
+                for (const endpoint of iface.endpoints) {
+                    if (endpoint.direction === 'out') {
+                        outEndpoint = endpoint;
+                        break;
+                    }
+                }
+            }
+
+            if (!outEndpoint) {
+                iface.release();
+                device.close();
+                throw new Error('No OUT endpoint found on USB device');
+            }
+
+            console.log(`[USB Printer] Using endpoint: ${outEndpoint.address}`);
+
+            return new Promise<boolean>((resolve, reject) => {
+                outEndpoint.transfer(data, (err: Error | null) => {
+                    try {
+                        iface.release();
+                    } catch (e) {
+                        // 
+                    }
+                    try {
+                        device.close();
+                    } catch (e) {
+                        // 
+                    }
+
+                    if (err) {
+                        console.error(`[USB Printer] libusb transfer error:`, err);
+                        reject(err);
+                    } else {
+                        console.log(`[USB Printer] Data sent successfully via libusb (${data.length} bytes)`);
+                        resolve(true);
+                    }
+                });
+            });
+        } catch (err) {
+            console.error(`[USB Printer] libusb error:`, err);
+            throw err;
+        }
+    }
+
+    /**
+     * Send data directly to USB device file (/dev/usb/lp*)
+     */
+    private static async sendToUsbDevice(devicePath: string, data: Buffer): Promise<boolean> {
+        return new Promise<boolean>((resolve, reject) => {
+            console.log(`[USB Printer] Writing ${data.length} bytes to ${devicePath}...`);
+
+            const writeStream = fs.createWriteStream(devicePath);
+
+            writeStream.on('error', (err) => {
+                console.error(`[USB Printer] Write error:`, err);
+                reject(err);
+            });
+
+            writeStream.on('finish', () => {
+                console.log(`[USB Printer] Data sent successfully to ${devicePath}`);
+                resolve(true);
+            });
+
+            writeStream.write(data);
+            writeStream.end();
+        });
+    }
+
+    /**
+     * Send data to Windows printer (using RAW printing)
+     */
+    private static async sendToWindowsPrinter(printer: Printer, data: Buffer): Promise<boolean> {
+        console.log(`[USB Printer] Attempting Windows RAW printing...`);
+
+        // Create a temp file with the print data
+        const tempDir = os.tmpdir();
+        const tempFile = path.join(tempDir, `print_${Date.now()}.bin`);
+
+        try {
+            // Write data to temp file
+            await fs.promises.writeFile(tempFile, data);
+            console.log(`[USB Printer] Temp file created: ${tempFile}`);
+
+            // Try to find the printer name
+            let printerName = printer.printerName;
+
+            // If no printer name, try to find USB printer via WMIC
+            if (!printerName || printerName === 'USB Printer') {
+                try {
+                    const { stdout } = await execAsync('wmic printer get name,portname');
+                    const lines = stdout.split('\n').filter(l => l.trim());
+                    console.log(`[USB Printer] Available Windows printers:`, lines);
+
+                    // Look for USB or thermal printer
+                    const usbPrinter = lines.find(l =>
+                        l.toLowerCase().includes('usb') ||
+                        l.toLowerCase().includes('thermal') ||
+                        l.toLowerCase().includes('receipt') ||
+                        l.toLowerCase().includes('pos') ||
+                        l.toLowerCase().includes('zywell')
+                    );
+
+                    if (usbPrinter) {
+                        printerName = usbPrinter.split(/\s{2,}/)[0].trim();
+                        console.log(`[USB Printer] Auto-detected printer: ${printerName}`);
+                    }
+                } catch (err) {
+                    console.log(`[USB Printer] WMIC printer list failed: ${err}`);
+                }
+            }
+
+            if (printerName) {
+                // Method 1: Get the printer port and write directly to it
+                try {
+                    const { stdout: portInfo } = await execAsync(`wmic printer where "name='${printerName}'" get portname`);
+                    const portLines = portInfo.split('\n').filter(l => l.trim() && !l.includes('PortName'));
+                    if (portLines.length > 0) {
+                        const portName = portLines[0].trim();
+                        console.log(`[USB Printer] Printer port: ${portName}`);
+
+                        // If it's a USB port, try direct write
+                        if (portName.startsWith('USB') || portName.startsWith('COM')) {
+                            try {
+                                // For USB ports, use the port directly
+                                const portPath = portName.startsWith('COM') ? `\\\\.\\${portName}` : portName;
+                                await execAsync(`copy /b "${tempFile}" "${portPath}"`);
+                                console.log(`[USB Printer] Data sent directly to port: ${portName}`);
+                                return true;
+                            } catch (portErr) {
+                                console.log(`[USB Printer] Direct port write failed: ${portErr}`);
+                            }
+                        }
+                    }
+                } catch (portQueryErr) {
+                    console.log(`[USB Printer] Port query failed: ${portQueryErr}`);
+                }
+
+                // Method 2: Use print command (most reliable for local printers)
+                try {
+                    await execAsync(`print /d:"${printerName}" "${tempFile}"`);
+                    console.log(`[USB Printer] Data sent via print command`);
+                    return true;
+                } catch (printErr) {
+                    console.log(`[USB Printer] print command failed: ${printErr}`);
+                }
+
+                // Method 3: Use PowerShell with proper escaping
+                try {
+                    // Use single quotes in PowerShell and proper path format
+                    const psPath = tempFile.replace(/\\/g, '/');
+                    const psCmd = `powershell -NoProfile -Command "Get-Content -Path '${psPath}' -Encoding Byte -Raw | Out-Printer -Name '${printerName}'"`;
+                    console.log(`[USB Printer] Trying PowerShell: ${psCmd}`);
+                    await execAsync(psCmd);
+                    console.log(`[USB Printer] Data sent via PowerShell`);
+                    return true;
+                } catch (psErr) {
+                    console.log(`[USB Printer] PowerShell printing failed: ${psErr}`);
+                }
+
+                // Method 4: Use Windows spooler API via PowerShell
+                try {
+                    const psPath = tempFile.replace(/\\/g, '\\\\');
+                    const psScript = `
+Add-Type -AssemblyName System.Printing
+$server = New-Object System.Printing.LocalPrintServer
+$queue = $server.GetPrintQueue('${printerName}')
+$stream = $queue.CreatePrintJobWriter('RawPrint')
+$bytes = [System.IO.File]::ReadAllBytes('${psPath}')
+$stream.Write($bytes, 0, $bytes.Length)
+$stream.Close()
+`;
+                    // Write PS script to a temp file to avoid escaping issues
+                    const psScriptFile = path.join(tempDir, `print_script_${Date.now()}.ps1`);
+                    await fs.promises.writeFile(psScriptFile, psScript, 'utf8');
+
+                    await execAsync(`powershell -NoProfile -ExecutionPolicy Bypass -File "${psScriptFile}"`);
+                    console.log(`[USB Printer] Data sent via PowerShell spooler API`);
+
+                    // Cleanup script file
+                    try { await fs.promises.unlink(psScriptFile); } catch (e) { /* ignore */ }
+                    return true;
+                } catch (spoolerErr) {
+                    console.log(`[USB Printer] PowerShell spooler API failed: ${spoolerErr}`);
+                }
+
+                // Method 5: Use COPY to shared printer (only if printer is shared)
+                try {
+                    const computerName = process.env.COMPUTERNAME || 'localhost';
+                    const copyCmd = `copy /b "${tempFile}" "\\\\${computerName}\\${printerName}"`;
+                    console.log(`[USB Printer] Trying COPY command: ${copyCmd}`);
+                    await execAsync(copyCmd);
+                    console.log(`[USB Printer] Data sent via COPY command`);
+                    return true;
+                } catch (copyErr) {
+                    console.log(`[USB Printer] COPY command failed: ${copyErr}`);
+                }
+            }
+
+            // Method 6: Try direct COM port if printer has connectionAddress
+            if (printer.connectionAddress && printer.connectionAddress.match(/^COM\d+$/i)) {
+                try {
+                    const comPort = `\\\\.\\${printer.connectionAddress}`;
+                    await execAsync(`copy /b "${tempFile}" "${comPort}"`);
+                    console.log(`[USB Printer] Data sent to ${comPort}`);
+                    return true;
+                } catch (comErr) {
+                    console.log(`[USB Printer] COM port write failed: ${comErr}`);
+                }
+            }
+
+            throw new Error('Windows printing failed. Please ensure the printer is installed correctly.');
+        } finally {
+            // Clean up temp file
+            try {
+                await fs.promises.unlink(tempFile);
+            } catch (e) {
+                // Ignore cleanup errors
+            }
+        }
     }
 
     /**
@@ -447,17 +777,17 @@ export class PrintJobService {
     }
 
     /**
-     * Determine if a printer should use CUPS for printing
-     * CUPS is used for standard printers (laser, inkjet) that don't support ESC/POS
+     * Determine if a printer should use system printing (CUPS on Linux/macOS, Windows Print Spooler on Windows)
+     * System printing is used for standard printers (laser, inkjet) that don't support ESC/POS
      */
-    private static shouldUseCups(printer: Printer, printJob: PrintJob): boolean {
-        // Laser and inkjet printers should use CUPS
-        const cupsTypes = ['LASER', 'INKJET'];
-        if (cupsTypes.includes(printer.printerType)) {
+    private static shouldUseSystemPrinting(printer: Printer, printJob: PrintJob): boolean {
+        // Laser and inkjet printers should use system printing
+        const systemPrintTypes = ['LASER', 'INKJET'];
+        if (systemPrintTypes.includes(printer.printerType)) {
             return true;
         }
 
-        // If content type is explicitly TEXT or HTML (not ESC_POS), use CUPS
+        // If content type is explicitly TEXT or HTML (not ESC_POS), use system printing
         if (printJob.contentType === 'TEXT' || printJob.contentType === 'HTML') {
             return true;
         }
@@ -466,12 +796,27 @@ export class PrintJobService {
     }
 
     /**
-     * Get CUPS printer name from printer configuration
-     * Tries to match by vendor/product ID or printer name
+     * Alias for backward compatibility
+     */
+    private static shouldUseCups(printer: Printer, printJob: PrintJob): boolean {
+        return this.shouldUseSystemPrinting(printer, printJob);
+    }
+
+    /**
+     * Get system printer name from printer configuration (cross-platform)
+     * On Linux/macOS: Uses CUPS lpstat command
+     * On Windows: Uses wmic or PowerShell
      */
     private static async getCupsPrinterName(printer: Printer): Promise<string | null> {
+        const platform = os.platform();
+
+        // On Windows, use different commands
+        if (platform === 'win32') {
+            return this.getWindowsPrinterName(printer);
+        }
+
         try {
-            // List CUPS printers
+            // List CUPS printers (Linux/macOS)
             const { stdout } = await execAsync('lpstat -p -d 2>/dev/null || true');
             const lines = stdout.split('\n');
 
@@ -537,9 +882,17 @@ export class PrintJobService {
     }
 
     /**
-     * Send print job to CUPS printer using lp command
+     * Send print job to system printer (CUPS on Linux/macOS, Windows Print Spooler on Windows)
      */
     private static async sendToCupsPrinter(printer: Printer, printJob: PrintJob): Promise<boolean> {
+        const platform = os.platform();
+
+        // On Windows, use Windows printing APIs
+        if (platform === 'win32') {
+            return this.sendToWindowsSystemPrinter(printer, printJob);
+        }
+
+        // On Linux/macOS, use CUPS
         const cupsPrinterName = await this.getCupsPrinterName(printer);
 
         if (!cupsPrinterName) {
@@ -586,6 +939,126 @@ export class PrintJobService {
                 }
             } catch (cleanupError) {
                 console.warn(`[CUPS] Failed to clean up temp file:`, cleanupError);
+            }
+        }
+    }
+
+    /**
+     * Get Windows printer name from configuration
+     */
+    private static async getWindowsPrinterName(printer: Printer): Promise<string | null> {
+        try {
+            // Try PowerShell first (more reliable on modern Windows)
+            try {
+                const { stdout } = await execAsync('powershell -Command "Get-Printer | Select-Object -ExpandProperty Name"');
+                const printers = stdout.split('\n').map(p => p.trim()).filter(p => p);
+
+                if (printers.length > 0) {
+                    console.log(`[Windows] Available printers: ${printers.join(', ')}`);
+
+                    // Try to match by printer name or model
+                    const nameParts = printer.printerName.toLowerCase().replace(/[^a-z0-9]/g, '');
+                    for (const winPrinter of printers) {
+                        const winNameNormalized = winPrinter.toLowerCase().replace(/[^a-z0-9]/g, '');
+                        if (winNameNormalized.includes(nameParts) || nameParts.includes(winNameNormalized)) {
+                            return winPrinter;
+                        }
+                    }
+
+                    // Return first printer as fallback
+                    return printers[0];
+                }
+            } catch (psErr) {
+                console.log(`[Windows] PowerShell printer list failed: ${psErr}`);
+            }
+
+            // Fallback to WMIC
+            const { stdout } = await execAsync('wmic printer get name');
+            const lines = stdout.split('\n').map(l => l.trim()).filter(l => l && l !== 'Name');
+
+            if (lines.length > 0) {
+                console.log(`[Windows] Available printers (WMIC): ${lines.join(', ')}`);
+                return lines[0];
+            }
+
+            return null;
+        } catch (error) {
+            console.error('[Windows] Error getting printer name:', error);
+            return null;
+        }
+    }
+
+    /**
+     * Send print job to Windows system printer
+     */
+    private static async sendToWindowsSystemPrinter(printer: Printer, printJob: PrintJob): Promise<boolean> {
+        const printerName = await this.getWindowsPrinterName(printer);
+
+        if (!printerName) {
+            throw new Error('No Windows printer found. Please ensure a printer is installed.');
+        }
+
+        // Create a temporary file for the print content
+        const tempDir = os.tmpdir();
+        const tempFile = path.join(tempDir, `printjob_${printJob.printJobId}.txt`);
+
+        try {
+            // Convert ESC/POS content to plain text if needed
+            let content = printJob.content;
+            if (printJob.contentType === 'ESC_POS') {
+                content = this.convertEscPosToText(content);
+            }
+
+            // Write content to temp file
+            await fs.promises.writeFile(tempFile, content, 'utf8');
+            console.log(`[Windows] Created temp file: ${tempFile}`);
+
+            const copies = printJob.copies || 1;
+
+            // Try multiple Windows printing methods
+
+            // Method 1: PowerShell Out-Printer
+            try {
+                const psCmd = `powershell -Command "Get-Content '${tempFile.replace(/'/g, "''")}' | Out-Printer -Name '${printerName.replace(/'/g, "''")}'"`;
+                for (let i = 0; i < copies; i++) {
+                    await execAsync(psCmd);
+                }
+                console.log(`[Windows] Print job submitted via PowerShell`);
+                return true;
+            } catch (psErr) {
+                console.log(`[Windows] PowerShell Out-Printer failed: ${psErr}`);
+            }
+
+            // Method 2: Use print command
+            try {
+                for (let i = 0; i < copies; i++) {
+                    await execAsync(`print /d:"${printerName}" "${tempFile}"`);
+                }
+                console.log(`[Windows] Print job submitted via print command`);
+                return true;
+            } catch (printErr) {
+                console.log(`[Windows] print command failed: ${printErr}`);
+            }
+
+            // Method 3: Use notepad /p for text files
+            try {
+                for (let i = 0; i < copies; i++) {
+                    await execAsync(`notepad /p "${tempFile}"`);
+                }
+                console.log(`[Windows] Print job submitted via notepad`);
+                return true;
+            } catch (notepadErr) {
+                console.log(`[Windows] notepad print failed: ${notepadErr}`);
+            }
+
+            throw new Error('Windows printing failed. Please ensure the printer is configured correctly.');
+        } finally {
+            // Clean up temp file
+            try {
+                await fs.promises.unlink(tempFile);
+                console.log(`[Windows] Cleaned up temp file`);
+            } catch (e) {
+                // Ignore cleanup errors
             }
         }
     }

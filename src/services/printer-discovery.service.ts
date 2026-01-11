@@ -9,7 +9,12 @@ import {
 } from '../types/printer';
 import { SerialPort } from 'serialport';
 import * as net from 'net';
+import * as os from 'os';
+import { exec } from 'child_process';
+import { promisify } from 'util';
 import Bonjour, { Service } from 'bonjour-service';
+
+const execAsync = promisify(exec);
 
 // Common USB Vendor IDs for printers
 const PRINTER_VENDOR_IDS = [
@@ -339,10 +344,17 @@ export class PrinterDiscoveryService {
     }
 
     /**
-     * Discover USB printers
+     * Discover USB printers (cross-platform)
      */
     private static async discoverUSBPrinters(): Promise<DiscoveredPrinter[]> {
         const printers: DiscoveredPrinter[] = [];
+        const platform = os.platform();
+
+        // On Windows, also try to discover system printers
+        if (platform === 'win32') {
+            const windowsPrinters = await this.discoverWindowsPrinters();
+            printers.push(...windowsPrinters);
+        }
 
         try {
             const { usb } = await import('usb');
@@ -390,6 +402,86 @@ export class PrinterDiscoveryService {
         }
 
         return printers;
+    }
+
+    /**
+     * Discover Windows system printers via PowerShell/WMIC
+     */
+    private static async discoverWindowsPrinters(): Promise<DiscoveredPrinter[]> {
+        const printers: DiscoveredPrinter[] = [];
+
+        try {
+            // Try PowerShell first (more reliable on modern Windows)
+            try {
+                const { stdout } = await execAsync('powershell -Command "Get-Printer | Select-Object Name, DriverName, PortName, PrinterStatus | ConvertTo-Json"');
+                const printerList = JSON.parse(stdout);
+                const printerArray = Array.isArray(printerList) ? printerList : [printerList];
+
+                for (const p of printerArray) {
+                    if (p && p.Name) {
+                        printers.push({
+                            name: p.Name,
+                            connectionType: this.inferConnectionTypeFromPort(p.PortName),
+                            address: p.PortName,
+                            model: p.DriverName,
+                            type: this.inferPrinterType(p.Name + ' ' + (p.DriverName || '')),
+                            isOnline: p.PrinterStatus === 'Normal' || p.PrinterStatus === 0
+                        });
+                    }
+                }
+
+                if (printers.length > 0) {
+                    console.log(`[Windows] Discovered ${printers.length} printers via PowerShell`);
+                    return printers;
+                }
+            } catch (psErr) {
+                console.log(`[Windows] PowerShell printer discovery failed: ${psErr}`);
+            }
+
+            // Fallback to WMIC
+            try {
+                const { stdout } = await execAsync('wmic printer get name,drivername,portname,status');
+                const lines = stdout.split('\n').filter(l => l.trim() && !l.includes('DriverName'));
+
+                for (const line of lines) {
+                    const parts = line.trim().split(/\s{2,}/);
+                    if (parts.length >= 1 && parts[0]) {
+                        printers.push({
+                            name: parts[0],
+                            connectionType: PrinterConnectionType.USB,
+                            model: parts[1] || undefined,
+                            address: parts[2] || undefined,
+                            isOnline: true
+                        });
+                    }
+                }
+
+                console.log(`[Windows] Discovered ${printers.length} printers via WMIC`);
+            } catch (wmicErr) {
+                console.log(`[Windows] WMIC printer discovery failed: ${wmicErr}`);
+            }
+        } catch (error) {
+            console.error('[Windows] Printer discovery error:', error);
+        }
+
+        return printers;
+    }
+
+    /**
+     * Infer connection type from Windows port name
+     */
+    private static inferConnectionTypeFromPort(portName: string): PrinterConnectionType {
+        if (!portName) return PrinterConnectionType.USB;
+
+        const port = portName.toLowerCase();
+        if (port.includes('usb')) return PrinterConnectionType.USB;
+        if (port.includes('com')) return PrinterConnectionType.SERIAL;
+        if (port.includes('lpt')) return PrinterConnectionType.USB;
+        if (port.match(/\d+\.\d+\.\d+\.\d+/)) return PrinterConnectionType.NETWORK;
+        if (port.includes('wsd')) return PrinterConnectionType.NETWORK;
+        if (port.includes('tcp')) return PrinterConnectionType.NETWORK;
+
+        return PrinterConnectionType.USB;
     }
 
     /**

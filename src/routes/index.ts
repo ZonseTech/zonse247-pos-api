@@ -9,6 +9,7 @@ import MigrationRoutes from './migration.routes'
 import PaymentMethodRoutes from './payment-method.routes'
 import TerminalSettingsRoutes from './terminal-settings.routes'
 import SyncRoutes from './sync.routes'
+import SyncIncomingRoutes from './sync-incoming.routes'
 import TransactionsRoutes from './transaction.routes'
 import ReturnsRoutes from './return.routes'
 import UsersRoutes from './users.routes'
@@ -84,6 +85,7 @@ router.use('/branches', BranchesRoutes);
 router.use('/mailing', MailingRoutes);
 router.use('/export', DatabaseExportRoutes);
 router.use('/sync', SyncRoutes);
+router.use('/sync', SyncIncomingRoutes);
 router.use('/payment-service-providers', PaymentServiceProviderRoutes);
 router.use('/users', UsersRoutes);
 router.use('/analytics', AnalyticsRoutes);
