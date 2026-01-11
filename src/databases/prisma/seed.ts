@@ -1,51 +1,54 @@
-import { getPrisma, disconnectPrisma } from "./client";
+import { getPrisma, disconnectPrisma, setDatabaseReady } from './client';
 import {
-    seedBranch,
-    seedCategories,
-    seedCustomers,
-    seedPaymentMethods,
-    seedPaymentServiceProviders,
-    seedPermissions,
-    seedRolePermissions,
-    seedRoles,
-    seedTenant,
-    seedTerminal,
-    seedUser,
-    seedSubscriptionPlans,
-    seedPlanFeatures
-} from "./seeds";
+	seedBranch,
+	seedCategories,
+	seedCustomers,
+	seedPaymentMethods,
+	seedPaymentServiceProviders,
+	seedPermissions,
+	seedRolePermissions,
+	seedRoles,
+	seedTenant,
+	seedTerminal,
+	seedUser,
+	seedSubscriptionPlans,
+	seedPlanFeatures,
+} from './seeds';
 
 async function main() {
-    console.log('🌱 Starting database seeding...');
-    const prisma = await getPrisma();
+	console.log('🌱 Starting database seeding...');
 
-    try {
-        await seedPlanFeatures(prisma);
-        await seedSubscriptionPlans(prisma);
-        await seedRoles(prisma);
-        await seedPermissions(prisma);
-        await seedRolePermissions(prisma);
-        await seedTenant(prisma);
-        await seedBranch(prisma);
-        await seedTerminal(prisma);
-        await seedUser(prisma);
-        await seedCategories(prisma);
-        await seedCustomers(prisma);
-        await seedPaymentMethods(prisma);
-        await seedPaymentServiceProviders(prisma);
+	setDatabaseReady();
 
-        console.log('🎉 Database seeding completed successfully!');
-    } catch (error) {
-        console.error('❌ Error seeding database:', error);
-        throw error;
-    }
+	const prisma = await getPrisma();
+
+	try {
+		await seedPlanFeatures(prisma);
+		await seedSubscriptionPlans(prisma);
+		await seedRoles(prisma);
+		await seedPermissions(prisma);
+		await seedRolePermissions(prisma);
+		await seedTenant(prisma);
+		await seedBranch(prisma);
+		await seedTerminal(prisma);
+		await seedUser(prisma);
+		await seedCategories(prisma);
+		await seedCustomers(prisma);
+		await seedPaymentMethods(prisma);
+		await seedPaymentServiceProviders(prisma);
+
+		console.log('🎉 Database seeding completed successfully!');
+	} catch (error) {
+		console.error('❌ Error seeding database:', error);
+		throw error;
+	}
 }
 main()
-    .then(async () => {
-        await disconnectPrisma();
-    })
-    .catch(async (e) => {
-        console.error('❌ Error seeding database:', e);
-        await disconnectPrisma();
-        process.exit(1);
-    });
+	.then(async () => {
+		await disconnectPrisma();
+	})
+	.catch(async (e) => {
+		console.error('❌ Error seeding database:', e);
+		await disconnectPrisma();
+		process.exit(1);
+	});
