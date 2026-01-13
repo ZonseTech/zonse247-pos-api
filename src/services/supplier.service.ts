@@ -1,3 +1,4 @@
+import { v4 as uuidv4 } from 'uuid';
 import { prisma } from '../databases/prisma/client';
 import { CreateSupplierInput, UpdateSupplierInput, Supplier } from '../models/supplier.model';
 
@@ -8,6 +9,7 @@ export class SupplierService {
     static async createSupplier(data: CreateSupplierInput, tenantId: string, branchId: string): Promise<Supplier> {
         const supplier = await prisma.supplier.create({
             data: {
+                id: uuidv4(),
                 tenantId,
                 branchId,
                 name: data.name,

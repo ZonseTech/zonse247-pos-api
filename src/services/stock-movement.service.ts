@@ -1,3 +1,4 @@
+import { v4 as uuidv4 } from 'uuid';
 import { StockMovementType } from '../databases/prisma/generated/prisma/client';
 import { prisma } from '../databases/prisma/client';
 import { CreateStockMovementInput, StockMovementWithProduct } from '../models/stock-movement.model';
@@ -44,6 +45,7 @@ export class StockMovementService {
         // Create stock movement record
         await db.stockMovement.create({
             data: {
+                id: uuidv4(),
                 tenantId: data.tenantId,
                 branchId: data.branchId,
                 inventoryId: data.inventoryId,

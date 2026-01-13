@@ -1,3 +1,4 @@
+import { v4 as uuidv4 } from 'uuid';
 import { SaleStatus } from '../databases/prisma/generated/prisma/client';
 import { prisma } from '../databases/prisma/client';
 import { CreateSaleInput, SaleWithItems, VoidSaleInput } from '../models/sale.model';
@@ -74,6 +75,7 @@ export class SaleService {
 
             const sale = await tx.sale.create({
                 data: {
+                    id: uuidv4(),
                     tenantId: tenantId,
                     branchId: branchId,
                     saleNumber,
@@ -90,7 +92,10 @@ export class SaleService {
                     status: 'COMPLETED',
                     notes: data.notes,
                     items: {
-                        create: itemsWithCost.map(({ inventoryId: _inventoryId, ...item }) => item),
+                        create: itemsWithCost.map(({ inventoryId: _inventoryId, ...item }) => ({
+                            id: uuidv4(),
+                            ...item
+                        })),
                     },
                 },
                 include: {

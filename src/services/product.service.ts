@@ -1,3 +1,4 @@
+import { v4 as uuidv4 } from 'uuid';
 import { Prisma } from '../databases/prisma/generated/prisma/client';
 import { prisma } from '../databases/prisma/client';
 import {
@@ -15,6 +16,7 @@ export class ProductService {
     static async createProduct(data: CreateProductInput, tenantId: string, branchId: string): Promise<ProductWithInventory> {
         const product = await prisma.product.create({
             data: {
+                id: uuidv4(),
                 tenantId: tenantId,
                 branchId: branchId,
                 categoryId: data.categoryId,
@@ -27,6 +29,7 @@ export class ProductService {
                 productBarcodes: data.barcodes
                     ? {
                         create: data.barcodes.map((bc) => ({
+                            id: uuidv4(),
                             barcode: bc.barcode,
                             barcodeType: bc.barcodeType || 'EAN13',
                             barcodeSource: bc.barcodeSource || 'SUPPLIER',
@@ -36,6 +39,7 @@ export class ProductService {
                     : undefined,
                 inventories: {
                     create: {
+                        id: uuidv4(),
                         tenantId: tenantId,
                         branchId: branchId,
                         availableQuantity: 0,
@@ -390,6 +394,7 @@ export class ProductService {
                 if (data.barcodes.length > 0) {
                     await tx.productBarcode.createMany({
                         data: data.barcodes.map((bc) => ({
+                            id: uuidv4(),
                             productId,
                             barcode: bc.barcode,
                             barcodeType: bc.barcodeType || 'EAN13',
@@ -467,6 +472,7 @@ export class ProductService {
 
         await prisma.productBarcode.create({
             data: {
+                id: uuidv4(),
                 productId,
                 barcode,
                 barcodeType: barcodeType as any,
