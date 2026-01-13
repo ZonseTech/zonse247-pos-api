@@ -13,6 +13,7 @@ export class TransactionController extends BaseController {
                 startDate,
                 endDate,
                 status,
+                paymentMethodId,
                 page,
                 limit
             } = req.query;
@@ -39,6 +40,7 @@ export class TransactionController extends BaseController {
                 startDate: parsedStartDate,
                 endDate: parsedEndDate,
                 status: status?.toString(),
+                paymentMethodId: paymentMethodId?.toString(),
                 page: page ? parseInt(page.toString()) : 1,
                 limit: limit ? parseInt(limit.toString()) : 50,
                 tenantId: req.auth.tenantId,
@@ -203,6 +205,7 @@ export class TransactionController extends BaseController {
                 startDate,
                 endDate,
                 status,
+                paymentMethodId,
             } = req.query;
 
             // Parse dates properly - ensure they're treated as local dates
@@ -224,6 +227,7 @@ export class TransactionController extends BaseController {
                 startDate: parsedStartDate,
                 endDate: parsedEndDate,
                 status: status?.toString(),
+                paymentMethodId: paymentMethodId?.toString(),
                 tenantId: req.auth.tenantId,
                 branchId: req.auth.branchId,
             };

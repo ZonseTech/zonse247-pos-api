@@ -89,7 +89,6 @@ export class TerminalSettingsModel {
         try {
             const now = new Date();
 
-            // Get branch info for default values
             const branch = await prisma.branch.findFirst({
                 where: {
                     terminals: {

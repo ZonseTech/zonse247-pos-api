@@ -357,9 +357,6 @@ export class PrintContentService {
         if (data.cashier) {
             content += `Cashier: ${data.cashier}\n`;
         }
-        if (data.terminal) {
-            content += `Terminal: ${data.terminal}\n`;
-        }
 
         // Customer info
         if (data.customer) {
