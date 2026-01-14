@@ -169,3 +169,69 @@ export interface SyncDelta {
 	deleted: string[];
 	lastSyncAt: Date;
 }
+
+// ==========================================
+// Outbound Sync Types (Local -> Remote)
+// ==========================================
+
+export interface OutboundSyncResult {
+	success: boolean;
+	tableName: string;
+	recordsSent: number;
+	recordsAccepted: number;
+	recordsFailed: number;
+	errors: string[];
+	timestamp: string;
+}
+
+export interface OutboundSyncStatus {
+	isRunning: boolean;
+	isSyncing: boolean;
+	intervalMs: number;
+	tables: string[];
+	pendingCounts?: Record<string, number>;
+}
+
+// ==========================================
+// Incoming Sync Types (Remote receives from Local)
+// ==========================================
+
+export interface IncomingSyncResult {
+	success: boolean;
+	accepted: string[];
+	rejected: { id: string; reason: string }[];
+	timestamp: string;
+}
+
+export interface IncomingSyncStats {
+	totalSynced: Record<string, number>;
+	lastSyncAt: Record<string, Date | null>;
+}
+
+// ==========================================
+// Sync Queue Types
+// ==========================================
+
+export interface SyncQueueItem {
+	id: string;
+	tableName: string;
+	recordId: string;
+	operation: 'create' | 'update' | 'delete';
+	data: Record<string, any>;
+	attempts: number;
+	maxRetries: number;
+	lastAttemptAt?: Date;
+	nextRetryAt?: Date;
+	error?: string;
+	status: 'pending' | 'processing' | 'completed' | 'failed';
+	createdAt: Date;
+	updatedAt: Date;
+}
+
+export interface SyncQueueStats {
+	pending: number;
+	processing: number;
+	completed: number;
+	failed: number;
+	totalByTable: Record<string, number>;
+}

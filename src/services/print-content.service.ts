@@ -357,9 +357,6 @@ export class PrintContentService {
         if (data.cashier) {
             content += `Cashier: ${data.cashier}\n`;
         }
-        if (data.terminal) {
-            content += `Terminal: ${data.terminal}\n`;
-        }
 
         // Customer info
         if (data.customer) {
@@ -692,48 +689,48 @@ export class PrintContentService {
         let content = '';
         const lineWidth = 48;
 
+        // Initialize printer
         content += ESC_POS.INIT;
         content += ESC_POS.ALIGN_CENTER;
 
+        // Header
         content += '='.repeat(lineWidth) + '\n';
         content += ESC_POS.DOUBLE_SIZE;
         content += 'PRINTER TEST PAGE\n';
         content += ESC_POS.NORMAL;
+        content += 'Zonse247 POS System\n';
         content += '='.repeat(lineWidth) + '\n\n';
 
+        // Printer info
         content += ESC_POS.ALIGN_LEFT;
-        content += `Printer Name: ${printer.printerName}\n`;
-        content += `Printer Type: ${printer.printerType}\n`;
+        content += `Printer: ${printer.printerName}\n`;
+        content += `Type: ${printer.printerType}\n`;
         content += `Connection: ${printer.connectionType}\n`;
         if (printer.printerModel) {
             content += `Model: ${printer.printerModel}\n`;
         }
-        content += `Test Date: ${new Date().toLocaleString()}\n\n`;
+        content += `Date: ${new Date().toLocaleString()}\n\n`;
 
-        // Font test
+        // Separator
         content += ESC_POS.ALIGN_CENTER;
         content += '-'.repeat(lineWidth) + '\n';
-        content += 'FONT TEST\n';
+        content += 'TEXT FORMATTING TEST\n';
         content += '-'.repeat(lineWidth) + '\n';
 
+        // Text formatting tests
+        content += ESC_POS.ALIGN_LEFT;
         content += ESC_POS.NORMAL;
         content += 'Normal Text\n';
         content += ESC_POS.BOLD_ON;
         content += 'Bold Text\n';
         content += ESC_POS.BOLD_OFF;
-        content += ESC_POS.UNDERLINE_ON;
-        content += 'Underlined Text\n';
-        content += ESC_POS.UNDERLINE_OFF;
         content += ESC_POS.DOUBLE_HEIGHT;
         content += 'Double Height\n';
-        content += ESC_POS.DOUBLE_WIDTH;
-        content += 'Double Width\n';
-        content += ESC_POS.DOUBLE_SIZE;
-        content += 'Double Size\n';
         content += ESC_POS.NORMAL;
 
         // Alignment test
         content += '\n';
+        content += ESC_POS.ALIGN_CENTER;
         content += '-'.repeat(lineWidth) + '\n';
         content += 'ALIGNMENT TEST\n';
         content += '-'.repeat(lineWidth) + '\n';
@@ -744,38 +741,52 @@ export class PrintContentService {
         content += 'Center Aligned\n';
         content += ESC_POS.ALIGN_RIGHT;
         content += 'Right Aligned\n';
+        content += ESC_POS.ALIGN_LEFT;
 
-        // Barcode test
+        // Character test
         content += '\n';
         content += ESC_POS.ALIGN_CENTER;
         content += '-'.repeat(lineWidth) + '\n';
-        content += 'BARCODE TEST\n';
-        content += '-'.repeat(lineWidth) + '\n';
-
-        content += ESC_POS.BARCODE_HEIGHT(60);
-        content += ESC_POS.BARCODE_WIDTH(2);
-        content += ESC_POS.BARCODE_TEXT_BELOW;
-        content += ESC_POS.BARCODE_CODE128('TEST12345');
-        content += '\n\n';
-
-        // Character set test
-        content += '-'.repeat(lineWidth) + '\n';
         content += 'CHARACTER TEST\n';
         content += '-'.repeat(lineWidth) + '\n';
+        content += ESC_POS.ALIGN_LEFT;
         content += '0123456789\n';
         content += 'ABCDEFGHIJKLMNOPQRSTUVWXYZ\n';
         content += 'abcdefghijklmnopqrstuvwxyz\n';
-        content += '!@#$%^&*()_+-=[]{}|;:\'",.<>?/\n';
 
-        // Completion
+        // Sample receipt format
         content += '\n';
+        content += ESC_POS.ALIGN_CENTER;
+        content += '-'.repeat(lineWidth) + '\n';
+        content += 'SAMPLE RECEIPT\n';
+        content += '-'.repeat(lineWidth) + '\n';
+        content += ESC_POS.ALIGN_LEFT;
+
+        const formatLine = (left: string, right: string) => {
+            const spaces = lineWidth - left.length - right.length;
+            return left + ' '.repeat(Math.max(1, spaces)) + right + '\n';
+        };
+
+        content += formatLine('Item 1', 'K 1,000.00');
+        content += formatLine('Item 2 x2', 'K 2,500.00');
+        content += formatLine('Item 3', 'K 750.00');
+        content += '-'.repeat(lineWidth) + '\n';
+        content += ESC_POS.BOLD_ON;
+        content += formatLine('TOTAL', 'K 4,250.00');
+        content += ESC_POS.BOLD_OFF;
+
+        // Footer
+        content += '\n';
+        content += ESC_POS.ALIGN_CENTER;
         content += '='.repeat(lineWidth) + '\n';
         content += ESC_POS.DOUBLE_HEIGHT;
         content += 'TEST COMPLETE\n';
         content += ESC_POS.NORMAL;
         content += '='.repeat(lineWidth) + '\n';
-        content += '\nPrinter is functioning correctly!\n';
+        content += '\nPrinter is working correctly!\n';
+        content += 'Thank you for using Zonse247 POS\n';
 
+        // Feed and cut
         content += ESC_POS.FEED_LINES(4);
         content += ESC_POS.CUT_PAPER;
 

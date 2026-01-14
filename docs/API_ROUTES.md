@@ -217,16 +217,51 @@ All endpoints are prefixed with the API base URL (e.g., `http://localhost:3000/a
 
 **Base Path:** `/sync`
 
-| Method | Endpoint                   | Description               | Auth Required |
-| ------ | -------------------------- | ------------------------- | ------------- |
-| GET    | `/sync/tables`             | Get sync tables           | Yes           |
-| POST   | `/sync/pull`               | Pull data from server     | Yes           |
-| POST   | `/sync/push`               | Push data to server       | Yes           |
-| GET    | `/sync/status/:tableName`  | Get sync status for table | Yes           |
-| POST   | `/sync/bulk`               | Bulk sync operation       | Yes           |
-| GET    | `/sync/test-connections`   | Test sync connections     | Yes           |
-| GET    | `/sync/stats/:tableName`   | Get table statistics      | Yes           |
-| GET    | `/sync/records/:tableName` | Get all records for table | Yes           |
+### Standard Sync Operations
+
+| Method | Endpoint                     | Description               | Auth Required |
+| ------ | ---------------------------- | ------------------------- | ------------- |
+| GET    | `/sync/tables`               | Get sync tables           | Yes           |
+| POST   | `/sync/pull`                 | Pull data from server     | Yes           |
+| POST   | `/sync/push`                 | Push data to server       | Yes           |
+| GET    | `/sync/status/:tableName`    | Get sync status for table | Yes           |
+| POST   | `/sync/bulk`                 | Bulk sync operation       | Yes           |
+| POST   | `/sync/bidirectional`        | Bidirectional sync        | Yes           |
+| PUT    | `/sync/configure/:tableName` | Configure table sync      | Yes           |
+| GET    | `/sync/stats/:tableName`     | Get table statistics      | Yes           |
+| GET    | `/sync/records/:tableName`   | Get all records for table | Yes           |
+| POST   | `/sync/auto-sync/start`      | Start auto-sync           | Yes           |
+| POST   | `/sync/auto-sync/stop`       | Stop auto-sync            | Yes           |
+| GET    | `/sync/auto-sync/status`     | Get auto-sync status      | Yes           |
+
+### Incoming Sync (Remote Server - receives data from local terminals)
+
+| Method | Endpoint                                | Description                      | Auth Required |
+| ------ | --------------------------------------- | -------------------------------- | ------------- |
+| POST   | `/sync/incoming/sales`                  | Receive batch of sales           | Yes           |
+| POST   | `/sync/incoming/sales/single`           | Receive single sale              | Yes           |
+| POST   | `/sync/incoming/sale-items`             | Receive batch of sale items      | Yes           |
+| POST   | `/sync/incoming/sale-items/single`      | Receive single sale item         | Yes           |
+| POST   | `/sync/incoming/transactions`           | Receive batch of transactions    | Yes           |
+| POST   | `/sync/incoming/transactions/single`    | Receive single transaction       | Yes           |
+| POST   | `/sync/incoming/customers`              | Receive batch of customers       | Yes           |
+| POST   | `/sync/incoming/customers/single`       | Receive single customer          | Yes           |
+| POST   | `/sync/incoming/inventory`              | Receive batch of inventory       | Yes           |
+| POST   | `/sync/incoming/inventory/single`       | Receive single inventory         | Yes           |
+| POST   | `/sync/incoming/stock-movements`        | Receive batch of stock movements | Yes           |
+| POST   | `/sync/incoming/stock-movements/single` | Receive single stock movement    | Yes           |
+| POST   | `/sync/incoming/audit-logs`             | Receive batch of audit logs      | Yes           |
+| POST   | `/sync/incoming/audit-logs/single`      | Receive single audit log         | Yes           |
+| GET    | `/sync/incoming/stats`                  | Get incoming sync statistics     | Yes           |
+
+### Outbound Sync (Local Terminal - pushes data to remote server)
+
+| Method | Endpoint                 | Description                    | Auth Required |
+| ------ | ------------------------ | ------------------------------ | ------------- |
+| POST   | `/sync/outbound/start`   | Start outbound auto-sync       | Yes           |
+| POST   | `/sync/outbound/stop`    | Stop outbound auto-sync        | Yes           |
+| GET    | `/sync/outbound/status`  | Get outbound sync status       | Yes           |
+| POST   | `/sync/outbound/trigger` | Manually trigger outbound sync | Yes           |
 
 ---
 

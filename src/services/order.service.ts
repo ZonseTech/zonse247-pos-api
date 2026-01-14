@@ -31,11 +31,14 @@ export class OrderService {
         const orderItems: OrderItem[] = [];
 
         for (const item of items) {
+            // Handle both 'quantity' and 'qty' field names for backwards compatibility
+            const quantity = item.quantity ?? (item as any).qty ?? 1;
+
             const orderItem: Partial<OrderItem> = {
                 transactionId,
                 refNumber,
                 productId: item.productId,
-                quantity: item.quantity as any,
+                quantity: quantity as any,
                 purchasePrice: item.purchasePrice as any,
                 sellPrice: item.sellPrice as any,
                 orderId: uuidv4(),
@@ -54,11 +57,14 @@ export class OrderService {
         items: CartItem[]
     ): Promise<OrderItem[]> {
         const createPromises: Promise<OrderItem>[] = items.map(async (item) => {
+            // Handle both 'quantity' and 'qty' field names for backwards compatibility
+            const quantity = item.quantity ?? (item as any).qty ?? 1;
+
             const orderItem: Partial<OrderItem> = {
                 refNumber,
                 transactionId,
                 productId: item.productId,
-                quantity: item.quantity as any,
+                quantity: quantity as any,
                 purchasePrice: item.purchasePrice as any,
                 sellPrice: item.sellPrice as any,
                 orderId: uuidv4(),

@@ -1,3 +1,4 @@
+import { v4 as uuidv4 } from 'uuid';
 import { CartItem } from 'order';
 import { AuthenticatedUser } from 'auth';
 import { InventoryItem } from 'inventory-item';
@@ -321,6 +322,7 @@ export class InventoryModel {
         await prisma.$transaction(async (tx) => {
             const product = await tx.product.create({
                 data: {
+                    id: uuidv4(),
                     tenantId: auth.tenantId,
                     branchId: auth.branchId,
                     sku: inventoryData.sku || inventoryData.barcode,
@@ -354,6 +356,7 @@ export class InventoryModel {
 
             await tx.inventory.create({
                 data: {
+                    id: uuidv4(),
                     tenantId: auth.tenantId,
                     branchId: auth.branchId,
                     productId: product.id,
@@ -373,6 +376,7 @@ export class InventoryModel {
                 for (const barcode of inventoryData.additionalBarcodes) {
                     await tx.productBarcode.create({
                         data: {
+                            id: uuidv4(),
                             productId: product.id,
                             barcode: barcode.code || barcode,
                             barcodeType: barcode.type || 'EAN13',

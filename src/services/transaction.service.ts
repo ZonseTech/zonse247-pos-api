@@ -29,6 +29,7 @@ export class TransactionService {
         startDate?: Date;
         endDate?: Date;
         status?: string;
+        paymentMethodId?: string;
         page?: number;
         limit?: number;
         tenantId: string;
@@ -50,6 +51,7 @@ export class TransactionService {
                 startDate,
                 endDate,
                 status,
+                paymentMethodId,
                 page = 1,
                 limit = 50,
                 tenantId,
@@ -91,12 +93,15 @@ export class TransactionService {
                 console.log('End date filter:', endOfDay.toISOString());
             }
 
-            console.log('Transaction query where:', JSON.stringify(where, null, 2));
+            if (paymentMethodId) {
+                where.paymentMethodId = paymentMethodId;
+            }
 
             if (search) {
                 where.OR = [
                     { refNumber: { contains: search, mode: 'insensitive' } },
                     { transactionId: { contains: search, mode: 'insensitive' } },
+                    { paymentMethodId: { contains: search, mode: 'insensitive' } },
                     { phoneNumber: { contains: search, mode: 'insensitive' } },
                     { externalTransactionRef: { contains: search, mode: 'insensitive' } },
                     {
@@ -460,6 +465,7 @@ export class TransactionService {
         startDate?: Date;
         endDate?: Date;
         status?: string;
+        paymentMethodId?: string;
         tenantId: string;
         branchId: string;
     }): Promise<{
@@ -476,6 +482,7 @@ export class TransactionService {
                 startDate,
                 endDate,
                 status,
+                paymentMethodId,
                 tenantId,
                 branchId
             } = filters;
@@ -487,6 +494,10 @@ export class TransactionService {
 
             if (status) {
                 where.status = status;
+            }
+
+            if (paymentMethodId) {
+                where.paymentMethodId = paymentMethodId;
             }
 
             // Handle date filtering - adjust endDate to include the entire day
@@ -528,7 +539,6 @@ export class TransactionService {
                 ];
             }
 
-            // Get all transactions matching filters (without pagination for summaries)
             const transactions = await TransactionModel.findByConditions(where, {});
 
             let totalSales = 0;
@@ -542,7 +552,6 @@ export class TransactionService {
                     : Number(transaction.total) || 0;
 
                 if (transaction.isRefund) {
-                    // For refunds, use refundedAmount if available, otherwise use total
                     const refundAmount = transaction.refundedAmount
                         ? (typeof transaction.refundedAmount === 'object' && 'toNumber' in transaction.refundedAmount
                             ? transaction.refundedAmount.toNumber()

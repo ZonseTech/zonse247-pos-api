@@ -1,3 +1,4 @@
+import { v4 as uuidv4 } from 'uuid';
 import { PurchaseOrderStatus } from '../databases/prisma/generated/prisma/client';
 import { prisma } from '../databases/prisma/client';
 import {
@@ -16,6 +17,7 @@ export class PurchaseOrderService {
 
         const purchaseOrder = await prisma.purchaseOrder.create({
             data: {
+                id: uuidv4(),
                 tenantId,
                 branchId,
                 supplierId: data.supplierId,
@@ -27,6 +29,7 @@ export class PurchaseOrderService {
                 createdBy: data.createdBy,
                 items: {
                     create: data.items.map((item) => ({
+                        id: uuidv4(),
                         productId: item.productId,
                         orderedQuantity: item.orderedQuantity,
                         unitPrice: item.unitPrice,
@@ -113,6 +116,7 @@ export class PurchaseOrderService {
                 if (!inventory) {
                     inventory = await tx.inventory.create({
                         data: {
+                            id: uuidv4(),
                             tenantId,
                             branchId,
                             productId: receivedItem.productId,
