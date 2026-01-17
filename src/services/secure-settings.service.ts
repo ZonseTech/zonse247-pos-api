@@ -5,6 +5,7 @@ import fs from 'fs/promises';
 import prisma from '../databases/prisma/client';
 import { DatabaseInitializer } from '../databases/prisma/databaseInitializer';
 import type { EncryptionResult, SetupParams } from 'security';
+import type { Branch } from 'branch';
 
 export class SecureSettingsService {
     private static initialized = false;
@@ -371,6 +372,190 @@ export class SecureSettingsService {
     static async disconnect(): Promise<void> {
         if (prisma) {
             await prisma.$disconnect();
+        }
+    }
+
+    /**
+     * Get the currently active branch for the Electron app
+     * Returns the branch details from the stored setup along with the branch data
+     * 
+     * @example
+     * // Electron main process (ipcMain handler):
+     * ipcMain.handle('settings:get-active-branch', async () => {
+     *     try {
+     *         const activeBranch = await SecureSettingsService.getActiveBranch();
+     *         return { success: true, data: activeBranch };
+     *     } catch (error: any) {
+     *         console.error('Failed to get active branch:', error);
+     *         return { success: false, error: error.message };
+     *     }
+     * });
+     * 
+     * @returns Active branch information or null if not set up
+     */
+    static async getActiveBranch(): Promise<{
+        branchId: string;
+        tenantId: string;
+        terminalId: string;
+        branch: Branch | null;
+    } | null> {
+        try {
+            if (!this.initialized) {
+                await this.initialize();
+            }
+
+            const setup = await this.getAppSetup();
+
+            if (!setup || !setup.branchId) {
+                return null;
+            }
+
+            // Get the full branch details from the database
+            const branch = await prisma.branch.findFirst({
+                where: {
+                    branchId: setup.branchId,
+                    tenantId: setup.tenantId
+                }
+            });
+
+            return {
+                branchId: setup.branchId,
+                tenantId: setup.tenantId,
+                terminalId: setup.terminalId,
+                branch: branch as Branch | null
+            };
+        } catch (error) {
+            console.error('Error getting active branch:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Set/switch the active branch for the Electron app
+     * Updates the stored branchId in the app setup
+     * 
+     * @example
+     * // Electron main process (ipcMain handler):
+     * ipcMain.handle('settings:set-active-branch', async (_event, branchId: string) => {
+     *     try {
+     *         await SecureSettingsService.setActiveBranch(branchId);
+     *         return { success: true };
+     *     } catch (error: any) {
+     *         console.error('Failed to set active branch:', error);
+     *         return { success: false, error: error.message };
+     *     }
+     * });
+     * 
+     * @param branchId - The branch ID to switch to
+     * @param validateAccess - Whether to validate the branch exists and is active (default: true)
+     * @returns The updated branch information
+     */
+    static async setActiveBranch(
+        branchId: string,
+        validateAccess = true
+    ): Promise<{
+        branchId: string;
+        tenantId: string;
+        terminalId: string;
+        branch: Branch | null;
+    }> {
+        try {
+            if (!this.initialized) {
+                await this.initialize();
+            }
+
+            const setup = await this.getAppSetup();
+
+            if (!setup) {
+                throw new Error('App setup not found. Please complete initial setup first.');
+            }
+
+            if (validateAccess) {
+                // Validate the branch exists and belongs to the same tenant
+                const branch = await prisma.branch.findFirst({
+                    where: {
+                        branchId: branchId,
+                        tenantId: setup.tenantId
+                    }
+                });
+
+                if (!branch) {
+                    throw new Error('Branch not found or does not belong to this tenant');
+                }
+
+                if (branch.status !== 'active') {
+                    throw new Error('Cannot switch to an inactive branch');
+                }
+            }
+
+            // Update the app setup with the new branch ID
+            await this.updateAppSetup({
+                branchId: branchId
+            });
+
+            // Return the updated active branch info
+            return await this.getActiveBranch() as {
+                branchId: string;
+                tenantId: string;
+                terminalId: string;
+                branch: Branch | null;
+            };
+        } catch (error) {
+            console.error('Error setting active branch:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Get all available branches for the current tenant
+     * Useful for populating branch switcher UI in Electron apps
+     * 
+     * @example
+     * // Electron main process (ipcMain handler):
+     * ipcMain.handle('settings:get-available-branches', async () => {
+     *     try {
+     *         const branches = await SecureSettingsService.getAvailableBranches();
+     *         return { success: true, data: branches };
+     *     } catch (error: any) {
+     *         console.error('Failed to get available branches:', error);
+     *         return { success: false, error: error.message };
+     *     }
+     * });
+     * 
+     * @param activeOnly - Whether to return only active branches (default: true)
+     * @returns Array of branches for the current tenant
+     */
+    static async getAvailableBranches(activeOnly = true): Promise<Branch[]> {
+        try {
+            if (!this.initialized) {
+                await this.initialize();
+            }
+
+            const setup = await this.getAppSetup();
+
+            if (!setup || !setup.tenantId) {
+                throw new Error('App setup not found. Please complete initial setup first.');
+            }
+
+            const whereClause: any = {
+                tenantId: setup.tenantId
+            };
+
+            if (activeOnly) {
+                whereClause.status = 'active';
+            }
+
+            const branches = await prisma.branch.findMany({
+                where: whereClause,
+                orderBy: {
+                    branchName: 'asc'
+                }
+            });
+
+            return branches as Branch[];
+        } catch (error) {
+            console.error('Error getting available branches:', error);
+            throw error;
         }
     }
 }

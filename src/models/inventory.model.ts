@@ -3,6 +3,7 @@ import { CartItem } from 'order';
 import { AuthenticatedUser } from 'auth';
 import { InventoryItem } from 'inventory-item';
 import prisma from '../databases/prisma/client';
+import { ProductService } from '../services/product.service';
 
 /**
  * New Inventory Model using Product + Inventory tables
@@ -319,6 +320,18 @@ export class InventoryModel {
      * Create new product with inventory
      */
     static async create(inventoryData: Record<string, any>, auth: AuthenticatedUser): Promise<void> {
+        const primaryBarcode = inventoryData.barcode || inventoryData.primaryBarcode;
+        const additionalBarcodes = inventoryData.additionalBarcodes?.map((bc: any) => ({
+            barcode: typeof bc === 'string' ? bc : bc.code || bc.barcode
+        }));
+
+        await ProductService.validateBarcodesForDuplicates(
+            primaryBarcode,
+            additionalBarcodes,
+            auth.tenantId,
+            auth.branchId
+        );
+
         await prisma.$transaction(async (tx) => {
             const product = await tx.product.create({
                 data: {
@@ -761,7 +774,22 @@ export class InventoryModel {
     /**
      * Additional methods for compatibility
      */
-    static async updateWithValidation(productId: string, inventoryData: Record<string, any>, _auth: AuthenticatedUser): Promise<number> {
+    static async updateWithValidation(productId: string, inventoryData: Record<string, any>, auth: AuthenticatedUser): Promise<number> {
+        const newBarcode = inventoryData.barcode || inventoryData.primaryBarcode;
+        if (newBarcode !== undefined) {
+            const duplicateCheck = await ProductService.checkDuplicateBarcode(
+                newBarcode,
+                auth.tenantId,
+                auth.branchId,
+                productId
+            );
+            if (duplicateCheck.exists) {
+                throw new Error(
+                    `Barcode "${newBarcode}" is already assigned to product "${duplicateCheck.productName}"`
+                );
+            }
+        }
+
         return await this.update(productId, inventoryData);
     }
 
