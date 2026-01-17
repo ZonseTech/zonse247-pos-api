@@ -38,6 +38,17 @@ router.post(
     asyncHandler(AuthController.resetPassword)
 );
 
+router.post(
+    '/switch-branch',
+    authMiddleware.verifyToken,
+    asyncHandler(AuthController.switchBranch)
+);
+
+router.get(
+    '/accessible-branches',
+    authMiddleware.verifyToken,
+    asyncHandler(AuthController.getAccessibleBranches)
+);
 
 router.put(
     '/change-password/:id',

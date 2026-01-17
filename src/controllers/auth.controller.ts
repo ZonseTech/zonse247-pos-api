@@ -3,6 +3,7 @@ import { BaseController } from './base.controller';
 import { AuthService } from '../services/auth.service';
 import { PublicUser } from 'users';
 import { ApiResponse } from 'network';
+import { AuthRequest } from '../lib/express.type';
 
 /**
  * Authentication Controller
@@ -248,6 +249,89 @@ export class AuthController extends BaseController {
             BaseController.sendResponse(res, 200, true, 'Password reset successfully', result);
         } catch (error: any) {
             console.error('Error resetting password:', error);
+
+            const statusCode = error.message.includes('not found') ? 404 : 500;
+            BaseController.sendResponse(res, statusCode, false, error.message, undefined, error.message);
+        }
+    }
+
+    /**
+     * Switch User's Active Branch
+     * Allows authenticated users to switch their active branch context
+     * @static
+     * @param req - Express request with branchId in body and authenticated user
+     * @param res - Express response
+     * @returns Promise<void>
+     */
+    static async switchBranch(
+        req: Request<ApiResponse<{ user: PublicUser; token: string; branch: any }>, { branchId: string }> & AuthRequest,
+        res: Response
+    ): Promise<void> {
+        try {
+            const { branchId } = req.body;
+            const user = req.auth;
+
+            if (!user) {
+                BaseController.sendResponse(res, 401, false, 'Authentication required');
+                return;
+            }
+
+            if (!branchId) {
+                BaseController.sendResponse(res, 400, false, 'Branch ID is required');
+                return;
+            }
+
+            const result = await AuthService.switchBranch(user.userId, branchId, user.tenantId);
+
+            res.setHeader('X-Active-Branch-Id', branchId);
+
+            BaseController.sendResponse(res, 200, true, 'Branch switched successfully', {
+                user: result.user,
+                token: result.token,
+                branch: result.branch
+            });
+        } catch (error: any) {
+            console.error('Error switching branch:', error);
+
+            let statusCode = 500;
+            if (error.message.includes('not found')) {
+                statusCode = 404;
+            } else if (error.message.includes('do not have access') || error.message.includes('not active')) {
+                statusCode = 403;
+            }
+
+            BaseController.sendResponse(res, statusCode, false, error.message, undefined, error.message);
+        }
+    }
+
+    /**
+     * Get User's Accessible Branches
+     * Returns all branches the authenticated user can access
+     * @static
+     * @param req - Express request with authenticated user
+     * @param res - Express response
+     * @returns Promise<void>
+     */
+    static async getAccessibleBranches(
+        req: Request & AuthRequest,
+        res: Response
+    ): Promise<void> {
+        try {
+            const user = req.auth;
+
+            if (!user) {
+                BaseController.sendResponse(res, 401, false, 'Authentication required');
+                return;
+            }
+
+            const branches = await AuthService.getUserAccessibleBranches(user.userId, user.tenantId);
+
+            BaseController.sendResponse(res, 200, true, 'Accessible branches retrieved successfully', {
+                branches,
+                currentBranchId: user.currentBranchId || user.branchId
+            });
+        } catch (error: any) {
+            console.error('Error getting accessible branches:', error);
 
             const statusCode = error.message.includes('not found') ? 404 : 500;
             BaseController.sendResponse(res, statusCode, false, error.message, undefined, error.message);

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-non-null-assertion */
 import jwt from 'jsonwebtoken';
 import validator from 'validator';
 import type { User } from 'users';
@@ -330,5 +331,118 @@ export class AuthService {
             tempPassword += chars.charAt(Math.floor(Math.random() * chars.length));
         }
         return tempPassword;
+    }
+
+    /**
+     * Switches user's active branch and generates a new token with updated branch context
+     * 
+     * @param userId - The user's unique identifier
+     * @param targetBranchId - The branch ID to switch to
+     * @param tenantId - The tenant's unique identifier
+     * @returns Object containing updated user data with new token
+     * @throws {Error} When user not found, branch not found, or access denied
+     * 
+     * @example
+     * ```typescript
+     * const result = await AuthService.switchBranch(userId, newBranchId, tenantId);
+     * // Returns { user, token, branch }
+     * ```
+     */
+    static async switchBranch(
+        userId: string,
+        targetBranchId: string,
+        tenantId: string
+    ): Promise<{ user: any; token: string; branch: any }> {
+        if (!userId || !targetBranchId || !tenantId) {
+            throw new Error('User ID, Branch ID, and Tenant ID are required');
+        }
+
+        // Import here to avoid circular dependency
+        const { BranchModel } = await import('../models/branch.model');
+        const { BranchMiddleware } = await import('../middlewares/branch.middleware');
+
+        const user = await UserModel.findById(userId);
+        if (!user) {
+            throw new Error('User not found');
+        }
+
+        if (user.tenantId !== tenantId) {
+            throw new Error('User does not belong to this tenant');
+        }
+
+        const hasAccess = await BranchMiddleware.userHasBranchAccess(user, targetBranchId);
+        if (!hasAccess) {
+            throw new Error('You do not have access to this branch');
+        }
+
+        const branch = await BranchModel.findById(targetBranchId);
+        if (!branch) {
+            throw new Error('Branch not found');
+        }
+
+        if (branch.tenantId !== tenantId) {
+            throw new Error('Branch does not belong to this tenant');
+        }
+
+        if (branch.status !== 'active') {
+            throw new Error('The target branch is not active');
+        }
+
+        await UserModel.update(userId, {
+            currentBranchId: targetBranchId
+        });
+
+        const updatedUser = await UserModel.findById(userId);
+        const roleData = await UserService.getRoleWithPermissions(updatedUser!.roleId);
+        const completeUser = UserService.getPublicUser({
+            ...updatedUser!,
+            currentBranchId: targetBranchId
+        }, roleData || {});
+
+        const token = this.generateJWTToken({
+            ...completeUser,
+            currentBranchId: targetBranchId,
+            activeBranchId: targetBranchId
+        });
+
+        return { user: completeUser, token, branch };
+    }
+
+    /**
+     * Gets all accessible branches for a user
+     * 
+     * @param userId - The user's unique identifier
+     * @param tenantId - The tenant's unique identifier
+     * @returns Array of accessible branches
+     */
+    static async getUserAccessibleBranches(
+        userId: string,
+        tenantId: string
+    ): Promise<any[]> {
+        const { BranchModel } = await import('../models/branch.model');
+
+        const user = await UserModel.findById(userId);
+        if (!user) {
+            throw new Error('User not found');
+        }
+
+        if (user.accessibleBranches &&
+            Array.isArray(user.accessibleBranches) &&
+            user.accessibleBranches.includes('*')) {
+            return await BranchModel.findByTenantId(tenantId);
+        }
+
+        const accessibleBranchIds = [
+            user.branchId,
+            ...(user.accessibleBranches || [])
+        ].filter((id, index, arr) => id && arr.indexOf(id) === index);
+
+        const branches = await Promise.all(
+            accessibleBranchIds.map(branchId =>
+                BranchModel.findById(branchId)
+            )
+        );
+
+        return branches.filter(branch => branch !== null && branch.status === 'active');
     }
 }
