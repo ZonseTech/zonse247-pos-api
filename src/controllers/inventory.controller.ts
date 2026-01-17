@@ -237,8 +237,14 @@ export class InventoryController extends BaseController {
             BaseController.sendCreated(res, 'Inventory item created successfully.', newInventoryItem);
         } catch (err) {
             console.error('Error creating inventory item:', err);
-            if (err instanceof Error && err.message === 'Inventory item validation failed') {
-                BaseController.sendBadRequest(res, 'Invalid inventory item data provided.');
+            if (err instanceof Error) {
+                if (err.message === 'Inventory item validation failed') {
+                    BaseController.sendBadRequest(res, 'Invalid inventory item data provided.');
+                } else if (err.message.includes('Duplicate barcode') || err.message.includes('is already assigned to product')) {
+                    BaseController.sendBadRequest(res, err.message);
+                } else {
+                    BaseController.sendServerError(res, 'An unexpected error occurred.');
+                }
             } else {
                 BaseController.sendServerError(res, 'An unexpected error occurred.');
             }
@@ -263,7 +269,9 @@ export class InventoryController extends BaseController {
             console.error('Error updating inventory item:', err);
             if (err instanceof Error && (
                 err.message === 'Inventory item validation failed' ||
-                err.message === 'Inventory item not found or access denied'
+                err.message === 'Inventory item not found or access denied' ||
+                err.message.includes('Duplicate barcode') ||
+                err.message.includes('is already assigned to product')
             )) {
                 BaseController.sendBadRequest(res, err.message);
             } else {

@@ -11,9 +11,132 @@ import {
 
 export class ProductService {
     /**
+     * Check if a barcode already exists in the store (tenant + branch)
+     * Returns the product name if duplicate found, null otherwise
+     */
+    static async checkDuplicateBarcode(
+        barcode: string,
+        tenantId: string,
+        branchId: string,
+        excludeProductId?: string
+    ): Promise<{ exists: boolean; productName?: string; matchType?: 'primary' | 'alternative' }> {
+        const existingPrimaryBarcode = await prisma.product.findFirst({
+            where: {
+                primaryBarcode: barcode,
+                tenantId,
+                branchId,
+                isActive: true,
+                ...(excludeProductId && { id: { not: excludeProductId } }),
+            },
+            select: { id: true, name: true },
+        });
+
+        if (existingPrimaryBarcode) {
+            return {
+                exists: true,
+                productName: existingPrimaryBarcode.name,
+                matchType: 'primary',
+            };
+        }
+
+        const existingAlternativeBarcode = await prisma.productBarcode.findFirst({
+            where: {
+                barcode,
+                isActive: true,
+                product: {
+                    tenantId,
+                    branchId,
+                    isActive: true,
+                    ...(excludeProductId && { id: { not: excludeProductId } }),
+                },
+            },
+            include: {
+                product: {
+                    select: { id: true, name: true },
+                },
+            },
+        });
+
+        if (existingAlternativeBarcode) {
+            return {
+                exists: true,
+                productName: existingAlternativeBarcode.product.name,
+                matchType: 'alternative',
+            };
+        }
+
+        return { exists: false };
+    }
+
+    /**
+     * Validate all barcodes for duplicates before creating/updating a product
+     */
+    static async validateBarcodesForDuplicates(
+        primaryBarcode: string | undefined,
+        alternativeBarcodes: { barcode: string }[] | undefined,
+        tenantId: string,
+        branchId: string,
+        excludeProductId?: string
+    ): Promise<void> {
+        const errors: string[] = [];
+
+        if (primaryBarcode) {
+            const duplicateCheck = await this.checkDuplicateBarcode(
+                primaryBarcode,
+                tenantId,
+                branchId,
+                excludeProductId
+            );
+            if (duplicateCheck.exists) {
+                errors.push(
+                    `Primary barcode "${primaryBarcode}" is already assigned to product "${duplicateCheck.productName}"`
+                );
+            }
+        }
+
+        if (alternativeBarcodes && alternativeBarcodes.length > 0) {
+            const barcodeSet = new Set<string>();
+            if (primaryBarcode) {
+                barcodeSet.add(primaryBarcode);
+            }
+
+            for (const bc of alternativeBarcodes) {
+                if (barcodeSet.has(bc.barcode)) {
+                    errors.push(`Duplicate barcode "${bc.barcode}" found in the provided list`);
+                } else {
+                    barcodeSet.add(bc.barcode);
+
+                    const duplicateCheck = await this.checkDuplicateBarcode(
+                        bc.barcode,
+                        tenantId,
+                        branchId,
+                        excludeProductId
+                    );
+                    if (duplicateCheck.exists) {
+                        errors.push(
+                            `Barcode "${bc.barcode}" is already assigned to product "${duplicateCheck.productName}"`
+                        );
+                    }
+                }
+            }
+        }
+
+        if (errors.length > 0) {
+            throw new Error(`Duplicate barcode(s) detected: ${errors.join('; ')}`);
+        }
+    }
+
+    /**
      * Create a new product
      */
     static async createProduct(data: CreateProductInput, tenantId: string, branchId: string): Promise<ProductWithInventory> {
+        await this.validateBarcodesForDuplicates(
+            data.primaryBarcode,
+            data.barcodes,
+            tenantId,
+            branchId
+        );
+
         const product = await prisma.product.create({
             data: {
                 id: uuidv4(),
@@ -339,7 +462,14 @@ export class ProductService {
         branchId: string,
         data: UpdateProductInput
     ): Promise<ProductWithInventory> {
-        // Use a transaction to update product, inventory settings, and barcodes
+        await this.validateBarcodesForDuplicates(
+            data.primaryBarcode,
+            data.barcodes,
+            tenantId,
+            branchId,
+            productId
+        );
+
         const product = await prisma.$transaction(async (tx) => {
             await tx.product.update({
                 where: {
@@ -468,6 +598,19 @@ export class ProductService {
 
         if (!product) {
             throw new Error('Product not found');
+        }
+
+        const duplicateCheck = await this.checkDuplicateBarcode(
+            barcode,
+            tenantId,
+            branchId,
+            productId
+        );
+
+        if (duplicateCheck.exists) {
+            throw new Error(
+                `Barcode "${barcode}" is already assigned to product "${duplicateCheck.productName}"`
+            );
         }
 
         await prisma.productBarcode.create({
