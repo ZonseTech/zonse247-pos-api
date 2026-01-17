@@ -30,6 +30,8 @@ export const corsOptions = {
 		'X-Client-Type',
 		'x-tenant-id',
 		'X-Tenant-Id',
+		'X-Branch-Id',
+		'x-branch-id',
 	],
 	maxAge: 86400,
 };
