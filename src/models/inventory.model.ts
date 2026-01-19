@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-non-null-assertion */
 import { v4 as uuidv4 } from 'uuid';
 import { CartItem } from 'order';
 import { AuthenticatedUser } from 'auth';
@@ -140,6 +141,11 @@ export class InventoryModel {
             }
         }
 
+        // Category filter
+        if (categoryId) {
+            whereClause.categoryId = categoryId;
+        }
+
         // Search
         if (search) {
             whereClause.OR = [
@@ -237,6 +243,11 @@ export class InventoryModel {
                 endDateTime.setHours(23, 59, 59, 999);
                 whereClause.createdAt.lte = endDateTime;
             }
+        }
+
+        // Category filter
+        if (categoryId) {
+            whereClause.categoryId = categoryId;
         }
 
         if (search) {
@@ -613,6 +624,303 @@ export class InventoryModel {
         return await prisma.product.count({
             where: whereClause
         });
+    }
+
+    /**
+     * Get comprehensive inventory overview with stock valuation
+     */
+    static async getInventoryOverview(
+        auth: AuthenticatedUser,
+        options: {
+            search?: string;
+            filter?: string;
+            categoryId?: string;
+            startDate?: string;
+            endDate?: string;
+        } = {}
+    ): Promise<{
+        totalProducts: number;
+        totalStockQuantity: number;
+        totalStockValue: number;
+        totalRetailValue: number;
+        potentialProfit: number;
+        profitMargin: number;
+        averageCostPerUnit: number;
+        averageSellingPricePerUnit: number;
+        lowStockCount: number;
+        outOfStockCount: number;
+        categoryBreakdown: Array<{
+            categoryId: string | null;
+            categoryName: string;
+            productCount: number;
+            totalQuantity: number;
+            totalCostValue: number;
+            totalRetailValue: number;
+        }>;
+        stockHealthSummary: {
+            healthy: number;
+            lowStock: number;
+            outOfStock: number;
+            overstocked: number;
+        };
+        filters: {
+            search: string;
+            filter: string;
+            categoryId: string | null;
+            startDate: string | null;
+            endDate: string | null;
+        };
+    }> {
+        const { search = '', filter = 'all', categoryId, startDate, endDate } = options;
+
+        // Build where clause with filters
+        const whereClause: any = {
+            tenantId: auth.tenantId,
+            branchId: auth.branchId
+        };
+
+        // Filter logic
+        if (filter === 'all') {
+            whereClause.isActive = true;
+        } else if (filter === 'new' || filter === 'new-stock') {
+            const oneWeekAgo = new Date();
+            oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+            whereClause.createdAt = { gte: oneWeekAgo };
+            whereClause.isActive = true;
+        } else if (filter === 'low-stock') {
+            whereClause.isActive = true;
+        } else if (filter === 'expiring-soon') {
+            whereClause.isActive = true;
+            const now = new Date();
+            const thirtyDaysFromNow = new Date();
+            thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
+            whereClause.expirationDate = {
+                gte: now,
+                lte: thirtyDaysFromNow
+            };
+        } else if (filter === 'expired') {
+            whereClause.isActive = true;
+            const now = new Date();
+            whereClause.expirationDate = {
+                lt: now
+            };
+        }
+
+        // Category filter
+        if (categoryId) {
+            whereClause.categoryId = categoryId;
+        }
+
+        // Date range
+        if (startDate || endDate) {
+            whereClause.createdAt = whereClause.createdAt || {};
+            if (startDate) {
+                whereClause.createdAt.gte = new Date(startDate);
+            }
+            if (endDate) {
+                const endDateTime = new Date(endDate);
+                endDateTime.setHours(23, 59, 59, 999);
+                whereClause.createdAt.lte = endDateTime;
+            }
+        }
+
+        // Search
+        if (search) {
+            whereClause.OR = [
+                { name: { contains: search } },
+                { sku: { contains: search } },
+                { primaryBarcode: { contains: search } },
+                {
+                    productBarcodes: {
+                        some: {
+                            barcode: { contains: search }
+                        }
+                    }
+                }
+            ];
+        }
+
+        // Get filtered products with their inventories
+        let products = await prisma.product.findMany({
+            where: whereClause,
+            include: {
+                inventories: {
+                    where: {
+                        branchId: auth.branchId
+                    }
+                },
+                category: true
+            }
+        });
+
+        // Post-process for low-stock filter
+        if (filter === 'low-stock') {
+            products = products.filter(product => {
+                const inventory = product.inventories[0];
+                if (!inventory?.reorderPoint) return false;
+                return inventory.availableQuantity <= inventory.reorderPoint;
+            });
+        }
+
+        const totalProducts = products.length;
+        let totalStockQuantity = 0;
+        let totalStockValue = 0;
+        let totalRetailValue = 0;
+        let lowStockCount = 0;
+        let outOfStockCount = 0;
+        let overstockedCount = 0;
+        let healthyCount = 0;
+
+        // Map for category breakdown
+        const categoryMap = new Map<string, {
+            categoryId: string | null;
+            categoryName: string;
+            productCount: number;
+            totalQuantity: number;
+            totalCostValue: number;
+            totalRetailValue: number;
+        }>();
+
+        for (const product of products) {
+            const inventory = product.inventories[0];
+            const availableQty = inventory?.availableQuantity || 0;
+            const avgCost = Number(inventory?.averageCost || 0);
+            const sellingPrice = Number(product.sellingPrice || 0);
+            const reorderPoint = inventory?.reorderPoint || 0;
+            const maxStock = inventory?.maxStock || 0;
+
+            // Calculate totals
+            totalStockQuantity += availableQty;
+            totalStockValue += availableQty * avgCost;
+            totalRetailValue += availableQty * sellingPrice;
+
+            // Stock health check
+            if (availableQty === 0) {
+                outOfStockCount++;
+            } else if (reorderPoint > 0 && availableQty <= reorderPoint) {
+                lowStockCount++;
+            } else if (maxStock > 0 && availableQty > maxStock) {
+                overstockedCount++;
+            } else {
+                healthyCount++;
+            }
+
+            // Category breakdown
+            const categoryKey = product.categoryId || 'uncategorized';
+            const categoryName = product.category?.name || 'Uncategorized';
+
+            if (!categoryMap.has(categoryKey)) {
+                categoryMap.set(categoryKey, {
+                    categoryId: product.categoryId,
+                    categoryName,
+                    productCount: 0,
+                    totalQuantity: 0,
+                    totalCostValue: 0,
+                    totalRetailValue: 0
+                });
+            }
+
+            const categoryData = categoryMap.get(categoryKey)!;
+            categoryData.productCount++;
+            categoryData.totalQuantity += availableQty;
+            categoryData.totalCostValue += availableQty * avgCost;
+            categoryData.totalRetailValue += availableQty * sellingPrice;
+        }
+
+        const potentialProfit = totalRetailValue - totalStockValue;
+        const profitMargin = totalRetailValue > 0 ? (potentialProfit / totalRetailValue) * 100 : 0;
+        const averageCostPerUnit = totalStockQuantity > 0 ? totalStockValue / totalStockQuantity : 0;
+        const averageSellingPricePerUnit = totalStockQuantity > 0 ? totalRetailValue / totalStockQuantity : 0;
+
+        return {
+            totalProducts,
+            totalStockQuantity,
+            totalStockValue: Math.round(totalStockValue * 100) / 100,
+            totalRetailValue: Math.round(totalRetailValue * 100) / 100,
+            potentialProfit: Math.round(potentialProfit * 100) / 100,
+            profitMargin: Math.round(profitMargin * 100) / 100,
+            averageCostPerUnit: Math.round(averageCostPerUnit * 100) / 100,
+            averageSellingPricePerUnit: Math.round(averageSellingPricePerUnit * 100) / 100,
+            lowStockCount,
+            outOfStockCount,
+            categoryBreakdown: Array.from(categoryMap.values()).map(cat => ({
+                ...cat,
+                totalCostValue: Math.round(cat.totalCostValue * 100) / 100,
+                totalRetailValue: Math.round(cat.totalRetailValue * 100) / 100
+            })).sort((a, b) => b.totalRetailValue - a.totalRetailValue),
+            stockHealthSummary: {
+                healthy: healthyCount,
+                lowStock: lowStockCount,
+                outOfStock: outOfStockCount,
+                overstocked: overstockedCount
+            },
+            filters: {
+                search,
+                filter,
+                categoryId: categoryId || null,
+                startDate: startDate || null,
+                endDate: endDate || null
+            }
+        };
+    }
+
+    /**
+     * Get top valuable inventory items
+     */
+    static async getTopValueInventoryItems(auth: AuthenticatedUser, limit = 10): Promise<Array<{
+        productId: string;
+        name: string;
+        sku: string;
+        categoryName: string | null;
+        availableQuantity: number;
+        averageCost: number;
+        sellingPrice: number;
+        totalCostValue: number;
+        totalRetailValue: number;
+        potentialProfit: number;
+    }>> {
+        const products = await prisma.product.findMany({
+            where: {
+                tenantId: auth.tenantId,
+                branchId: auth.branchId,
+                isActive: true
+            },
+            include: {
+                inventories: {
+                    where: {
+                        branchId: auth.branchId
+                    }
+                },
+                category: true
+            }
+        });
+
+        const itemValues = products.map(product => {
+            const inventory = product.inventories[0];
+            const availableQty = inventory?.availableQuantity || 0;
+            const avgCost = Number(inventory?.averageCost || 0);
+            const sellingPrice = Number(product.sellingPrice || 0);
+            const totalCostValue = availableQty * avgCost;
+            const totalRetailValue = availableQty * sellingPrice;
+
+            return {
+                productId: product.id,
+                name: product.name,
+                sku: product.sku,
+                categoryName: product.category?.name || null,
+                availableQuantity: availableQty,
+                averageCost: Math.round(avgCost * 100) / 100,
+                sellingPrice: Math.round(sellingPrice * 100) / 100,
+                totalCostValue: Math.round(totalCostValue * 100) / 100,
+                totalRetailValue: Math.round(totalRetailValue * 100) / 100,
+                potentialProfit: Math.round((totalRetailValue - totalCostValue) * 100) / 100
+            };
+        });
+
+        // Sort by total retail value descending
+        return itemValues
+            .sort((a, b) => b.totalRetailValue - a.totalRetailValue)
+            .slice(0, limit);
     }
 
     /**

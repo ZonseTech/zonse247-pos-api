@@ -7,7 +7,7 @@ export class InventoryController extends BaseController {
     private static getAuthContext(req: Request & AuthRequest) {
         return {
             tenantId: req.auth?.tenantId || '',
-            branchId: req.auth?.branchId || '',
+            branchId: req.auth?.activeBranchId || req.auth?.branchId || '',
             userId: req.auth?.userId || ''
         };
     }
@@ -20,6 +20,45 @@ export class InventoryController extends BaseController {
         } catch (error) {
             console.error('Error fetching inventory summary:', error);
             BaseController.sendServerError(res, 'Failed to fetch inventory summary.');
+        }
+    }
+
+    static async getOverview(req: Request & AuthRequest, res: Response): Promise<void> {
+        try {
+            const auth = InventoryController.getAuthContext(req);
+
+            const search = req.query.search as string || '';
+            const filter = req.query.filter as string || 'all';
+            const categoryId = req.query.categoryId as string | undefined;
+            const startDate = req.query.startDate as string | undefined;
+            const endDate = req.query.endDate as string | undefined;
+
+            const overview = await InventoryService.getInventoryOverview(auth, {
+                search,
+                filter,
+                categoryId,
+                startDate,
+                endDate
+            });
+            BaseController.sendSuccess(res, 'Inventory overview retrieved successfully.', overview);
+        } catch (error) {
+            console.error('Error fetching inventory overview:', error);
+            BaseController.sendServerError(res, 'Failed to fetch inventory overview.');
+        }
+    }
+
+    static async getTopValueItems(req: Request & AuthRequest, res: Response): Promise<void> {
+        try {
+            const auth = InventoryController.getAuthContext(req);
+            const limit = parseInt(req.query.limit as string) || 10;
+            const topItems = await InventoryService.getTopValueInventoryItems(auth, limit);
+            BaseController.sendSuccess(res, 'Top value inventory items retrieved successfully.', {
+                count: topItems.length,
+                items: topItems
+            });
+        } catch (error) {
+            console.error('Error fetching top value inventory items:', error);
+            BaseController.sendServerError(res, 'Failed to fetch top value inventory items.');
         }
     }
 

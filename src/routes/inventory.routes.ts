@@ -4,6 +4,8 @@ import { InventoryController } from '../controllers/inventory.controller';
 const router = Router();
 
 router.get('/summary', InventoryController.getSummary);
+router.get('/overview', InventoryController.getOverview);
+router.get('/top-value', InventoryController.getTopValueItems);
 router.get('/count', InventoryController.getCount);
 router.get('/', InventoryController.getInventoryItems);
 router.get('/all', InventoryController.getAllInventoryItems);
