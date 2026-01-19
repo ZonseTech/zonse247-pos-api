@@ -1,4 +1,4 @@
-import { SaleStatus } from '../databases/prisma/generated/prisma/client';
+import { SaleStatus, PaymentStatus } from '../databases/prisma/generated/prisma/client';
 
 export interface Sale {
     id: string;
@@ -14,7 +14,7 @@ export interface Sale {
     totalAmount: number;
     amountPaid: number;
     changeAmount: number;
-    paymentMethodId?: string;
+    paymentMethodId?: string; // Keep for backward compatibility (single payment)
     status: SaleStatus;
     saleDate: Date;
     notes?: string;
@@ -40,6 +40,36 @@ export interface SaleItem {
     createdAt: Date;
 }
 
+// NEW: Payment interface for split payments
+export interface SalePaymentInput {
+    paymentMethodId: string;
+    amount: number;
+    reference?: string;      // Card ref, mobile money transaction ID
+    providerId?: string;     // Payment service provider ID
+    providerRef?: string;    // External reference from provider
+    notes?: string;
+}
+
+export interface SalePayment {
+    id: string;
+    saleId: string;
+    paymentMethodId: string;
+    amount: number;
+    reference?: string;
+    providerId?: string;
+    providerRef?: string;
+    status: PaymentStatus;
+    processedAt: Date;
+    notes?: string;
+    createdAt: Date;
+    updatedAt: Date;
+    paymentMethod?: {
+        methodId: string;
+        name: string;
+        icon?: string;
+    };
+}
+
 export interface CreateSaleInput {
     tenantId: string;
     branchId: string;
@@ -49,7 +79,8 @@ export interface CreateSaleInput {
     taxAmount?: number;
     discountAmount?: number;
     amountPaid: number;
-    paymentMethodId?: string;
+    paymentMethodId?: string; // Single payment (backward compatible)
+    payments?: SalePaymentInput[]; // NEW: Multiple payments support
     notes?: string;
     items: {
         productId: string;
@@ -68,6 +99,29 @@ export interface SaleWithItems extends Sale {
             sku: string;
         };
     })[];
+    payments?: SalePayment[]; // NEW: Include payments in response
+    // Relations for display
+    paymentMethod?: {
+        methodId: string;
+        name: string;
+        icon?: string;
+    };
+    terminal?: {
+        terminalId: string;
+        terminalLabel: string;
+        terminalCode: string;
+    };
+    user?: {
+        userId: string;
+        fullname: string;
+        username: string;
+    };
+    customer?: {
+        customerId: string;
+        name: string;
+        phone?: string;
+        email?: string;
+    };
 }
 
 export interface VoidSaleInput {

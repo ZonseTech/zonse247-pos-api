@@ -8,8 +8,6 @@ import InventoryRoutes from './inventory.routes'
 import MigrationRoutes from './migration.routes'
 import PaymentMethodRoutes from './payment-method.routes'
 import TerminalSettingsRoutes from './terminal-settings.routes'
-import SyncRoutes from './sync.routes'
-import SyncIncomingRoutes from './sync-incoming.routes'
 import TransactionsRoutes from './transaction.routes'
 import ReturnsRoutes from './return.routes'
 import UsersRoutes from './users.routes'
@@ -32,6 +30,7 @@ import SalesRoutes from './sales.routes'
 import StockMovementsRoutes from './stock-movements.routes'
 import PrinterRoutes from './printer.routes'
 import TenantRegistrationDetailRoutes from './tenant-registration-detail.routes'
+import TransactionMigrationRoutes from './transaction-migration.routes'
 import { AuthMiddleware } from '../middlewares/auth.middleware'
 import { apiMiddleware } from '../middlewares/api.middleware'
 import { preventSQLInjection, preventXSS, sanitizeInput } from '../middlewares/security.middleware'
@@ -84,8 +83,6 @@ router.use('/branches', BranchesRoutes);
 
 router.use('/mailing', MailingRoutes);
 router.use('/export', DatabaseExportRoutes);
-router.use('/sync', SyncRoutes);
-router.use('/sync', SyncIncomingRoutes);
 router.use('/payment-service-providers', PaymentServiceProviderRoutes);
 router.use('/users', UsersRoutes);
 router.use('/analytics', AnalyticsRoutes);
@@ -107,6 +104,7 @@ router.use('/products', ProductsRoutes);
 router.use('/suppliers', SuppliersRoutes);
 router.use('/purchase-orders', PurchaseOrdersRoutes);
 router.use('/sales', SalesRoutes);
+router.use('/sales/migration', TransactionMigrationRoutes);
 router.use('/stock-movements', StockMovementsRoutes);
 router.use('/printers', PrinterRoutes);
 router.use('/tenant-registration-details', TenantRegistrationDetailRoutes);

@@ -153,3 +153,14 @@ tasks:
     cmds:
       - task: status:mysql
       - task: status:sqlite
+
+  # Data Migration
+  migrate:transactions:
+    desc: Migrate transactions to sales module (one-off)
+    cmds:
+      - npx ts-node scripts/migrate-transactions-to-sales.ts {{.CLI_ARGS}}
+
+  migrate:transactions:dry:
+    desc: Preview transaction migration (dry run)
+    cmds:
+      - npx ts-node scripts/migrate-transactions-to-sales.ts --dry-run

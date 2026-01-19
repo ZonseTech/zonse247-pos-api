@@ -4,7 +4,6 @@ import compression from 'compression';
 import { createServer, Server as HttpServer } from 'http';
 import express, { Request, Response, Application } from 'express';
 import { corsOptions } from './config/cors.config';
-import syncService from './services/sync.service';
 import { DatabaseInitializer } from './databases/prisma/databaseInitializer';
 import { timeoutHandler } from './middlewares/error.middleware';
 import {
@@ -168,7 +167,6 @@ export class Server {
 	}
 
 	public stop() {
-		syncService.stopAutoSync();
 		this.server.close();
 	}
 }

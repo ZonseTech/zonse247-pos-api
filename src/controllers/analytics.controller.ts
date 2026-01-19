@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { formatCurrency } from '../utils';
-import { AnalyticsModel } from '../models/analytics.model';
+import { AnalyticsModel, AnalyticsSource } from '../models/analytics.model';
 import { AuthRequest } from '../lib/express.type';
 
 export class AnalyticsController {
@@ -13,10 +13,20 @@ export class AnalyticsController {
         };
     }
 
+    // Helper to parse source filter from query params
+    private static getSourceFilter(req: Request): AnalyticsSource {
+        const source = req.query.source as string;
+        if (source === 'transactions' || source === 'sales') {
+            return source;
+        }
+        return 'all'; // Default to combined data
+    }
+
     // GET /monthly-sales/:monthYear
     static async getMonthlySales(req: Request & AuthRequest, res: Response): Promise<void> {
         try {
             const auth = AnalyticsController.getAuthContext(req);
+            const source = AnalyticsController.getSourceFilter(req);
             const monthYear = req.params.monthYear as string;
             const [year, month] = monthYear.split('-').map(Number);
 
@@ -24,10 +34,11 @@ export class AnalyticsController {
                 auth.tenantId,
                 auth.branchId,
                 year,
-                month
+                month,
+                source
             );
 
-            res.json(salesData);
+            res.json({ data: salesData, source });
         } catch (error) {
             console.error('Error fetching monthly sales data:', error);
             res.status(500).json({
@@ -41,6 +52,7 @@ export class AnalyticsController {
     static async getTransactions(req: Request & AuthRequest, res: Response): Promise<void> {
         try {
             const auth = AnalyticsController.getAuthContext(req);
+            const source = AnalyticsController.getSourceFilter(req);
             const limit = parseInt(req.params.limit as string);
             const offset = parseInt(req.params.offset as string) || 0;
             const includeItems = req.query.includeItems === 'true';
@@ -50,7 +62,8 @@ export class AnalyticsController {
                 auth.branchId,
                 limit,
                 offset,
-                includeItems
+                includeItems,
+                source
             );
 
             res.json(result);
@@ -67,8 +80,9 @@ export class AnalyticsController {
     static async getTopProducts(req: Request & AuthRequest, res: Response): Promise<void> {
         try {
             const auth = AnalyticsController.getAuthContext(req);
-            const topProducts = await AnalyticsModel.getTopProducts(auth.tenantId, auth.branchId);
-            res.json(topProducts);
+            const source = AnalyticsController.getSourceFilter(req);
+            const topProducts = await AnalyticsModel.getTopProducts(auth.tenantId, auth.branchId, source);
+            res.json({ data: topProducts, source });
         } catch (error) {
             console.error('Error fetching top products:', error);
             res.status(500).json({
@@ -82,11 +96,13 @@ export class AnalyticsController {
     static async getCounts(req: Request & AuthRequest, res: Response): Promise<void> {
         try {
             const auth = AnalyticsController.getAuthContext(req);
-            const dashboardCounts = await AnalyticsModel.getDashboardCounts(auth.tenantId, auth.branchId);
+            const source = AnalyticsController.getSourceFilter(req);
+            const dashboardCounts = await AnalyticsModel.getDashboardCounts(auth.tenantId, auth.branchId, source);
 
             const formattedCounts = {
                 ...dashboardCounts,
                 totalSales: formatCurrency(parseFloat(dashboardCounts.totalSales)),
+                source,
             };
 
             res.json(formattedCounts);

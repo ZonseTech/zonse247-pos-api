@@ -6,7 +6,8 @@ import { StockMovementService } from './stock-movement.service';
 
 export class SaleService {
     /**
-     * Create a sale (Step 4: "Sell 10 bags → stock = 85")
+     * Create a sale with support for multiple payment methods
+     * (Step 4: "Sell 10 bags → stock = 85")
      */
     static async createSale(data: CreateSaleInput, tenantId: string, branchId: string): Promise<SaleWithItems> {
         return await prisma.$transaction(async (tx) => {
@@ -67,12 +68,20 @@ export class SaleService {
             const taxAmount = data.taxAmount || 0;
             const discountAmount = data.discountAmount || 0;
             const totalAmount = subtotal + taxAmount - discountAmount;
-            const changeAmount = data.amountPaid - totalAmount;
 
-            if (changeAmount < 0) {
-                throw new Error('Insufficient payment amount');
+            // Calculate total paid from multiple payments or single payment
+            let totalPaid = data.amountPaid;
+            if (data.payments && data.payments.length > 0) {
+                totalPaid = data.payments.reduce((sum, p) => sum + p.amount, 0);
             }
 
+            const changeAmount = totalPaid - totalAmount;
+
+            if (changeAmount < 0) {
+                throw new Error(`Insufficient payment amount. Total: ${totalAmount}, Paid: ${totalPaid}`);
+            }
+
+            // Create the sale
             const sale = await tx.sale.create({
                 data: {
                     id: uuidv4(),
@@ -86,9 +95,10 @@ export class SaleService {
                     taxAmount,
                     discountAmount,
                     totalAmount,
-                    amountPaid: data.amountPaid,
+                    amountPaid: totalPaid,
                     changeAmount,
-                    paymentMethodId: data.paymentMethodId,
+                    // Keep paymentMethodId for backward compatibility (first payment method or single)
+                    paymentMethodId: data.payments?.[0]?.paymentMethodId || data.paymentMethodId,
                     status: 'COMPLETED',
                     notes: data.notes,
                     items: {
@@ -97,6 +107,21 @@ export class SaleService {
                             ...item
                         })),
                     },
+                    // Create multiple payments if provided
+                    ...(data.payments && data.payments.length > 0 && {
+                        payments: {
+                            create: data.payments.map((payment) => ({
+                                id: uuidv4(),
+                                paymentMethodId: payment.paymentMethodId,
+                                amount: payment.amount,
+                                reference: payment.reference,
+                                providerId: payment.providerId,
+                                providerRef: payment.providerRef,
+                                notes: payment.notes,
+                                status: 'COMPLETED',
+                            })),
+                        },
+                    }),
                 },
                 include: {
                     items: {
@@ -106,6 +131,17 @@ export class SaleService {
                                     id: true,
                                     name: true,
                                     sku: true,
+                                },
+                            },
+                        },
+                    },
+                    payments: {
+                        include: {
+                            paymentMethod: {
+                                select: {
+                                    methodId: true,
+                                    name: true,
+                                    icon: true,
                                 },
                             },
                         },
@@ -169,6 +205,46 @@ export class SaleService {
                         },
                     },
                 },
+                payments: {
+                    include: {
+                        paymentMethod: {
+                            select: {
+                                methodId: true,
+                                name: true,
+                                icon: true,
+                            },
+                        },
+                    },
+                },
+                paymentMethod: {
+                    select: {
+                        methodId: true,
+                        name: true,
+                        icon: true,
+                    },
+                },
+                terminal: {
+                    select: {
+                        terminalId: true,
+                        terminalLabel: true,
+                        terminalCode: true,
+                    },
+                },
+                user: {
+                    select: {
+                        userId: true,
+                        fullname: true,
+                        username: true,
+                    },
+                },
+                customer: {
+                    select: {
+                        customerId: true,
+                        name: true,
+                        phone: true,
+                        email: true,
+                    },
+                },
             },
         });
 
@@ -187,10 +263,13 @@ export class SaleService {
             status?: SaleStatus;
             userId?: string;
             terminalId?: string;
+            paymentMethodId?: string;
             startDate?: Date;
             endDate?: Date;
             page?: number;
             limit?: number;
+            includeItems?: boolean;
+            search?: string;
         }
     ): Promise<{ sales: SaleWithItems[]; total: number; totalPages: number }> {
         const page = options?.page || 1;
@@ -200,14 +279,65 @@ export class SaleService {
         const where: any = {
             tenantId,
             branchId,
-            status: options?.status,
-            userId: options?.userId,
-            terminalId: options?.terminalId,
-            saleDate: {
-                gte: options?.startDate,
-                lte: options?.endDate,
-            },
         };
+
+        // Apply status filter
+        if (options?.status) {
+            where.status = options.status;
+        }
+
+        // Apply userId filter
+        if (options?.userId) {
+            where.userId = options.userId;
+        }
+
+        // Apply terminalId filter
+        if (options?.terminalId) {
+            where.terminalId = options.terminalId;
+        }
+
+        // Apply paymentMethodId filter
+        if (options?.paymentMethodId) {
+            where.paymentMethodId = options.paymentMethodId;
+        }
+
+        // Handle date filtering - adjust endDate to include the entire day
+        if (options?.startDate && options?.endDate) {
+            const endOfDay = new Date(options.endDate);
+            endOfDay.setHours(23, 59, 59, 999);
+
+            where.saleDate = {
+                gte: options.startDate,
+                lte: endOfDay,
+            };
+        } else if (options?.startDate) {
+            where.saleDate = { gte: options.startDate };
+        } else if (options?.endDate) {
+            const endOfDay = new Date(options.endDate);
+            endOfDay.setHours(23, 59, 59, 999);
+            where.saleDate = { lte: endOfDay };
+        }
+
+        // Apply search filter
+        if (options?.search) {
+            where.OR = [
+                { saleNumber: { contains: options.search } },
+                { notes: { contains: options.search } },
+                {
+                    customer: {
+                        name: { contains: options.search }
+                    }
+                },
+                {
+                    user: {
+                        OR: [
+                            { fullname: { contains: options.search } },
+                            { username: { contains: options.search } },
+                        ]
+                    }
+                },
+            ];
+        }
 
         const [sales, total] = await Promise.all([
             prisma.sale.findMany({
@@ -222,6 +352,46 @@ export class SaleService {
                                     sku: true,
                                 },
                             },
+                        },
+                    },
+                    payments: {
+                        include: {
+                            paymentMethod: {
+                                select: {
+                                    methodId: true,
+                                    name: true,
+                                    icon: true,
+                                },
+                            },
+                        },
+                    },
+                    paymentMethod: {
+                        select: {
+                            methodId: true,
+                            name: true,
+                            icon: true,
+                        },
+                    },
+                    terminal: {
+                        select: {
+                            terminalId: true,
+                            terminalLabel: true,
+                            terminalCode: true,
+                        },
+                    },
+                    user: {
+                        select: {
+                            userId: true,
+                            fullname: true,
+                            username: true,
+                        },
+                    },
+                    customer: {
+                        select: {
+                            customerId: true,
+                            name: true,
+                            phone: true,
+                            email: true,
                         },
                     },
                 },
@@ -413,6 +583,404 @@ export class SaleService {
                 createdAt: item.createdAt,
                 product: item.product,
             })),
+            // Include payments if available
+            payments: sale.payments?.map((payment: any) => ({
+                id: payment.id,
+                saleId: payment.saleId,
+                paymentMethodId: payment.paymentMethodId,
+                amount: Number(payment.amount),
+                reference: payment.reference,
+                providerId: payment.providerId,
+                providerRef: payment.providerRef,
+                status: payment.status,
+                processedAt: payment.processedAt,
+                notes: payment.notes,
+                createdAt: payment.createdAt,
+                updatedAt: payment.updatedAt,
+                paymentMethod: payment.paymentMethod,
+            })),
+            // Include relations for display
+            paymentMethod: sale.paymentMethod,
+            terminal: sale.terminal,
+            user: sale.user,
+            customer: sale.customer,
+        };
+    }
+
+    /**
+     * Get sales summary with filters
+     * Returns: Total Sales, Total Voided, Net Sales, Total Count
+     */
+    static async getSalesSummary(
+        tenantId: string,
+        branchId: string,
+        filters: {
+            startDate?: Date;
+            endDate?: Date;
+            status?: string;
+            paymentMethodId?: string;
+            userId?: string;
+            terminalId?: string;
+        }
+    ): Promise<{
+        totalSales: number;
+        totalVoided: number;
+        netSales: number;
+        totalCount: number;
+        completedCount: number;
+        voidedCount: number;
+        refundedCount: number;
+    }> {
+        const where: any = {
+            tenantId,
+            branchId,
+        };
+
+        if (filters.status) {
+            where.status = filters.status;
+        }
+
+        if (filters.paymentMethodId) {
+            where.paymentMethodId = filters.paymentMethodId;
+        }
+
+        if (filters.userId) {
+            where.userId = filters.userId;
+        }
+
+        if (filters.terminalId) {
+            where.terminalId = filters.terminalId;
+        }
+
+        // Handle date filtering
+        if (filters.startDate && filters.endDate) {
+            const endOfDay = new Date(filters.endDate);
+            endOfDay.setHours(23, 59, 59, 999);
+
+            where.saleDate = {
+                gte: filters.startDate,
+                lte: endOfDay,
+            };
+        } else if (filters.startDate) {
+            where.saleDate = { gte: filters.startDate };
+        } else if (filters.endDate) {
+            const endOfDay = new Date(filters.endDate);
+            endOfDay.setHours(23, 59, 59, 999);
+            where.saleDate = { lte: endOfDay };
+        }
+
+        const sales = await prisma.sale.findMany({
+            where,
+            select: {
+                totalAmount: true,
+                status: true,
+                isVoided: true,
+            },
+        });
+
+        let totalSales = 0;
+        let totalVoided = 0;
+        let completedCount = 0;
+        let voidedCount = 0;
+        let refundedCount = 0;
+
+        for (const sale of sales) {
+            const amount = Number(sale.totalAmount) || 0;
+
+            if (sale.status === 'VOIDED' || sale.isVoided) {
+                totalVoided += amount;
+                voidedCount++;
+            } else if (sale.status === 'REFUNDED') {
+                totalVoided += amount;
+                refundedCount++;
+            } else {
+                totalSales += amount;
+                completedCount++;
+            }
+        }
+
+        const netSales = totalSales - totalVoided;
+
+        return {
+            totalSales: Math.round(totalSales * 100) / 100,
+            totalVoided: Math.round(totalVoided * 100) / 100,
+            netSales: Math.round(netSales * 100) / 100,
+            totalCount: sales.length,
+            completedCount,
+            voidedCount,
+            refundedCount,
+        };
+    }
+
+    // ==========================================
+    // PARKED SALES (HOLD ORDERS) METHODS
+    // ==========================================
+
+    /**
+     * Park a sale (create a hold order)
+     */
+    static async parkSale(
+        data: any,
+        tenantId: string,
+        branchId: string
+    ): Promise<any> {
+        const holdOrder = await prisma.holdOrder.create({
+            data: {
+                itemId: data.itemId,
+                reference: data.reference,
+                total: data.total || 0,
+                totalItems: data.totalItems || 0,
+                date: data.date ? new Date(data.date) : new Date(),
+                status: 'hold',
+                userId: data.userId,
+                till: data.till,
+                tenantId,
+                branchId,
+                items: {
+                    create: (data.items || []).map((item: any) => ({
+                        productId: item.productId,
+                        productName: item.productName,
+                        quantity: item.quantity || 1,
+                        price: item.price || 0,
+                        subtotal: item.subtotal || 0,
+                        sku: item.sku,
+                        barcode: item.barcode,
+                        unit: item.unit,
+                        discount: item.discount || 0,
+                        tax: item.tax || 0,
+                    })),
+                },
+            },
+            include: {
+                items: true,
+            },
+        });
+
+        return holdOrder;
+    }
+
+    /**
+     * List all parked sales
+     */
+    static async listParkedSales(
+        tenantId: string,
+        branchId: string,
+        options?: {
+            userId?: string;
+            terminalId?: string;
+            status?: string;
+            page?: number;
+            limit?: number;
+        }
+    ): Promise<{ parkedSales: any[]; total: number; totalPages: number }> {
+        const page = options?.page || 1;
+        const limit = options?.limit || 50;
+        const skip = (page - 1) * limit;
+
+        const where: any = {
+            tenantId,
+            branchId,
+        };
+
+        if (options?.userId) {
+            where.userId = options.userId;
+        }
+
+        if (options?.terminalId) {
+            where.till = options.terminalId;
+        }
+
+        if (options?.status) {
+            where.status = options.status;
+        }
+
+        const [parkedSales, total] = await Promise.all([
+            prisma.holdOrder.findMany({
+                where,
+                include: {
+                    items: true,
+                },
+                skip,
+                take: limit,
+                orderBy: { date: 'desc' },
+            }),
+            prisma.holdOrder.count({ where }),
+        ]);
+
+        const totalPages = Math.ceil(total / limit);
+
+        return {
+            parkedSales,
+            total,
+            totalPages,
+        };
+    }
+
+    /**
+     * Get a parked sale by ID
+     */
+    static async getParkedSaleById(
+        holdOrderId: string,
+        tenantId: string,
+        branchId: string
+    ): Promise<any | null> {
+        const holdOrder = await prisma.holdOrder.findFirst({
+            where: {
+                id: holdOrderId,
+                tenantId,
+                branchId,
+            },
+            include: {
+                items: true,
+            },
+        });
+
+        return holdOrder;
+    }
+
+    /**
+     * Update a parked sale
+     */
+    static async updateParkedSale(
+        holdOrderId: string,
+        tenantId: string,
+        branchId: string,
+        data: any
+    ): Promise<any> {
+        // First verify it exists and belongs to tenant/branch
+        const existing = await prisma.holdOrder.findFirst({
+            where: {
+                id: holdOrderId,
+                tenantId,
+                branchId,
+            },
+        });
+
+        if (!existing) {
+            throw new Error('Parked sale not found');
+        }
+
+        // Update the hold order
+        const { items: _items, ...updateData } = data;
+
+        const updatedOrder = await prisma.holdOrder.update({
+            where: { id: holdOrderId },
+            data: updateData,
+            include: {
+                items: true,
+            },
+        });
+
+        return updatedOrder;
+    }
+
+    /**
+     * Resume a parked sale (delete the hold order)
+     * Returns the hold order data so it can be loaded into POS
+     */
+    static async resumeParkedSale(
+        holdOrderId: string,
+        tenantId: string,
+        branchId: string
+    ): Promise<any> {
+        // First get the hold order with items
+        const holdOrder = await prisma.holdOrder.findFirst({
+            where: {
+                id: holdOrderId,
+                tenantId,
+                branchId,
+            },
+            include: {
+                items: true,
+            },
+        });
+
+        if (!holdOrder) {
+            throw new Error('Parked sale not found');
+        }
+
+        // Update status to resumed
+        await prisma.holdOrder.update({
+            where: { id: holdOrderId },
+            data: { status: 'resumed' },
+        });
+
+        return holdOrder;
+    }
+
+    /**
+     * Delete a parked sale
+     */
+    static async deleteParkedSale(
+        holdOrderId: string,
+        tenantId: string,
+        branchId: string
+    ): Promise<void> {
+        // First verify it exists and belongs to tenant/branch
+        const existing = await prisma.holdOrder.findFirst({
+            where: {
+                id: holdOrderId,
+                tenantId,
+                branchId,
+            },
+        });
+
+        if (!existing) {
+            throw new Error('Parked sale not found');
+        }
+
+        // Delete items first, then the hold order
+        await prisma.holdOrderItem.deleteMany({
+            where: { holdOrderId },
+        });
+
+        await prisma.holdOrder.delete({
+            where: { id: holdOrderId },
+        });
+    }
+
+    /**
+     * Get parked sales count
+     */
+    static async getParkedSalesCount(
+        tenantId: string,
+        branchId: string,
+        options?: {
+            userId?: string;
+            terminalId?: string;
+        }
+    ): Promise<{ total: number; byStatus: Record<string, number> }> {
+        const where: any = {
+            tenantId,
+            branchId,
+        };
+
+        if (options?.userId) {
+            where.userId = options.userId;
+        }
+
+        if (options?.terminalId) {
+            where.till = options.terminalId;
+        }
+
+        const [total, holdCount, resumedCount, cancelledCount, completedCount, expiredCount] = await Promise.all([
+            prisma.holdOrder.count({ where }),
+            prisma.holdOrder.count({ where: { ...where, status: 'hold' } }),
+            prisma.holdOrder.count({ where: { ...where, status: 'resumed' } }),
+            prisma.holdOrder.count({ where: { ...where, status: 'cancelled' } }),
+            prisma.holdOrder.count({ where: { ...where, status: 'completed' } }),
+            prisma.holdOrder.count({ where: { ...where, status: 'expired' } }),
+        ]);
+
+        return {
+            total,
+            byStatus: {
+                hold: holdCount,
+                resumed: resumedCount,
+                cancelled: cancelledCount,
+                completed: completedCount,
+                expired: expiredCount,
+            },
         };
     }
 }
