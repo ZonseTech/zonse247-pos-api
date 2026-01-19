@@ -54,7 +54,7 @@ export class CustomerController extends BaseController {
             const customerData: CreateCustomerData = {
                 ...req.body,
                 tenantId: (req as any).auth?.tenantId || '',
-                branchId: (req as any).auth?.branchId || '',
+                branchId: (req as any).auth?.activeBranchId || (req as any).auth?.branchId || '',
                 userId: (req as any).auth?.userId || '',
             };
 

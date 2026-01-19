@@ -44,7 +44,7 @@ export class TransactionController extends BaseController {
                 page: page ? parseInt(page.toString()) : 1,
                 limit: limit ? parseInt(limit.toString()) : 50,
                 tenantId: req.auth.tenantId,
-                branchId: req.auth.branchId,
+                branchId: req.auth.activeBranchId || req.auth.branchId,
             };
 
             const result = await TransactionService.getAllTransactions(filters);
@@ -72,7 +72,7 @@ export class TransactionController extends BaseController {
                 till: till ? parseInt(till.toString()) : undefined,
                 includeItems: includeItems === 'true',
                 tenantId: req.auth.tenantId,
-                branchId: req.auth.branchId
+                branchId: req.auth.activeBranchId || req.auth.branchId
             };
 
             const transactions = await TransactionService.getTransactionsByDateRange(filters);
@@ -87,7 +87,7 @@ export class TransactionController extends BaseController {
         try {
             const newTransaction = await TransactionService.createTransaction(req.body, {
                 tenantId: req.auth.tenantId,
-                branchId: req.auth.branchId,
+                branchId: req.auth.activeBranchId || req.auth.branchId,
                 userId: req.auth.userId,
             });
             BaseController.sendResponse(res, 201, true, 'Transaction created successfully', newTransaction);
@@ -112,7 +112,7 @@ export class TransactionController extends BaseController {
                 transactionId,
                 req.body,
                 req.auth.tenantId,
-                req.auth.branchId
+                req.auth.activeBranchId || req.auth.branchId
             );
             BaseController.sendResponse(res, 200, true, 'Transaction updated successfully', updatedTransaction);
         } catch (error: any) {
@@ -137,7 +137,7 @@ export class TransactionController extends BaseController {
                 transactionId,
                 includeItems,
                 req.auth.tenantId,
-                req.auth.branchId
+                req.auth.activeBranchId || req.auth.branchId
             );
             BaseController.sendResponse(res, 200, true, 'Transaction retrieved successfully', transaction);
         } catch (error: any) {
@@ -158,7 +158,7 @@ export class TransactionController extends BaseController {
             const summary = await TransactionService.getTransactionSummary(
                 transactionId,
                 req.auth.tenantId,
-                req.auth.branchId
+                req.auth.activeBranchId || req.auth.branchId
             );
             BaseController.sendResponse(res, 200, true, 'Transaction summary retrieved successfully', summary);
         } catch (error: any) {
@@ -179,7 +179,7 @@ export class TransactionController extends BaseController {
             const result = await TransactionService.deleteTransaction(
                 transactionId,
                 req.auth.tenantId,
-                req.auth.branchId
+                req.auth.activeBranchId || req.auth.branchId
             );
             BaseController.sendResponse(res, 200, true, 'Transaction deleted successfully', result);
         } catch (error: any) {
@@ -229,7 +229,7 @@ export class TransactionController extends BaseController {
                 status: status?.toString(),
                 paymentMethodId: paymentMethodId?.toString(),
                 tenantId: req.auth.tenantId,
-                branchId: req.auth.branchId,
+                branchId: req.auth.activeBranchId || req.auth.branchId,
             };
 
             const result = await TransactionService.getTransactionsSummary(filters);

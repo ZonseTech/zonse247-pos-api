@@ -17,7 +17,7 @@ export class InventoryService {
         const now = new Date();
         const thirtyDaysFromNow = new Date();
         thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
-        
+
         const inventoryItems = await InventoryModel.findActive(auth);
 
         return {
@@ -38,6 +38,23 @@ export class InventoryService {
                 return expirationDate < now;
             }).length
         };
+    }
+
+    static async getInventoryOverview(
+        auth: AuthenticatedUser,
+        options: {
+            search?: string;
+            filter?: string;
+            categoryId?: string;
+            startDate?: string;
+            endDate?: string;
+        } = {}
+    ) {
+        return await InventoryModel.getInventoryOverview(auth, options);
+    }
+
+    static async getTopValueInventoryItems(auth: AuthenticatedUser, limit = 10) {
+        return await InventoryModel.getTopValueInventoryItems(auth, limit);
     }
 
     static async getInventoryItemByUuid(productId: string, auth: AuthenticatedUser): Promise<InventoryItem | null> {

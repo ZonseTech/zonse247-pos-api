@@ -24,7 +24,7 @@ export class CategoryController extends BaseController {
         try {
             const categories = await CategoryService.getAllCategories({
                 tenantId: req.auth.tenantId,
-                branchId: req.auth.branchId
+                branchId: req.auth.activeBranchId || req.auth.branchId
             });
 
             CategoryController.sendResponse(res, 200, true, 'Categories fetched successfully', categories);
@@ -54,7 +54,7 @@ export class CategoryController extends BaseController {
                 {
                     userId: req.auth.userId,
                     tenantId: req.auth.tenantId,
-                    branchId: req.auth.branchId,
+                    branchId: req.auth.activeBranchId || req.auth.branchId,
                 }
             );
 
@@ -96,7 +96,7 @@ export class CategoryController extends BaseController {
                 {
                     userId: req.auth.userId,
                     tenantId: req.auth.tenantId,
-                    branchId: req.auth.branchId,
+                    branchId: req.auth.activeBranchId || req.auth.branchId,
                 }
             );
 
@@ -125,7 +125,7 @@ export class CategoryController extends BaseController {
             await CategoryService.deleteCategory(categoryId as string, {
                 userId: req.auth.userId,
                 tenantId: req.auth.tenantId,
-                branchId: req.auth.branchId,
+                branchId: req.auth.activeBranchId || req.auth.branchId,
             });
 
             CategoryController.sendResponse(res, 200, true, 'Category deleted successfully');

@@ -7,6 +7,15 @@ import {
     ProductWithInventory,
     SearchProductResult,
 } from '../models/product.model';
+import {
+    DbErrorHandler,
+    ValidationError,
+    ConflictError,
+    NotFoundError,
+    BusinessLogicError,
+    ProductErrors,
+    InventoryErrors,
+} from '../utils/db-error-handler.util';
 
 
 export class ProductService {
@@ -78,8 +87,10 @@ export class ProductService {
         branchId: string,
         excludeProductId?: string
     ): Promise<void> {
-        const errors: string[] = [];
+        const errors: Record<string, string> = {};
+        const barcodeSet = new Set<string>();
 
+        // Validate primary barcode
         if (primaryBarcode) {
             const duplicateCheck = await this.checkDuplicateBarcode(
                 primaryBarcode,
@@ -88,24 +99,24 @@ export class ProductService {
                 excludeProductId
             );
             if (duplicateCheck.exists) {
-                errors.push(
-                    `Primary barcode "${primaryBarcode}" is already assigned to product "${duplicateCheck.productName}"`
-                );
+                errors.primaryBarcode = ProductErrors.BARCODE_EXISTS(primaryBarcode, duplicateCheck.productName);
             }
+            barcodeSet.add(primaryBarcode.toLowerCase());
         }
 
+        // Validate alternative barcodes
         if (alternativeBarcodes && alternativeBarcodes.length > 0) {
-            const barcodeSet = new Set<string>();
-            if (primaryBarcode) {
-                barcodeSet.add(primaryBarcode);
-            }
+            for (let i = 0; i < alternativeBarcodes.length; i++) {
+                const bc = alternativeBarcodes[i];
+                const normalizedBarcode = bc.barcode.toLowerCase();
 
-            for (const bc of alternativeBarcodes) {
-                if (barcodeSet.has(bc.barcode)) {
-                    errors.push(`Duplicate barcode "${bc.barcode}" found in the provided list`);
+                // Check for duplicates within the request itself
+                if (barcodeSet.has(normalizedBarcode)) {
+                    errors[`barcodes[${i}]`] = ProductErrors.DUPLICATE_BARCODES_IN_REQUEST(bc.barcode);
                 } else {
-                    barcodeSet.add(bc.barcode);
+                    barcodeSet.add(normalizedBarcode);
 
+                    // Check for duplicates in the database
                     const duplicateCheck = await this.checkDuplicateBarcode(
                         bc.barcode,
                         tenantId,
@@ -113,78 +124,161 @@ export class ProductService {
                         excludeProductId
                     );
                     if (duplicateCheck.exists) {
-                        errors.push(
-                            `Barcode "${bc.barcode}" is already assigned to product "${duplicateCheck.productName}"`
-                        );
+                        errors[`barcodes[${i}]`] = ProductErrors.BARCODE_EXISTS(bc.barcode, duplicateCheck.productName);
                     }
                 }
             }
         }
 
-        if (errors.length > 0) {
-            throw new Error(`Duplicate barcode(s) detected: ${errors.join('; ')}`);
+        if (Object.keys(errors).length > 0) {
+            throw new ValidationError('Duplicate barcode(s) detected', errors);
         }
     }
 
     /**
-     * Create a new product
+     * Validate product input data
+     */
+    static validateProductInput(data: CreateProductInput): void {
+        const errors: Record<string, string> = {};
+
+        if (!data.name || data.name.trim().length === 0) {
+            errors.name = 'Product name is required.';
+        }
+
+        if (!data.sku || data.sku.trim().length === 0) {
+            errors.sku = 'SKU is required.';
+        }
+
+        if (data.sellingPrice !== undefined && data.sellingPrice < 0) {
+            errors.sellingPrice = ProductErrors.INVALID_PRICE;
+        }
+
+        if (data.minStock !== undefined && data.maxStock !== undefined) {
+            if (data.minStock > data.maxStock) {
+                errors.minStock = InventoryErrors.MIN_EXCEEDS_MAX(data.minStock, data.maxStock);
+            }
+        }
+
+        if (data.reorderLevel !== undefined && data.maxStock !== undefined) {
+            if (data.reorderLevel > data.maxStock) {
+                errors.reorderLevel = InventoryErrors.REORDER_EXCEEDS_MAX(data.reorderLevel, data.maxStock);
+            }
+        }
+
+        if (Object.keys(errors).length > 0) {
+            throw new ValidationError('Product validation failed', errors);
+        }
+    }
+
+    /**
+     * Create a new product with inventory
      */
     static async createProduct(data: CreateProductInput, tenantId: string, branchId: string): Promise<ProductWithInventory> {
-        await this.validateBarcodesForDuplicates(
-            data.primaryBarcode,
-            data.barcodes,
-            tenantId,
-            branchId
-        );
+        try {
+            // Validate input data
+            this.validateProductInput(data);
 
-        const product = await prisma.product.create({
-            data: {
-                id: uuidv4(),
-                tenantId: tenantId,
-                branchId: branchId,
-                categoryId: data.categoryId,
-                sku: data.sku,
-                name: data.name,
-                primaryBarcode: data.primaryBarcode,
-                description: data.description,
-                unit: data.unit || 'piece',
-                sellingPrice: data.sellingPrice,
-                productBarcodes: data.barcodes
-                    ? {
-                        create: data.barcodes.map((bc) => ({
-                            id: uuidv4(),
-                            barcode: bc.barcode,
-                            barcodeType: bc.barcodeType || 'EAN13',
-                            barcodeSource: bc.barcodeSource || 'SUPPLIER',
-                            description: bc.description,
-                        })),
-                    }
-                    : undefined,
-                inventories: {
-                    create: {
+            // Check for duplicate barcodes
+            await this.validateBarcodesForDuplicates(
+                data.primaryBarcode,
+                data.barcodes,
+                tenantId,
+                branchId
+            );
+
+            // Check for duplicate SKU
+            const existingSku = await prisma.product.findFirst({
+                where: {
+                    sku: data.sku,
+                    tenantId,
+                    branchId,
+                    isActive: true,
+                },
+                select: { id: true, name: true },
+            });
+
+            if (existingSku) {
+                throw new ConflictError(ProductErrors.SKU_EXISTS(data.sku), 'sku');
+            }
+
+            // Verify category exists if provided
+            if (data.categoryId) {
+                const categoryExists = await prisma.category.findFirst({
+                    where: {
+                        categoryId: data.categoryId,
+                        tenantId,
+                        branchId,
+                    },
+                });
+                if (!categoryExists) {
+                    throw new NotFoundError('Category', data.categoryId);
+                }
+            }
+
+            const product = await prisma.$transaction(async (tx) => {
+                const newProduct = await tx.product.create({
+                    data: {
                         id: uuidv4(),
                         tenantId: tenantId,
                         branchId: branchId,
-                        availableQuantity: 0,
-                        reservedQuantity: 0,
-                        damagedQuantity: 0,
-                        averageCost: 0,
-                        lastPurchaseCost: 0,
-                        reorderPoint: data.reorderLevel || data.minStock,
-                        maxStock: data.maxStock,
-                        trackInventory: data.trackInventory !== undefined ? data.trackInventory : true,
-                        allowNegativeStock: data.allowNegativeStock !== undefined ? data.allowNegativeStock : false,
+                        categoryId: data.categoryId,
+                        sku: data.sku,
+                        name: data.name.trim(),
+                        primaryBarcode: data.primaryBarcode,
+                        description: data.description,
+                        unit: data.unit || 'piece',
+                        sellingPrice: data.sellingPrice,
+                        productBarcodes: data.barcodes
+                            ? {
+                                create: data.barcodes.map((bc) => ({
+                                    id: uuidv4(),
+                                    barcode: bc.barcode,
+                                    barcodeType: bc.barcodeType || 'EAN13',
+                                    barcodeSource: bc.barcodeSource || 'SUPPLIER',
+                                    description: bc.description,
+                                })),
+                            }
+                            : undefined,
+                        inventories: {
+                            create: {
+                                id: uuidv4(),
+                                tenantId: tenantId,
+                                branchId: branchId,
+                                availableQuantity: 0,
+                                reservedQuantity: 0,
+                                damagedQuantity: 0,
+                                averageCost: 0,
+                                lastPurchaseCost: 0,
+                                reorderPoint: data.reorderLevel || data.minStock,
+                                maxStock: data.maxStock,
+                                trackInventory: data.trackInventory !== undefined ? data.trackInventory : true,
+                                allowNegativeStock: data.allowNegativeStock !== undefined ? data.allowNegativeStock : false,
+                            },
+                        },
                     },
-                },
-            },
-            include: {
-                inventories: true,
-                productBarcodes: true,
-                category: true,
-            },
-        });
+                    include: {
+                        inventories: true,
+                        productBarcodes: true,
+                        category: true,
+                    },
+                });
 
-        return this.mapProductWithInventory(product);
+                return newProduct;
+            });
+
+            return this.mapProductWithInventory(product);
+        } catch (error) {
+            // Re-throw if it's already a handled error
+            if (error instanceof ValidationError ||
+                error instanceof ConflictError ||
+                error instanceof NotFoundError ||
+                error instanceof BusinessLogicError) {
+                throw error;
+            }
+
+            // Handle Prisma errors
+            throw DbErrorHandler.handlePrismaError(error);
+        }
     }
 
     /**

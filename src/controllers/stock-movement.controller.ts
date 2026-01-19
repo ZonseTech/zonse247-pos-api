@@ -16,7 +16,7 @@ export class StockMovementController extends BaseController {
             const { movements, total, totalPages } = await StockMovementService.getMovementsByProduct(
                 productId as string,
                 req.auth.tenantId,
-                req.auth.branchId,
+                req.auth.activeBranchId || req.auth.branchId,
                 page,
                 perPage
             );
@@ -57,7 +57,7 @@ export class StockMovementController extends BaseController {
 
             const result = await StockMovementService.getMovementsByBranch(
                 req.auth.tenantId,
-                req.auth.branchId,
+                req.auth.activeBranchId || req.auth.branchId,
                 {
                     movementType: movementType as any,
                     startDate: startDate ? new Date(startDate as string) : undefined,

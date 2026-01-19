@@ -8,7 +8,7 @@ export class AnalyticsController {
     private static getAuthContext(req: Request & AuthRequest) {
         return {
             tenantId: req.auth?.tenantId || '',
-            branchId: req.auth?.branchId || '',
+            branchId: req.auth?.activeBranchId || req.auth?.branchId || '',
             userId: req.auth?.userId || ''
         };
     }

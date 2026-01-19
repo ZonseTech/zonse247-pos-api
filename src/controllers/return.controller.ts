@@ -11,7 +11,7 @@ export class ReturnController extends BaseController {
      */
     static async getAllReturns(req: Request & AuthRequest, res: Response): Promise<void> {
         try {
-            const returns = await ReturnService.getAllReturns(req.auth.tenantId, req.auth.branchId);
+            const returns = await ReturnService.getAllReturns(req.auth.tenantId, req.auth.activeBranchId || req.auth.branchId);
 
             BaseController.sendResponse(
                 res,
@@ -53,7 +53,7 @@ export class ReturnController extends BaseController {
 
             const result = await ReturnService.initiateReturn(returnRequest, {
                 tenantId: req.auth.tenantId,
-                branchId: req.auth.branchId,
+                branchId: req.auth.activeBranchId || req.auth.branchId,
                 userId: req.auth.userId,
             });
 
@@ -187,7 +187,7 @@ export class ReturnController extends BaseController {
 
             await ReturnService.cancelReturn(returnTransactionId as string, {
                 tenantId: req.auth.tenantId,
-                branchId: req.auth.branchId,
+                branchId: req.auth.activeBranchId || req.auth.branchId,
                 userId: req.auth.userId,
             });
 
