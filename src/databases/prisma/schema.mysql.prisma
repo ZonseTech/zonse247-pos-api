@@ -1,6 +1,6 @@
 generator client {
   provider = "prisma-client"
-  output   = "./generated/prisma"
+  output   = "./generated/mysql"
 }
 
 datasource db {
@@ -305,6 +305,7 @@ model Sale {
   items           SaleItem[]
   voidedByUser    User?         @relation("sales_voided_by", fields: [voidedBy], references: [userId], onDelete: SetNull)
   transactions    Transaction[]
+  payments        SalePayment[] // NEW: Support for multiple payment methods
   
   @@index([branchId])
   @@index([tenantId])
@@ -339,6 +340,43 @@ model SaleItem {
   @@index([saleId])
   @@index([productId])
   @@map("sale_items")
+}
+
+// ==========================================
+// MULTIPLE PAYMENT SUPPORT (Split Payments)
+// ==========================================
+// Allows a single sale to have multiple payment methods
+// e.g., K5,000 cash + K3,000 card for a K8,000 total
+// Backward compatible: existing sales with single paymentMethodId continue to work
+
+model SalePayment {
+  id              String        @id @default(uuid()) @map("sale_payment_id")
+  saleId          String        @map("sale_id")
+  paymentMethodId String        @map("payment_method_id")
+  
+  amount          Decimal       @map("amount") @db.Decimal(10, 2)
+  reference       String?       @map("reference")         // Card ref, mobile money transaction ID, etc.
+  
+  // Payment provider info (for mobile money, card payments, etc.)
+  providerId      String?       @map("provider_id")       // Links to payment service provider
+  providerRef     String?       @map("provider_ref")      // External reference from provider
+  
+  status          PaymentStatus @default(COMPLETED) @map("status")
+  processedAt     DateTime      @default(now()) @map("processed_at")
+  
+  notes           String?       @map("notes")
+  synced          Int           @default(0) @map("synced")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+  
+  sale            Sale          @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  paymentMethod   PaymentMethod @relation(fields: [paymentMethodId], references: [methodId], onDelete: Restrict)
+  
+  @@index([saleId])
+  @@index([paymentMethodId])
+  @@index([status])
+  @@index([processedAt])
+  @@map("sale_payments")
 }
 
 // ==========================================
@@ -656,6 +694,7 @@ model PaymentMethod {
   updatedAt    DateTime?     @default(now()) @map("updated_at")
   transactions Transaction[]
   sales        Sale[]
+  salePayments SalePayment[] // NEW: Support for multiple payment methods per sale
 
   @@map("payment_methods")
 }
@@ -1535,6 +1574,15 @@ enum PrintJobStatus {
   PRINTING
   COMPLETED
   FAILED
+  CANCELLED
+}
+
+// Payment status for split/multiple payments
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
   CANCELLED
 }
 
