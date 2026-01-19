@@ -5,6 +5,15 @@ import { AuthenticatedUser } from 'auth';
 import { InventoryItem } from 'inventory-item';
 import prisma from '../databases/prisma/client';
 import { ProductService } from '../services/product.service';
+import {
+    DbErrorHandler,
+    ValidationError,
+    ConflictError,
+    NotFoundError,
+    BusinessLogicError,
+    ProductErrors,
+    InventoryErrors,
+} from '../utils/db-error-handler.util';
 
 /**
  * New Inventory Model using Product + Inventory tables
@@ -329,88 +338,169 @@ export class InventoryModel {
 
     /**
      * Create new product with inventory
+     * Validates input and handles database errors gracefully
      */
     static async create(inventoryData: Record<string, any>, auth: AuthenticatedUser): Promise<void> {
-        const primaryBarcode = inventoryData.barcode || inventoryData.primaryBarcode;
-        const additionalBarcodes = inventoryData.additionalBarcodes?.map((bc: any) => ({
-            barcode: typeof bc === 'string' ? bc : bc.code || bc.barcode
-        }));
+        try {
+            // Validate required fields
+            const validationErrors: Record<string, string> = {};
 
-        await ProductService.validateBarcodesForDuplicates(
-            primaryBarcode,
-            additionalBarcodes,
-            auth.tenantId,
-            auth.branchId
-        );
+            if (!inventoryData.name || inventoryData.name.trim().length === 0) {
+                validationErrors.name = 'Product name is required.';
+            }
 
-        await prisma.$transaction(async (tx) => {
-            const product = await tx.product.create({
-                data: {
-                    id: uuidv4(),
+            if (!inventoryData.sku && !inventoryData.barcode) {
+                validationErrors.sku = 'SKU or barcode is required.';
+            }
+
+            // Validate price values
+            const sellPrice = parseFloat(inventoryData.sellPrice || inventoryData.sellingPrice || 0);
+            if (sellPrice < 0) {
+                validationErrors.sellingPrice = ProductErrors.INVALID_PRICE;
+            }
+
+            const quantity = parseInt(inventoryData.quantity || 0);
+            if (quantity < 0) {
+                validationErrors.quantity = ProductErrors.INVALID_QUANTITY;
+            }
+
+            // Validate min/max stock relationship
+            const minStock = inventoryData.minStock ? parseInt(inventoryData.minStock) : null;
+            const maxStock = inventoryData.maxStock ? parseInt(inventoryData.maxStock) : null;
+            if (minStock !== null && maxStock !== null && minStock > maxStock) {
+                validationErrors.minStock = InventoryErrors.MIN_EXCEEDS_MAX(minStock, maxStock);
+            }
+
+            if (Object.keys(validationErrors).length > 0) {
+                throw new ValidationError('Inventory item validation failed', validationErrors);
+            }
+
+            // Check for duplicate barcodes
+            const primaryBarcode = inventoryData.barcode || inventoryData.primaryBarcode;
+            const additionalBarcodes = inventoryData.additionalBarcodes?.map((bc: any) => ({
+                barcode: typeof bc === 'string' ? bc : bc.code || bc.barcode
+            }));
+
+            await ProductService.validateBarcodesForDuplicates(
+                primaryBarcode,
+                additionalBarcodes,
+                auth.tenantId,
+                auth.branchId
+            );
+
+            // Check for duplicate SKU
+            const sku = inventoryData.sku || inventoryData.barcode;
+            const existingSku = await prisma.product.findFirst({
+                where: {
+                    sku,
                     tenantId: auth.tenantId,
                     branchId: auth.branchId,
-                    sku: inventoryData.sku || inventoryData.barcode,
-                    name: inventoryData.name,
-                    categoryId: inventoryData.categoryId || null,
-                    description: inventoryData.description || null,
-                    unit: inventoryData.unit || 'piece',
-                    sellingPrice: parseFloat(inventoryData.sellPrice || inventoryData.sellingPrice || 0),
-                    primaryBarcode: inventoryData.barcode || inventoryData.primaryBarcode,
-                    // Product attributes
-                    brand: inventoryData.brand || null,
-                    color: inventoryData.color || null,
-                    size: inventoryData.size || null,
-                    dimensions: inventoryData.dimensions || null,
-                    weight: inventoryData.weight ? parseFloat(inventoryData.weight) : null,
-                    // Promotional pricing
-                    promoPrice: inventoryData.promoPrice ? parseFloat(inventoryData.promoPrice) : null,
-                    promoStart: inventoryData.promoStart ? new Date(inventoryData.promoStart) : null,
-                    promoEnd: inventoryData.promoEnd ? new Date(inventoryData.promoEnd) : null,
-                    // Tax
-                    isTaxable: inventoryData.isTaxable !== false,
-                    // Dates
-                    expirationDate: inventoryData.expirationDate ? new Date(inventoryData.expirationDate) : null,
-                    manufactureDate: inventoryData.manufactureDate ? new Date(inventoryData.manufactureDate) : null,
-                    // Supplier info
-                    supplierName: inventoryData.supplierName || null,
-                    supplierCode: inventoryData.supplierCode || null,
-                    isActive: inventoryData.status !== 'inactive'
-                }
+                    isActive: true,
+                },
+                select: { id: true, name: true },
             });
 
-            await tx.inventory.create({
-                data: {
-                    id: uuidv4(),
-                    tenantId: auth.tenantId,
-                    branchId: auth.branchId,
-                    productId: product.id,
-                    availableQuantity: parseInt(inventoryData.quantity || 0),
-                    reservedQuantity: parseInt(inventoryData.reservedQuantity || 0),
-                    damagedQuantity: 0,
-                    averageCost: parseFloat(inventoryData.costPrice || 0),
-                    lastPurchaseCost: parseFloat(inventoryData.costPrice || 0),
-                    reorderPoint: inventoryData.minStock ? parseInt(inventoryData.minStock) : null,
-                    maxStock: inventoryData.maxStock ? parseInt(inventoryData.maxStock) : null,
-                    trackInventory: inventoryData.trackInventory !== false,
-                    allowNegativeStock: inventoryData.allowNegativeStock || false
-                }
-            });
+            if (existingSku) {
+                throw new ConflictError(ProductErrors.SKU_EXISTS(sku), 'sku');
+            }
 
-            if (inventoryData.additionalBarcodes && Array.isArray(inventoryData.additionalBarcodes)) {
-                for (const barcode of inventoryData.additionalBarcodes) {
-                    await tx.productBarcode.create({
-                        data: {
-                            id: uuidv4(),
-                            productId: product.id,
-                            barcode: barcode.code || barcode,
-                            barcodeType: barcode.type || 'EAN13',
-                            barcodeSource: barcode.source || 'STORE',
-                            isActive: true
-                        }
-                    });
+            // Verify category exists if provided
+            if (inventoryData.categoryId) {
+                const categoryExists = await prisma.category.findFirst({
+                    where: {
+                        categoryId: inventoryData.categoryId,
+                        tenantId: auth.tenantId,
+                        branchId: auth.branchId,
+                    },
+                });
+                if (!categoryExists) {
+                    throw new NotFoundError('Category', inventoryData.categoryId);
                 }
             }
-        });
+
+            // Create product and inventory in transaction
+            await prisma.$transaction(async (tx) => {
+                const product = await tx.product.create({
+                    data: {
+                        id: uuidv4(),
+                        tenantId: auth.tenantId,
+                        branchId: auth.branchId,
+                        sku: sku,
+                        name: inventoryData.name.trim(),
+                        categoryId: inventoryData.categoryId || null,
+                        description: inventoryData.description || null,
+                        unit: inventoryData.unit || 'piece',
+                        sellingPrice: sellPrice,
+                        primaryBarcode: primaryBarcode,
+                        // Product attributes
+                        brand: inventoryData.brand || null,
+                        color: inventoryData.color || null,
+                        size: inventoryData.size || null,
+                        dimensions: inventoryData.dimensions || null,
+                        weight: inventoryData.weight ? parseFloat(inventoryData.weight) : null,
+                        // Promotional pricing
+                        promoPrice: inventoryData.promoPrice ? parseFloat(inventoryData.promoPrice) : null,
+                        promoStart: inventoryData.promoStart ? new Date(inventoryData.promoStart) : null,
+                        promoEnd: inventoryData.promoEnd ? new Date(inventoryData.promoEnd) : null,
+                        // Tax
+                        isTaxable: inventoryData.isTaxable !== false,
+                        // Dates
+                        expirationDate: inventoryData.expirationDate ? new Date(inventoryData.expirationDate) : null,
+                        manufactureDate: inventoryData.manufactureDate ? new Date(inventoryData.manufactureDate) : null,
+                        // Supplier info
+                        supplierName: inventoryData.supplierName || null,
+                        supplierCode: inventoryData.supplierCode || null,
+                        isActive: inventoryData.status !== 'inactive'
+                    }
+                });
+
+                await tx.inventory.create({
+                    data: {
+                        id: uuidv4(),
+                        tenantId: auth.tenantId,
+                        branchId: auth.branchId,
+                        productId: product.id,
+                        availableQuantity: quantity,
+                        reservedQuantity: parseInt(inventoryData.reservedQuantity || 0),
+                        damagedQuantity: 0,
+                        averageCost: parseFloat(inventoryData.costPrice || 0),
+                        lastPurchaseCost: parseFloat(inventoryData.costPrice || 0),
+                        reorderPoint: minStock,
+                        maxStock: maxStock,
+                        trackInventory: inventoryData.trackInventory !== false,
+                        allowNegativeStock: inventoryData.allowNegativeStock || false
+                    }
+                });
+
+                // Create additional barcodes
+                if (inventoryData.additionalBarcodes && Array.isArray(inventoryData.additionalBarcodes)) {
+                    for (const barcode of inventoryData.additionalBarcodes) {
+                        const barcodeValue = typeof barcode === 'string' ? barcode : barcode.code || barcode.barcode;
+                        await tx.productBarcode.create({
+                            data: {
+                                id: uuidv4(),
+                                productId: product.id,
+                                barcode: barcodeValue,
+                                barcodeType: barcode.type || 'EAN13',
+                                barcodeSource: barcode.source || 'STORE',
+                                isActive: true
+                            }
+                        });
+                    }
+                }
+            });
+        } catch (error) {
+            // Re-throw if it's already a handled error
+            if (error instanceof ValidationError ||
+                error instanceof ConflictError ||
+                error instanceof NotFoundError ||
+                error instanceof BusinessLogicError) {
+                throw error;
+            }
+
+            // Handle Prisma errors
+            throw DbErrorHandler.handlePrismaError(error);
+        }
     }
 
     /**
@@ -574,38 +664,67 @@ export class InventoryModel {
 
     /**
      * Decrement inventory (for sales)
+     * Validates stock availability and handles errors gracefully
      */
     static async decrementInventory(
         products: CartItem[],
         auth: AuthenticatedUser
     ): Promise<void> {
-        await prisma.$transaction(async (tx) => {
-            for (const item of products) {
-                const inventory = await tx.inventory.findFirst({
-                    where: {
-                        productId: item.productId,
-                        branchId: auth.branchId
+        try {
+            await prisma.$transaction(async (tx) => {
+                for (const item of products) {
+                    const inventory = await tx.inventory.findFirst({
+                        where: {
+                            productId: item.productId,
+                            branchId: auth.branchId
+                        },
+                        include: {
+                            product: {
+                                select: { name: true }
+                            }
+                        }
+                    });
+
+                    if (!inventory) {
+                        throw new NotFoundError('Inventory', item.productId);
                     }
-                });
 
-                if (!inventory) {
-                    throw new Error(`Inventory not found for product ${item.productId}`);
-                }
+                    const newQuantity = inventory.availableQuantity - item.quantity;
 
-                const newQuantity = inventory.availableQuantity - item.quantity;
-                if (newQuantity < 0 && !inventory.allowNegativeStock) {
-                    throw new Error(`Insufficient quantity for product ${item.productId}`);
-                }
-
-                await tx.inventory.update({
-                    where: { id: inventory.id },
-                    data: {
-                        availableQuantity: newQuantity,
-                        lastSoldAt: new Date()
+                    if (newQuantity < 0 && !inventory.allowNegativeStock) {
+                        const productName = inventory.product?.name || item.productId;
+                        throw new BusinessLogicError(
+                            InventoryErrors.INSUFFICIENT_STOCK(productName, inventory.availableQuantity, item.quantity),
+                            {
+                                productId: item.productId,
+                                productName,
+                                availableQuantity: inventory.availableQuantity,
+                                requestedQuantity: item.quantity
+                            }
+                        );
                     }
-                });
+
+                    await tx.inventory.update({
+                        where: { id: inventory.id },
+                        data: {
+                            availableQuantity: newQuantity,
+                            lastSoldAt: new Date()
+                        }
+                    });
+                }
+            });
+        } catch (error) {
+            // Re-throw if it's already a handled error
+            if (error instanceof ValidationError ||
+                error instanceof ConflictError ||
+                error instanceof NotFoundError ||
+                error instanceof BusinessLogicError) {
+                throw error;
             }
-        });
+
+            // Handle Prisma errors
+            throw DbErrorHandler.handlePrismaError(error);
+        }
     }
 
     /**
@@ -1083,22 +1202,68 @@ export class InventoryModel {
      * Additional methods for compatibility
      */
     static async updateWithValidation(productId: string, inventoryData: Record<string, any>, auth: AuthenticatedUser): Promise<number> {
-        const newBarcode = inventoryData.barcode || inventoryData.primaryBarcode;
-        if (newBarcode !== undefined) {
-            const duplicateCheck = await ProductService.checkDuplicateBarcode(
-                newBarcode,
-                auth.tenantId,
-                auth.branchId,
-                productId
-            );
-            if (duplicateCheck.exists) {
-                throw new Error(
-                    `Barcode "${newBarcode}" is already assigned to product "${duplicateCheck.productName}"`
+        try {
+            // Verify product exists and belongs to tenant/branch
+            const exists = await this.exists(productId, auth);
+            if (!exists) {
+                throw new NotFoundError('Product', productId);
+            }
+
+            // Validate min/max stock relationship if both are provided
+            const minStock = inventoryData.minStock !== undefined ? parseInt(inventoryData.minStock) : null;
+            const maxStock = inventoryData.maxStock !== undefined ? parseInt(inventoryData.maxStock) : null;
+
+            if (minStock !== null && maxStock !== null && minStock > maxStock) {
+                throw new ValidationError(
+                    'Invalid stock configuration',
+                    { minStock: InventoryErrors.MIN_EXCEEDS_MAX(minStock, maxStock) }
                 );
             }
-        }
 
-        return await this.update(productId, inventoryData);
+            // Validate barcode if being updated
+            const newBarcode = inventoryData.barcode || inventoryData.primaryBarcode;
+            if (newBarcode !== undefined) {
+                const duplicateCheck = await ProductService.checkDuplicateBarcode(
+                    newBarcode,
+                    auth.tenantId,
+                    auth.branchId,
+                    productId
+                );
+                if (duplicateCheck.exists) {
+                    throw new ConflictError(
+                        ProductErrors.BARCODE_EXISTS(newBarcode, duplicateCheck.productName),
+                        'barcode'
+                    );
+                }
+            }
+
+            // Validate category if being updated
+            if (inventoryData.categoryId !== undefined && inventoryData.categoryId !== null) {
+                const categoryExists = await prisma.category.findFirst({
+                    where: {
+                        categoryId: inventoryData.categoryId,
+                        tenantId: auth.tenantId,
+                        branchId: auth.branchId,
+                    },
+                });
+                if (!categoryExists) {
+                    throw new NotFoundError('Category', inventoryData.categoryId);
+                }
+            }
+
+            return await this.update(productId, inventoryData);
+        } catch (error) {
+            // Re-throw if it's already a handled error
+            if (error instanceof ValidationError ||
+                error instanceof ConflictError ||
+                error instanceof NotFoundError ||
+                error instanceof BusinessLogicError) {
+                throw error;
+            }
+
+            // Handle Prisma errors
+            throw DbErrorHandler.handlePrismaError(error);
+        }
     }
 
     static async voidWithCheck(productId: string, auth: AuthenticatedUser): Promise<number> {

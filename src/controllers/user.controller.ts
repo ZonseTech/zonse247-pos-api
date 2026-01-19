@@ -4,19 +4,63 @@ import { BaseController } from './base.controller';
 import { ApiResponse } from 'network';
 import { PublicUser, User } from 'users';
 import { AuthRequest } from '../lib/express.type';
+import {
+	ValidationError,
+	ConflictError,
+	NotFoundError,
+	BusinessLogicError,
+	DatabaseError,
+} from '../utils/db-error-handler.util';
 
 export class UserController extends BaseController {
 	constructor() {
 		super();
 	}
 
+	/**
+	 * Centralized error handling for UserController
+	 */
+	private static handleError(res: Response, error: unknown): void {
+		if (error instanceof ValidationError) {
+			// Convert errors object to string for the error parameter
+			const errorDetails = JSON.stringify(error.errors);
+			BaseController.sendResponse(res, 400, false, error.message, undefined, errorDetails);
+			return;
+		}
+
+		if (error instanceof ConflictError) {
+			BaseController.sendResponse(res, 409, false, error.message, undefined, error.field);
+			return;
+		}
+
+		if (error instanceof NotFoundError) {
+			BaseController.sendResponse(res, 404, false, error.message);
+			return;
+		}
+
+		if (error instanceof BusinessLogicError) {
+			BaseController.sendResponse(res, 400, false, error.message);
+			return;
+		}
+
+		if (error instanceof DatabaseError) {
+			console.error('Database error:', error);
+			BaseController.sendResponse(res, 500, false, error.message);
+			return;
+		}
+
+		// Handle unknown errors
+		const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred';
+		console.error('Unexpected error in UserController:', error);
+		BaseController.sendResponse(res, 500, false, errorMessage);
+	}
+
 	static async selectAll(req: Request & AuthRequest, res: Response): Promise<void> {
 		try {
 			const users = await UserService.selectAll(req.auth.tenantId, req.auth.activeBranchId || req.auth.branchId);
 			BaseController.sendResponse(res, 200, true, 'Users retrieved successfully', users);
-		} catch (error: any) {
-			console.error('Error fetching users:', error);
-			BaseController.sendResponse(res, 500, false, error.message, undefined, error.message);
+		} catch (error) {
+			UserController.handleError(res, error);
 		}
 	}
 
@@ -29,9 +73,8 @@ export class UserController extends BaseController {
 			const query = req.query;
 			const users = await UserService.getAllUsers(query, req.auth.tenantId, req.auth.activeBranchId || req.auth.branchId);
 			BaseController.sendResponse(res, 200, true, 'Users retrieved successfully', users);
-		} catch (error: any) {
-			console.error('Error retrieving users:', error);
-			BaseController.sendResponse(res, 500, false, error.message, undefined, error.message);
+		} catch (error) {
+			UserController.handleError(res, error);
 		}
 	}
 
@@ -40,17 +83,13 @@ export class UserController extends BaseController {
 			const { id } = req.params;
 
 			if (!id) {
-				BaseController.sendResponse(res, 400, false, 'User ID is required');
-				return;
+				throw new ValidationError('User ID is required', { id: 'User ID is required' });
 			}
 
 			const user = await UserService.getUserById(id, req.auth.tenantId, req.auth.activeBranchId || req.auth.branchId);
 			BaseController.sendResponse(res, 200, true, 'User retrieved successfully', user);
-		} catch (error: any) {
-			console.error('Error retrieving user:', error);
-
-			const statusCode = error.message.includes('not found') ? 404 : 500;
-			BaseController.sendResponse(res, statusCode, false, error.message, undefined, error.message);
+		} catch (error) {
+			UserController.handleError(res, error);
 		}
 	}
 
@@ -62,19 +101,8 @@ export class UserController extends BaseController {
 				userId: req.auth.userId,
 			});
 			BaseController.sendResponse(res, 201, true, 'User created successfully', newUser);
-		} catch (error: any) {
-			console.error('Error creating user:', error);
-
-			let statusCode = 500;
-			if (error.message.includes('Missing required field') ||
-				error.message.includes('Invalid email format') ||
-				error.message.includes('Password must be')) {
-				statusCode = 400;
-			} else if (error.message.includes('already exists')) {
-				statusCode = 409;
-			}
-
-			BaseController.sendResponse(res, statusCode, false, error.message, undefined, error.message);
+		} catch (error) {
+			UserController.handleError(res, error);
 		}
 	}
 
@@ -84,27 +112,13 @@ export class UserController extends BaseController {
 			const updateData = req.body;
 
 			if (!userId) {
-				BaseController.sendResponse(res, 400, false, 'User ID is required');
-				return;
+				throw new ValidationError('User ID is required', { id: 'User ID is required' });
 			}
 
-			await UserService.updateUser(userId, updateData, req.auth.tenantId, req.auth.activeBranchId || req.auth.branchId);
-			BaseController.sendResponse(res, 200, true, 'User updated successfully', updateData);
-		} catch (error: any) {
-			console.error('Error updating user:', error);
-
-			let statusCode = 500;
-			if (error.message.includes('not found')) {
-				statusCode = 404;
-			} else if (error.message.includes('already exists') ||
-				error.message.includes('Failed to update')) {
-				statusCode = 409;
-			} else if (error.message.includes('Invalid') ||
-				error.message.includes('required')) {
-				statusCode = 400;
-			}
-
-			BaseController.sendResponse(res, statusCode, false, error.message, undefined, error.message);
+			const updatedUser = await UserService.updateUser(userId, updateData, req.auth.tenantId, req.auth.activeBranchId || req.auth.branchId);
+			BaseController.sendResponse(res, 200, true, 'User updated successfully', updatedUser);
+		} catch (error) {
+			UserController.handleError(res, error);
 		}
 	}
 
@@ -113,17 +127,13 @@ export class UserController extends BaseController {
 			const { id } = req.params;
 
 			if (!id) {
-				BaseController.sendResponse(res, 400, false, 'User ID is required');
-				return;
+				throw new ValidationError('User ID is required', { id: 'User ID is required' });
 			}
 
 			await UserService.deleteUser(id, req.auth.tenantId, req.auth.activeBranchId || req.auth.branchId);
 			BaseController.sendResponse(res, 200, true, 'User deleted successfully', { status: true });
-		} catch (error: any) {
-			console.error('Error deleting user:', error);
-
-			const statusCode = error.message.includes('not found') ? 404 : 500;
-			BaseController.sendResponse(res, statusCode, false, error.message, undefined, error.message);
+		} catch (error) {
+			UserController.handleError(res, error);
 		}
 	}
 
@@ -132,15 +142,13 @@ export class UserController extends BaseController {
 			const { roleId } = req.params;
 
 			if (!roleId) {
-				BaseController.sendResponse(res, 400, false, 'Role ID is required');
-				return;
+				throw new ValidationError('Role ID is required', { roleId: 'Role ID is required' });
 			}
 
 			const users = await UserService.getUsersByRole(roleId, req.auth.tenantId, req.auth.activeBranchId || req.auth.branchId);
 			BaseController.sendResponse(res, 200, true, 'Users retrieved successfully', users);
-		} catch (error: any) {
-			console.error('Error retrieving users by role:', error);
-			BaseController.sendResponse(res, 500, false, error.message, undefined, error.message);
+		} catch (error) {
+			UserController.handleError(res, error);
 		}
 	}
 
@@ -149,15 +157,13 @@ export class UserController extends BaseController {
 			const { branchUuid } = req.params;
 
 			if (!branchUuid) {
-				BaseController.sendResponse(res, 400, false, 'Branch ID is required');
-				return;
+				throw new ValidationError('Branch ID is required', { branchUuid: 'Branch ID is required' });
 			}
 
 			const users = await UserService.getUsersByBranch(branchUuid, req.auth.tenantId);
 			BaseController.sendResponse(res, 200, true, 'Users retrieved successfully', users);
-		} catch (error: any) {
-			console.error('Error retrieving users by branch:', error);
-			BaseController.sendResponse(res, 500, false, error.message, undefined, error.message);
+		} catch (error) {
+			UserController.handleError(res, error);
 		}
 	}
 
@@ -167,22 +173,14 @@ export class UserController extends BaseController {
 			const { status } = req.body;
 
 			if (!id) {
-				BaseController.sendResponse(res, 400, false, 'User ID is required');
-				return;
+				throw new ValidationError('User ID is required', { id: 'User ID is required' });
 			}
 
-			if (!status || !['active', 'inactive', 'suspended'].includes(status)) {
-				BaseController.sendResponse(res, 400, false, 'Valid status is required (active, inactive, suspended)');
-				return;
-			}
-
+			// Status validation is now handled in UserService.updateUserStatus
 			const updatedUser = await UserService.updateUserStatus(id, status, req.auth.tenantId, req.auth.activeBranchId || req.auth.branchId);
 			BaseController.sendResponse(res, 200, true, 'User status updated successfully', updatedUser);
-		} catch (error: any) {
-			console.error('Error updating user status:', error);
-
-			const statusCode = error.message.includes('not found') ? 404 : 500;
-			BaseController.sendResponse(res, statusCode, false, error.message, undefined, error.message);
+		} catch (error) {
+			UserController.handleError(res, error);
 		}
 	}
 }
