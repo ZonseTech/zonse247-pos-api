@@ -1,6 +1,6 @@
 {
   "name": "zonse247-pos-api",
-  "version": "1.5.7",
+  "version": "1.5.8",
   "description": "Zonse247 POS API - A point of sale API system",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
