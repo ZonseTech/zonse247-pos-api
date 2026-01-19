@@ -10,7 +10,7 @@ export class ProductController extends BaseController {
      */
     static async createProduct(req: Request & AuthRequest, res: Response): Promise<void> {
         try {
-            const product = await ProductService.createProduct(req.body, req.auth.tenantId, req.auth.branchId);
+            const product = await ProductService.createProduct(req.body, req.auth.tenantId, req.auth.activeBranchId || req.auth.branchId);
 
             BaseController.sendResponse(res, 201, true, 'Product created successfully', product);
         } catch (error: any) {
@@ -28,7 +28,7 @@ export class ProductController extends BaseController {
             const product = await ProductService.getProductById(
                 productId as string,
                 req.auth.tenantId,
-                req.auth.branchId
+                req.auth.activeBranchId || req.auth.branchId
             );
 
             if (!product) {
@@ -52,7 +52,7 @@ export class ProductController extends BaseController {
             const result = await ProductService.searchProduct(
                 term as string,
                 req.auth.tenantId,
-                req.auth.branchId
+                req.auth.activeBranchId || req.auth.branchId
             );
 
             if (!result) {
@@ -81,7 +81,7 @@ export class ProductController extends BaseController {
 
             const { products, total, totalPages } = await ProductService.listProducts(
                 req.auth.tenantId,
-                req.auth.branchId,
+                req.auth.activeBranchId || req.auth.branchId,
                 page,
                 perPage,
                 search,
@@ -115,7 +115,7 @@ export class ProductController extends BaseController {
             const product = await ProductService.updateProduct(
                 productId as string,
                 req.auth.tenantId,
-                req.auth.branchId,
+                req.auth.activeBranchId || req.auth.branchId,
                 req.body
             );
 
@@ -135,7 +135,7 @@ export class ProductController extends BaseController {
             await ProductService.deleteProduct(
                 productId as string,
                 req.auth.tenantId,
-                req.auth.branchId
+                req.auth.activeBranchId || req.auth.branchId
             );
 
             BaseController.sendResponse(res, 200, true, 'Product deleted successfully');
@@ -155,7 +155,7 @@ export class ProductController extends BaseController {
             await ProductService.addBarcode(
                 productId as string,
                 req.auth.tenantId,
-                req.auth.branchId,
+                req.auth.activeBranchId || req.auth.branchId,
                 barcode,
                 barcodeType,
                 barcodeSource,

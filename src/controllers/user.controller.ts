@@ -12,7 +12,7 @@ export class UserController extends BaseController {
 
 	static async selectAll(req: Request & AuthRequest, res: Response): Promise<void> {
 		try {
-			const users = await UserService.selectAll(req.auth.tenantId, req.auth.branchId);
+			const users = await UserService.selectAll(req.auth.tenantId, req.auth.activeBranchId || req.auth.branchId);
 			BaseController.sendResponse(res, 200, true, 'Users retrieved successfully', users);
 		} catch (error: any) {
 			console.error('Error fetching users:', error);
@@ -27,7 +27,7 @@ export class UserController extends BaseController {
 	static async list(req: Request & AuthRequest, res: Response): Promise<void> {
 		try {
 			const query = req.query;
-			const users = await UserService.getAllUsers(query, req.auth.tenantId, req.auth.branchId);
+			const users = await UserService.getAllUsers(query, req.auth.tenantId, req.auth.activeBranchId || req.auth.branchId);
 			BaseController.sendResponse(res, 200, true, 'Users retrieved successfully', users);
 		} catch (error: any) {
 			console.error('Error retrieving users:', error);
@@ -44,7 +44,7 @@ export class UserController extends BaseController {
 				return;
 			}
 
-			const user = await UserService.getUserById(id, req.auth.tenantId, req.auth.branchId);
+			const user = await UserService.getUserById(id, req.auth.tenantId, req.auth.activeBranchId || req.auth.branchId);
 			BaseController.sendResponse(res, 200, true, 'User retrieved successfully', user);
 		} catch (error: any) {
 			console.error('Error retrieving user:', error);
@@ -58,7 +58,7 @@ export class UserController extends BaseController {
 		try {
 			const newUser = await UserService.createUser(req.body, {
 				tenantId: req.auth.tenantId,
-				branchId: req.auth.branchId,
+				branchId: req.auth.activeBranchId || req.auth.branchId,
 				userId: req.auth.userId,
 			});
 			BaseController.sendResponse(res, 201, true, 'User created successfully', newUser);
@@ -88,7 +88,7 @@ export class UserController extends BaseController {
 				return;
 			}
 
-			await UserService.updateUser(userId, updateData, req.auth.tenantId, req.auth.branchId);
+			await UserService.updateUser(userId, updateData, req.auth.tenantId, req.auth.activeBranchId || req.auth.branchId);
 			BaseController.sendResponse(res, 200, true, 'User updated successfully', updateData);
 		} catch (error: any) {
 			console.error('Error updating user:', error);
@@ -117,7 +117,7 @@ export class UserController extends BaseController {
 				return;
 			}
 
-			await UserService.deleteUser(id, req.auth.tenantId, req.auth.branchId);
+			await UserService.deleteUser(id, req.auth.tenantId, req.auth.activeBranchId || req.auth.branchId);
 			BaseController.sendResponse(res, 200, true, 'User deleted successfully', { status: true });
 		} catch (error: any) {
 			console.error('Error deleting user:', error);
@@ -136,7 +136,7 @@ export class UserController extends BaseController {
 				return;
 			}
 
-			const users = await UserService.getUsersByRole(roleId, req.auth.tenantId, req.auth.branchId);
+			const users = await UserService.getUsersByRole(roleId, req.auth.tenantId, req.auth.activeBranchId || req.auth.branchId);
 			BaseController.sendResponse(res, 200, true, 'Users retrieved successfully', users);
 		} catch (error: any) {
 			console.error('Error retrieving users by role:', error);
@@ -176,7 +176,7 @@ export class UserController extends BaseController {
 				return;
 			}
 
-			const updatedUser = await UserService.updateUserStatus(id, status, req.auth.tenantId, req.auth.branchId);
+			const updatedUser = await UserService.updateUserStatus(id, status, req.auth.tenantId, req.auth.activeBranchId || req.auth.branchId);
 			BaseController.sendResponse(res, 200, true, 'User status updated successfully', updatedUser);
 		} catch (error: any) {
 			console.error('Error updating user status:', error);

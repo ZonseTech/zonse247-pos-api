@@ -13,7 +13,7 @@ export class PurchaseOrderController extends BaseController {
                 ...req.body,
                 createdBy: req.auth?.userId,
             };
-            const purchaseOrder = await PurchaseOrderService.createPurchaseOrder(data, req.auth.tenantId, req.auth.branchId);
+            const purchaseOrder = await PurchaseOrderService.createPurchaseOrder(data, req.auth.tenantId, req.auth.activeBranchId || req.auth.branchId);
             BaseController.sendResponse(
                 res,
                 201,
@@ -48,7 +48,7 @@ export class PurchaseOrderController extends BaseController {
             const purchaseOrder = await PurchaseOrderService.receivePurchaseOrder(
                 purchaseOrderId as string,
                 req.auth.tenantId,
-                req.auth.branchId,
+                req.auth.activeBranchId || req.auth.branchId,
                 data
             );
 
@@ -81,7 +81,7 @@ export class PurchaseOrderController extends BaseController {
             const purchaseOrder = await PurchaseOrderService.getPurchaseOrderById(
                 purchaseOrderId as string,
                 req.auth.tenantId,
-                req.auth.branchId
+                req.auth.activeBranchId || req.auth.branchId
             );
 
             if (!purchaseOrder) {
@@ -117,7 +117,7 @@ export class PurchaseOrderController extends BaseController {
 
             const result = await PurchaseOrderService.listPurchaseOrders(
                 req.auth.tenantId,
-                req.auth.branchId,
+                req.auth.activeBranchId || req.auth.branchId,
                 {
                     status: status as any,
                     supplierId: supplierId as string,
@@ -163,7 +163,7 @@ export class PurchaseOrderController extends BaseController {
             await PurchaseOrderService.cancelPurchaseOrder(
                 purchaseOrderId as string,
                 req.auth.tenantId,
-                req.auth.branchId
+                req.auth.activeBranchId || req.auth.branchId
             );
 
             BaseController.sendResponse(res, 200, true, 'Purchase order cancelled successfully');

@@ -9,7 +9,7 @@ export class SupplierController extends BaseController {
      */
     static async createSupplier(req: Request & AuthRequest, res: Response): Promise<void> {
         try {
-            const supplier = await SupplierService.createSupplier(req.body, req.auth.tenantId, req.auth.branchId);
+            const supplier = await SupplierService.createSupplier(req.body, req.auth.tenantId, req.auth.activeBranchId || req.auth.branchId);
             BaseController.sendResponse(res, 201, true, 'Supplier created successfully', supplier);
         } catch (error: any) {
             BaseController.sendResponse(res, 400, false, 'Failed to create supplier', undefined, error.message);
@@ -26,7 +26,7 @@ export class SupplierController extends BaseController {
             const supplier = await SupplierService.getSupplierById(
                 supplierId as string,
                 req.auth.tenantId,
-                req.auth.branchId
+                req.auth.activeBranchId || req.auth.branchId
             );
 
             if (!supplier) {
@@ -51,7 +51,7 @@ export class SupplierController extends BaseController {
 
             const { suppliers, total, totalPages } = await SupplierService.listSuppliers(
                 req.auth.tenantId,
-                req.auth.branchId,
+                req.auth.activeBranchId || req.auth.branchId,
                 includeInactive === 'true',
                 page,
                 perPage
@@ -81,7 +81,7 @@ export class SupplierController extends BaseController {
             const supplier = await SupplierService.updateSupplier(
                 supplierId as string,
                 req.auth.tenantId,
-                req.auth.branchId,
+                req.auth.activeBranchId || req.auth.branchId,
                 req.body
             );
 
@@ -101,7 +101,7 @@ export class SupplierController extends BaseController {
             await SupplierService.deleteSupplier(
                 supplierId as string,
                 req.auth.tenantId,
-                req.auth.branchId
+                req.auth.activeBranchId || req.auth.branchId
             );
 
             BaseController.sendResponse(res, 200, true, 'Supplier deleted successfully');

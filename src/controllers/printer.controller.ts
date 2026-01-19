@@ -553,7 +553,7 @@ export class PrinterController extends BaseController {
         try {
             const agent = getPrintAgent({
                 defaultTenantId: req.auth?.tenantId || '-1',
-                defaultBranchId: req.auth?.branchId || '-1'
+                defaultBranchId: req.auth?.activeBranchId || req.auth?.branchId
             });
             await agent.start();
             BaseController.sendSuccess(res, 'Print agent started', agent.getStatus());
@@ -672,7 +672,7 @@ export class PrinterController extends BaseController {
             const printer = await agent.registerPrinter(req.body.discoveredPrinter, {
                 printerName: req.body.printerName,
                 tenantId: req.auth?.tenantId,
-                branchId: req.auth?.branchId,
+                branchId: req.auth?.activeBranchId || req.auth?.branchId,
                 isDefault: req.body.isDefault,
                 isReceiptPrinter: req.body.isReceiptPrinter,
                 isLabelPrinter: req.body.isLabelPrinter,
