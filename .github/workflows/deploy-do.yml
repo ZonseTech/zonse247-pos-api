@@ -1,20 +1,47 @@
-name: Deploy to Ubuntu Server
+name: Deploy to Ubuntu Server (MySQL)
 
 on:
   push:
     branches: [main]
     tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Deployment environment"
+        required: true
+        default: "production"
+        type: choice
+        options:
+          - production
+          - staging
 
 jobs:
-  deploy:
+  build:
+    name: Build & Test (MySQL)
     runs-on: ubuntu-latest
-    environment: production
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: testpassword
+          MYSQL_DATABASE: pos_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    env:
+      DATABASE_URL: "mysql://root:testpassword@localhost:3306/pos_test"
 
     steps:
-      - name: 🚀 Checkout code
+      - name: 📥 Checkout code
         uses: actions/checkout@v4
 
-      - name: 🔨 Setup Node.js
+      - name: 🔧 Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "20.x"
@@ -23,32 +50,70 @@ jobs:
       - name: 📦 Install dependencies
         run: npm ci
 
-      - name: ✓ Run tests
-        run: npm test
+      - name: 🗃️ Setup MySQL schema & generate client
+        run: |
+          chmod +x ./scripts/db.sh
+          ./scripts/db.sh generate mysql
+          ./scripts/db.sh push mysql
 
       - name: 🔍 Type check
         run: npx tsc --noEmit
 
-      - name: 🏗️ Build project
-        run: npm run build
+      - name: 🧪 Run tests
+        run: npm test
 
-      - name: 📤 Deploy to Digital Ocean
+      - name: 🏗️ Build project (MySQL)
+        run: npm run build:mysql
+
+      - name: 📤 Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-mysql
+          path: |
+            dist/
+            package.json
+            package-lock.json
+            ecosystem.config.js
+            deploy.sh
+            scripts/
+            src/databases/prisma/schema.mysql.prisma
+            src/databases/prisma/client.mysql.ts
+            src/databases/prisma/migrations-mysql/
+          retention-days: 1
+
+  deploy:
+    name: Deploy to Ubuntu
+    needs: build
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment || 'production' }}
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 📤 Deploy to Ubuntu Server
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.API_HOST }}
           username: ${{ secrets.API_USERNAME }}
           key: ${{ secrets.API_SSH_KEY }}
           script: |
+            set -e
+
+            APP_DIR="/var/www/pos-api"
+
+            echo "🚀 Starting MySQL deployment..."
+
             # Create directory if it doesn't exist
-            mkdir -p /var/www/pos-api
-            cd /var/www/pos-api
+            mkdir -p $APP_DIR
+            cd $APP_DIR
 
             # Check if it's a git repository
             if [ ! -d .git ]; then
               echo "🔄 Initial clone..."
               git clone https://github.com/ZonseTech/zonse247-pos-api.git /var/www/pos-api-temp
-              mv /var/www/pos-api-temp/* /var/www/pos-api/
-              mv /var/www/pos-api-temp/.* /var/www/pos-api/ 2>/dev/null || true
+              mv /var/www/pos-api-temp/* $APP_DIR/
+              mv /var/www/pos-api-temp/.* $APP_DIR/ 2>/dev/null || true
               rm -rf /var/www/pos-api-temp
             else
               echo "🔄 Resetting local changes and pulling..."
@@ -57,6 +122,27 @@ jobs:
               git pull origin main --force
             fi
 
-            # Make scripts executable and deploy
-            chmod +x deploy.sh
-            ./deploy.sh production
+            echo "📦 Installing dependencies..."
+            npm ci
+
+            echo "🗃️ Setting up MySQL database..."
+            chmod +x ./scripts/db.sh
+            ./scripts/db.sh generate mysql
+
+            echo "🔄 Running database migrations..."
+            ./scripts/db.sh deploy mysql
+
+            echo "🏗️ Building application..."
+            npm run build:mysql
+
+            echo "🔄 Restarting application with PM2..."
+            if pm2 show api > /dev/null 2>&1; then
+              pm2 reload ecosystem.config.js --env production
+            else
+              pm2 start ecosystem.config.js --env production
+            fi
+
+            pm2 save
+
+            echo "✅ MySQL deployment completed successfully!"
+            pm2 status
