@@ -1,4 +1,4 @@
-import { SaleStatus, PaymentStatus } from '../databases/prisma/generated/prisma/client';
+import { SaleStatus } from '../databases/prisma/generated/prisma/client';
 
 export interface Sale {
     id: string;
@@ -58,7 +58,7 @@ export interface SalePayment {
     reference?: string;
     providerId?: string;
     providerRef?: string;
-    status: PaymentStatus;
+    status: "PENDING" | "COMPLETED" | "REFUNDED" | "CANCELLED" | "FAILED";
     processedAt: Date;
     notes?: string;
     createdAt: Date;
