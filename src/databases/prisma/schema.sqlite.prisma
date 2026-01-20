@@ -1213,52 +1213,73 @@ model TerminalSettingsOverride {
   @@map("terminal_settings_overrides")
 }
 
-model HoldOrder {
-  id         String          @id @default(cuid())
-  itemId     String          @unique
-  reference  String          @unique
-  total      Float           @default(0)
-  totalItems Int             @default(0)
-  date       DateTime
-  status     HoldOrderStatus @default(hold)
-  userId     String?
-  till       String?
-  createdAt  DateTime        @default(now())
-  updatedAt  DateTime        @updatedAt
-  tenantId   String?
-  branchId   String?
+model ParkedSale {
+  id             String            @id @default(uuid()) @map("parked_sale_id")
+  tenantId       String            @map("tenant_id")
+  branchId       String            @map("branch_id")
+  userId         String            @map("user_id")
+  terminalId     String?           @map("terminal_id")
+  customerId     String?           @map("customer_id")
+  
+  reference      String            @unique @map("reference")
+  
+  subtotal       Float             @default(0) @map("subtotal")
+  taxAmount      Float             @default(0) @map("tax_amount")
+  discountAmount Float             @default(0) @map("discount_amount")
+  totalAmount    Float             @default(0) @map("total_amount")
+  totalItems     Int               @default(0) @map("total_items")
+  
+  status         ParkedSaleStatus  @default(PARKED) @map("status")
+  notes          String?           @map("notes")
+  
+  parkedAt       DateTime          @default(now()) @map("parked_at")
+  expiresAt      DateTime?         @map("expires_at")
+  resumedAt      DateTime?         @map("resumed_at")
+  
+  synced         Int               @default(0) @map("synced")
+  createdAt      DateTime          @default(now()) @map("created_at")
+  updatedAt      DateTime          @updatedAt @map("updated_at")
 
-  items HoldOrderItem[]
+  items          ParkedSaleItem[]
 
-  @@index([itemId])
-  @@index([reference])
-  @@index([date])
-  @@index([status])
+  @@index([tenantId])
+  @@index([branchId])
   @@index([userId])
+  @@index([terminalId])
+  @@index([reference])
+  @@index([status])
+  @@index([parkedAt])
   @@index([createdAt])
+  @@map("parked_sales")
 }
 
-model HoldOrderItem {
-  id          String    @id @default(cuid())
-  holdOrderId String
-  holdOrder   HoldOrder @relation(fields: [holdOrderId], references: [id], onDelete: Cascade)
+model ParkedSaleItem {
+  id             String      @id @default(uuid()) @map("parked_sale_item_id")
+  parkedSaleId   String      @map("parked_sale_id")
+  productId      String      @map("product_id")
+  categoryId     String?     @map("category_id")
+  
+  name           String      @map("name")
+  barcode        String?     @map("barcode")
+  sku            String?     @map("sku")
+  unit           String?     @map("unit")
+  
+  quantity       Int         @default(1) @map("quantity")
+  unitPrice      Float       @default(0) @map("unit_price")
+  sellPrice      Float       @default(0) @map("sell_price")
+  purchasePrice  Float       @default(0) @map("purchase_price")
+  discount       Float       @default(0) @map("discount")
+  taxAmount      Float       @default(0) @map("tax_amount")
+  subtotal       Float       @default(0) @map("subtotal")
+  
+  createdAt      DateTime    @default(now()) @map("created_at")
 
-  productId   String
-  productName String
-  quantity    Int    @default(1)
-  price       Float  @default(0)
-  subtotal    Float  @default(0)
+  parkedSale     ParkedSale  @relation(fields: [parkedSaleId], references: [id], onDelete: Cascade)
 
-  sku      String?
-  barcode  String?
-  unit     String?
-  discount Float?  @default(0)
-  tax      Float?  @default(0)
-
-  createdAt DateTime @default(now())
-
-  @@index([holdOrderId])
+  @@index([parkedSaleId])
   @@index([productId])
+  @@index([categoryId])
+  @@map("parked_sale_items")
 }
 
 // ==========================================
@@ -1399,12 +1420,12 @@ enum SaleStatus {
 }
 
 // ORIGINAL ENUMS (unchanged)
-enum HoldOrderStatus {
-  hold
-  resumed
-  cancelled
-  completed
-  expired
+enum ParkedSaleStatus {
+  PARKED
+  RESUMED
+  CANCELLED
+  COMPLETED
+  EXPIRED
 }
 
 enum MRA_API_CONFIG_TABLE_environment {

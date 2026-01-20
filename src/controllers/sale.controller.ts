@@ -19,6 +19,28 @@ const VALID_SALE_STATUSES: Record<string, string> = {
     'PARTIAL_REFUND': 'PARTIALLY_REFUNDED',
 };
 
+// Valid ParkedSaleStatus values with common aliases
+// DB enum: 'PARKED', 'RESUMED', 'CANCELLED', 'COMPLETED', 'EXPIRED'
+const VALID_PARKED_SALE_STATUSES: Record<string, string> = {
+    'PARKED': 'PARKED',
+    'HOLD': 'PARKED',
+    'PENDING': 'PARKED',
+    'RESUMED': 'RESUMED',
+    'CANCELLED': 'CANCELLED',
+    'CANCELED': 'CANCELLED',
+    'COMPLETED': 'COMPLETED',
+    'EXPIRED': 'EXPIRED',
+    // Lowercase versions
+    'parked': 'PARKED',
+    'hold': 'PARKED',
+    'pending': 'PARKED',
+    'resumed': 'RESUMED',
+    'cancelled': 'CANCELLED',
+    'canceled': 'CANCELLED',
+    'completed': 'COMPLETED',
+    'expired': 'EXPIRED',
+};
+
 /**
  * Validate and map status to valid SaleStatus enum
  * Returns mapped status or undefined if status is not provided or invalid
@@ -27,6 +49,15 @@ function mapSaleStatus(status: string | undefined): string | undefined {
     if (!status) return undefined;
     const statusUpper = status.toString().toUpperCase();
     return VALID_SALE_STATUSES[statusUpper];
+}
+
+/**
+ * Validate and map status to valid ParkedSaleStatus enum
+ * Returns mapped status or undefined if status is not provided or invalid
+ */
+function mapParkedSaleStatus(status: string | undefined): string | undefined {
+    if (!status) return undefined;
+    return VALID_PARKED_SALE_STATUSES[status.toString()];
 }
 
 export class SaleController extends BaseController {
@@ -229,11 +260,11 @@ export class SaleController extends BaseController {
     }
 
     // ==========================================
-    // PARKED SALES (HOLD ORDERS) METHODS
+    // PARKED SALES METHODS
     // ==========================================
 
     /**
-     * Park a sale (create a hold order)
+     * Park a sale (create a parked sale)
      */
     static async parkSale(req: Request & AuthRequest, res: Response): Promise<void> {
         try {
@@ -256,13 +287,16 @@ export class SaleController extends BaseController {
             const itemsPerPage = perPage ? parseInt(perPage as string) : (limit ? parseInt(limit as string) : 50);
             const currentPage = page ? parseInt(page as string) : 1;
 
+            // Map status to valid ParkedSaleStatus enum value
+            const mappedStatus = mapParkedSaleStatus(status as string);
+
             const result = await SaleService.listParkedSales(
                 req.auth.tenantId,
                 branchId,
                 {
                     userId: userId as string,
                     terminalId: terminalId as string,
-                    status: status as string,
+                    status: mappedStatus,
                     page: currentPage,
                     limit: itemsPerPage,
                 }
@@ -287,11 +321,11 @@ export class SaleController extends BaseController {
      */
     static async getParkedSale(req: Request & AuthRequest, res: Response): Promise<void> {
         try {
-            const { holdOrderId } = req.params;
+            const { parkedSaleId } = req.params;
             const branchId = req.auth.activeBranchId || req.auth.branchId;
 
             const parkedSale = await SaleService.getParkedSaleById(
-                holdOrderId as string,
+                parkedSaleId as string,
                 req.auth.tenantId,
                 branchId
             );
@@ -312,11 +346,11 @@ export class SaleController extends BaseController {
      */
     static async updateParkedSale(req: Request & AuthRequest, res: Response): Promise<void> {
         try {
-            const { holdOrderId } = req.params;
+            const { parkedSaleId } = req.params;
             const branchId = req.auth.activeBranchId || req.auth.branchId;
 
             const parkedSale = await SaleService.updateParkedSale(
-                holdOrderId as string,
+                parkedSaleId as string,
                 req.auth.tenantId,
                 branchId,
                 req.body
@@ -337,11 +371,11 @@ export class SaleController extends BaseController {
      */
     static async resumeParkedSale(req: Request & AuthRequest, res: Response): Promise<void> {
         try {
-            const { holdOrderId } = req.params;
+            const { parkedSaleId } = req.params;
             const branchId = req.auth.activeBranchId || req.auth.branchId;
 
             const parkedSale = await SaleService.resumeParkedSale(
-                holdOrderId as string,
+                parkedSaleId as string,
                 req.auth.tenantId,
                 branchId
             );
@@ -361,11 +395,11 @@ export class SaleController extends BaseController {
      */
     static async deleteParkedSale(req: Request & AuthRequest, res: Response): Promise<void> {
         try {
-            const { holdOrderId } = req.params;
+            const { parkedSaleId } = req.params;
             const branchId = req.auth.activeBranchId || req.auth.branchId;
 
             await SaleService.deleteParkedSale(
-                holdOrderId as string,
+                parkedSaleId as string,
                 req.auth.tenantId,
                 branchId
             );

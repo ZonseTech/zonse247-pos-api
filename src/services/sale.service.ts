@@ -713,42 +713,58 @@ export class SaleService {
     }
 
     // ==========================================
-    // PARKED SALES (HOLD ORDERS) METHODS
+    // PARKED SALES METHODS
     // ==========================================
 
     /**
-     * Park a sale (create a hold order)
+     * Park a sale (create a parked sale)
      */
     static async parkSale(
         data: any,
         tenantId: string,
         branchId: string
     ): Promise<any> {
-        const holdOrder = await prisma.holdOrder.create({
+        // Map items with proper field names matching ParkedSaleItem schema
+        const items = (data.items || []).map((item: any) => ({
+            productId: item.productId,
+            categoryId: item.categoryId || null,
+            name: item.name || item.productName || 'Unknown Product',
+            barcode: item.barcode || null,
+            sku: item.sku || null,
+            unit: item.unit || null,
+            quantity: item.quantity || 1,
+            unitPrice: item.unitPrice || item.price || 0,
+            sellPrice: item.sellPrice || item.unitPrice || item.price || 0,
+            purchasePrice: item.purchasePrice || item.costPrice || 0,
+            discount: item.discount || item.discountAmount || 0,
+            taxAmount: item.taxAmount || item.tax || 0,
+            subtotal: item.subtotal || ((item.quantity || 1) * (item.unitPrice || item.sellPrice || item.price || 0)),
+        }));
+
+        // Calculate totals from items if not provided
+        const totalItems = data.totalItems || items.length;
+        const subtotal = data.subtotal || items.reduce((sum: number, item: any) => sum + Number(item.subtotal || 0), 0);
+        const taxAmount = data.taxAmount || items.reduce((sum: number, item: any) => sum + Number(item.taxAmount || 0), 0);
+        const discountAmount = data.discountAmount || items.reduce((sum: number, item: any) => sum + Number(item.discount || 0), 0);
+        const totalAmount = data.totalAmount || data.total || (subtotal + taxAmount - discountAmount);
+
+        const parkedSale = await prisma.parkedSale.create({
             data: {
-                itemId: data.itemId,
-                reference: data.reference,
-                total: data.total || 0,
-                totalItems: data.totalItems || 0,
-                date: data.date ? new Date(data.date) : new Date(),
-                status: 'hold',
-                userId: data.userId,
-                till: data.till,
                 tenantId,
                 branchId,
+                userId: data.userId,
+                terminalId: data.terminalId || null,
+                customerId: data.customerId || null,
+                reference: data.reference || `PARK-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`,
+                subtotal,
+                taxAmount,
+                discountAmount,
+                totalAmount,
+                totalItems,
+                status: 'PARKED',
+                notes: data.notes || null,
                 items: {
-                    create: (data.items || []).map((item: any) => ({
-                        productId: item.productId,
-                        productName: item.productName,
-                        quantity: item.quantity || 1,
-                        price: item.price || 0,
-                        subtotal: item.subtotal || 0,
-                        sku: item.sku,
-                        barcode: item.barcode,
-                        unit: item.unit,
-                        discount: item.discount || 0,
-                        tax: item.tax || 0,
-                    })),
+                    create: items,
                 },
             },
             include: {
@@ -756,7 +772,7 @@ export class SaleService {
             },
         });
 
-        return holdOrder;
+        return parkedSale;
     }
 
     /**
@@ -787,7 +803,7 @@ export class SaleService {
         }
 
         if (options?.terminalId) {
-            where.till = options.terminalId;
+            where.terminalId = options.terminalId;
         }
 
         if (options?.status) {
@@ -795,16 +811,16 @@ export class SaleService {
         }
 
         const [parkedSales, total] = await Promise.all([
-            prisma.holdOrder.findMany({
+            prisma.parkedSale.findMany({
                 where,
                 include: {
                     items: true,
                 },
                 skip,
                 take: limit,
-                orderBy: { date: 'desc' },
+                orderBy: { parkedAt: 'desc' },
             }),
-            prisma.holdOrder.count({ where }),
+            prisma.parkedSale.count({ where }),
         ]);
 
         const totalPages = Math.ceil(total / limit);
@@ -820,13 +836,13 @@ export class SaleService {
      * Get a parked sale by ID
      */
     static async getParkedSaleById(
-        holdOrderId: string,
+        parkedSaleId: string,
         tenantId: string,
         branchId: string
     ): Promise<any | null> {
-        const holdOrder = await prisma.holdOrder.findFirst({
+        const parkedSale = await prisma.parkedSale.findFirst({
             where: {
-                id: holdOrderId,
+                id: parkedSaleId,
                 tenantId,
                 branchId,
             },
@@ -835,22 +851,22 @@ export class SaleService {
             },
         });
 
-        return holdOrder;
+        return parkedSale;
     }
 
     /**
      * Update a parked sale
      */
     static async updateParkedSale(
-        holdOrderId: string,
+        parkedSaleId: string,
         tenantId: string,
         branchId: string,
         data: any
     ): Promise<any> {
         // First verify it exists and belongs to tenant/branch
-        const existing = await prisma.holdOrder.findFirst({
+        const existing = await prisma.parkedSale.findFirst({
             where: {
-                id: holdOrderId,
+                id: parkedSaleId,
                 tenantId,
                 branchId,
             },
@@ -860,33 +876,33 @@ export class SaleService {
             throw new Error('Parked sale not found');
         }
 
-        // Update the hold order
+        // Update the parked sale
         const { items: _items, ...updateData } = data;
 
-        const updatedOrder = await prisma.holdOrder.update({
-            where: { id: holdOrderId },
+        const updatedSale = await prisma.parkedSale.update({
+            where: { id: parkedSaleId },
             data: updateData,
             include: {
                 items: true,
             },
         });
 
-        return updatedOrder;
+        return updatedSale;
     }
 
     /**
-     * Resume a parked sale (delete the hold order)
-     * Returns the hold order data so it can be loaded into POS
+     * Resume a parked sale
+     * Returns the parked sale data so it can be loaded into POS
      */
     static async resumeParkedSale(
-        holdOrderId: string,
+        parkedSaleId: string,
         tenantId: string,
         branchId: string
     ): Promise<any> {
-        // First get the hold order with items
-        const holdOrder = await prisma.holdOrder.findFirst({
+        // First get the parked sale with items
+        const parkedSale = await prisma.parkedSale.findFirst({
             where: {
-                id: holdOrderId,
+                id: parkedSaleId,
                 tenantId,
                 branchId,
             },
@@ -895,31 +911,34 @@ export class SaleService {
             },
         });
 
-        if (!holdOrder) {
+        if (!parkedSale) {
             throw new Error('Parked sale not found');
         }
 
         // Update status to resumed
-        await prisma.holdOrder.update({
-            where: { id: holdOrderId },
-            data: { status: 'resumed' },
+        await prisma.parkedSale.update({
+            where: { id: parkedSaleId },
+            data: { 
+                status: 'RESUMED',
+                resumedAt: new Date(),
+            },
         });
 
-        return holdOrder;
+        return parkedSale;
     }
 
     /**
      * Delete a parked sale
      */
     static async deleteParkedSale(
-        holdOrderId: string,
+        parkedSaleId: string,
         tenantId: string,
         branchId: string
     ): Promise<void> {
         // First verify it exists and belongs to tenant/branch
-        const existing = await prisma.holdOrder.findFirst({
+        const existing = await prisma.parkedSale.findFirst({
             where: {
-                id: holdOrderId,
+                id: parkedSaleId,
                 tenantId,
                 branchId,
             },
@@ -929,13 +948,13 @@ export class SaleService {
             throw new Error('Parked sale not found');
         }
 
-        // Delete items first, then the hold order
-        await prisma.holdOrderItem.deleteMany({
-            where: { holdOrderId },
+        // Delete items first, then the parked sale
+        await prisma.parkedSaleItem.deleteMany({
+            where: { parkedSaleId },
         });
 
-        await prisma.holdOrder.delete({
-            where: { id: holdOrderId },
+        await prisma.parkedSale.delete({
+            where: { id: parkedSaleId },
         });
     }
 
@@ -960,22 +979,22 @@ export class SaleService {
         }
 
         if (options?.terminalId) {
-            where.till = options.terminalId;
+            where.terminalId = options.terminalId;
         }
 
-        const [total, holdCount, resumedCount, cancelledCount, completedCount, expiredCount] = await Promise.all([
-            prisma.holdOrder.count({ where }),
-            prisma.holdOrder.count({ where: { ...where, status: 'hold' } }),
-            prisma.holdOrder.count({ where: { ...where, status: 'resumed' } }),
-            prisma.holdOrder.count({ where: { ...where, status: 'cancelled' } }),
-            prisma.holdOrder.count({ where: { ...where, status: 'completed' } }),
-            prisma.holdOrder.count({ where: { ...where, status: 'expired' } }),
+        const [total, parkedCount, resumedCount, cancelledCount, completedCount, expiredCount] = await Promise.all([
+            prisma.parkedSale.count({ where }),
+            prisma.parkedSale.count({ where: { ...where, status: 'PARKED' } }),
+            prisma.parkedSale.count({ where: { ...where, status: 'RESUMED' } }),
+            prisma.parkedSale.count({ where: { ...where, status: 'CANCELLED' } }),
+            prisma.parkedSale.count({ where: { ...where, status: 'COMPLETED' } }),
+            prisma.parkedSale.count({ where: { ...where, status: 'EXPIRED' } }),
         ]);
 
         return {
             total,
             byStatus: {
-                hold: holdCount,
+                parked: parkedCount,
                 resumed: resumedCount,
                 cancelled: cancelledCount,
                 completed: completedCount,
