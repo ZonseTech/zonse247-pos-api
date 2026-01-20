@@ -3,7 +3,6 @@ import CategoriesRoutes from './categories.routes'
 import CustomersRoutes from './customers.routes'
 import AnalyticsRoutes from './dashboard.routes'
 import DatabaseExportRoutes from './database-export.routes'
-import HoldOrdersRoutes from './hold-orders.routes'
 import InventoryRoutes from './inventory.routes'
 import MigrationRoutes from './migration.routes'
 import PaymentMethodRoutes from './payment-method.routes'
@@ -93,7 +92,6 @@ router.use('/payment-methods', PaymentMethodRoutes);
 router.use('/migration', MigrationRoutes);
 router.use('/transactions', TransactionsRoutes);
 router.use('/returns', ReturnsRoutes);
-router.use('/hold-orders', HoldOrdersRoutes);
 router.use('/subscriptions', SubscriptionsRoutes);
 router.use('/subscription-plans', SubscriptionPlanRoutes);
 router.use('/terminals', TerminalRoutes);

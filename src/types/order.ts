@@ -26,17 +26,53 @@ export interface OrderSummary {
     items: OrderItem[];
 }
 
-export interface HoldOrder {
-    itemId: string;
+export interface ParkedSale {
+    id: string;
+    tenantId: string;
+    branchId: string;
+    userId: string;
+    terminalId?: string;
+    customerId?: string;
     reference: string;
-    items: Array<CartItem>;
-    total: number;
+    subtotal: DecimalValue;
+    taxAmount: DecimalValue;
+    discountAmount: DecimalValue;
+    totalAmount: DecimalValue;
     totalItems: number;
-    date: Date | string;
-    status: string;
-    userId?: string;
-    till?: string;
+    status: ParkedSaleStatus;
+    notes?: string;
+    parkedAt: Date | string;
+    expiresAt?: Date | string;
+    resumedAt?: Date | string;
+    synced: number;
+    createdAt?: Date;
+    updatedAt?: Date;
+    items: ParkedSaleItem[];
 }
+
+export interface ParkedSaleItem {
+    id: string;
+    parkedSaleId: string;
+    productId: string;
+    categoryId?: string;
+    name: string;
+    barcode?: string;
+    sku?: string;
+    unit?: string;
+    quantity: number;
+    unitPrice: DecimalValue;
+    sellPrice: DecimalValue;
+    purchasePrice: DecimalValue;
+    discount: DecimalValue;
+    taxAmount: DecimalValue;
+    subtotal: DecimalValue;
+    createdAt?: Date;
+}
+
+export type ParkedSaleStatus = 'PARKED' | 'RESUMED' | 'CANCELLED' | 'COMPLETED' | 'EXPIRED';
+
+// Legacy type alias for backward compatibility
+export type HoldOrder = ParkedSale;
 
 export interface CartItem {
     barcode: number | string;
