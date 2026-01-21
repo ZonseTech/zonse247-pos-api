@@ -7,176 +7,195 @@ import { StockMovementService } from './stock-movement.service';
 export class SaleService {
     /**
      * Create a sale with support for multiple payment methods
+     * Includes retry logic to handle race conditions on sale number generation
      * (Step 4: "Sell 10 bags → stock = 85")
      */
-    static async createSale(data: CreateSaleInput, tenantId: string, branchId: string): Promise<SaleWithItems> {
-        return await prisma.$transaction(async (tx) => {
-            let subtotal = 0;
-            const itemsWithCost = [];
-            const saleNumber = await this.generateSaleNumber(tenantId, branchId, tx);
+    static async createSale(data: CreateSaleInput, tenantId: string, branchId: string, retryAttempt = 0): Promise<SaleWithItems> {
+        const MAX_RETRIES = 3;
 
-            for (const item of data.items) {
-                const product = await tx.product.findFirst({
-                    where: {
-                        id: item.productId,
+        try {
+            return await prisma.$transaction(async (tx) => {
+                let subtotal = 0;
+                const itemsWithCost = [];
+                const saleNumber = await this.generateSaleNumber(tenantId, branchId, tx, retryAttempt);
+
+                for (const item of data.items) {
+                    const product = await tx.product.findFirst({
+                        where: {
+                            id: item.productId,
+                            tenantId: tenantId,
+                            branchId: branchId,
+                            isActive: true,
+                        },
+                        include: {
+                            inventories: true,
+                        },
+                    });
+
+                    if (!product) {
+                        throw new Error(`Product ${item.productId} not found or inactive`);
+                    }
+
+                    const inventory = product.inventories?.[0];
+                    if (!inventory) {
+                        throw new Error(`No inventory record for product ${product.name}`);
+                    }
+
+                    if (inventory.trackInventory && !inventory.allowNegativeStock) {
+                        if (inventory.availableQuantity < item.quantity) {
+                            throw new Error(
+                                `Insufficient stock for ${product.name}. Available: ${inventory.availableQuantity}, Requested: ${item.quantity}`
+                            );
+                        }
+                    }
+
+                    const itemSubtotal = item.quantity * item.unitPrice;
+                    const itemTax = item.taxAmount || 0;
+                    const itemDiscount = item.discountAmount || 0;
+                    const itemTotal = itemSubtotal + itemTax - itemDiscount;
+
+                    subtotal += itemSubtotal;
+
+                    itemsWithCost.push({
+                        productId: item.productId,
+                        quantity: item.quantity,
+                        unitPrice: item.unitPrice,
+                        unitCost: Number(inventory.averageCost),
+                        subtotal: itemSubtotal,
+                        taxAmount: itemTax,
+                        discountAmount: itemDiscount,
+                        totalAmount: itemTotal,
+                        inventoryId: inventory.id,
+                    });
+                }
+
+                const taxAmount = data.taxAmount || 0;
+                const discountAmount = data.discountAmount || 0;
+                const totalAmount = subtotal + taxAmount - discountAmount;
+
+                // Calculate total paid from multiple payments or single payment
+                let totalPaid = data.amountPaid;
+                if (data.payments && data.payments.length > 0) {
+                    totalPaid = data.payments.reduce((sum, p) => sum + p.amount, 0);
+                }
+
+                const changeAmount = totalPaid - totalAmount;
+
+                if (changeAmount < 0) {
+                    throw new Error(`Insufficient payment amount. Total: ${totalAmount}, Paid: ${totalPaid}`);
+                }
+
+                // Create the sale
+                const sale = await tx.sale.create({
+                    data: {
+                        id: uuidv4(),
                         tenantId: tenantId,
                         branchId: branchId,
-                        isActive: true,
-                    },
-                    include: {
-                        inventories: true,
-                    },
-                });
-
-                if (!product) {
-                    throw new Error(`Product ${item.productId} not found or inactive`);
-                }
-
-                const inventory = product.inventories?.[0];
-                if (!inventory) {
-                    throw new Error(`No inventory record for product ${product.name}`);
-                }
-
-                if (inventory.trackInventory && !inventory.allowNegativeStock) {
-                    if (inventory.availableQuantity < item.quantity) {
-                        throw new Error(
-                            `Insufficient stock for ${product.name}. Available: ${inventory.availableQuantity}, Requested: ${item.quantity}`
-                        );
-                    }
-                }
-
-                const itemSubtotal = item.quantity * item.unitPrice;
-                const itemTax = item.taxAmount || 0;
-                const itemDiscount = item.discountAmount || 0;
-                const itemTotal = itemSubtotal + itemTax - itemDiscount;
-
-                subtotal += itemSubtotal;
-
-                itemsWithCost.push({
-                    productId: item.productId,
-                    quantity: item.quantity,
-                    unitPrice: item.unitPrice,
-                    unitCost: Number(inventory.averageCost),
-                    subtotal: itemSubtotal,
-                    taxAmount: itemTax,
-                    discountAmount: itemDiscount,
-                    totalAmount: itemTotal,
-                    inventoryId: inventory.id,
-                });
-            }
-
-            const taxAmount = data.taxAmount || 0;
-            const discountAmount = data.discountAmount || 0;
-            const totalAmount = subtotal + taxAmount - discountAmount;
-
-            // Calculate total paid from multiple payments or single payment
-            let totalPaid = data.amountPaid;
-            if (data.payments && data.payments.length > 0) {
-                totalPaid = data.payments.reduce((sum, p) => sum + p.amount, 0);
-            }
-
-            const changeAmount = totalPaid - totalAmount;
-
-            if (changeAmount < 0) {
-                throw new Error(`Insufficient payment amount. Total: ${totalAmount}, Paid: ${totalPaid}`);
-            }
-
-            // Create the sale
-            const sale = await tx.sale.create({
-                data: {
-                    id: uuidv4(),
-                    tenantId: tenantId,
-                    branchId: branchId,
-                    saleNumber,
-                    customerId: data.customerId,
-                    terminalId: data.terminalId,
-                    userId: data.userId,
-                    subtotal,
-                    taxAmount,
-                    discountAmount,
-                    totalAmount,
-                    amountPaid: totalPaid,
-                    changeAmount,
-                    // Keep paymentMethodId for backward compatibility (first payment method or single)
-                    paymentMethodId: data.payments?.[0]?.paymentMethodId || data.paymentMethodId,
-                    status: 'COMPLETED',
-                    notes: data.notes,
-                    items: {
-                        create: itemsWithCost.map(({ inventoryId: _inventoryId, ...item }) => ({
-                            id: uuidv4(),
-                            ...item
-                        })),
-                    },
-                    // Create multiple payments if provided
-                    ...(data.payments && data.payments.length > 0 && {
-                        payments: {
-                            create: data.payments.map((payment) => ({
+                        saleNumber,
+                        customerId: data.customerId,
+                        terminalId: data.terminalId,
+                        userId: data.userId,
+                        subtotal,
+                        taxAmount,
+                        discountAmount,
+                        totalAmount,
+                        amountPaid: totalPaid,
+                        changeAmount,
+                        // Keep paymentMethodId for backward compatibility (first payment method or single)
+                        paymentMethodId: data.payments?.[0]?.paymentMethodId || data.paymentMethodId,
+                        status: 'COMPLETED',
+                        notes: data.notes,
+                        items: {
+                            create: itemsWithCost.map(({ inventoryId: _inventoryId, ...item }) => ({
                                 id: uuidv4(),
-                                paymentMethodId: payment.paymentMethodId,
-                                amount: payment.amount,
-                                reference: payment.reference,
-                                providerId: payment.providerId,
-                                providerRef: payment.providerRef,
-                                notes: payment.notes,
-                                status: 'COMPLETED',
+                                ...item
                             })),
                         },
-                    }),
-                },
-                include: {
-                    items: {
-                        include: {
-                            product: {
-                                select: {
-                                    id: true,
-                                    name: true,
-                                    sku: true,
+                        // Create multiple payments if provided
+                        ...(data.payments && data.payments.length > 0 && {
+                            payments: {
+                                create: data.payments.map((payment) => ({
+                                    id: uuidv4(),
+                                    paymentMethodId: payment.paymentMethodId,
+                                    amount: payment.amount,
+                                    reference: payment.reference,
+                                    providerId: payment.providerId,
+                                    providerRef: payment.providerRef,
+                                    notes: payment.notes,
+                                    status: 'COMPLETED',
+                                })),
+                            },
+                        }),
+                    },
+                    include: {
+                        items: {
+                            include: {
+                                product: {
+                                    select: {
+                                        id: true,
+                                        name: true,
+                                        sku: true,
+                                    },
                                 },
                             },
                         },
-                    },
-                    payments: {
-                        include: {
-                            paymentMethod: {
-                                select: {
-                                    methodId: true,
-                                    name: true,
-                                    icon: true,
+                        payments: {
+                            include: {
+                                paymentMethod: {
+                                    select: {
+                                        methodId: true,
+                                        name: true,
+                                        icon: true,
+                                    },
                                 },
                             },
                         },
-                    },
-                },
-            });
-
-            for (const item of itemsWithCost) {
-                await tx.inventory.update({
-                    where: { id: item.inventoryId },
-                    data: {
-                        availableQuantity: { decrement: item.quantity },
-                        lastSoldAt: new Date(),
                     },
                 });
 
-                await StockMovementService.recordMovement(
-                    {
-                        tenantId: tenantId,
-                        branchId: branchId,
-                        inventoryId: item.inventoryId,
-                        movementType: 'SALE',
-                        quantity: item.quantity,
-                        referenceType: 'SALE',
-                        referenceId: sale.id,
-                        unitCost: item.unitCost,
-                        notes: `Sale ${saleNumber}`,
-                        movedBy: data.userId,
-                    },
-                    tx
-                );
+                for (const item of itemsWithCost) {
+                    await tx.inventory.update({
+                        where: { id: item.inventoryId },
+                        data: {
+                            availableQuantity: { decrement: item.quantity },
+                            lastSoldAt: new Date(),
+                        },
+                    });
+
+                    await StockMovementService.recordMovement(
+                        {
+                            tenantId: tenantId,
+                            branchId: branchId,
+                            inventoryId: item.inventoryId,
+                            movementType: 'SALE',
+                            quantity: item.quantity,
+                            referenceType: 'SALE',
+                            referenceId: sale.id,
+                            unitCost: item.unitCost,
+                            notes: `Sale ${saleNumber}`,
+                            movedBy: data.userId,
+                        },
+                        tx
+                    );
+                }
+
+                return this.mapSale(sale);
+            });
+        } catch (error: any) {
+            // Check if this is a unique constraint error on sale_number
+            const isUniqueConstraintError =
+                error.message?.includes('Unique constraint failed') ||
+                error.message?.includes('sales_sale_number_key') ||
+                error.code === 'P2002';
+
+            if (isUniqueConstraintError && retryAttempt < MAX_RETRIES) {
+                // Retry with incremented attempt counter
+                console.log(`Sale number collision detected, retrying (attempt ${retryAttempt + 1}/${MAX_RETRIES})...`);
+                return this.createSale(data, tenantId, branchId, retryAttempt + 1);
             }
 
-            return this.mapSale(sale);
-        });
+            throw error;
+        }
     }
 
     /**
@@ -505,12 +524,13 @@ export class SaleService {
     }
 
     /**
-     * Generate sale number
+     * Generate sale number with retry logic to handle race conditions
      */
     private static async generateSaleNumber(
         tenantId: string,
         branchId: string,
-        tx: any
+        tx: any,
+        retryCount = 0
     ): Promise<string> {
         const today = new Date();
         const year = today.getFullYear();
@@ -537,6 +557,9 @@ export class SaleService {
             const lastSequence = parseInt(lastSale.saleNumber.split('-').pop() || '0');
             sequence = lastSequence + 1;
         }
+
+        // Add retry offset to handle race conditions
+        sequence += retryCount;
 
         return `${prefix}-${String(sequence).padStart(5, '0')}`;
     }
@@ -918,7 +941,7 @@ export class SaleService {
         // Update status to resumed
         await prisma.parkedSale.update({
             where: { id: parkedSaleId },
-            data: { 
+            data: {
                 status: 'RESUMED',
                 resumedAt: new Date(),
             },
