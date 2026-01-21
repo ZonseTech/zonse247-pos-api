@@ -266,7 +266,7 @@ model Sale {
   id         String @id @default(cuid()) @map("sale_id")
   tenantId   String @map("tenant_id")
   branchId   String @map("branch_id")
-  saleNumber String @unique @map("sale_number")
+  saleNumber String @map("sale_number")
 
   customerId String? @map("customer_id")
   terminalId String? @map("terminal_id")
@@ -304,6 +304,7 @@ model Sale {
   transactions  Transaction[]
   payments      SalePayment[]  // NEW: Support for multiple payment methods
 
+  @@unique([tenantId, branchId, saleNumber], name: "unique_tenant_branch_sale_number")
   @@index([branchId])
   @@index([tenantId])
   @@index([customerId])

@@ -18,7 +18,7 @@ import { getDatabaseConfig } from '../../config/db';
  * Current schema version - INCREMENT THIS when schema changes
  * Format: YYYYMMDD_NN (date + sequence number)
  */
-export const CURRENT_DB_VERSION = '20260120_02';
+export const CURRENT_DB_VERSION = '20260121_01';
 
 /**
  * Minimum supported version for migration (older versions require fresh install)
@@ -335,6 +335,71 @@ export const MIGRATIONS: Migration[] = [
             mysql: [
                 `DROP TABLE IF EXISTS parked_sale_items`,
                 `DROP TABLE IF EXISTS parked_sales`,
+            ],
+        },
+    },
+    {
+        version: '20260121_01',
+        description: 'Change saleNumber from global unique to per-tenant-branch unique (for offline support)',
+        up: {
+            sqlite: [
+                // SQLite doesn't support DROP CONSTRAINT, so we need to:
+                // 1. Create a new table with the correct constraint
+                // 2. Copy data
+                // 3. Drop old table
+                // 4. Rename new table
+                `CREATE TABLE IF NOT EXISTS "sales_new" (
+                    "sale_id" TEXT PRIMARY KEY NOT NULL,
+                    "tenant_id" TEXT NOT NULL,
+                    "branch_id" TEXT NOT NULL,
+                    "sale_number" TEXT NOT NULL,
+                    "customer_id" TEXT,
+                    "terminal_id" TEXT,
+                    "user_id" TEXT NOT NULL,
+                    "subtotal" REAL NOT NULL DEFAULT 0.00,
+                    "tax_amount" REAL NOT NULL DEFAULT 0.00,
+                    "discount_amount" REAL NOT NULL DEFAULT 0.00,
+                    "total_amount" REAL NOT NULL DEFAULT 0.00,
+                    "amount_paid" REAL NOT NULL DEFAULT 0.00,
+                    "change_amount" REAL NOT NULL DEFAULT 0.00,
+                    "payment_method_id" TEXT,
+                    "status" TEXT NOT NULL DEFAULT 'COMPLETED',
+                    "sale_date" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    "notes" TEXT,
+                    "is_voided" INTEGER NOT NULL DEFAULT 0,
+                    "voided_at" DATETIME,
+                    "voided_by" TEXT,
+                    "void_reason" TEXT,
+                    "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    "updated_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE("tenant_id", "branch_id", "sale_number")
+                )`,
+                `INSERT INTO "sales_new" SELECT * FROM "sales"`,
+                `DROP TABLE "sales"`,
+                `ALTER TABLE "sales_new" RENAME TO "sales"`,
+                // Recreate indexes
+                `CREATE INDEX IF NOT EXISTS "idx_sales_branch_id" ON "sales" ("branch_id")`,
+                `CREATE INDEX IF NOT EXISTS "idx_sales_tenant_id" ON "sales" ("tenant_id")`,
+                `CREATE INDEX IF NOT EXISTS "idx_sales_customer_id" ON "sales" ("customer_id")`,
+                `CREATE INDEX IF NOT EXISTS "idx_sales_terminal_id" ON "sales" ("terminal_id")`,
+                `CREATE INDEX IF NOT EXISTS "idx_sales_user_id" ON "sales" ("user_id")`,
+                `CREATE INDEX IF NOT EXISTS "idx_sales_sale_date" ON "sales" ("sale_date")`,
+                `CREATE INDEX IF NOT EXISTS "idx_sales_sale_number" ON "sales" ("sale_number")`,
+            ],
+            mysql: [
+                // MySQL: Drop the old unique index and add composite unique
+                `ALTER TABLE sales DROP INDEX sales_sale_number_key`,
+                `ALTER TABLE sales ADD CONSTRAINT unique_tenant_branch_sale_number UNIQUE (tenant_id, branch_id, sale_number)`,
+            ],
+        },
+        down: {
+            sqlite: [
+                // Revert: This would require ensuring no duplicates exist first
+                // For safety, we don't provide automatic rollback for this
+            ],
+            mysql: [
+                `ALTER TABLE sales DROP INDEX unique_tenant_sale_number`,
+                `ALTER TABLE sales ADD CONSTRAINT sales_sale_number_key UNIQUE (sale_number)`,
             ],
         },
     },
