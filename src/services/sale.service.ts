@@ -525,6 +525,7 @@ export class SaleService {
 
     /**
      * Generate sale number with retry logic to handle race conditions
+     * On retries, queries the main prisma client to see committed transactions
      */
     private static async generateSaleNumber(
         tenantId: string,
@@ -539,7 +540,11 @@ export class SaleService {
 
         const prefix = `SALE-${year}${month}${day}`;
 
-        const lastSale = await tx.sale.findFirst({
+        // On retries, use main prisma client to see committed transactions
+        // On first attempt, use tx for consistency within the transaction
+        const queryClient = retryCount > 0 ? prisma : tx;
+
+        const lastSale = await queryClient.sale.findFirst({
             where: {
                 tenantId,
                 branchId,
@@ -558,7 +563,7 @@ export class SaleService {
             sequence = lastSequence + 1;
         }
 
-        // Add retry offset to handle race conditions
+        // Add retry offset as extra safety margin
         sequence += retryCount;
 
         return `${prefix}-${String(sequence).padStart(5, '0')}`;
