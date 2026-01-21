@@ -539,6 +539,9 @@ export class SaleService {
     /**
      * Generate sale number with retry logic to handle race conditions
      * On retries, queries the main prisma client to see committed transactions
+     * 
+     * IMPORTANT: saleNumber is GLOBALLY unique (not per tenant/branch),
+     * so we must query ALL sales to find the last sequence number.
      */
     private static async generateSaleNumber(
         tenantId: string,
@@ -564,10 +567,11 @@ export class SaleService {
         console.log(`[SaleNumber] Prefix: ${prefix}`);
         console.log(`[SaleNumber] TenantId: ${tenantId}, BranchId: ${branchId}`);
 
+        // CRITICAL FIX: saleNumber is GLOBALLY unique, not per tenant/branch
+        // We must query ALL sales with this prefix to find the true last sequence
         const lastSale = await queryClient.sale.findFirst({
             where: {
-                tenantId,
-                branchId,
+                // DO NOT filter by tenantId/branchId - saleNumber is globally unique!
                 saleNumber: {
                     startsWith: prefix,
                 },
@@ -577,8 +581,9 @@ export class SaleService {
             },
         });
 
-        console.log(`[SaleNumber] Last sale found: ${lastSale ? lastSale.saleNumber : 'NONE'}`);
+        console.log(`[SaleNumber] Last sale found (GLOBAL): ${lastSale ? lastSale.saleNumber : 'NONE'}`);
         console.log(`[SaleNumber] Last sale ID: ${lastSale ? lastSale.id : 'N/A'}`);
+        console.log(`[SaleNumber] Last sale tenant/branch: ${lastSale ? `${lastSale.tenantId}/${lastSale.branchId}` : 'N/A'}`);
 
         let sequence = 1;
         if (lastSale) {
