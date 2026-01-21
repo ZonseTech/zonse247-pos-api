@@ -340,7 +340,7 @@ export const MIGRATIONS: Migration[] = [
     },
     {
         version: '20260121_01',
-        description: 'Change saleNumber from global unique to per-tenant unique (for offline support)',
+        description: 'Change saleNumber from global unique to per-tenant-branch unique (for offline support)',
         up: {
             sqlite: [
                 // SQLite doesn't support DROP CONSTRAINT, so we need to:
@@ -372,7 +372,7 @@ export const MIGRATIONS: Migration[] = [
                     "void_reason" TEXT,
                     "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
                     "updated_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                    UNIQUE("tenant_id", "sale_number")
+                    UNIQUE("tenant_id", "branch_id", "sale_number")
                 )`,
                 `INSERT INTO "sales_new" SELECT * FROM "sales"`,
                 `DROP TABLE "sales"`,
@@ -389,7 +389,7 @@ export const MIGRATIONS: Migration[] = [
             mysql: [
                 // MySQL: Drop the old unique index and add composite unique
                 `ALTER TABLE sales DROP INDEX sales_sale_number_key`,
-                `ALTER TABLE sales ADD CONSTRAINT unique_tenant_sale_number UNIQUE (tenant_id, sale_number)`,
+                `ALTER TABLE sales ADD CONSTRAINT unique_tenant_branch_sale_number UNIQUE (tenant_id, branch_id, sale_number)`,
             ],
         },
         down: {

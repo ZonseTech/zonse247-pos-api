@@ -304,7 +304,7 @@ model Sale {
   transactions  Transaction[]
   payments      SalePayment[]  // NEW: Support for multiple payment methods
 
-  @@unique([tenantId, saleNumber], name: "unique_tenant_sale_number")
+  @@unique([tenantId, branchId, saleNumber], name: "unique_tenant_branch_sale_number")
   @@index([branchId])
   @@index([tenantId])
   @@index([customerId])

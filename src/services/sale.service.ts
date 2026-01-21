@@ -540,8 +540,8 @@ export class SaleService {
      * Generate sale number with retry logic to handle race conditions
      * On retries, queries the main prisma client to see committed transactions
      * 
-     * saleNumber is unique per tenant (not globally), allowing offline usage
-     * where different tenants can have the same sale numbers.
+     * saleNumber is unique per tenant+branch (not globally), allowing offline usage
+     * where different branches can have the same sale numbers.
      */
     private static async generateSaleNumber(
         tenantId: string,
@@ -567,11 +567,12 @@ export class SaleService {
         console.log(`[SaleNumber] Prefix: ${prefix}`);
         console.log(`[SaleNumber] TenantId: ${tenantId}, BranchId: ${branchId}`);
 
-        // Query by tenant since saleNumber is unique per tenant (not globally)
-        // This allows offline usage where different tenants can have same sale numbers
+        // Query by tenant AND branch since saleNumber is unique per tenant+branch
+        // This allows offline usage where different branches can have same sale numbers
         const lastSale = await queryClient.sale.findFirst({
             where: {
-                tenantId,  // Filter by tenant - saleNumber is unique per tenant
+                tenantId,
+                branchId,
                 saleNumber: {
                     startsWith: prefix,
                 },
@@ -581,7 +582,7 @@ export class SaleService {
             },
         });
 
-        console.log(`[SaleNumber] Last sale found for tenant: ${lastSale ? lastSale.saleNumber : 'NONE'}`);
+        console.log(`[SaleNumber] Last sale found for tenant/branch: ${lastSale ? lastSale.saleNumber : 'NONE'}`);
         console.log(`[SaleNumber] Last sale ID: ${lastSale ? lastSale.id : 'N/A'}`);
 
         let sequence = 1;
