@@ -188,9 +188,22 @@ export class SaleService {
                 error.message?.includes('sales_sale_number_key') ||
                 error.code === 'P2002';
 
+            console.log(`[SaleService] ========== ERROR CAUGHT ==========`);
+            console.log(`[SaleService] Error message: ${error.message}`);
+            console.log(`[SaleService] Error code: ${error.code}`);
+            console.log(`[SaleService] Is unique constraint error: ${isUniqueConstraintError}`);
+            console.log(`[SaleService] Current retry attempt: ${retryAttempt}`);
+            console.log(`[SaleService] MAX_RETRIES: ${MAX_RETRIES}`);
+            console.log(`[SaleService] Will retry: ${isUniqueConstraintError && retryAttempt < MAX_RETRIES}`);
+            console.log(`[SaleService] ================================`);
+
             if (isUniqueConstraintError && retryAttempt < MAX_RETRIES) {
                 // Retry with incremented attempt counter
                 console.log(`Sale number collision detected, retrying (attempt ${retryAttempt + 1}/${MAX_RETRIES})...`);
+                
+                // Add a small delay before retry to allow other transactions to complete
+                await new Promise(resolve => setTimeout(resolve, 50 * (retryAttempt + 1)));
+                
                 return this.createSale(data, tenantId, branchId, retryAttempt + 1);
             }
 
@@ -543,6 +556,13 @@ export class SaleService {
         // On retries, use main prisma client to see committed transactions
         // On first attempt, use tx for consistency within the transaction
         const queryClient = retryCount > 0 ? prisma : tx;
+        const clientType = retryCount > 0 ? 'MAIN_PRISMA' : 'TRANSACTION';
+
+        console.log(`[SaleNumber] ========== GENERATING SALE NUMBER ==========`);
+        console.log(`[SaleNumber] Retry count: ${retryCount}`);
+        console.log(`[SaleNumber] Using client: ${clientType}`);
+        console.log(`[SaleNumber] Prefix: ${prefix}`);
+        console.log(`[SaleNumber] TenantId: ${tenantId}, BranchId: ${branchId}`);
 
         const lastSale = await queryClient.sale.findFirst({
             where: {
@@ -557,16 +577,28 @@ export class SaleService {
             },
         });
 
+        console.log(`[SaleNumber] Last sale found: ${lastSale ? lastSale.saleNumber : 'NONE'}`);
+        console.log(`[SaleNumber] Last sale ID: ${lastSale ? lastSale.id : 'N/A'}`);
+
         let sequence = 1;
         if (lastSale) {
             const lastSequence = parseInt(lastSale.saleNumber.split('-').pop() || '0');
+            console.log(`[SaleNumber] Parsed last sequence: ${lastSequence}`);
             sequence = lastSequence + 1;
         }
 
+        console.log(`[SaleNumber] Base sequence (before retry offset): ${sequence}`);
+        
         // Add retry offset as extra safety margin
         sequence += retryCount;
+        
+        console.log(`[SaleNumber] Final sequence (after +${retryCount} retry offset): ${sequence}`);
 
-        return `${prefix}-${String(sequence).padStart(5, '0')}`;
+        const generatedNumber = `${prefix}-${String(sequence).padStart(5, '0')}`;
+        console.log(`[SaleNumber] Generated sale number: ${generatedNumber}`);
+        console.log(`[SaleNumber] ==========================================`);
+
+        return generatedNumber;
     }
 
     /**
