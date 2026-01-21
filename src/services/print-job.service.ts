@@ -1358,15 +1358,18 @@ try {
 			throw new Error('No receipt printer available');
 		}
 
-		// Generate receipt content based on saleId, transactionId, or orderId
-		const content = await PrintContentService.generateReceiptContent(request);
+		// Generate receipt content based on saleId or orderId (include tenantId/branchId for data fetching)
+		const content = await PrintContentService.generateReceiptContent({
+			...request,
+			tenantId,
+			branchId,
+		});
 
 		const printJobData: CreatePrintJobRequest = {
 			printerId: printer.printerId,
 			jobType: PrintJobType.RECEIPT,
-			jobTitle: `Receipt - ${
-				request.saleId || request.transactionId || request.orderId || 'Unknown'
-			}`,
+			jobTitle: `Receipt - ${request.saleId || request.transactionId || request.orderId || 'Unknown'
+				}`,
 			content,
 			contentType: 'ESC_POS',
 			copies: request.copies || 1,
@@ -1376,8 +1379,8 @@ try {
 			referenceType: request.saleId
 				? 'SALE'
 				: request.transactionId
-				? 'TRANSACTION'
-				: 'ORDER',
+					? 'TRANSACTION'
+					: 'ORDER',
 		};
 
 		const printJob = await PrintJobModel.create({

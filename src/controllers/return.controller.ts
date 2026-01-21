@@ -41,8 +41,8 @@ export class ReturnController extends BaseController {
         try {
             const returnRequest: ReturnRequest = req.body;
 
-            if (!returnRequest.originalTransactionId) {
-                BaseController.sendResponse(res, 400, false, 'Original transaction ID is required');
+            if (!returnRequest.originalSaleId) {
+                BaseController.sendResponse(res, 400, false, 'Original sale ID is required');
                 return;
             }
 
@@ -91,19 +91,23 @@ export class ReturnController extends BaseController {
     }
 
     /**
-     * Get all returns for a specific transaction
-     * GET /returns/transaction/:transactionId
+     * Get all returns for a specific sale
+     * GET /returns/sale/:saleId
      */
-    static async getReturnsByTransaction(req: Request<{ transactionId: string }>, res: Response): Promise<void> {
+    static async getReturnsBySale(req: Request<{ saleId: string }> & AuthRequest, res: Response): Promise<void> {
         try {
-            const { transactionId } = req.params;
+            const { saleId } = req.params;
 
-            if (!transactionId) {
-                BaseController.sendResponse(res, 400, false, 'Transaction ID is required');
+            if (!saleId) {
+                BaseController.sendResponse(res, 400, false, 'Sale ID is required');
                 return;
             }
 
-            const returns = await ReturnService.getReturnsByTransaction(transactionId);
+            const returns = await ReturnService.getReturnsBySale(
+                saleId,
+                req.auth.tenantId,
+                req.auth.activeBranchId || req.auth.branchId
+            );
 
             BaseController.sendResponse(
                 res,
@@ -132,19 +136,23 @@ export class ReturnController extends BaseController {
     }
 
     /**
-     * Get return details by return transaction ID
-     * GET /returns/:returnTransactionId
+     * Get return details by sale ID
+     * GET /returns/:saleId
      */
-    static async getReturnById(req: Request<{ returnTransactionId: string }>, res: Response): Promise<void> {
+    static async getReturnById(req: Request<{ saleId: string }> & AuthRequest, res: Response): Promise<void> {
         try {
-            const { returnTransactionId } = req.params;
+            const { saleId } = req.params;
 
-            if (!returnTransactionId) {
-                BaseController.sendResponse(res, 400, false, 'Return transaction ID is required');
+            if (!saleId) {
+                BaseController.sendResponse(res, 400, false, 'Sale ID is required');
                 return;
             }
 
-            const returnData = await ReturnService.getReturnById(returnTransactionId);
+            const returnData = await ReturnService.getReturnById(
+                saleId,
+                req.auth.tenantId,
+                req.auth.activeBranchId || req.auth.branchId
+            );
 
             BaseController.sendResponse(
                 res,
@@ -174,18 +182,18 @@ export class ReturnController extends BaseController {
 
     /**
      * Cancel a return
-     * DELETE /returns/:returnTransactionId
+     * DELETE /returns/:saleId
      */
     static async cancelReturn(req: Request & AuthRequest, res: Response): Promise<void> {
         try {
-            const { returnTransactionId } = req.params;
+            const { saleId } = req.params;
 
-            if (!returnTransactionId) {
-                BaseController.sendResponse(res, 400, false, 'Return transaction ID is required');
+            if (!saleId) {
+                BaseController.sendResponse(res, 400, false, 'Sale ID is required');
                 return;
             }
 
-            await ReturnService.cancelReturn(returnTransactionId as string, {
+            await ReturnService.cancelReturn(saleId as string, {
                 tenantId: req.auth.tenantId,
                 branchId: req.auth.activeBranchId || req.auth.branchId,
                 userId: req.auth.userId,
@@ -196,7 +204,7 @@ export class ReturnController extends BaseController {
                 200,
                 true,
                 'Return cancelled successfully',
-                { returnTransactionId, status: 'cancelled' }
+                { saleId, status: 'cancelled' }
             );
         } catch (error: any) {
             console.error('Error cancelling return:', error);
@@ -219,15 +227,15 @@ export class ReturnController extends BaseController {
 
     /**
      * Restock returned items
-     * POST /returns/:returnTransactionId/restock
+     * POST /returns/:saleId/restock
      */
-    static async restockItems(req: Request<{ returnTransactionId: string }>, res: Response): Promise<void> {
+    static async restockItems(req: Request<{ saleId: string }>, res: Response): Promise<void> {
         try {
-            const { returnTransactionId } = req.params;
+            const { saleId } = req.params;
             const { restockItems } = req.body;
 
-            if (!returnTransactionId) {
-                BaseController.sendResponse(res, 400, false, 'Return transaction ID is required');
+            if (!saleId) {
+                BaseController.sendResponse(res, 400, false, 'Sale ID is required');
                 return;
             }
 
@@ -236,14 +244,14 @@ export class ReturnController extends BaseController {
                 return;
             }
 
-            await ReturnService.restockReturnedItems(returnTransactionId, restockItems);
+            await ReturnService.restockReturnedItems(saleId, restockItems);
 
             BaseController.sendResponse(
                 res,
                 200,
                 true,
                 'Items restocked successfully',
-                { returnTransactionId }
+                { saleId }
             );
         } catch (error: any) {
             console.error('Error restocking items:', error);
@@ -270,7 +278,7 @@ export class ReturnController extends BaseController {
      * Get return statistics for a date range
      * GET /returns/statistics/summary
      */
-    static async getReturnStatistics(req: Request, res: Response): Promise<void> {
+    static async getReturnStatistics(req: Request & AuthRequest, res: Response): Promise<void> {
         try {
             const { startDate, endDate } = req.query;
 
@@ -287,7 +295,12 @@ export class ReturnController extends BaseController {
                 return;
             }
 
-            const statistics = await ReturnService.getReturnStatistics(start, end);
+            const statistics = await ReturnService.getReturnStatistics(
+                req.auth.tenantId,
+                req.auth.activeBranchId || req.auth.branchId,
+                start,
+                end
+            );
 
             BaseController.sendResponse(
                 res,

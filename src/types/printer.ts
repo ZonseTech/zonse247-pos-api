@@ -201,8 +201,8 @@ export interface CreatePrintJobRequest {
 
 export interface PrintReceiptRequest {
     printerId?: string;               // Optional - uses default receipt printer if not specified
-    saleId?: string;
-    transactionId?: string;
+    saleId?: string;                  // Primary identifier - use this for new sales
+    transactionId?: string;           // @deprecated - use saleId instead (transactions table deprecated)
     orderId?: string;
     copies?: number;
     includeHeader?: boolean;
