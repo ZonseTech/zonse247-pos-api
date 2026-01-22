@@ -1,14 +1,14 @@
 import { v4 as uuidv4 } from 'uuid';
-import { TransactionModel } from '../models/transaction.model';
 import { ReturnItemModel, ReturnItem } from '../models/return-item.model';
-import { OrderModel } from '../models/order.model';
 import { InventoryModel } from '../models/inventory.model';
 import { AuthenticatedUser } from 'auth';
-import { Transaction } from 'transactions';
 import { Decimal } from '../databases/prisma/generated/prisma/internal/prismaNamespace';
+import { SaleService } from './sale.service';
+import { SaleWithItems } from '../models/sale.model';
+import { prisma } from '../databases/prisma/client';
 
 export interface ReturnItemRequest {
-    orderItemId: string;
+    saleItemId: string;        // Changed from orderItemId - links to sale_item_id
     productId: string;
     returnQuantity: number;
     returnReason?: string;
@@ -17,7 +17,7 @@ export interface ReturnItemRequest {
 }
 
 export interface ReturnRequest {
-    originalTransactionId: string;
+    originalSaleId: string;    // Changed from originalTransactionId - now uses sale ID
     items: ReturnItemRequest[];
     refundReason: string;
     refundMethod?: 'original' | 'cash' | 'store_credit';
@@ -25,10 +25,13 @@ export interface ReturnRequest {
 }
 
 export interface ReturnResponse {
-    returnTransaction: Transaction;
+    returnId: string;
+    returnNumber: string;
     returnItems: ReturnItem[];
     refundAmount: number;
-    originalTransaction: Transaction;
+    originalSale: SaleWithItems;
+    status: string;
+    createdAt: Date;
 }
 
 export class ReturnService {
@@ -37,24 +40,31 @@ export class ReturnService {
      * Get all returns for a specific tenant/branch
      */
     static async getAllReturns(tenantId: string, branchId: string): Promise<ReturnResponse[]> {
-        const refundTransactions = await TransactionModel.findByConditions({
-            tenantId,
-            branchId,
-            isRefund: true,
+        // Get all refunded/partially refunded sales
+        const { sales } = await SaleService.listSales(tenantId, branchId, {
+            includeItems: true,
+            limit: 1000,
         });
 
+        // Filter for sales that have returns (status is REFUNDED or PARTIALLY_REFUNDED)
+        const refundedSales = sales.filter(sale =>
+            sale.status === 'REFUNDED' || sale.status === 'PARTIALLY_REFUNDED'
+        );
+
         const returns = await Promise.all(
-            refundTransactions.map(async (refundTx) => {
-                const returnItems = await ReturnItemModel.findByReturnTransactionId(refundTx.transactionId);
-                const originalTransaction = refundTx.originalTransactionId
-                    ? await TransactionModel.findById(refundTx.originalTransactionId)
-                    : null;
+            refundedSales.map(async (sale) => {
+                const returnItems = await ReturnItemModel.findByReturnTransactionId(sale.id);
 
                 return {
-                    returnTransaction: refundTx,
+                    returnId: sale.id,
+                    returnNumber: `RET-${sale.saleNumber}`,
                     returnItems,
-                    refundAmount: Number(refundTx.refundedAmount || 0),
-                    originalTransaction: originalTransaction || ({} as Transaction),
+                    refundAmount: returnItems.reduce((sum, item) =>
+                        sum + (Number(item.returnPrice) * Number(item.returnedQuantity)), 0
+                    ),
+                    originalSale: sale,
+                    status: sale.status,
+                    createdAt: sale.updatedAt,
                 };
             })
         );
@@ -73,115 +83,115 @@ export class ReturnService {
             ? 'Customer requested return'
             : request.refundReason;
 
-        const originalTransaction = await this.validateOriginalTransaction(request.originalTransactionId);
-        const originalOrderItems = await OrderModel.findByTransactionRefNumber(originalTransaction.refNumber);
+        const originalSale = await this.validateOriginalSale(request.originalSaleId, auth.tenantId, auth.branchId);
 
-        await this.validateReturnItems(request.items, originalOrderItems);
+        await this.validateReturnItems(request.items, originalSale);
 
-        const refundCalculation = this.calculateRefundAmount(request.items, originalOrderItems);
-        const isFullRefund = Math.abs(refundCalculation.refundAmount - Number(originalTransaction.total)) < 0.01;
-        const returnTransaction = await this.createRefundTransaction(
-            originalTransaction,
+        const refundCalculation = this.calculateRefundAmount(request.items, originalSale);
+        const isFullRefund = Math.abs(refundCalculation.refundAmount - Number(originalSale.totalAmount)) < 0.01;
+
+        // Create return items and update sale status
+        const returnItems = await this.processReturn(
+            originalSale,
+            request.items,
             refundCalculation.refundAmount,
             refundReason,
-            auth,
-            isFullRefund
-        );
-
-        const returnItems = await this.createReturnItems(
-            returnTransaction.transactionId,
-            request.items,
-            originalOrderItems
+            isFullRefund,
+            auth
         );
 
         await this.updateInventoryForReturn(request.items, auth);
 
+        // Get updated sale
+        const updatedSale = await SaleService.getSaleById(originalSale.id, auth.tenantId, auth.branchId);
+
         return {
-            returnTransaction,
+            returnId: originalSale.id,
+            returnNumber: `RET-${originalSale.saleNumber}`,
             returnItems,
             refundAmount: refundCalculation.refundAmount,
-            originalTransaction,
+            originalSale: updatedSale || originalSale,
+            status: isFullRefund ? 'REFUNDED' : 'PARTIALLY_REFUNDED',
+            createdAt: new Date(),
         };
     }
 
     /**
-     * Get all returns for a specific transaction
+     * Get all returns for a specific sale
      */
-    static async getReturnsByTransaction(transactionId: string): Promise<ReturnResponse[]> {
-        const refundTransactions = await TransactionModel.findRefundsByOriginalTransaction(transactionId);
+    static async getReturnsBySale(saleId: string, tenantId: string, branchId: string): Promise<ReturnResponse[]> {
+        const sale = await SaleService.getSaleById(saleId, tenantId, branchId);
 
-        const returns = await Promise.all(
-            refundTransactions.map(async (refundTx) => {
-                const returnItems = await ReturnItemModel.findByReturnTransactionId(refundTx.transactionId);
-                const originalTransaction = await TransactionModel.findById(transactionId);
+        if (!sale) {
+            throw new Error('Sale not found');
+        }
 
-                if (!originalTransaction) {
-                    throw new Error('Original transaction not found');
-                }
+        const returnItems = await ReturnItemModel.findByReturnTransactionId(saleId);
 
-                return {
-                    returnTransaction: refundTx,
-                    returnItems,
-                    refundAmount: Number(refundTx.refundedAmount || 0),
-                    originalTransaction,
-                };
-            })
-        );
+        if (returnItems.length === 0) {
+            return [];
+        }
 
-        return returns;
+        return [{
+            returnId: sale.id,
+            returnNumber: `RET-${sale.saleNumber}`,
+            returnItems,
+            refundAmount: returnItems.reduce((sum, item) =>
+                sum + (Number(item.returnPrice) * Number(item.returnedQuantity)), 0
+            ),
+            originalSale: sale,
+            status: sale.status,
+            createdAt: sale.updatedAt,
+        }];
     }
 
     /**
-     * Get return details by return transaction ID
+     * Get return details by sale ID
      */
-    static async getReturnById(returnTransactionId: string): Promise<ReturnResponse> {
-        const returnTransaction = await TransactionModel.findById(returnTransactionId);
+    static async getReturnById(saleId: string, tenantId: string, branchId: string): Promise<ReturnResponse> {
+        const sale = await SaleService.getSaleById(saleId, tenantId, branchId);
 
-        if (!returnTransaction || !returnTransaction.isRefund) {
-            throw new Error('Return transaction not found');
+        if (!sale) {
+            throw new Error('Sale not found');
         }
 
-        const returnItems = await ReturnItemModel.findByReturnTransactionId(returnTransactionId);
-
-        if (!returnTransaction.originalTransactionId) {
-            throw new Error('Original transaction ID not found on return transaction');
+        if (sale.status !== 'REFUNDED' && sale.status !== 'PARTIALLY_REFUNDED') {
+            throw new Error('No return found for this sale');
         }
 
-        const originalTransaction = await TransactionModel.findById(returnTransaction.originalTransactionId);
-
-        if (!originalTransaction) {
-            throw new Error('Original transaction not found');
-        }
+        const returnItems = await ReturnItemModel.findByReturnTransactionId(saleId);
 
         return {
-            returnTransaction,
+            returnId: sale.id,
+            returnNumber: `RET-${sale.saleNumber}`,
             returnItems,
-            refundAmount: Number(returnTransaction.refundedAmount || 0),
-            originalTransaction,
+            refundAmount: returnItems.reduce((sum, item) =>
+                sum + (Number(item.returnPrice) * Number(item.returnedQuantity)), 0
+            ),
+            originalSale: sale,
+            status: sale.status,
+            createdAt: sale.updatedAt,
         };
     }
 
     /**
      * Cancel/void a return (if not yet processed)
      */
-    static async cancelReturn(returnTransactionId: string, auth: AuthenticatedUser): Promise<void> {
-        const returnTransaction = await TransactionModel.findById(returnTransactionId);
+    static async cancelReturn(saleId: string, auth: AuthenticatedUser): Promise<void> {
+        const sale = await SaleService.getSaleById(saleId, auth.tenantId, auth.branchId);
 
-        if (!returnTransaction || !returnTransaction.isRefund) {
-            throw new Error('Return transaction not found');
+        if (!sale) {
+            throw new Error('Sale not found');
         }
 
-        // Update return transaction status to cancelled
-        await TransactionModel.update(returnTransactionId, {
-            status: 'cancelled',
-            updatedAt: new Date(),
-        });
+        if (sale.status !== 'REFUNDED' && sale.status !== 'PARTIALLY_REFUNDED') {
+            throw new Error('No return found for this sale');
+        }
 
         // Get return items
-        const returnItems = await ReturnItemModel.findByReturnTransactionId(returnTransactionId);
+        const returnItems = await ReturnItemModel.findByReturnTransactionId(saleId);
 
         // Reverse inventory changes (remove items that were added back)
-        // Note: We only reverse if items were actually restocked
         const itemsToReverse = returnItems
             .filter(item => Number(item.restockedQuantity || 0) > 0)
             .map(item => ({
@@ -205,14 +215,24 @@ export class ReturnService {
 
             await InventoryModel.decrementInventory(inventoryUpdates, auth);
         }
+
+        // Update sale status back to COMPLETED
+        await prisma.sale.update({
+            where: { id: saleId },
+            data: {
+                status: 'COMPLETED',
+                updatedAt: new Date(),
+            },
+        });
     }
 
     /**
      * Process restocking of returned items
      */
     static async restockReturnedItems(
-        returnTransactionId: string,
-        restockItems: { returnItemId: string; restockQuantity: number }[]
+        saleId: string,
+        restockItems: { returnItemId: string; restockQuantity: number }[],
+        auth?: AuthenticatedUser
     ): Promise<void> {
         for (const item of restockItems) {
             const returnItem = await ReturnItemModel.findById(item.returnItemId);
@@ -225,10 +245,35 @@ export class ReturnService {
                 throw new Error('Restock quantity cannot exceed returned quantity');
             }
 
+            const alreadyRestocked = Number(returnItem.restockedQuantity || 0);
+            const remainingToRestock = Number(returnItem.returnedQuantity) - alreadyRestocked;
+
+            if (item.restockQuantity > remainingToRestock) {
+                throw new Error(`Only ${remainingToRestock} items remaining to restock for this return item`);
+            }
+
+            // Actually add items back to inventory
+            if (auth) {
+                await InventoryModel.incrementInventory(
+                    [{ productId: returnItem.productId, quantity: item.restockQuantity }],
+                    auth
+                );
+            } else {
+                // Fallback: increment without auth context
+                await prisma.inventory.updateMany({
+                    where: { productId: returnItem.productId },
+                    data: {
+                        availableQuantity: { increment: item.restockQuantity },
+                        updatedAt: new Date(),
+                    },
+                });
+            }
+
+            // Update the return item's restock status
             await ReturnItemModel.updateRestockStatus(
                 item.returnItemId,
                 'restocked',
-                item.restockQuantity
+                alreadyRestocked + item.restockQuantity
             );
         }
     }
@@ -236,96 +281,115 @@ export class ReturnService {
     /**
      * Get return statistics for a date range
      */
-    static async getReturnStatistics(startDate: Date, endDate: Date): Promise<{
+    static async getReturnStatistics(
+        tenantId: string,
+        branchId: string,
+        startDate: Date,
+        endDate: Date
+    ): Promise<{
         totalReturns: number;
         totalRefundAmount: number;
         averageRefundAmount: number;
         returnsByReason: Record<string, number>;
     }> {
-        const returns = await TransactionModel.findRefundsByDateRange(
-            startDate.toISOString(),
-            endDate.toISOString()
+        // Get return items within date range
+        const returnItems = await prisma.returnItem.findMany({
+            where: {
+                createdAt: {
+                    gte: startDate,
+                    lte: endDate,
+                },
+            },
+        });
+
+        const totalRefundAmount = returnItems.reduce(
+            (sum, item) => sum + (Number(item.returnPrice) * Number(item.returnedQuantity)), 0
         );
 
-        const totalRefundAmount = returns.reduce((sum, tx) => sum + Number(tx.refundedAmount || 0), 0);
-
         const returnsByReason: Record<string, number> = {};
-        returns.forEach(tx => {
-            const reason = tx.refundReason || 'Unknown';
+        returnItems.forEach(item => {
+            const reason = item.returnReason || 'Unknown';
             returnsByReason[reason] = (returnsByReason[reason] || 0) + 1;
         });
 
+        // Count unique sales that have returns
+        const uniqueSaleIds = [...new Set(returnItems.map(item => item.returnTransactionId))];
+
         return {
-            totalReturns: returns.length,
+            totalReturns: uniqueSaleIds.length,
             totalRefundAmount,
-            averageRefundAmount: returns.length > 0 ? totalRefundAmount / returns.length : 0,
+            averageRefundAmount: uniqueSaleIds.length > 0 ? totalRefundAmount / uniqueSaleIds.length : 0,
             returnsByReason,
         };
     }
 
     // Private helper methods
 
-    private static async validateOriginalTransaction(transactionId: string): Promise<Transaction> {
-        const transaction = await TransactionModel.findById(transactionId);
+    private static async validateOriginalSale(
+        saleId: string,
+        tenantId: string,
+        branchId: string
+    ): Promise<SaleWithItems> {
+        const sale = await SaleService.getSaleById(saleId, tenantId, branchId);
 
-        if (!transaction) {
-            throw new Error('Original transaction not found');
+        if (!sale) {
+            throw new Error('Original sale not found');
         }
 
-        if (transaction.status !== 'completed') {
-            throw new Error('Can only process returns for completed transactions');
+        // Only COMPLETED or PARTIALLY_REFUNDED sales can have returns processed
+        if (sale.status !== 'COMPLETED' && sale.status !== 'PARTIALLY_REFUNDED') {
+            if (sale.status === 'REFUNDED') {
+                throw new Error('This sale has already been fully refunded');
+            }
+            throw new Error('Can only process returns for completed sales');
         }
 
-        if (transaction.isRefund) {
-            throw new Error('Cannot process return for a refund transaction');
+        if (sale.isVoided) {
+            throw new Error('Cannot process return for a voided sale');
         }
 
-        // Check if already fully refunded
-        const isFullyRefunded = await TransactionModel.hasBeenFullyRefunded(transactionId);
-        if (isFullyRefunded) {
-            throw new Error('This transaction has already been fully refunded');
-        }
-
-        return transaction;
+        return sale;
     }
 
     private static async validateReturnItems(
         returnItems: ReturnItemRequest[],
-        originalOrderItems: any[]
+        originalSale: SaleWithItems
     ): Promise<void> {
         if (!returnItems || returnItems.length === 0) {
             throw new Error('At least one item must be returned');
         }
 
         for (const returnItem of returnItems) {
-            const originalItem = originalOrderItems.find(
-                item => item.orderId === returnItem.orderItemId
+            const originalItem = originalSale.items.find(
+                item => item.id === returnItem.saleItemId
             );
 
             if (!originalItem) {
-                throw new Error(`Order item ${returnItem.orderItemId} not found in original transaction`);
+                throw new Error(`Sale item ${returnItem.saleItemId} not found in original sale`);
             }
 
             if (returnItem.returnQuantity <= 0) {
                 throw new Error('Return quantity must be greater than 0');
             }
 
-            if (returnItem.returnQuantity > Number(originalItem.quantity)) {
+            if (returnItem.returnQuantity > originalItem.quantity) {
                 throw new Error(
                     `Return quantity (${returnItem.returnQuantity}) cannot exceed original quantity (${originalItem.quantity})`
                 );
             }
 
             // Check if this item has already been returned
-            const existingReturns = await ReturnItemModel.findByOriginalOrderId(returnItem.orderItemId);
+            const existingReturns = await ReturnItemModel.findByOriginalOrderId(returnItem.saleItemId);
             const totalReturnedQty = existingReturns.reduce(
                 (sum, item) => sum + Number(item.returnedQuantity),
                 0
             );
 
-            if (totalReturnedQty + returnItem.returnQuantity > Number(originalItem.quantity)) {
+            const remainingQty = originalItem.quantity - totalReturnedQty;
+
+            if (returnItem.returnQuantity > remainingQty) {
                 throw new Error(
-                    `Total return quantity would exceed original quantity for item ${returnItem.orderItemId}`
+                    `Cannot return ${returnItem.returnQuantity} item(s). Original quantity: ${originalItem.quantity}, already returned: ${totalReturnedQty}, remaining: ${remainingQty}`
                 );
             }
         }
@@ -333,21 +397,21 @@ export class ReturnService {
 
     private static calculateRefundAmount(
         returnItems: ReturnItemRequest[],
-        originalOrderItems: any[]
+        originalSale: SaleWithItems
     ): { refundAmount: number; itemRefunds: Array<{ itemId: string; amount: number }> } {
         let refundAmount = 0;
         const itemRefunds: Array<{ itemId: string; amount: number }> = [];
 
         for (const returnItem of returnItems) {
-            const originalItem = originalOrderItems.find(
-                item => item.orderId === returnItem.orderItemId
+            const originalItem = originalSale.items.find(
+                item => item.id === returnItem.saleItemId
             );
 
             if (originalItem) {
-                const itemRefundAmount = Number(originalItem.sellPrice) * returnItem.returnQuantity;
+                const itemRefundAmount = Number(originalItem.unitPrice) * returnItem.returnQuantity;
                 refundAmount += itemRefundAmount;
                 itemRefunds.push({
-                    itemId: returnItem.orderItemId,
+                    itemId: returnItem.saleItemId,
                     amount: itemRefundAmount,
                 });
             }
@@ -356,72 +420,27 @@ export class ReturnService {
         return { refundAmount, itemRefunds };
     }
 
-    private static async createRefundTransaction(
-        originalTransaction: Transaction,
+    private static async processReturn(
+        originalSale: SaleWithItems,
+        returnItems: ReturnItemRequest[],
         refundAmount: number,
         refundReason: string,
-        auth: AuthenticatedUser,
-        isFullRefund: boolean
-    ): Promise<Transaction> {
-        const refundTransactionId = uuidv4();
-        const refundRefNumber = `REF-${originalTransaction.refNumber}-${Date.now()}`;
-
-        const refundData: Partial<Transaction> = {
-            transactionId: refundTransactionId,
-            refNumber: refundRefNumber,
-            originalTransactionId: originalTransaction.transactionId,
-            isRefund: true,
-            refundReason,
-            refundedAmount: new Decimal(refundAmount) as any,
-            refundedAt: new Date(),
-            total: new Decimal(-refundAmount) as any, // Negative to indicate refund
-            paid: new Decimal(-refundAmount) as any,
-            subtotal: new Decimal(-refundAmount) as any,
-            discount: new Decimal(0) as any,
-            tax: new Decimal(0) as any,
-            changeAmount: new Decimal(0) as any,
-            customerId: originalTransaction.customerId,
-            paymentMethodId: originalTransaction.paymentMethodId,
-            paymentServiceProviderId: originalTransaction.paymentServiceProviderId,
-            terminalId: originalTransaction.terminalId,
-            userId: auth.userId,
-            tenantId: auth.tenantId,
-            branchId: auth.branchId,
-            status: 'refunded',
-            date: new Date(),
-            synced: 0,
-        };
-
-        const refundTransaction = await TransactionModel.createRefundTransaction(refundData);
-
-        // Update original transaction if fully refunded
-        if (isFullRefund) {
-            await TransactionModel.update(originalTransaction.transactionId, {
-                status: 'refunded',
-                updatedAt: new Date(),
-            });
-        }
-
-        return refundTransaction;
-    }
-
-    private static async createReturnItems(
-        returnTransactionId: string,
-        returnItems: ReturnItemRequest[],
-        originalOrderItems: any[]
+        isFullRefund: boolean,
+        _auth: AuthenticatedUser
     ): Promise<ReturnItem[]> {
+        // Create return items linked to the sale
         const returnItemsData: Partial<ReturnItem>[] = returnItems.map(item => {
-            const originalItem = originalOrderItems.find(oi => oi.orderId === item.orderItemId);
+            const originalItem = originalSale.items.find(oi => oi.id === item.saleItemId);
 
             return {
                 returnItemId: uuidv4(),
-                returnTransactionId,
-                originalOrderId: item.orderItemId,
+                returnTransactionId: originalSale.id, // Link to sale ID
+                originalOrderId: item.saleItemId,     // Link to sale item ID
                 productId: item.productId,
                 returnedQuantity: new Decimal(item.returnQuantity) as any,
                 originalQuantity: new Decimal(originalItem?.quantity || 0) as any,
-                returnPrice: new Decimal(originalItem?.sellPrice || 0) as any,
-                returnReason: item.returnReason,
+                returnPrice: new Decimal(originalItem?.unitPrice || 0) as any,
+                returnReason: item.returnReason || refundReason,
                 condition: item.condition || 'good',
                 notes: item.notes,
                 restockStatus: 'pending',
@@ -432,7 +451,19 @@ export class ReturnService {
 
         await ReturnItemModel.createMany(returnItemsData);
 
-        return ReturnItemModel.findByReturnTransactionId(returnTransactionId);
+        // Update the original sale status
+        await prisma.sale.update({
+            where: { id: originalSale.id },
+            data: {
+                status: isFullRefund ? 'REFUNDED' : 'PARTIALLY_REFUNDED',
+                notes: originalSale.notes
+                    ? `${originalSale.notes}\nRefund: ${refundReason}`
+                    : `Refund: ${refundReason}`,
+                updatedAt: new Date(),
+            },
+        });
+
+        return ReturnItemModel.findByReturnTransactionId(originalSale.id);
     }
 
     private static async updateInventoryForReturn(

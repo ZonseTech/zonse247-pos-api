@@ -11,11 +11,11 @@ router.post(
     validateBody(returnValidationSchemas.initiateReturn),
     ReturnController.initiateReturn
 );
-router.get('/transaction/:transactionId', ReturnController.getReturnsByTransaction);
-router.get('/:returnTransactionId', ReturnController.getReturnById);
-router.delete('/:returnTransactionId', ReturnController.cancelReturn);
+router.get('/sale/:saleId', ReturnController.getReturnsBySale);
+router.get('/:saleId', ReturnController.getReturnById);
+router.delete('/:saleId', ReturnController.cancelReturn);
 router.post(
-    '/:returnTransactionId/restock',
+    '/:saleId/restock',
     validateBody(returnValidationSchemas.restockItems),
     ReturnController.restockItems
 );

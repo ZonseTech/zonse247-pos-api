@@ -3,23 +3,23 @@ import Joi from 'joi';
 export const returnValidationSchemas = {
     // Validation for initiating a return
     initiateReturn: Joi.object({
-        originalTransactionId: Joi.string()
+        originalSaleId: Joi.string()
             .uuid()
             .required()
             .messages({
-                'string.empty': 'Original transaction ID is required',
-                'string.uuid': 'Invalid transaction ID format',
-                'any.required': 'Original transaction ID is required'
+                'string.empty': 'Original sale ID is required',
+                'string.uuid': 'Invalid sale ID format',
+                'any.required': 'Original sale ID is required'
             }),
 
         items: Joi.array()
             .items(
                 Joi.object({
-                    orderItemId: Joi.string()
+                    saleItemId: Joi.string()
                         .required()
                         .messages({
-                            'string.empty': 'Order item ID is required',
-                            'any.required': 'Order item ID is required'
+                            'string.empty': 'Sale item ID is required',
+                            'any.required': 'Sale item ID is required'
                         }),
 
                     productId: Joi.string()

@@ -1,8 +1,8 @@
 import { Printer } from '../types/printer';
-import { TransactionModel } from '../models/transaction.model';
 import { OrderModel } from '../models/order.model';
 import { BranchModel } from '../models/branch.model';
 import { ProductService } from './product.service';
+import { SaleService } from './sale.service';
 
 // ESC/POS Commands
 const ESC_POS = {
@@ -122,9 +122,9 @@ export class PrintContentService {
     static async generateReceiptContent(request: ReceiptContentRequest): Promise<string> {
         let receiptData: ReceiptData | null = null;
 
-        // Fetch transaction/sale/order data
-        if (request.transactionId) {
-            receiptData = await this.fetchTransactionData(request.transactionId, request.tenantId, request.branchId);
+        // Fetch sale/order data (prioritize saleId - transactions table is deprecated)
+        if (request.saleId && request.tenantId && request.branchId) {
+            receiptData = await this.fetchSaleData(request.saleId, request.tenantId, request.branchId);
         } else if (request.orderId) {
             receiptData = await this.fetchOrderData(request.orderId);
         }
@@ -138,95 +138,72 @@ export class PrintContentService {
     }
 
     /**
-     * Fetch transaction data for receipt
+     * Fetch sale data for receipt
      */
-    private static async fetchTransactionData(
-        transactionId: string,
-        tenantId?: string,
-        branchId?: string
+    private static async fetchSaleData(
+        saleId: string,
+        tenantId: string,
+        branchId: string
     ): Promise<ReceiptData | null> {
-        // Transaction links to Sale which has the items
-        const transaction = await TransactionModel.findById(transactionId, tenantId, branchId, {
-            sale: {
-                include: {
-                    items: {
-                        include: {
-                            product: true
-                        }
-                    }
-                }
-            },
-            customer: true,
-            paymentMethod: true,
-            user: true,
-            branch: true
-        });
+        const sale = await SaleService.getSaleById(saleId, tenantId, branchId);
 
-        if (!transaction) return null;
-
-        // Get branch from included relation or fetch separately
-        const branch = (transaction as any).branch || await BranchModel.findById(transaction.branchId);
-
-        // Get items from sale relation
-        const saleItems = (transaction as any).sale?.items || [];
-        const items = saleItems.map((item: any) => ({
-            name: item.product?.name || item.productName || 'Unknown Product',
-            quantity: item.quantity || 1,
-            unitPrice: parseFloat(item.unitPrice || 0),
-            total: parseFloat(item.subtotal || item.totalAmount || 0),
-            discount: parseFloat(item.discountAmount || 0),
-            tax: parseFloat(item.taxAmount || 0)
-        }));
-
-        // If no sale items, try to fetch from Order model using refNumber
-        if (items.length === 0) {
-            const orders = await OrderModel.findByRefNumber((transaction as any).refNumber);
-            if (orders && orders.length > 0) {
-                for (const order of orders) {
-                    // Fetch product name for each order
-                    const product = await ProductService.getProductById(
-                        (order as any).productId,
-                        tenantId || transaction.tenantId,
-                        branchId || transaction.branchId
-                    );
-                    items.push({
-                        name: product?.name || 'Product',
-                        quantity: parseFloat((order as any).quantity || 1),
-                        unitPrice: parseFloat((order as any).sellPrice || 0),
-                        total: parseFloat((order as any).quantity || 1) * parseFloat((order as any).sellPrice || 0),
-                        discount: 0,
-                        tax: 0
-                    });
-                }
-            }
+        if (!sale) {
+            return null;
         }
 
-        return {
+        // Get branch data
+        const branch = await BranchModel.findById(branchId);
+
+        // Map sale items to receipt items
+        const items = sale.items.map((item) => ({
+            name: item.product?.name || 'Unknown Product',
+            quantity: item.quantity || 1,
+            unitPrice: Number(item.unitPrice || 0),
+            total: Number(item.subtotal || item.totalAmount || 0),
+            discount: Number(item.discountAmount || 0),
+            tax: Number(item.taxAmount || 0)
+        }));
+
+        // Determine payment method name - check for multiple payments first
+        let paymentMethodName = 'Cash';
+        if (sale.payments && sale.payments.length > 0) {
+            if (sale.payments.length === 1) {
+                paymentMethodName = sale.payments[0].paymentMethod?.name || 'Cash';
+            } else {
+                paymentMethodName = 'Split Payment';
+            }
+        } else if (sale.paymentMethod) {
+            paymentMethodName = sale.paymentMethod.name || 'Cash';
+        }
+
+        const receiptData: ReceiptData = {
             businessName: branch?.branchName || 'Store',
             branchName: branch?.branchName || '',
             address: [branch?.addressLine1, branch?.addressLine2, branch?.city].filter(Boolean).join(', ') || '',
             phone: branch?.phoneNumber || '',
             email: branch?.email || '',
             taxId: (branch as any)?.taxId || '',
-            receiptNumber: (transaction as any).refNumber || transactionId.substring(0, 8).toUpperCase(),
-            date: new Date((transaction as any).date || (transaction as any).createdAt),
-            cashier: (transaction as any).user?.name || (transaction as any).user?.username,
-            terminal: (transaction as any).terminalId,
-            customer: (transaction as any).customer ? {
-                name: (transaction as any).customer.name || (transaction as any).customer.firstName,
-                phone: (transaction as any).customer.phone,
-                loyaltyPoints: (transaction as any).customer.loyaltyPoints
+            receiptNumber: sale.saleNumber || saleId.substring(0, 8).toUpperCase(),
+            date: new Date(sale.saleDate || sale.createdAt),
+            cashier: sale.user?.fullname || sale.user?.username,
+            terminal: sale.terminal?.terminalLabel || sale.terminal?.terminalCode,
+            customer: sale.customer ? {
+                name: sale.customer.name,
+                phone: sale.customer.phone,
+                loyaltyPoints: undefined
             } : undefined,
             items,
-            subtotal: parseFloat((transaction as any).subtotal || 0),
-            taxAmount: parseFloat((transaction as any).tax || 0),
-            discountAmount: parseFloat((transaction as any).discount || 0),
-            totalAmount: parseFloat((transaction as any).total || 0),
-            amountPaid: parseFloat((transaction as any).paid || (transaction as any).total || 0),
-            changeAmount: parseFloat((transaction as any).changeAmount || 0),
-            paymentMethod: (transaction as any).paymentMethod?.name || 'Cash',
+            subtotal: Number(sale.subtotal || 0),
+            taxAmount: Number(sale.taxAmount || 0),
+            discountAmount: Number(sale.discountAmount || 0),
+            totalAmount: Number(sale.totalAmount || 0),
+            amountPaid: Number(sale.amountPaid || sale.totalAmount || 0),
+            changeAmount: Number(sale.changeAmount || 0),
+            paymentMethod: paymentMethodName,
             currency: (branch as any)?.currency || 'MWK'
         };
+
+        return receiptData;
     }
 
     /**
