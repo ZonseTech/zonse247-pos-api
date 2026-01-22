@@ -229,7 +229,7 @@ export class ReturnController extends BaseController {
      * Restock returned items
      * POST /returns/:saleId/restock
      */
-    static async restockItems(req: Request<{ saleId: string }>, res: Response): Promise<void> {
+    static async restockItems(req: Request<{ saleId: string }> & AuthRequest, res: Response): Promise<void> {
         try {
             const { saleId } = req.params;
             const { restockItems } = req.body;
@@ -244,7 +244,7 @@ export class ReturnController extends BaseController {
                 return;
             }
 
-            await ReturnService.restockReturnedItems(saleId, restockItems);
+            await ReturnService.restockReturnedItems(saleId, restockItems, req.auth);
 
             BaseController.sendResponse(
                 res,

@@ -231,7 +231,8 @@ export class ReturnService {
      */
     static async restockReturnedItems(
         saleId: string,
-        restockItems: { returnItemId: string; restockQuantity: number }[]
+        restockItems: { returnItemId: string; restockQuantity: number }[],
+        auth?: AuthenticatedUser
     ): Promise<void> {
         for (const item of restockItems) {
             const returnItem = await ReturnItemModel.findById(item.returnItemId);
@@ -244,10 +245,35 @@ export class ReturnService {
                 throw new Error('Restock quantity cannot exceed returned quantity');
             }
 
+            const alreadyRestocked = Number(returnItem.restockedQuantity || 0);
+            const remainingToRestock = Number(returnItem.returnedQuantity) - alreadyRestocked;
+
+            if (item.restockQuantity > remainingToRestock) {
+                throw new Error(`Only ${remainingToRestock} items remaining to restock for this return item`);
+            }
+
+            // Actually add items back to inventory
+            if (auth) {
+                await InventoryModel.incrementInventory(
+                    [{ productId: returnItem.productId, quantity: item.restockQuantity }],
+                    auth
+                );
+            } else {
+                // Fallback: increment without auth context
+                await prisma.inventory.updateMany({
+                    where: { productId: returnItem.productId },
+                    data: {
+                        availableQuantity: { increment: item.restockQuantity },
+                        updatedAt: new Date(),
+                    },
+                });
+            }
+
+            // Update the return item's restock status
             await ReturnItemModel.updateRestockStatus(
                 item.returnItemId,
                 'restocked',
-                item.restockQuantity
+                alreadyRestocked + item.restockQuantity
             );
         }
     }
@@ -359,9 +385,11 @@ export class ReturnService {
                 0
             );
 
-            if (totalReturnedQty + returnItem.returnQuantity > originalItem.quantity) {
+            const remainingQty = originalItem.quantity - totalReturnedQty;
+
+            if (returnItem.returnQuantity > remainingQty) {
                 throw new Error(
-                    `Total return quantity would exceed original quantity for item ${returnItem.saleItemId}`
+                    `Cannot return ${returnItem.returnQuantity} item(s). Original quantity: ${originalItem.quantity}, already returned: ${totalReturnedQty}, remaining: ${remainingQty}`
                 );
             }
         }
