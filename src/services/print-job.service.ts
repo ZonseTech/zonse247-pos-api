@@ -1341,29 +1341,52 @@ try {
 		branchId: string,
 		userId?: string
 	): Promise<PrintJob> {
+		console.log('[PrintReceipt] ====== STARTING RECEIPT PRINT ======');
+		console.log('[PrintReceipt] Request:', JSON.stringify(request, null, 2));
+		console.log('[PrintReceipt] TenantId:', tenantId);
+		console.log('[PrintReceipt] BranchId:', branchId);
+		console.log('[PrintReceipt] UserId:', userId);
+
 		// Get the printer to use
 		let printer: Printer | null = null;
 
 		if (request.printerId) {
+			console.log('[PrintReceipt] Looking up printer by ID:', request.printerId);
 			printer = await PrinterModel.findById(
 				request.printerId,
 				tenantId,
 				branchId
 			);
 		} else {
+			console.log('[PrintReceipt] Looking up default receipt printer for branch:', branchId);
 			printer = await PrinterModel.findDefaultPrinter(branchId, 'receipt');
 		}
 
 		if (!printer) {
+			console.error('[PrintReceipt] ERROR: No receipt printer available');
 			throw new Error('No receipt printer available');
 		}
 
+		console.log('[PrintReceipt] Printer found:', {
+			printerId: printer.printerId,
+			name: printer.printerName,
+			type: printer.printerType,
+			connectionType: printer.connectionType,
+			connectionAddress: printer.connectionAddress,
+			isActive: printer.isActive
+		});
+
 		// Generate receipt content based on saleId or orderId (include tenantId/branchId for data fetching)
+		console.log('[PrintReceipt] Generating receipt content...');
 		const content = await PrintContentService.generateReceiptContent({
 			...request,
 			tenantId,
 			branchId,
 		});
+
+		console.log('[PrintReceipt] Content generated successfully');
+		console.log('[PrintReceipt] Content length:', content.length, 'characters');
+		console.log('[PrintReceipt] Content preview (first 500 chars):', content.substring(0, 500).replace(/[\x00-\x1F]/g, '?'));
 
 		const printJobData: CreatePrintJobRequest = {
 			printerId: printer.printerId,
@@ -1383,14 +1406,31 @@ try {
 					: 'ORDER',
 		};
 
+		console.log('[PrintReceipt] Creating print job:', {
+			printerId: printJobData.printerId,
+			jobType: printJobData.jobType,
+			jobTitle: printJobData.jobTitle,
+			contentType: printJobData.contentType,
+			copies: printJobData.copies,
+			priority: printJobData.priority,
+			referenceId: printJobData.referenceId,
+			referenceType: printJobData.referenceType
+		});
+
 		const printJob = await PrintJobModel.create({
 			...printJobData,
 			tenantId,
 			branchId,
 		});
 
+		console.log('[PrintReceipt] Print job created with ID:', printJob.printJobId);
+
 		// Execute immediately
+		console.log('[PrintReceipt] Executing print job...');
 		await this.executePrintJob(printJob.printJobId);
+
+		console.log('[PrintReceipt] Print job execution completed');
+		console.log('[PrintReceipt] ====== RECEIPT PRINT FINISHED ======');
 
 		return PrintJobModel.findById(printJob.printJobId) as Promise<PrintJob>;
 	}

@@ -147,7 +147,9 @@ export class PrintContentService {
     ): Promise<ReceiptData | null> {
         const sale = await SaleService.getSaleById(saleId, tenantId, branchId);
 
-        if (!sale) return null;
+        if (!sale) {
+            return null;
+        }
 
         // Get branch data
         const branch = await BranchModel.findById(branchId);
@@ -174,7 +176,7 @@ export class PrintContentService {
             paymentMethodName = sale.paymentMethod.name || 'Cash';
         }
 
-        return {
+        const receiptData: ReceiptData = {
             businessName: branch?.branchName || 'Store',
             branchName: branch?.branchName || '',
             address: [branch?.addressLine1, branch?.addressLine2, branch?.city].filter(Boolean).join(', ') || '',
@@ -200,6 +202,8 @@ export class PrintContentService {
             paymentMethod: paymentMethodName,
             currency: (branch as any)?.currency || 'MWK'
         };
+
+        return receiptData;
     }
 
     /**
