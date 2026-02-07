@@ -46,13 +46,13 @@ export function buildSalesWhereClause(filters: ReportFilters, status = 'COMPLETE
 }
 
 /**
- * Format hour to 12-hour format (e.g., 12AM, 1PM)
+ * Format hour to 12-hour format with minutes (e.g., 12:00AM, 1:00PM)
  */
 export function formatHour(hour: number): string {
-    if (hour === 0) return '12AM';
-    if (hour === 12) return '12PM';
-    if (hour > 12) return `${hour - 12}PM`;
-    return `${hour}AM`;
+    if (hour === 0) return '12:00AM';
+    if (hour === 12) return '12:00PM';
+    if (hour > 12) return `${hour - 12}:00PM`;
+    return `${hour}:00AM`;
 }
 
 /**
@@ -87,7 +87,7 @@ export function calculateHourlyDistribution(items: SaleDataItem[]): SalesDataPoi
         const startLabel = formatHour(hour);
         const endLabel = formatHour((hour + 1) % 24);
         hourlyData.push({
-            label: `${startLabel}-${endLabel}`,
+            label: `${startLabel} - ${endLabel}`,
             value: Math.round(hourlyMap[hour] * 100) / 100,
         });
     }
