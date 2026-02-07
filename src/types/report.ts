@@ -23,3 +23,16 @@ export interface TotalSalesReport {
         data: SalesDataPoint[];
     };
 }
+
+export interface ReportFilters {
+    tenantId: string;
+    branchId?: string;
+    startDate?: string;
+    endDate?: string;
+}
+
+export interface SaleDataItem {
+    value: number;
+    saleDate: Date;
+    createdAt: Date;
+}
