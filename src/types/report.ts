@@ -40,3 +40,23 @@ export interface SaleDataItem {
 export interface PaymentModesReport {
     data: SalesDataPoint[];
 }
+
+export interface TopStockItem {
+    name: string;
+    quantity: number;
+    pricing: number;
+}
+
+export interface TopCategoryItem {
+    name: string;
+    orderCount: number;
+    totalPrice: number;
+}
+
+export interface TopCategoriesReport {
+    data: TopCategoryItem[];
+}
+
+export interface TopStocksReport {
+    data: TopStockItem[];
+}

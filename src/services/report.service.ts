@@ -1,4 +1,4 @@
-import { ReportSummary, TotalSalesReport, ReportFilters, SaleDataItem } from '../types/report';
+import { ReportSummary, TotalSalesReport, ReportFilters, SaleDataItem, TopStocksReport, TopCategoriesReport } from '../types/report';
 import { prisma } from '../databases/prisma/client';
 import { HIGH_STOCK_THRESHOLD } from '../constants/report.constants';
 import {
@@ -263,6 +263,137 @@ export class ReportService {
             return { data };
         } catch (error) {
             console.error('Error getting payment modes report:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Get top stocks report with name, quantity, and pricing
+     * Returns top 10 most performing (best selling) inventory items
+     */
+    static async getTopStocks(
+        tenantId: string,
+        branchId?: string,
+        startDate?: string,
+        endDate?: string
+    ): Promise<TopStocksReport> {
+        try {
+            const filters: ReportFilters = { tenantId, branchId, startDate, endDate };
+            const salesWhereClause = buildSalesWhereClause(filters);
+
+            const topSellingProducts = await prisma.saleItem.groupBy({
+                by: ['productId'],
+                where: {
+                    sale: salesWhereClause,
+                },
+                _sum: {
+                    quantity: true,
+                },
+                orderBy: {
+                    _sum: {
+                        quantity: 'desc',
+                    },
+                },
+                take: 10,
+            });
+
+            const productIds = topSellingProducts.map(item => item.productId);
+            const products = await prisma.product.findMany({
+                where: {
+                    id: { in: productIds },
+                },
+                select: {
+                    id: true,
+                    name: true,
+                    sellingPrice: true,
+                },
+            });
+
+            type ProductInfo = { id: string; name: string; sellingPrice: any };
+            const productMap = new Map<string, ProductInfo>(products.map(p => [p.id, p]));
+
+            const data = topSellingProducts.map(item => {
+                const product = productMap.get(item.productId);
+                return {
+                    name: product?.name || 'Unknown Product',
+                    quantity: item._sum.quantity || 0,
+                    pricing: Number(product?.sellingPrice || 0),
+                };
+            });
+
+            return { data };
+        } catch (error) {
+            console.error('Error getting top stocks report:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Get top categories report with order count and total price
+     * Returns top 10 most performing categories
+     */
+    static async getTopCategories(
+        tenantId: string,
+        branchId?: string,
+        startDate?: string,
+        endDate?: string
+    ): Promise<TopCategoriesReport> {
+        try {
+            const filters: ReportFilters = { tenantId, branchId, startDate, endDate };
+            const salesWhereClause = buildSalesWhereClause(filters);
+
+            // Get all sale items with product category info
+            const saleItems = await prisma.saleItem.findMany({
+                where: {
+                    sale: salesWhereClause,
+                },
+                select: {
+                    quantity: true,
+                    totalAmount: true,
+                    product: {
+                        select: {
+                            categoryId: true,
+                            category: {
+                                select: {
+                                    name: true,
+                                },
+                            },
+                        },
+                    },
+                },
+            });
+
+            // Group by category
+            const categoryMap: Record<string, { name: string; orderCount: number; totalPrice: number }> = {};
+            for (const item of saleItems) {
+                const categoryId = item.product.categoryId || 'uncategorized';
+                const categoryName = item.product.category?.name || 'Uncategorized';
+
+                if (!categoryMap[categoryId]) {
+                    categoryMap[categoryId] = {
+                        name: categoryName,
+                        orderCount: 0,
+                        totalPrice: 0,
+                    };
+                }
+
+                categoryMap[categoryId].orderCount += item.quantity;
+                categoryMap[categoryId].totalPrice += Number(item.totalAmount) || 0;
+            }
+
+            // Convert to array, sort by order count, and take top 10
+            const data = Object.values(categoryMap)
+                .map(item => ({
+                    name: item.name,
+                    orderCount: item.orderCount,
+                    totalPrice: Math.round(item.totalPrice * 100) / 100,
+                }))
+                .sort((a, b) => b.orderCount - a.orderCount)
+                .slice(0, 10);
+
+            return { data };
+        } catch (error) {
+            console.error('Error getting top categories report:', error);
             throw error;
         }
     }

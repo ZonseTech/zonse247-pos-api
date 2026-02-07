@@ -92,4 +92,32 @@ export class ReportController extends BaseController {
             BaseController.sendResponse(res, 400, false, 'Failed to retrieve payment modes report', undefined, error.message);
         }
     }
+
+    /**
+     * Get top stocks report
+     * GET /reports/top-stocks
+     */
+    static async getTopStocks(req: Request & AuthRequest, res: Response): Promise<void> {
+        try {
+            const { tenantId, branchId, startDate, endDate } = this.getReportParams(req);
+            const report = await ReportService.getTopStocks(tenantId, branchId, startDate, endDate);
+            BaseController.sendResponse(res, 200, true, 'Top stocks report retrieved successfully', report);
+        } catch (error: any) {
+            BaseController.sendResponse(res, 400, false, 'Failed to retrieve top stocks report', undefined, error.message);
+        }
+    }
+
+    /**
+     * Get top categories report
+     * GET /reports/top-categories
+     */
+    static async getTopCategories(req: Request & AuthRequest, res: Response): Promise<void> {
+        try {
+            const { tenantId, branchId, startDate, endDate } = this.getReportParams(req);
+            const report = await ReportService.getTopCategories(tenantId, branchId, startDate, endDate);
+            BaseController.sendResponse(res, 200, true, 'Top categories report retrieved successfully', report);
+        } catch (error: any) {
+            BaseController.sendResponse(res, 400, false, 'Failed to retrieve top categories report', undefined, error.message);
+        }
+    }
 }
