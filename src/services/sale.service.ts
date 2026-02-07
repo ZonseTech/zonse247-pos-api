@@ -85,6 +85,32 @@ export class SaleService {
                     throw new Error(`Insufficient payment amount. Total: ${totalAmount}, Paid: ${totalPaid}`);
                 }
 
+                // Determine the payments to create
+                let paymentsToCreate: any[] = [];
+                if (data.payments && data.payments.length > 0) {
+                    paymentsToCreate = data.payments.map((payment) => ({
+                        id: uuidv4(),
+                        paymentMethodId: payment.paymentMethodId,
+                        amount: payment.amount,
+                        reference: payment.reference,
+                        providerId: payment.providerId,
+                        providerRef: payment.providerRef,
+                        notes: payment.notes,
+                        status: 'COMPLETED',
+                    }));
+                } else if (data.paymentMethodId) {
+                    paymentsToCreate = [{
+                        id: uuidv4(),
+                        paymentMethodId: data.paymentMethodId,
+                        amount: totalPaid,
+                        reference: null,
+                        providerId: null,
+                        providerRef: null,
+                        notes: null,
+                        status: 'COMPLETED',
+                    }];
+                }
+
                 // Create the sale
                 const sale = await tx.sale.create({
                     data: {
@@ -111,19 +137,9 @@ export class SaleService {
                                 ...item
                             })),
                         },
-                        // Create multiple payments if provided
-                        ...(data.payments && data.payments.length > 0 && {
+                        ...(paymentsToCreate.length > 0 && {
                             payments: {
-                                create: data.payments.map((payment) => ({
-                                    id: uuidv4(),
-                                    paymentMethodId: payment.paymentMethodId,
-                                    amount: payment.amount,
-                                    reference: payment.reference,
-                                    providerId: payment.providerId,
-                                    providerRef: payment.providerRef,
-                                    notes: payment.notes,
-                                    status: 'COMPLETED',
-                                })),
+                                create: paymentsToCreate,
                             },
                         }),
                     },
