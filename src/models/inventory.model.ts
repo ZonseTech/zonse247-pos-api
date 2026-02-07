@@ -342,18 +342,12 @@ export class InventoryModel {
      */
     static async create(inventoryData: Record<string, any>, auth: AuthenticatedUser): Promise<void> {
         try {
-            // Validate required fields
             const validationErrors: Record<string, string> = {};
 
             if (!inventoryData.name || inventoryData.name.trim().length === 0) {
                 validationErrors.name = 'Product name is required.';
             }
 
-            if (!inventoryData.sku && !inventoryData.barcode) {
-                validationErrors.sku = 'SKU or barcode is required.';
-            }
-
-            // Validate price values
             const sellPrice = parseFloat(inventoryData.sellPrice || inventoryData.sellingPrice || 0);
             if (sellPrice < 0) {
                 validationErrors.sellingPrice = ProductErrors.INVALID_PRICE;
@@ -364,7 +358,6 @@ export class InventoryModel {
                 validationErrors.quantity = ProductErrors.INVALID_QUANTITY;
             }
 
-            // Validate min/max stock relationship
             const minStock = inventoryData.minStock ? parseInt(inventoryData.minStock) : null;
             const maxStock = inventoryData.maxStock ? parseInt(inventoryData.maxStock) : null;
             if (minStock !== null && maxStock !== null && minStock > maxStock) {
@@ -375,7 +368,6 @@ export class InventoryModel {
                 throw new ValidationError('Inventory item validation failed', validationErrors);
             }
 
-            // Check for duplicate barcodes
             const primaryBarcode = inventoryData.barcode || inventoryData.primaryBarcode;
             const additionalBarcodes = inventoryData.additionalBarcodes?.map((bc: any) => ({
                 barcode: typeof bc === 'string' ? bc : bc.code || bc.barcode
@@ -388,7 +380,6 @@ export class InventoryModel {
                 auth.branchId
             );
 
-            // Check for duplicate SKU
             const sku = inventoryData.sku || inventoryData.barcode;
             const existingSku = await prisma.product.findFirst({
                 where: {
@@ -404,7 +395,6 @@ export class InventoryModel {
                 throw new ConflictError(ProductErrors.SKU_EXISTS(sku), 'sku');
             }
 
-            // Verify category exists if provided
             if (inventoryData.categoryId) {
                 const categoryExists = await prisma.category.findFirst({
                     where: {
@@ -418,7 +408,6 @@ export class InventoryModel {
                 }
             }
 
-            // Create product and inventory in transaction
             await prisma.$transaction(async (tx) => {
                 const product = await tx.product.create({
                     data: {
@@ -432,22 +421,17 @@ export class InventoryModel {
                         unit: inventoryData.unit || 'piece',
                         sellingPrice: sellPrice,
                         primaryBarcode: primaryBarcode,
-                        // Product attributes
                         brand: inventoryData.brand || null,
                         color: inventoryData.color || null,
                         size: inventoryData.size || null,
                         dimensions: inventoryData.dimensions || null,
                         weight: inventoryData.weight ? parseFloat(inventoryData.weight) : null,
-                        // Promotional pricing
                         promoPrice: inventoryData.promoPrice ? parseFloat(inventoryData.promoPrice) : null,
                         promoStart: inventoryData.promoStart ? new Date(inventoryData.promoStart) : null,
                         promoEnd: inventoryData.promoEnd ? new Date(inventoryData.promoEnd) : null,
-                        // Tax
                         isTaxable: inventoryData.isTaxable !== false,
-                        // Dates
                         expirationDate: inventoryData.expirationDate ? new Date(inventoryData.expirationDate) : null,
                         manufactureDate: inventoryData.manufactureDate ? new Date(inventoryData.manufactureDate) : null,
-                        // Supplier info
                         supplierName: inventoryData.supplierName || null,
                         supplierCode: inventoryData.supplierCode || null,
                         isActive: inventoryData.status !== 'inactive'
@@ -472,7 +456,6 @@ export class InventoryModel {
                     }
                 });
 
-                // Create additional barcodes
                 if (inventoryData.additionalBarcodes && Array.isArray(inventoryData.additionalBarcodes)) {
                     for (const barcode of inventoryData.additionalBarcodes) {
                         const barcodeValue = typeof barcode === 'string' ? barcode : barcode.code || barcode.barcode;
@@ -490,7 +473,6 @@ export class InventoryModel {
                 }
             });
         } catch (error) {
-            // Re-throw if it's already a handled error
             if (error instanceof ValidationError ||
                 error instanceof ConflictError ||
                 error instanceof NotFoundError ||
@@ -498,7 +480,6 @@ export class InventoryModel {
                 throw error;
             }
 
-            // Handle Prisma errors
             throw DbErrorHandler.handlePrismaError(error);
         }
     }
