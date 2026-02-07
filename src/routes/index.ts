@@ -37,6 +37,7 @@ import { authLimiter } from '../middlewares/rate-limit.middleware'
 import PaymentServiceProviderRoutes from './payment-service-provider.routes'
 import MetadataRoutes from './metadata.routes'
 import AccountSeedsRoutes from './account-seeds.routes'
+import ReportsRoutes from './reports.routes'
 import { MetadataMiddleware } from '../middlewares/metadata.middleware'
 import { validateBody } from '../middlewares/validation.middleware'
 import { userValidationSchemas } from '../validations/user.schemas'
@@ -105,6 +106,7 @@ router.use('/sales', SalesRoutes);
 router.use('/sales/migration', TransactionMigrationRoutes);
 router.use('/stock-movements', StockMovementsRoutes);
 router.use('/printers', PrinterRoutes);
+router.use('/reports', ReportsRoutes);
 router.use('/tenant-registration-details', TenantRegistrationDetailRoutes);
 
 export default router
