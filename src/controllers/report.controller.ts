@@ -64,4 +64,32 @@ export class ReportController extends BaseController {
             BaseController.sendResponse(res, 400, false, 'Failed to retrieve gross profit report', undefined, error.message);
         }
     }
+
+    /**
+     * Get receipt count report (hourly, weekly, monthly)
+     * GET /reports/receipt-count
+     */
+    static async getReceiptCount(req: Request & AuthRequest, res: Response): Promise<void> {
+        try {
+            const { tenantId, branchId, startDate, endDate } = this.getReportParams(req);
+            const report = await ReportService.getReceiptCount(tenantId, branchId, startDate, endDate);
+            BaseController.sendResponse(res, 200, true, 'Receipt count report retrieved successfully', report);
+        } catch (error: any) {
+            BaseController.sendResponse(res, 400, false, 'Failed to retrieve receipt count report', undefined, error.message);
+        }
+    }
+
+    /**
+     * Get payment modes report
+     * GET /reports/payment-modes
+     */
+    static async getPaymentModes(req: Request & AuthRequest, res: Response): Promise<void> {
+        try {
+            const { tenantId, branchId, startDate, endDate } = this.getReportParams(req);
+            const report = await ReportService.getPaymentModes(tenantId, branchId, startDate, endDate);
+            BaseController.sendResponse(res, 200, true, 'Payment modes report retrieved successfully', report);
+        } catch (error: any) {
+            BaseController.sendResponse(res, 400, false, 'Failed to retrieve payment modes report', undefined, error.message);
+        }
+    }
 }

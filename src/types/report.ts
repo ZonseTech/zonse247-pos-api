@@ -36,3 +36,7 @@ export interface SaleDataItem {
     saleDate: Date;
     createdAt: Date;
 }
+
+export interface PaymentModesReport {
+    data: SalesDataPoint[];
+}

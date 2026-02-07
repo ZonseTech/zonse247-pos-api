@@ -122,7 +122,6 @@ export class ReportService {
                 },
             });
 
-            // Map to SaleDataItem format
             const items: SaleDataItem[] = sales.map(sale => ({
                 value: Number(sale.totalAmount) || 0,
                 saleDate: sale.saleDate,
@@ -162,8 +161,6 @@ export class ReportService {
                 },
             });
 
-            // Calculate gross profit for each sale and map to SaleDataItem format
-            // Gross Profit = (Revenue - Discount) - Cost
             const items: SaleDataItem[] = sales.map(sale => {
                 const totalCost = sale.items.reduce(
                     (sum, item) => sum + (Number(item.unitCost) * item.quantity),
@@ -181,6 +178,91 @@ export class ReportService {
             return buildTimeBasedReport(items);
         } catch (error) {
             console.error('Error getting gross profit report:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Get receipt count report with hourly, weekly, and monthly breakdowns
+     */
+    static async getReceiptCount(
+        tenantId: string,
+        branchId?: string,
+        startDate?: string,
+        endDate?: string
+    ): Promise<TotalSalesReport> {
+        try {
+            const filters: ReportFilters = { tenantId, branchId, startDate, endDate };
+            const whereClause = buildSalesWhereClause(filters);
+
+            const sales = await prisma.sale.findMany({
+                where: whereClause,
+                select: {
+                    saleDate: true,
+                    createdAt: true,
+                },
+            });
+
+            const items: SaleDataItem[] = sales.map(sale => ({
+                value: 1,
+                saleDate: sale.saleDate,
+                createdAt: sale.createdAt,
+            }));
+
+            return buildTimeBasedReport(items);
+        } catch (error) {
+            console.error('Error getting receipt count report:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Get payment modes report with amounts grouped by payment method
+     */
+    static async getPaymentModes(
+        tenantId: string,
+        branchId?: string,
+        startDate?: string,
+        endDate?: string
+    ): Promise<{ data: { label: string; value: number }[] }> {
+        try {
+            const filters: ReportFilters = { tenantId, branchId, startDate, endDate };
+            const salesWhereClause = buildSalesWhereClause(filters);
+
+            // Get all payments with their payment method names
+            const payments = await prisma.salePayment.findMany({
+                where: {
+                    sale: salesWhereClause,
+                },
+                select: {
+                    amount: true,
+                    paymentMethod: {
+                        select: {
+                            name: true,
+                        },
+                    },
+                },
+            });
+
+            // Group by payment method name
+            const paymentMap: Record<string, number> = {};
+            for (const payment of payments) {
+                const methodName = payment.paymentMethod.name;
+                paymentMap[methodName] = (paymentMap[methodName] || 0) + Number(payment.amount);
+            }
+
+            // Convert to data points
+            const data = Object.entries(paymentMap)
+                .map(([label, value]) => ({
+                    label,
+                    value: Math.round(value * 100) / 100,
+                }))
+                .filter(item => item.value > 0)
+                .sort((a, b) => b.value - a.value); // Sort by value descending
+
+            return { data };
+        } catch (error) {
+            console.error('Error getting payment modes report:', error);
             throw error;
         }
     }
