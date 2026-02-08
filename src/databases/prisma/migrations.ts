@@ -18,7 +18,7 @@ import { getDatabaseConfig } from '../../config/db';
  * Current schema version - INCREMENT THIS when schema changes
  * Format: YYYYMMDD_NN (date + sequence number)
  */
-export const CURRENT_DB_VERSION = '20260121_01';
+export const CURRENT_DB_VERSION = '20260208_01';
 
 /**
  * Minimum supported version for migration (older versions require fresh install)
@@ -400,6 +400,71 @@ export const MIGRATIONS: Migration[] = [
             mysql: [
                 `ALTER TABLE sales DROP INDEX unique_tenant_sale_number`,
                 `ALTER TABLE sales ADD CONSTRAINT sales_sale_number_key UNIQUE (sale_number)`,
+            ],
+        },
+    },
+    {
+        version: '20260208_01',
+        description: 'Make product SKU nullable and remove unique constraint',
+        up: {
+            sqlite: [
+                // SQLite: Create new table without the unique constraint, with nullable sku
+                `CREATE TABLE IF NOT EXISTS "products_new" (
+                    "product_id" TEXT PRIMARY KEY NOT NULL,
+                    "tenant_id" TEXT NOT NULL,
+                    "branch_id" TEXT NOT NULL,
+                    "category_id" TEXT,
+                    "sku" TEXT,
+                    "name" TEXT NOT NULL,
+                    "primary_barcode" TEXT UNIQUE,
+                    "description" TEXT,
+                    "unit" TEXT NOT NULL DEFAULT 'piece',
+                    "selling_price" REAL NOT NULL DEFAULT 0.00,
+                    "brand" TEXT,
+                    "color" TEXT,
+                    "size" TEXT,
+                    "dimensions" TEXT,
+                    "weight" REAL,
+                    "promo_price" REAL,
+                    "promo_start" DATETIME,
+                    "promo_end" DATETIME,
+                    "is_taxable" INTEGER NOT NULL DEFAULT 1,
+                    "expiration_date" DATETIME,
+                    "manufacture_date" DATETIME,
+                    "supplier_name" TEXT,
+                    "supplier_code" TEXT,
+                    "is_active" INTEGER NOT NULL DEFAULT 1,
+                    "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    "updated_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )`,
+                `INSERT INTO "products_new" SELECT * FROM "products"`,
+                `DROP TABLE "products"`,
+                `ALTER TABLE "products_new" RENAME TO "products"`,
+                // Recreate indexes (without the unique constraint on sku)
+                `CREATE INDEX IF NOT EXISTS "idx_products_branch_id" ON "products" ("branch_id")`,
+                `CREATE INDEX IF NOT EXISTS "idx_products_tenant_id" ON "products" ("tenant_id")`,
+                `CREATE INDEX IF NOT EXISTS "idx_products_category_id" ON "products" ("category_id")`,
+                `CREATE INDEX IF NOT EXISTS "idx_products_primary_barcode" ON "products" ("primary_barcode")`,
+                `CREATE INDEX IF NOT EXISTS "idx_products_sku" ON "products" ("sku")`,
+            ],
+            mysql: [
+                // MySQL: Drop the unique constraints and make sku nullable
+                `ALTER TABLE products DROP INDEX sku`,
+                `ALTER TABLE products DROP INDEX unique_branch_sku`,
+                `ALTER TABLE products MODIFY COLUMN sku VARCHAR(191) NULL`,
+                `CREATE INDEX idx_products_sku ON products (sku)`,
+            ],
+        },
+        down: {
+            sqlite: [
+                // Rollback would require setting default values for NULL skus first
+                // For safety, we don't provide automatic rollback
+            ],
+            mysql: [
+                `DROP INDEX idx_products_sku ON products`,
+                `ALTER TABLE products MODIFY COLUMN sku VARCHAR(191) NOT NULL`,
+                `ALTER TABLE products ADD CONSTRAINT sku UNIQUE (sku)`,
+                `ALTER TABLE products ADD CONSTRAINT unique_branch_sku UNIQUE (branch_id, sku)`,
             ],
         },
     },
