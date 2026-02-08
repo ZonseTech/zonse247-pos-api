@@ -16,31 +16,39 @@ import {
 } from '../utils/db-error-handler.util';
 
 /**
- * New Inventory Model using Product + Inventory tables
- * This replaces the old inventory_old table-based implementation
+ * Inventory Model - Now works with ProductVariant + Inventory tables
+ * 
+ * In the new schema:
+ * - Product is the parent/master product (e.g., "Nivea Lotion")
+ * - ProductVariant is the sellable unit (e.g., "Nivea 50ml", "Nivea 200ml")
+ * - Inventory tracks stock for a ProductVariant (1:1 relationship)
+ * 
+ * This model queries ProductVariant to provide the flattened InventoryItem interface
+ * for backward compatibility with the POS terminal and other endpoints.
  */
 export class InventoryModel {
 
     /**
-     * Find inventory item by product ID
+     * Find inventory item by variant ID
+     * Note: productId in the API actually refers to variantId now
      */
-    static async findById(productId: string, auth: AuthenticatedUser): Promise<InventoryItem | null> {
-        const result = await prisma.product.findFirst({
+    static async findById(variantId: string, auth: AuthenticatedUser): Promise<InventoryItem | null> {
+        const result = await prisma.productVariant.findFirst({
             where: {
-                id: productId,
+                id: variantId,
                 tenantId: auth.tenantId,
                 branchId: auth.branchId
             },
             include: {
-                inventories: {
-                    where: {
-                        branchId: auth.branchId
+                product: {
+                    include: {
+                        category: true
                     }
                 },
-                productBarcodes: {
+                inventory: true,
+                barcodes: {
                     where: { isActive: true }
-                },
-                category: true
+                }
             }
         });
 
@@ -51,14 +59,18 @@ export class InventoryModel {
      * Find inventory item by UUID (alias for findById)
      */
     static async findByUuid(uuid: string): Promise<InventoryItem | null> {
-        const result = await prisma.product.findUnique({
+        const result = await prisma.productVariant.findUnique({
             where: { id: uuid },
             include: {
-                inventories: true,
-                productBarcodes: {
-                    where: { isActive: true }
+                product: {
+                    include: {
+                        category: true
+                    }
                 },
-                category: true
+                inventory: true,
+                barcodes: {
+                    where: { isActive: true }
+                }
             }
         });
 
@@ -66,25 +78,26 @@ export class InventoryModel {
     }
 
     /**
-     * Find active inventory items
+     * Find active inventory items (returns all active variants)
      */
     static async findActive(auth: AuthenticatedUser): Promise<InventoryItem[]> {
-        const results = await prisma.product.findMany({
+        const results = await prisma.productVariant.findMany({
             where: {
                 tenantId: auth.tenantId,
                 branchId: auth.branchId,
-                isActive: true
+                isActive: true,
+                product: { isActive: true }
             },
             include: {
-                inventories: {
-                    where: {
-                        branchId: auth.branchId
+                product: {
+                    include: {
+                        category: true
                     }
                 },
-                productBarcodes: {
+                inventory: true,
+                barcodes: {
                     where: { isActive: true }
-                },
-                category: true
+                }
             }
         });
 
@@ -112,16 +125,20 @@ export class InventoryModel {
         // Filter logic
         if (filter === 'all') {
             whereClause.isActive = true;
+            whereClause.product = { isActive: true };
         } else if (filter === 'new' || filter === 'new-stock') {
             const oneWeekAgo = new Date();
             oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
             whereClause.createdAt = { gte: oneWeekAgo };
             whereClause.isActive = true;
+            whereClause.product = { isActive: true };
         } else if (filter === 'low-stock') {
             whereClause.isActive = true;
+            whereClause.product = { isActive: true };
             // We'll filter this in post-processing since we need to compare inventory fields
         } else if (filter === 'expiring-soon') {
             whereClause.isActive = true;
+            whereClause.product = { isActive: true };
             const now = new Date();
             const thirtyDaysFromNow = new Date();
             thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
@@ -131,6 +148,7 @@ export class InventoryModel {
             };
         } else if (filter === 'expired') {
             whereClause.isActive = true;
+            whereClause.product = { isActive: true };
             const now = new Date();
             whereClause.expirationDate = {
                 lt: now
@@ -139,7 +157,7 @@ export class InventoryModel {
 
         // Date range
         if (startDate || endDate) {
-            whereClause.createdAt = {};
+            whereClause.createdAt = whereClause.createdAt || {};
             if (startDate) {
                 whereClause.createdAt.gte = new Date(startDate);
             }
@@ -150,19 +168,23 @@ export class InventoryModel {
             }
         }
 
-        // Category filter
+        // Category filter - categories are on Product
         if (categoryId) {
-            whereClause.categoryId = categoryId;
+            whereClause.product = {
+                ...(whereClause.product || {}),
+                categoryId
+            };
         }
 
-        // Search
+        // Search across variant and product fields
         if (search) {
             whereClause.OR = [
-                { name: { contains: search } },
+                { product: { name: { contains: search } } },
+                { variantName: { contains: search } },
                 { sku: { contains: search } },
                 { primaryBarcode: { contains: search } },
                 {
-                    productBarcodes: {
+                    barcodes: {
                         some: {
                             barcode: { contains: search }
                         }
@@ -171,22 +193,26 @@ export class InventoryModel {
             ];
         }
 
-        const results = await prisma.product.findMany({
+        const results = await prisma.productVariant.findMany({
             where: whereClause,
             include: {
-                inventories: {
-                    where: {
-                        branchId: auth.branchId
+                product: {
+                    include: {
+                        category: true
                     }
                 },
-                productBarcodes: {
+                inventory: true,
+                barcodes: {
                     where: { isActive: true }
-                },
-                category: true
+                }
             },
             skip,
             take: limit,
-            orderBy: { createdAt: 'desc' }
+            orderBy: [
+                { product: { name: 'asc' } },
+                { isDefault: 'desc' },
+                { variantName: 'asc' }
+            ]
         });
 
         let items = results.map(r => this.mapToInventoryItem(r)).filter((item): item is InventoryItem => item !== null);
@@ -220,13 +246,16 @@ export class InventoryModel {
 
         if (filter === 'all' || filter === 'low-stock') {
             whereClause.isActive = true;
+            whereClause.product = { isActive: true };
         } else if (filter === 'new' || filter === 'new-stock') {
             const oneWeekAgo = new Date();
             oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
             whereClause.createdAt = { gte: oneWeekAgo };
             whereClause.isActive = true;
+            whereClause.product = { isActive: true };
         } else if (filter === 'expiring-soon') {
             whereClause.isActive = true;
+            whereClause.product = { isActive: true };
             const now = new Date();
             const thirtyDaysFromNow = new Date();
             thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
@@ -236,6 +265,7 @@ export class InventoryModel {
             };
         } else if (filter === 'expired') {
             whereClause.isActive = true;
+            whereClause.product = { isActive: true };
             const now = new Date();
             whereClause.expirationDate = {
                 lt: now
@@ -256,16 +286,20 @@ export class InventoryModel {
 
         // Category filter
         if (categoryId) {
-            whereClause.categoryId = categoryId;
+            whereClause.product = {
+                ...(whereClause.product || {}),
+                categoryId
+            };
         }
 
         if (search) {
             whereClause.OR = [
-                { name: { contains: search } },
+                { product: { name: { contains: search } } },
+                { variantName: { contains: search } },
                 { sku: { contains: search } },
                 { primaryBarcode: { contains: search } },
                 {
-                    productBarcodes: {
+                    barcodes: {
                         some: {
                             barcode: { contains: search }
                         }
@@ -276,25 +310,21 @@ export class InventoryModel {
 
         // For low-stock, we need to get all and filter
         if (filter === 'low-stock') {
-            const results = await prisma.product.findMany({
+            const results = await prisma.productVariant.findMany({
                 where: whereClause,
                 include: {
-                    inventories: {
-                        where: {
-                            branchId: auth.branchId
-                        }
-                    }
+                    inventory: true
                 }
             });
 
             return results.filter(r => {
-                const inventory = r.inventories[0];
+                const inventory = r.inventory;
                 if (!inventory || !inventory.reorderPoint) return false;
                 return inventory.availableQuantity <= inventory.reorderPoint;
             }).length;
         }
 
-        return await prisma.product.count({
+        return await prisma.productVariant.count({
             where: whereClause
         });
     }
@@ -303,41 +333,92 @@ export class InventoryModel {
      * Find by SKU or barcode
      */
     static async findBySku(sku: string, auth: AuthenticatedUser): Promise<InventoryItem | null> {
-        const result = await prisma.product.findFirst({
+        // First try exact match on variant SKU
+        let result = await prisma.productVariant.findFirst({
             where: {
                 tenantId: auth.tenantId,
                 branchId: auth.branchId,
-                OR: [
-                    { sku: sku },
-                    { primaryBarcode: sku },
-                    {
-                        productBarcodes: {
-                            some: {
-                                barcode: sku,
-                                isActive: true
-                            }
-                        }
-                    }
-                ]
+                sku: sku,
+                isActive: true,
+                product: { isActive: true }
             },
             include: {
-                inventories: {
-                    where: {
-                        branchId: auth.branchId
+                product: {
+                    include: {
+                        category: true
                     }
                 },
-                productBarcodes: {
+                inventory: true,
+                barcodes: {
                     where: { isActive: true }
-                },
-                category: true
+                }
             }
         });
 
-        return this.mapToInventoryItem(result);
+        if (result) return this.mapToInventoryItem(result);
+
+        // Try primary barcode
+        result = await prisma.productVariant.findFirst({
+            where: {
+                tenantId: auth.tenantId,
+                branchId: auth.branchId,
+                primaryBarcode: sku,
+                isActive: true,
+                product: { isActive: true }
+            },
+            include: {
+                product: {
+                    include: {
+                        category: true
+                    }
+                },
+                inventory: true,
+                barcodes: {
+                    where: { isActive: true }
+                }
+            }
+        });
+
+        if (result) return this.mapToInventoryItem(result);
+
+        // Try alternative barcodes
+        const barcodeResult = await prisma.variantBarcode.findFirst({
+            where: {
+                barcode: sku,
+                isActive: true,
+                variant: {
+                    tenantId: auth.tenantId,
+                    branchId: auth.branchId,
+                    isActive: true,
+                    product: { isActive: true }
+                }
+            },
+            include: {
+                variant: {
+                    include: {
+                        product: {
+                            include: {
+                                category: true
+                            }
+                        },
+                        inventory: true,
+                        barcodes: {
+                            where: { isActive: true }
+                        }
+                    }
+                }
+            }
+        });
+
+        if (barcodeResult) {
+            return this.mapToInventoryItem(barcodeResult.variant);
+        }
+
+        return null;
     }
 
     /**
-     * Create new product with inventory
+     * Create new product with variant and inventory
      * Validates input and handles database errors gracefully
      */
     static async create(inventoryData: Record<string, any>, auth: AuthenticatedUser): Promise<void> {
@@ -373,6 +454,7 @@ export class InventoryModel {
                 barcode: typeof bc === 'string' ? bc : bc.code || bc.barcode
             }));
 
+            // Validate barcodes for duplicates
             await ProductService.validateBarcodesForDuplicates(
                 primaryBarcode,
                 additionalBarcodes,
@@ -381,18 +463,24 @@ export class InventoryModel {
             );
 
             const sku = inventoryData.sku || inventoryData.barcode;
-            const existingSku = await prisma.product.findFirst({
-                where: {
-                    sku,
-                    tenantId: auth.tenantId,
-                    branchId: auth.branchId,
-                    isActive: true,
-                },
-                select: { id: true, name: true },
-            });
 
-            if (existingSku) {
-                throw new ConflictError(ProductErrors.SKU_EXISTS(sku), 'sku');
+            // Check SKU uniqueness on variants
+            if (sku) {
+                const existingSku = await prisma.productVariant.findFirst({
+                    where: {
+                        sku,
+                        tenantId: auth.tenantId,
+                        branchId: auth.branchId,
+                        isActive: true,
+                    },
+                    include: {
+                        product: { select: { name: true } }
+                    }
+                });
+
+                if (existingSku) {
+                    throw new ConflictError(ProductErrors.SKU_EXISTS(sku), 'sku');
+                }
             }
 
             if (inventoryData.categoryId) {
@@ -408,24 +496,46 @@ export class InventoryModel {
                 }
             }
 
+            const productId = uuidv4();
+            const variantId = uuidv4();
+
             await prisma.$transaction(async (tx) => {
-                const product = await tx.product.create({
+                // Create the product (parent)
+                await tx.product.create({
                     data: {
-                        id: uuidv4(),
+                        id: productId,
                         tenantId: auth.tenantId,
                         branchId: auth.branchId,
-                        sku: sku,
                         name: inventoryData.name.trim(),
                         categoryId: inventoryData.categoryId || null,
                         description: inventoryData.description || null,
-                        unit: inventoryData.unit || 'piece',
-                        sellingPrice: sellPrice,
-                        primaryBarcode: primaryBarcode,
                         brand: inventoryData.brand || null,
-                        color: inventoryData.color || null,
+                        isTaxable: inventoryData.isTaxable !== false,
+                        supplierName: inventoryData.supplierName || null,
+                        supplierCode: inventoryData.supplierCode || null,
+                        defaultUnit: inventoryData.unit || 'piece',
+                        isActive: inventoryData.status !== 'inactive'
+                    }
+                });
+
+                // Create the default variant
+                await tx.productVariant.create({
+                    data: {
+                        id: variantId,
+                        productId: productId,
+                        tenantId: auth.tenantId,
+                        branchId: auth.branchId,
+                        sku: sku,
+                        variantName: inventoryData.variantName || 'Default',
+                        primaryBarcode: primaryBarcode,
+                        sellingPrice: sellPrice,
+                        costPrice: parseFloat(inventoryData.costPrice || 0),
+                        unit: inventoryData.unit || 'piece',
+                        description: inventoryData.description || null,
+                        brand: inventoryData.brand || null,
                         size: inventoryData.size || null,
-                        dimensions: inventoryData.dimensions || null,
                         weight: inventoryData.weight ? parseFloat(inventoryData.weight) : null,
+                        dimensions: inventoryData.dimensions || null,
                         promoPrice: inventoryData.promoPrice ? parseFloat(inventoryData.promoPrice) : null,
                         promoStart: inventoryData.promoStart ? new Date(inventoryData.promoStart) : null,
                         promoEnd: inventoryData.promoEnd ? new Date(inventoryData.promoEnd) : null,
@@ -434,16 +544,18 @@ export class InventoryModel {
                         manufactureDate: inventoryData.manufactureDate ? new Date(inventoryData.manufactureDate) : null,
                         supplierName: inventoryData.supplierName || null,
                         supplierCode: inventoryData.supplierCode || null,
+                        isDefault: true,
                         isActive: inventoryData.status !== 'inactive'
                     }
                 });
 
+                // Create inventory for the variant
                 await tx.inventory.create({
                     data: {
                         id: uuidv4(),
                         tenantId: auth.tenantId,
                         branchId: auth.branchId,
-                        productId: product.id,
+                        variantId: variantId,
                         availableQuantity: quantity,
                         reservedQuantity: parseInt(inventoryData.reservedQuantity || 0),
                         damagedQuantity: 0,
@@ -456,13 +568,14 @@ export class InventoryModel {
                     }
                 });
 
+                // Create additional barcodes
                 if (inventoryData.additionalBarcodes && Array.isArray(inventoryData.additionalBarcodes)) {
                     for (const barcode of inventoryData.additionalBarcodes) {
                         const barcodeValue = typeof barcode === 'string' ? barcode : barcode.code || barcode.barcode;
-                        await tx.productBarcode.create({
+                        await tx.variantBarcode.create({
                             data: {
                                 id: uuidv4(),
-                                productId: product.id,
+                                variantId: variantId,
                                 barcode: barcodeValue,
                                 barcodeType: barcode.type || 'EAN13',
                                 barcodeSource: barcode.source || 'STORE',
@@ -485,52 +598,69 @@ export class InventoryModel {
     }
 
     /**
-     * Update product and inventory
+     * Update variant and inventory
+     * Note: productId parameter is actually variantId in the new schema
      */
-    static async update(productId: string, updateData: Record<string, any>): Promise<number> {
+    static async update(variantId: string, updateData: Record<string, any>): Promise<number> {
         await prisma.$transaction(async (tx) => {
-            const productUpdate: any = {};
-            if (updateData.name !== undefined) productUpdate.name = updateData.name;
-            if (updateData.description !== undefined) productUpdate.description = updateData.description || null;
-            if (updateData.unit !== undefined) productUpdate.unit = updateData.unit;
+            const variantUpdate: any = {};
+
+            // Variant-level fields
+            if (updateData.description !== undefined) variantUpdate.description = updateData.description || null;
+            if (updateData.unit !== undefined) variantUpdate.unit = updateData.unit;
             if (updateData.sellPrice !== undefined || updateData.sellingPrice !== undefined) {
-                productUpdate.sellingPrice = parseFloat(updateData.sellPrice || updateData.sellingPrice);
+                variantUpdate.sellingPrice = parseFloat(updateData.sellPrice || updateData.sellingPrice);
             }
             if (updateData.barcode !== undefined || updateData.primaryBarcode !== undefined) {
-                productUpdate.primaryBarcode = updateData.barcode || updateData.primaryBarcode;
-            }
-            if (updateData.categoryId !== undefined) {
-                productUpdate.categoryId = updateData.categoryId || null;
+                variantUpdate.primaryBarcode = updateData.barcode || updateData.primaryBarcode;
             }
             if (updateData.status !== undefined) {
-                productUpdate.isActive = updateData.status !== 'inactive';
+                variantUpdate.isActive = updateData.status !== 'inactive';
             }
-            // Product attributes
-            if (updateData.brand !== undefined) productUpdate.brand = updateData.brand || null;
-            if (updateData.color !== undefined) productUpdate.color = updateData.color || null;
-            if (updateData.size !== undefined) productUpdate.size = updateData.size || null;
-            if (updateData.dimensions !== undefined) productUpdate.dimensions = updateData.dimensions || null;
-            if (updateData.weight !== undefined) productUpdate.weight = updateData.weight ? parseFloat(updateData.weight) : null;
+            // Variant attributes
+            if (updateData.brand !== undefined) variantUpdate.brand = updateData.brand || null;
+            if (updateData.size !== undefined) variantUpdate.size = updateData.size || null;
+            if (updateData.dimensions !== undefined) variantUpdate.dimensions = updateData.dimensions || null;
+            if (updateData.weight !== undefined) variantUpdate.weight = updateData.weight ? parseFloat(updateData.weight) : null;
             // Promotional pricing
-            if (updateData.promoPrice !== undefined) productUpdate.promoPrice = updateData.promoPrice ? parseFloat(updateData.promoPrice) : null;
-            if (updateData.promoStart !== undefined) productUpdate.promoStart = updateData.promoStart ? new Date(updateData.promoStart) : null;
-            if (updateData.promoEnd !== undefined) productUpdate.promoEnd = updateData.promoEnd ? new Date(updateData.promoEnd) : null;
+            if (updateData.promoPrice !== undefined) variantUpdate.promoPrice = updateData.promoPrice ? parseFloat(updateData.promoPrice) : null;
+            if (updateData.promoStart !== undefined) variantUpdate.promoStart = updateData.promoStart ? new Date(updateData.promoStart) : null;
+            if (updateData.promoEnd !== undefined) variantUpdate.promoEnd = updateData.promoEnd ? new Date(updateData.promoEnd) : null;
             // Tax
-            if (updateData.isTaxable !== undefined) productUpdate.isTaxable = updateData.isTaxable;
+            if (updateData.isTaxable !== undefined) variantUpdate.isTaxable = updateData.isTaxable;
             // Dates
-            if (updateData.expirationDate !== undefined) productUpdate.expirationDate = updateData.expirationDate ? new Date(updateData.expirationDate) : null;
-            if (updateData.manufactureDate !== undefined) productUpdate.manufactureDate = updateData.manufactureDate ? new Date(updateData.manufactureDate) : null;
+            if (updateData.expirationDate !== undefined) variantUpdate.expirationDate = updateData.expirationDate ? new Date(updateData.expirationDate) : null;
+            if (updateData.manufactureDate !== undefined) variantUpdate.manufactureDate = updateData.manufactureDate ? new Date(updateData.manufactureDate) : null;
             // Supplier info
-            if (updateData.supplierName !== undefined) productUpdate.supplierName = updateData.supplierName || null;
-            if (updateData.supplierCode !== undefined) productUpdate.supplierCode = updateData.supplierCode || null;
+            if (updateData.supplierName !== undefined) variantUpdate.supplierName = updateData.supplierName || null;
+            if (updateData.supplierCode !== undefined) variantUpdate.supplierCode = updateData.supplierCode || null;
 
-            if (Object.keys(productUpdate).length > 0) {
-                await tx.product.update({
-                    where: { id: productId },
-                    data: productUpdate
+            if (Object.keys(variantUpdate).length > 0) {
+                await tx.productVariant.update({
+                    where: { id: variantId },
+                    data: variantUpdate
                 });
             }
 
+            // Also update parent product fields if updating name or category
+            const productUpdate: any = {};
+            if (updateData.name !== undefined) productUpdate.name = updateData.name;
+            if (updateData.categoryId !== undefined) productUpdate.categoryId = updateData.categoryId || null;
+
+            if (Object.keys(productUpdate).length > 0) {
+                const variant = await tx.productVariant.findUnique({
+                    where: { id: variantId },
+                    select: { productId: true }
+                });
+                if (variant) {
+                    await tx.product.update({
+                        where: { id: variant.productId },
+                        data: productUpdate
+                    });
+                }
+            }
+
+            // Inventory updates
             const inventoryUpdate: any = {};
             if (updateData.quantity !== undefined) {
                 inventoryUpdate.availableQuantity = parseInt(updateData.quantity);
@@ -560,7 +690,7 @@ export class InventoryModel {
 
             if (Object.keys(inventoryUpdate).length > 0) {
                 await tx.inventory.updateMany({
-                    where: { productId },
+                    where: { variantId },
                     data: inventoryUpdate
                 });
             }
@@ -572,27 +702,27 @@ export class InventoryModel {
     /**
      * Update with user context
      */
-    static async updateWithUser(productId: string, updateData: Record<string, any>, _auth: AuthenticatedUser): Promise<number> {
-        return await this.update(productId, updateData);
+    static async updateWithUser(variantId: string, updateData: Record<string, any>, _auth: AuthenticatedUser): Promise<number> {
+        return await this.update(variantId, updateData);
     }
 
     /**
-     * Void/deactivate product
+     * Void/deactivate variant
      */
-    static async void(productId: string, _auth: AuthenticatedUser): Promise<number> {
-        await prisma.product.update({
-            where: { id: productId },
+    static async void(variantId: string, _auth: AuthenticatedUser): Promise<number> {
+        await prisma.productVariant.update({
+            where: { id: variantId },
             data: { isActive: false }
         });
         return 1;
     }
 
     /**
-     * Delete product
+     * Delete variant
      */
-    static async delete(productId: string): Promise<number> {
-        await prisma.product.delete({
-            where: { id: productId }
+    static async delete(variantId: string): Promise<number> {
+        await prisma.productVariant.delete({
+            where: { id: variantId }
         });
         return 1;
     }
@@ -600,10 +730,10 @@ export class InventoryModel {
     /**
      * Update quantity
      */
-    static async updateQuantity(productId: string, quantity: number, auth: AuthenticatedUser): Promise<number> {
+    static async updateQuantity(variantId: string, quantity: number, auth: AuthenticatedUser): Promise<number> {
         await prisma.inventory.updateMany({
             where: {
-                productId: productId,
+                variantId: variantId,
                 branchId: auth.branchId
             },
             data: {
@@ -615,6 +745,7 @@ export class InventoryModel {
 
     /**
      * Increment inventory (for purchase receipts, returns, etc.)
+     * Note: productId in items is actually variantId now
      */
     static async incrementInventory(
         products: Array<{ productId: string; quantity: number }>,
@@ -624,13 +755,13 @@ export class InventoryModel {
             for (const item of products) {
                 const inventory = await tx.inventory.findFirst({
                     where: {
-                        productId: item.productId,
+                        variantId: item.productId, // productId is variantId
                         branchId: auth.branchId
                     }
                 });
 
                 if (!inventory) {
-                    throw new Error(`Inventory not found for product ${item.productId}`);
+                    throw new Error(`Inventory not found for variant ${item.productId}`);
                 }
 
                 await tx.inventory.update({
@@ -646,6 +777,7 @@ export class InventoryModel {
     /**
      * Decrement inventory (for sales)
      * Validates stock availability and handles errors gracefully
+     * Note: productId in items is actually variantId now
      */
     static async decrementInventory(
         products: CartItem[],
@@ -656,12 +788,16 @@ export class InventoryModel {
                 for (const item of products) {
                     const inventory = await tx.inventory.findFirst({
                         where: {
-                            productId: item.productId,
+                            variantId: item.productId, // productId is variantId
                             branchId: auth.branchId
                         },
                         include: {
-                            product: {
-                                select: { name: true }
+                            variant: {
+                                include: {
+                                    product: {
+                                        select: { name: true }
+                                    }
+                                }
                             }
                         }
                     });
@@ -673,7 +809,9 @@ export class InventoryModel {
                     const newQuantity = inventory.availableQuantity - item.quantity;
 
                     if (newQuantity < 0 && !inventory.allowNegativeStock) {
-                        const productName = inventory.product?.name || item.productId;
+                        const productName = inventory.variant?.variantName !== 'Default'
+                            ? `${inventory.variant?.product?.name} - ${inventory.variant?.variantName}`
+                            : inventory.variant?.product?.name || item.productId;
                         throw new BusinessLogicError(
                             InventoryErrors.INSUFFICIENT_STOCK(productName, inventory.availableQuantity, item.quantity),
                             {
@@ -709,7 +847,7 @@ export class InventoryModel {
     }
 
     /**
-     * Get inventory count
+     * Get inventory count (counts variants, not products)
      */
     static async getCount(auth: AuthenticatedUser, includeVoided = false): Promise<number> {
         const whereClause: any = {
@@ -719,9 +857,10 @@ export class InventoryModel {
 
         if (!includeVoided) {
             whereClause.isActive = true;
+            whereClause.product = { isActive: true };
         }
 
-        return await prisma.product.count({
+        return await prisma.productVariant.count({
             where: whereClause
         });
     }
@@ -782,15 +921,19 @@ export class InventoryModel {
         // Filter logic
         if (filter === 'all') {
             whereClause.isActive = true;
+            whereClause.product = { isActive: true };
         } else if (filter === 'new' || filter === 'new-stock') {
             const oneWeekAgo = new Date();
             oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
             whereClause.createdAt = { gte: oneWeekAgo };
             whereClause.isActive = true;
+            whereClause.product = { isActive: true };
         } else if (filter === 'low-stock') {
             whereClause.isActive = true;
+            whereClause.product = { isActive: true };
         } else if (filter === 'expiring-soon') {
             whereClause.isActive = true;
+            whereClause.product = { isActive: true };
             const now = new Date();
             const thirtyDaysFromNow = new Date();
             thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
@@ -800,6 +943,7 @@ export class InventoryModel {
             };
         } else if (filter === 'expired') {
             whereClause.isActive = true;
+            whereClause.product = { isActive: true };
             const now = new Date();
             whereClause.expirationDate = {
                 lt: now
@@ -808,7 +952,10 @@ export class InventoryModel {
 
         // Category filter
         if (categoryId) {
-            whereClause.categoryId = categoryId;
+            whereClause.product = {
+                ...(whereClause.product || {}),
+                categoryId
+            };
         }
 
         // Date range
@@ -827,11 +974,12 @@ export class InventoryModel {
         // Search
         if (search) {
             whereClause.OR = [
-                { name: { contains: search } },
+                { product: { name: { contains: search } } },
+                { variantName: { contains: search } },
                 { sku: { contains: search } },
                 { primaryBarcode: { contains: search } },
                 {
-                    productBarcodes: {
+                    barcodes: {
                         some: {
                             barcode: { contains: search }
                         }
@@ -840,29 +988,29 @@ export class InventoryModel {
             ];
         }
 
-        // Get filtered products with their inventories
-        let products = await prisma.product.findMany({
+        // Get filtered variants with their inventories
+        let variants = await prisma.productVariant.findMany({
             where: whereClause,
             include: {
-                inventories: {
-                    where: {
-                        branchId: auth.branchId
+                product: {
+                    include: {
+                        category: true
                     }
                 },
-                category: true
+                inventory: true
             }
         });
 
         // Post-process for low-stock filter
         if (filter === 'low-stock') {
-            products = products.filter(product => {
-                const inventory = product.inventories[0];
+            variants = variants.filter(variant => {
+                const inventory = variant.inventory;
                 if (!inventory?.reorderPoint) return false;
                 return inventory.availableQuantity <= inventory.reorderPoint;
             });
         }
 
-        const totalProducts = products.length;
+        const totalProducts = variants.length;
         let totalStockQuantity = 0;
         let totalStockValue = 0;
         let totalRetailValue = 0;
@@ -881,11 +1029,11 @@ export class InventoryModel {
             totalRetailValue: number;
         }>();
 
-        for (const product of products) {
-            const inventory = product.inventories[0];
+        for (const variant of variants) {
+            const inventory = variant.inventory;
             const availableQty = inventory?.availableQuantity || 0;
             const avgCost = Number(inventory?.averageCost || 0);
-            const sellingPrice = Number(product.sellingPrice || 0);
+            const sellingPrice = Number(variant.sellingPrice || 0);
             const reorderPoint = inventory?.reorderPoint || 0;
             const maxStock = inventory?.maxStock || 0;
 
@@ -905,13 +1053,13 @@ export class InventoryModel {
                 healthyCount++;
             }
 
-            // Category breakdown
-            const categoryKey = product.categoryId || 'uncategorized';
-            const categoryName = product.category?.name || 'Uncategorized';
+            // Category breakdown (from parent product)
+            const categoryKey = variant.product.categoryId || 'uncategorized';
+            const categoryName = variant.product.category?.name || 'Uncategorized';
 
             if (!categoryMap.has(categoryKey)) {
                 categoryMap.set(categoryKey, {
-                    categoryId: product.categoryId,
+                    categoryId: variant.product.categoryId,
                     categoryName,
                     productCount: 0,
                     totalQuantity: 0,
@@ -979,35 +1127,40 @@ export class InventoryModel {
         totalRetailValue: number;
         potentialProfit: number;
     }>> {
-        const products = await prisma.product.findMany({
+        const variants = await prisma.productVariant.findMany({
             where: {
                 tenantId: auth.tenantId,
                 branchId: auth.branchId,
-                isActive: true
+                isActive: true,
+                product: { isActive: true }
             },
             include: {
-                inventories: {
-                    where: {
-                        branchId: auth.branchId
+                product: {
+                    include: {
+                        category: true
                     }
                 },
-                category: true
+                inventory: true
             }
         });
 
-        const itemValues = products.map(product => {
-            const inventory = product.inventories[0];
+        const itemValues = variants.map(variant => {
+            const inventory = variant.inventory;
             const availableQty = inventory?.availableQuantity || 0;
             const avgCost = Number(inventory?.averageCost || 0);
-            const sellingPrice = Number(product.sellingPrice || 0);
+            const sellingPrice = Number(variant.sellingPrice || 0);
             const totalCostValue = availableQty * avgCost;
             const totalRetailValue = availableQty * sellingPrice;
 
+            const displayName = variant.variantName !== 'Default'
+                ? `${variant.product.name} - ${variant.variantName}`
+                : variant.product.name;
+
             return {
-                productId: product.id,
-                name: product.name,
-                sku: product.sku,
-                categoryName: product.category?.name || null,
+                productId: variant.id, // Return variant ID as productId for compatibility
+                name: displayName,
+                sku: variant.sku || '',
+                categoryName: variant.product.category?.name || null,
                 availableQuantity: availableQty,
                 averageCost: Math.round(avgCost * 100) / 100,
                 sellingPrice: Math.round(sellingPrice * 100) / 100,
@@ -1024,12 +1177,12 @@ export class InventoryModel {
     }
 
     /**
-     * Check if product exists
+     * Check if variant exists
      */
-    static async exists(productId: string, auth: AuthenticatedUser): Promise<boolean> {
-        const count = await prisma.product.count({
+    static async exists(variantId: string, auth: AuthenticatedUser): Promise<boolean> {
+        const count = await prisma.productVariant.count({
             where: {
-                id: productId,
+                id: variantId,
                 tenantId: auth.tenantId,
                 branchId: auth.branchId
             }
@@ -1038,26 +1191,33 @@ export class InventoryModel {
     }
 
     /**
-     * Map Product + Inventory to InventoryItem interface
+     * Map ProductVariant + Inventory to InventoryItem interface
+     * Provides backward compatibility with the existing POS terminal interface
      */
     private static mapToInventoryItem(data: any): InventoryItem | null {
         if (!data) return null;
 
-        const inventory = data.inventories?.[0];
+        const inventory = data.inventory;
+        const product = data.product;
+
+        // Build display name
+        const displayName = data.variantName && data.variantName !== 'Default'
+            ? `${product?.name || ''} - ${data.variantName}`
+            : product?.name || '';
+
         if (!inventory) {
             return {
-                productId: data.id,
+                productId: data.id, // Variant ID for POS operations
                 inventoryId: '',
                 sku: data.sku,
-                name: data.name,
-                description: data.description,
+                name: displayName,
+                description: data.description || product?.description,
                 unit: data.unit,
                 sellingPrice: Number(data.sellingPrice),
                 primaryBarcode: data.primaryBarcode,
-                isActive: data.isActive,
-                // Product attributes
-                brand: data.brand,
-                color: data.color,
+                isActive: data.isActive && (product?.isActive ?? true),
+                // Variant attributes (inherit from product if null)
+                brand: data.brand || product?.brand,
                 size: data.size,
                 dimensions: data.dimensions,
                 weight: data.weight ? Number(data.weight) : undefined,
@@ -1066,13 +1226,13 @@ export class InventoryModel {
                 promoStart: data.promoStart,
                 promoEnd: data.promoEnd,
                 // Tax
-                isTaxable: data.isTaxable,
+                isTaxable: data.isTaxable ?? product?.isTaxable,
                 // Dates
                 expirationDate: data.expirationDate,
                 manufactureDate: data.manufactureDate,
                 // Supplier info
-                supplierName: data.supplierName,
-                supplierCode: data.supplierCode,
+                supplierName: data.supplierName || product?.supplierName,
+                supplierCode: data.supplierCode || product?.supplierCode,
                 availableQuantity: 0,
                 reservedQuantity: 0,
                 damagedQuantity: 0,
@@ -1082,15 +1242,15 @@ export class InventoryModel {
                 allowNegativeStock: false,
                 tenantId: data.tenantId,
                 branchId: data.branchId,
-                categoryId: data.categoryId,
-                categoryDetails: data.category ? {
-                    categoryId: data.category.id,
-                    name: data.category.name,
-                    description: data.category.description,
-                    isDefault: data.category.isDefault,
-                    tenantId: data.category.tenantId,
-                    branchId: data.category.branchId,
-                    userId: data.category.userId
+                categoryId: product?.categoryId,
+                categoryDetails: product?.category ? {
+                    categoryId: product.category.categoryId || product.category.id,
+                    name: product.category.name,
+                    description: product.category.description,
+                    isDefault: product.category.isDefault,
+                    tenantId: product.category.tenantId,
+                    branchId: product.category.branchId,
+                    userId: product.category.userId
                 } : undefined,
                 createdAt: data.createdAt,
                 updatedAt: data.updatedAt,
@@ -1098,8 +1258,8 @@ export class InventoryModel {
                 quantity: '0',
                 costPrice: 0,
                 sellPrice: Number(data.sellingPrice),
-                status: data.isActive ? 'active' : 'inactive',
-                barcodes: data.productBarcodes?.map((b: any) => ({
+                status: data.isActive && (product?.isActive ?? true) ? 'active' : 'inactive',
+                barcodes: data.barcodes?.map((b: any) => ({
                     barcode: b.barcode,
                     barcodeType: b.barcodeType,
                     barcodeSource: b.barcodeSource,
@@ -1109,18 +1269,17 @@ export class InventoryModel {
         }
 
         return {
-            productId: data.id,
+            productId: data.id, // Variant ID for POS operations
             inventoryId: inventory.id,
             sku: data.sku,
-            name: data.name,
-            description: data.description,
+            name: displayName,
+            description: data.description || product?.description,
             unit: data.unit,
             sellingPrice: Number(data.sellingPrice),
             primaryBarcode: data.primaryBarcode,
-            isActive: data.isActive,
-            // Product attributes
-            brand: data.brand,
-            color: data.color,
+            isActive: data.isActive && (product?.isActive ?? true),
+            // Variant attributes (inherit from product if null)
+            brand: data.brand || product?.brand,
             size: data.size,
             dimensions: data.dimensions,
             weight: data.weight ? Number(data.weight) : undefined,
@@ -1129,13 +1288,13 @@ export class InventoryModel {
             promoStart: data.promoStart,
             promoEnd: data.promoEnd,
             // Tax
-            isTaxable: data.isTaxable,
+            isTaxable: data.isTaxable ?? product?.isTaxable,
             // Dates
             expirationDate: data.expirationDate,
             manufactureDate: data.manufactureDate,
             // Supplier info
-            supplierName: data.supplierName,
-            supplierCode: data.supplierCode,
+            supplierName: data.supplierName || product?.supplierName,
+            supplierCode: data.supplierCode || product?.supplierCode,
             availableQuantity: inventory.availableQuantity,
             reservedQuantity: inventory.reservedQuantity,
             damagedQuantity: inventory.damagedQuantity,
@@ -1150,15 +1309,15 @@ export class InventoryModel {
             lastSoldAt: inventory.lastSoldAt,
             tenantId: data.tenantId,
             branchId: data.branchId,
-            categoryId: data.categoryId,
-            categoryDetails: data.category ? {
-                categoryId: data.category.id,
-                name: data.category.name,
-                description: data.category.description,
-                isDefault: data.category.isDefault,
-                tenantId: data.category.tenantId,
-                branchId: data.category.branchId,
-                userId: data.category.userId
+            categoryId: product?.categoryId,
+            categoryDetails: product?.category ? {
+                categoryId: product.category.categoryId || product.category.id,
+                name: product.category.name,
+                description: product.category.description,
+                isDefault: product.category.isDefault,
+                tenantId: product.category.tenantId,
+                branchId: product.category.branchId,
+                userId: product.category.userId
             } : undefined,
             createdAt: data.createdAt,
             updatedAt: data.updatedAt,
@@ -1167,10 +1326,10 @@ export class InventoryModel {
             originalQuantity: inventory.availableQuantity.toString(),
             costPrice: Number(inventory.averageCost),
             sellPrice: Number(data.sellingPrice),
-            status: data.isActive ? 'active' : 'inactive',
+            status: data.isActive && (product?.isActive ?? true) ? 'active' : 'inactive',
             minStock: inventory.reorderPoint,
             totalQuantity: inventory.availableQuantity + inventory.reservedQuantity,
-            barcodes: data.productBarcodes?.map((b: any) => ({
+            barcodes: data.barcodes?.map((b: any) => ({
                 barcode: b.barcode,
                 barcodeType: b.barcodeType,
                 barcodeSource: b.barcodeSource,
@@ -1182,12 +1341,12 @@ export class InventoryModel {
     /**
      * Additional methods for compatibility
      */
-    static async updateWithValidation(productId: string, inventoryData: Record<string, any>, auth: AuthenticatedUser): Promise<number> {
+    static async updateWithValidation(variantId: string, inventoryData: Record<string, any>, auth: AuthenticatedUser): Promise<number> {
         try {
-            // Verify product exists and belongs to tenant/branch
-            const exists = await this.exists(productId, auth);
+            // Verify variant exists and belongs to tenant/branch
+            const exists = await this.exists(variantId, auth);
             if (!exists) {
-                throw new NotFoundError('Product', productId);
+                throw new NotFoundError('Product', variantId);
             }
 
             // Validate min/max stock relationship if both are provided
@@ -1208,7 +1367,7 @@ export class InventoryModel {
                     newBarcode,
                     auth.tenantId,
                     auth.branchId,
-                    productId
+                    variantId
                 );
                 if (duplicateCheck.exists) {
                     throw new ConflictError(
@@ -1232,7 +1391,7 @@ export class InventoryModel {
                 }
             }
 
-            return await this.update(productId, inventoryData);
+            return await this.update(variantId, inventoryData);
         } catch (error) {
             // Re-throw if it's already a handled error
             if (error instanceof ValidationError ||
@@ -1247,20 +1406,20 @@ export class InventoryModel {
         }
     }
 
-    static async voidWithCheck(productId: string, auth: AuthenticatedUser): Promise<number> {
-        const exists = await this.exists(productId, auth);
+    static async voidWithCheck(variantId: string, auth: AuthenticatedUser): Promise<number> {
+        const exists = await this.exists(variantId, auth);
         if (!exists) {
             throw new Error('Inventory item not found or access denied');
         }
-        return await this.void(productId, auth);
+        return await this.void(variantId, auth);
     }
 
-    static async deleteWithCheck(productId: string, auth: AuthenticatedUser): Promise<number> {
-        const exists = await this.exists(productId, auth);
+    static async deleteWithCheck(variantId: string, auth: AuthenticatedUser): Promise<number> {
+        const exists = await this.exists(variantId, auth);
         if (!exists) {
             throw new Error('Inventory item not found or access denied');
         }
-        return await this.delete(productId);
+        return await this.delete(variantId);
     }
 
     static async disconnect(): Promise<void> {
