@@ -1,222 +1,122 @@
 import { v4 as uuidv4 } from 'uuid';
-import { SaleStatus } from '../databases/prisma/generated/prisma/client';
 import { prisma } from '../databases/prisma/client';
-import { CreateSaleInput, SaleWithItems, VoidSaleInput } from '../models/sale.model';
 import { StockMovementService } from './stock-movement.service';
+import {
+    CreateSaleInput,
+    SaleWithItems,
+    VoidSaleInput,
+    ListSalesOptions,
+    SalesSummaryOptions,
+    SalesSummary,
+    ProcessedSaleItem,
+} from '../types/sale.types';
+import {
+    SALE_NUMBER,
+    PAGINATION,
+    ERROR_MESSAGES,
+    MOVEMENT_TYPES,
+    roundCurrency,
+} from '../constants/sale.constants';
+import {
+    generateSaleNumberPrefix,
+    formatSaleNumber,
+    extractSequenceNumber,
+    createProcessedItem,
+    createPaymentData,
+    createSinglePaymentData,
+    calculateTotalPaid,
+    mapSaleToResponse,
+    getProductDisplayName,
+    validateStockAvailability,
+    validatePaymentAmount,
+    buildSaleInclude,
+    buildDateFilter,
+    buildSearchFilter,
+} from '../utils/sale.utils';
 
+/**
+ * Sale Service - handles all sale-related business logic
+ */
 export class SaleService {
     /**
-     * Create a sale with support for multiple payment methods
-     * Includes retry logic to handle race conditions on sale number generation
-     * (Step 4: "Sell 10 bags → stock = 85")
+     * Create a new sale with support for multiple payment methods
+     * 
+     * Features:
+     * - Validates product variants and stock availability
+     * - Supports both single and multiple payment methods
+     * - Includes retry logic for sale number generation race conditions
+     * - Updates inventory and creates stock movements
+     * 
+     * @param data - Sale input data
+     * @param tenantId - Tenant identifier
+     * @param branchId - Branch identifier
+     * @param retryAttempt - Current retry attempt (internal use)
+     * @returns Created sale with items and payments
+     * @throws Error if validation fails or insufficient stock/payment
      */
-    static async createSale(data: CreateSaleInput, tenantId: string, branchId: string, retryAttempt = 0): Promise<SaleWithItems> {
-        const MAX_RETRIES = 3;
-
+    static async createSale(
+        data: CreateSaleInput,
+        tenantId: string,
+        branchId: string,
+        retryAttempt = 0
+    ): Promise<SaleWithItems> {
         try {
             return await prisma.$transaction(async (tx) => {
-                let subtotal = 0;
-                const itemsWithCost = [];
+                // Step 1: Process and validate all items
+                const { items: processedItems, subtotal } = await this.processItems(
+                    data.items,
+                    tenantId,
+                    branchId,
+                    tx
+                );
+
+                // Step 2: Calculate sale totals
+                const totals = this.calculateSaleTotals(data, subtotal);
+
+                // Step 3: Validate payment
+                const totalPaid = this.getTotalPaid(data);
+                validatePaymentAmount(totals.totalAmount, totalPaid);
+
+                // Step 4: Generate unique sale number
                 const saleNumber = await this.generateSaleNumber(tenantId, branchId, tx, retryAttempt);
 
-                for (const item of data.items) {
-                    const product = await tx.product.findFirst({
-                        where: {
-                            id: item.productId,
-                            tenantId: tenantId,
-                            branchId: branchId,
-                            isActive: true,
-                        },
-                        include: {
-                            inventories: true,
-                        },
-                    });
+                // Step 5: Prepare payment data
+                const payments = this.preparePayments(data, totalPaid);
 
-                    if (!product) {
-                        throw new Error(`Product ${item.productId} not found or inactive`);
-                    }
-
-                    const inventory = product.inventories?.[0];
-                    if (!inventory) {
-                        throw new Error(`No inventory record for product ${product.name}`);
-                    }
-
-                    if (inventory.trackInventory && !inventory.allowNegativeStock) {
-                        if (inventory.availableQuantity < item.quantity) {
-                            throw new Error(
-                                `Insufficient stock for ${product.name}. Available: ${inventory.availableQuantity}, Requested: ${item.quantity}`
-                            );
-                        }
-                    }
-
-                    const itemSubtotal = item.quantity * item.unitPrice;
-                    const itemTax = item.taxAmount || 0;
-                    const itemDiscount = item.discountAmount || 0;
-                    const itemTotal = itemSubtotal + itemTax - itemDiscount;
-
-                    subtotal += itemSubtotal;
-
-                    itemsWithCost.push({
-                        productId: item.productId,
-                        quantity: item.quantity,
-                        unitPrice: item.unitPrice,
-                        unitCost: Number(inventory.averageCost),
-                        subtotal: itemSubtotal,
-                        taxAmount: itemTax,
-                        discountAmount: itemDiscount,
-                        totalAmount: itemTotal,
-                        inventoryId: inventory.id,
-                    });
-                }
-
-                const taxAmount = data.taxAmount || 0;
-                const discountAmount = data.discountAmount || 0;
-                const totalAmount = subtotal + taxAmount - discountAmount;
-
-                // Calculate total paid from multiple payments or single payment
-                let totalPaid = data.amountPaid;
-                if (data.payments && data.payments.length > 0) {
-                    totalPaid = data.payments.reduce((sum, p) => sum + p.amount, 0);
-                }
-
-                const changeAmount = totalPaid - totalAmount;
-
-                if (changeAmount < 0) {
-                    throw new Error(`Insufficient payment amount. Total: ${totalAmount}, Paid: ${totalPaid}`);
-                }
-
-                // Determine the payments to create
-                let paymentsToCreate: any[] = [];
-                if (data.payments && data.payments.length > 0) {
-                    paymentsToCreate = data.payments.map((payment) => ({
-                        id: uuidv4(),
-                        paymentMethodId: payment.paymentMethodId,
-                        amount: payment.amount,
-                        reference: payment.reference,
-                        providerId: payment.providerId,
-                        providerRef: payment.providerRef,
-                        notes: payment.notes,
-                        status: 'COMPLETED',
-                    }));
-                } else if (data.paymentMethodId) {
-                    paymentsToCreate = [{
-                        id: uuidv4(),
-                        paymentMethodId: data.paymentMethodId,
-                        amount: totalPaid,
-                        reference: null,
-                        providerId: null,
-                        providerRef: null,
-                        notes: null,
-                        status: 'COMPLETED',
-                    }];
-                }
-
-                // Create the sale
-                const sale = await tx.sale.create({
-                    data: {
-                        id: uuidv4(),
-                        tenantId: tenantId,
-                        branchId: branchId,
-                        saleNumber,
-                        customerId: data.customerId,
-                        terminalId: data.terminalId,
-                        userId: data.userId,
-                        subtotal,
-                        taxAmount,
-                        discountAmount,
-                        totalAmount,
-                        amountPaid: totalPaid,
-                        changeAmount,
-                        // Keep paymentMethodId for backward compatibility (first payment method or single)
-                        paymentMethodId: data.payments?.[0]?.paymentMethodId || data.paymentMethodId,
-                        status: 'COMPLETED',
-                        notes: data.notes,
-                        items: {
-                            create: itemsWithCost.map(({ inventoryId: _inventoryId, ...item }) => ({
-                                id: uuidv4(),
-                                ...item
-                            })),
-                        },
-                        ...(paymentsToCreate.length > 0 && {
-                            payments: {
-                                create: paymentsToCreate,
-                            },
-                        }),
-                    },
-                    include: {
-                        items: {
-                            include: {
-                                product: {
-                                    select: {
-                                        id: true,
-                                        name: true,
-                                        sku: true,
-                                    },
-                                },
-                            },
-                        },
-                        payments: {
-                            include: {
-                                paymentMethod: {
-                                    select: {
-                                        methodId: true,
-                                        name: true,
-                                        icon: true,
-                                    },
-                                },
-                            },
-                        },
-                    },
+                // Step 6: Create the sale record
+                const sale = await this.createSaleRecord(tx, {
+                    tenantId,
+                    branchId,
+                    saleNumber,
+                    data,
+                    totals,
+                    totalPaid,
+                    processedItems,
+                    payments,
                 });
 
-                for (const item of itemsWithCost) {
-                    await tx.inventory.update({
-                        where: { id: item.inventoryId },
-                        data: {
-                            availableQuantity: { decrement: item.quantity },
-                            lastSoldAt: new Date(),
-                        },
-                    });
+                // Step 7: Update inventory and record movements
+                await this.updateInventoryForSale(tx, processedItems, sale.id, saleNumber, data.userId, tenantId, branchId);
 
-                    await StockMovementService.recordMovement(
-                        {
-                            tenantId: tenantId,
-                            branchId: branchId,
-                            inventoryId: item.inventoryId,
-                            movementType: 'SALE',
-                            quantity: item.quantity,
-                            referenceType: 'SALE',
-                            referenceId: sale.id,
-                            unitCost: item.unitCost,
-                            notes: `Sale ${saleNumber}`,
-                            movedBy: data.userId,
-                        },
-                        tx
-                    );
-                }
-
-                return this.mapSale(sale);
+                return mapSaleToResponse(sale);
             });
         } catch (error: any) {
-            // Check if this is a unique constraint error on sale_number
-            const isUniqueConstraintError =
-                error.message?.includes('Unique constraint failed') ||
-                error.message?.includes('sales_sale_number_key') ||
-                error.code === 'P2002';
-
-            if (isUniqueConstraintError && retryAttempt < MAX_RETRIES) {
-                // Add a small delay before retry to allow other transactions to complete
-                await new Promise(resolve => setTimeout(resolve, 50 * (retryAttempt + 1)));
-
+            // Handle unique constraint errors with retry
+            if (this.isUniqueConstraintError(error) && retryAttempt < SALE_NUMBER.MAX_RETRIES) {
+                await this.delay(SALE_NUMBER.RETRY_DELAY_MS * (retryAttempt + 1));
                 return this.createSale(data, tenantId, branchId, retryAttempt + 1);
             }
-
             throw error;
         }
     }
 
     /**
-     * Get sale by ID
+     * Get a single sale by ID
+     * 
+     * @param saleId - Sale identifier
+     * @param tenantId - Tenant identifier
+     * @param branchId - Branch identifier
+     * @returns Sale with items or null if not found
      */
     static async getSaleById(
         saleId: string,
@@ -224,213 +124,38 @@ export class SaleService {
         branchId: string
     ): Promise<SaleWithItems | null> {
         const sale = await prisma.sale.findFirst({
-            where: {
-                id: saleId,
-                tenantId,
-                branchId,
-            },
-            include: {
-                items: {
-                    include: {
-                        product: {
-                            select: {
-                                id: true,
-                                name: true,
-                                sku: true,
-                            },
-                        },
-                    },
-                },
-                payments: {
-                    include: {
-                        paymentMethod: {
-                            select: {
-                                methodId: true,
-                                name: true,
-                                icon: true,
-                            },
-                        },
-                    },
-                },
-                paymentMethod: {
-                    select: {
-                        methodId: true,
-                        name: true,
-                        icon: true,
-                    },
-                },
-                terminal: {
-                    select: {
-                        terminalId: true,
-                        terminalLabel: true,
-                        terminalCode: true,
-                    },
-                },
-                user: {
-                    select: {
-                        userId: true,
-                        fullname: true,
-                        username: true,
-                    },
-                },
-                customer: {
-                    select: {
-                        customerId: true,
-                        name: true,
-                        phone: true,
-                        email: true,
-                    },
-                },
-            },
+            where: { id: saleId, tenantId, branchId },
+            include: buildSaleInclude(),
         });
 
-        if (!sale) return null;
-
-        return this.mapSale(sale);
+        return sale ? mapSaleToResponse(sale) : null;
     }
 
     /**
-     * List sales
+     * List sales with pagination and filters
+     * 
+     * @param tenantId - Tenant identifier
+     * @param branchId - Branch identifier
+     * @param options - Filter and pagination options
+     * @returns Paginated sales response
      */
     static async listSales(
         tenantId: string,
         branchId: string,
-        options?: {
-            status?: SaleStatus;
-            userId?: string;
-            terminalId?: string;
-            paymentMethodId?: string;
-            startDate?: Date;
-            endDate?: Date;
-            page?: number;
-            limit?: number;
-            includeItems?: boolean;
-            search?: string;
-        }
+        options?: ListSalesOptions
     ): Promise<{ sales: SaleWithItems[]; total: number; totalPages: number }> {
-        const page = options?.page || 1;
-        const limit = options?.limit || 50;
+        const page = options?.page || PAGINATION.DEFAULT_PAGE;
+        const limit = Math.min(options?.limit || PAGINATION.DEFAULT_LIMIT, PAGINATION.MAX_LIMIT);
         const skip = (page - 1) * limit;
 
-        const where: any = {
-            tenantId,
-            branchId,
-        };
+        // Build where clause
+        const where = this.buildListSalesWhere(tenantId, branchId, options);
 
-        // Apply status filter
-        if (options?.status) {
-            where.status = options.status;
-        }
-
-        // Apply userId filter
-        if (options?.userId) {
-            where.userId = options.userId;
-        }
-
-        // Apply terminalId filter
-        if (options?.terminalId) {
-            where.terminalId = options.terminalId;
-        }
-
-        // Apply paymentMethodId filter
-        if (options?.paymentMethodId) {
-            where.paymentMethodId = options.paymentMethodId;
-        }
-
-        // Handle date filtering - adjust endDate to include the entire day
-        if (options?.startDate && options?.endDate) {
-            const endOfDay = new Date(options.endDate);
-            endOfDay.setHours(23, 59, 59, 999);
-
-            where.saleDate = {
-                gte: options.startDate,
-                lte: endOfDay,
-            };
-        } else if (options?.startDate) {
-            where.saleDate = { gte: options.startDate };
-        } else if (options?.endDate) {
-            const endOfDay = new Date(options.endDate);
-            endOfDay.setHours(23, 59, 59, 999);
-            where.saleDate = { lte: endOfDay };
-        }
-
-        // Apply search filter
-        if (options?.search) {
-            where.OR = [
-                { saleNumber: { contains: options.search } },
-                { notes: { contains: options.search } },
-                {
-                    customer: {
-                        name: { contains: options.search }
-                    }
-                },
-                {
-                    user: {
-                        OR: [
-                            { fullname: { contains: options.search } },
-                            { username: { contains: options.search } },
-                        ]
-                    }
-                },
-            ];
-        }
-
+        // Execute queries in parallel
         const [sales, total] = await Promise.all([
             prisma.sale.findMany({
                 where,
-                include: {
-                    items: {
-                        include: {
-                            product: {
-                                select: {
-                                    id: true,
-                                    name: true,
-                                    sku: true,
-                                },
-                            },
-                        },
-                    },
-                    payments: {
-                        include: {
-                            paymentMethod: {
-                                select: {
-                                    methodId: true,
-                                    name: true,
-                                    icon: true,
-                                },
-                            },
-                        },
-                    },
-                    paymentMethod: {
-                        select: {
-                            methodId: true,
-                            name: true,
-                            icon: true,
-                        },
-                    },
-                    terminal: {
-                        select: {
-                            terminalId: true,
-                            terminalLabel: true,
-                            terminalCode: true,
-                        },
-                    },
-                    user: {
-                        select: {
-                            userId: true,
-                            fullname: true,
-                            username: true,
-                        },
-                    },
-                    customer: {
-                        select: {
-                            customerId: true,
-                            name: true,
-                            phone: true,
-                            email: true,
-                        },
-                    },
-                },
+                include: buildSaleInclude(),
                 skip,
                 take: limit,
                 orderBy: { saleDate: 'desc' },
@@ -438,17 +163,22 @@ export class SaleService {
             prisma.sale.count({ where }),
         ]);
 
-        const totalPages = Math.ceil(total / limit);
-
         return {
-            sales: sales.map((s) => this.mapSale(s)),
+            sales: sales.map(mapSaleToResponse),
             total,
-            totalPages,
+            totalPages: Math.ceil(total / limit),
         };
     }
 
     /**
-     * Void a sale (reverses inventory)
+     * Void a sale and restore inventory
+     * 
+     * @param saleId - Sale to void
+     * @param tenantId - Tenant identifier
+     * @param branchId - Branch identifier
+     * @param data - Void reason and user info
+     * @returns Updated voided sale
+     * @throws Error if sale not found or already voided
      */
     static async voidSale(
         saleId: string,
@@ -457,18 +187,16 @@ export class SaleService {
         data: VoidSaleInput
     ): Promise<SaleWithItems> {
         return await prisma.$transaction(async (tx) => {
+            // Get sale with items and inventory info
             const sale = await tx.sale.findFirst({
-                where: {
-                    id: saleId,
-                    tenantId,
-                    branchId,
-                },
+                where: { id: saleId, tenantId, branchId },
                 include: {
                     items: {
                         include: {
-                            product: {
+                            variant: {
                                 include: {
-                                    inventories: true,
+                                    inventory: true,
+                                    product: { select: { id: true, name: true } },
                                 },
                             },
                         },
@@ -477,41 +205,17 @@ export class SaleService {
             });
 
             if (!sale) {
-                throw new Error('Sale not found');
+                throw new Error(ERROR_MESSAGES.SALE_NOT_FOUND);
             }
 
             if (sale.isVoided) {
-                throw new Error('Sale already voided');
+                throw new Error(ERROR_MESSAGES.SALE_ALREADY_VOIDED);
             }
 
-            for (const item of sale.items) {
-                const inventory = item.product.inventories?.[0];
-                if (!inventory) continue;
+            // Restore inventory for each item
+            await this.restoreInventoryForVoid(tx, sale, data, tenantId, branchId);
 
-                await tx.inventory.update({
-                    where: { id: inventory.id },
-                    data: {
-                        availableQuantity: { increment: item.quantity },
-                    },
-                });
-
-                await StockMovementService.recordMovement(
-                    {
-                        tenantId,
-                        branchId,
-                        inventoryId: inventory.id,
-                        movementType: 'RETURN',
-                        quantity: item.quantity,
-                        referenceType: 'SALE',
-                        referenceId: saleId,
-                        unitCost: Number(item.unitCost),
-                        notes: `Void sale ${sale.saleNumber}: ${data.voidReason}`,
-                        movedBy: data.voidedBy,
-                    },
-                    tx
-                );
-            }
-
+            // Update sale status
             const voidedSale = await tx.sale.update({
                 where: { id: saleId },
                 data: {
@@ -521,203 +225,27 @@ export class SaleService {
                     voidReason: data.voidReason,
                     status: 'VOIDED',
                 },
-                include: {
-                    items: {
-                        include: {
-                            product: {
-                                select: {
-                                    id: true,
-                                    name: true,
-                                    sku: true,
-                                },
-                            },
-                        },
-                    },
-                },
+                include: buildSaleInclude(),
             });
 
-            return this.mapSale(voidedSale);
+            return mapSaleToResponse(voidedSale);
         });
     }
 
     /**
-     * Generate sale number with retry logic to handle race conditions
-     * On retries, queries the main prisma client to see committed transactions
+     * Get sales summary statistics
      * 
-     * saleNumber is unique per tenant+branch (not globally), allowing offline usage
-     * where different branches can have the same sale numbers.
-     */
-    private static async generateSaleNumber(
-        tenantId: string,
-        branchId: string,
-        tx: any,
-        retryCount = 0
-    ): Promise<string> {
-        const today = new Date();
-        const year = today.getFullYear();
-        const month = String(today.getMonth() + 1).padStart(2, '0');
-        const day = String(today.getDate()).padStart(2, '0');
-
-        const prefix = `SALE-${year}${month}${day}`;
-
-        // On retries, use main prisma client to see committed transactions
-        // On first attempt, use tx for consistency within the transaction
-        const queryClient = retryCount > 0 ? prisma : tx;
-
-        // Query by tenant AND branch since saleNumber is unique per tenant+branch
-        // This allows offline usage where different branches can have same sale numbers
-        const lastSale = await queryClient.sale.findFirst({
-            where: {
-                tenantId,
-                branchId,
-                saleNumber: {
-                    startsWith: prefix,
-                },
-            },
-            orderBy: {
-                saleNumber: 'desc',
-            },
-        });
-
-        let sequence = 1;
-        if (lastSale) {
-            const lastSequence = parseInt(lastSale.saleNumber.split('-').pop() || '0');
-            sequence = lastSequence + 1;
-        }
-
-        // Add retry offset as extra safety margin
-        sequence += retryCount;
-
-        return `${prefix}-${String(sequence).padStart(5, '0')}`;
-    }
-
-    /**
-     * Helper: Map sale
-     */
-    private static mapSale(sale: any): SaleWithItems {
-        return {
-            id: sale.id,
-            tenantId: sale.tenantId,
-            branchId: sale.branchId,
-            saleNumber: sale.saleNumber,
-            customerId: sale.customerId,
-            terminalId: sale.terminalId,
-            userId: sale.userId,
-            subtotal: Number(sale.subtotal),
-            taxAmount: Number(sale.taxAmount),
-            discountAmount: Number(sale.discountAmount),
-            totalAmount: Number(sale.totalAmount),
-            amountPaid: Number(sale.amountPaid),
-            changeAmount: Number(sale.changeAmount),
-            paymentMethodId: sale.paymentMethodId,
-            status: sale.status,
-            saleDate: sale.saleDate,
-            notes: sale.notes,
-            isVoided: sale.isVoided,
-            voidedAt: sale.voidedAt,
-            voidedBy: sale.voidedBy,
-            voidReason: sale.voidReason,
-            createdAt: sale.createdAt,
-            updatedAt: sale.updatedAt,
-            items: sale.items.map((item: any) => ({
-                id: item.id,
-                saleId: item.saleId,
-                productId: item.productId,
-                quantity: item.quantity,
-                unitPrice: Number(item.unitPrice),
-                unitCost: Number(item.unitCost),
-                subtotal: Number(item.subtotal),
-                taxAmount: Number(item.taxAmount),
-                discountAmount: Number(item.discountAmount),
-                totalAmount: Number(item.totalAmount),
-                createdAt: item.createdAt,
-                product: item.product,
-            })),
-            // Include payments if available
-            payments: sale.payments?.map((payment: any) => ({
-                id: payment.id,
-                saleId: payment.saleId,
-                paymentMethodId: payment.paymentMethodId,
-                amount: Number(payment.amount),
-                reference: payment.reference,
-                providerId: payment.providerId,
-                providerRef: payment.providerRef,
-                status: payment.status,
-                processedAt: payment.processedAt,
-                notes: payment.notes,
-                createdAt: payment.createdAt,
-                updatedAt: payment.updatedAt,
-                paymentMethod: payment.paymentMethod,
-            })),
-            // Include relations for display
-            paymentMethod: sale.paymentMethod,
-            terminal: sale.terminal,
-            user: sale.user,
-            customer: sale.customer,
-        };
-    }
-
-    /**
-     * Get sales summary with filters
-     * Returns: Total Sales, Total Voided, Net Sales, Total Count
+     * @param tenantId - Tenant identifier
+     * @param branchId - Branch identifier
+     * @param filters - Summary filters
+     * @returns Sales summary with totals and counts
      */
     static async getSalesSummary(
         tenantId: string,
         branchId: string,
-        filters: {
-            startDate?: Date;
-            endDate?: Date;
-            status?: string;
-            paymentMethodId?: string;
-            userId?: string;
-            terminalId?: string;
-        }
-    ): Promise<{
-        totalSales: number;
-        totalVoided: number;
-        netSales: number;
-        totalCount: number;
-        completedCount: number;
-        voidedCount: number;
-        refundedCount: number;
-    }> {
-        const where: any = {
-            tenantId,
-            branchId,
-        };
-
-        if (filters.status) {
-            where.status = filters.status;
-        }
-
-        if (filters.paymentMethodId) {
-            where.paymentMethodId = filters.paymentMethodId;
-        }
-
-        if (filters.userId) {
-            where.userId = filters.userId;
-        }
-
-        if (filters.terminalId) {
-            where.terminalId = filters.terminalId;
-        }
-
-        // Handle date filtering
-        if (filters.startDate && filters.endDate) {
-            const endOfDay = new Date(filters.endDate);
-            endOfDay.setHours(23, 59, 59, 999);
-
-            where.saleDate = {
-                gte: filters.startDate,
-                lte: endOfDay,
-            };
-        } else if (filters.startDate) {
-            where.saleDate = { gte: filters.startDate };
-        } else if (filters.endDate) {
-            const endOfDay = new Date(filters.endDate);
-            endOfDay.setHours(23, 59, 59, 999);
-            where.saleDate = { lte: endOfDay };
-        }
+        filters: SalesSummaryOptions
+    ): Promise<SalesSummary> {
+        const where = this.buildSummaryWhere(tenantId, branchId, filters);
 
         const sales = await prisma.sale.findMany({
             where,
@@ -728,6 +256,318 @@ export class SaleService {
             },
         });
 
+        return this.calculateSummary(sales);
+    }
+
+    /**
+     * Process and validate all sale items
+     */
+    private static async processItems(
+        items: CreateSaleInput['items'],
+        tenantId: string,
+        branchId: string,
+        tx: any
+    ): Promise<{ items: ProcessedSaleItem[]; subtotal: number }> {
+        let subtotal = 0;
+        const processedItems: ProcessedSaleItem[] = [];
+
+        for (const item of items) {
+            const variantId = item.variantId || item.productId;
+            if (!variantId) {
+                throw new Error(ERROR_MESSAGES.MISSING_VARIANT_ID);
+            }
+
+            // Find variant with product and inventory
+            const variant = await tx.productVariant.findFirst({
+                where: {
+                    id: variantId,
+                    tenantId,
+                    branchId,
+                    isActive: true,
+                    product: { isActive: true },
+                },
+                include: {
+                    product: true,
+                    inventory: true,
+                },
+            });
+
+            if (!variant) {
+                throw new Error(`${ERROR_MESSAGES.VARIANT_NOT_FOUND} (${variantId})`);
+            }
+
+            const inventory = variant.inventory;
+            if (!inventory) {
+                throw new Error(`${ERROR_MESSAGES.NO_INVENTORY} for ${variant.product.name} - ${variant.variantName}`);
+            }
+
+            // Validate stock availability
+            const displayName = getProductDisplayName(variant.product.name, variant.variantName);
+            validateStockAvailability(inventory, item.quantity, displayName);
+
+            // Create processed item
+            const processedItem = createProcessedItem(item, inventory.id, Number(inventory.averageCost));
+            processedItems.push(processedItem);
+            subtotal += processedItem.subtotal;
+        }
+
+        return { items: processedItems, subtotal };
+    }
+
+    /**
+     * Calculate sale totals from items and additional amounts
+     */
+    private static calculateSaleTotals(
+        data: CreateSaleInput,
+        subtotal: number
+    ): { taxAmount: number; discountAmount: number; totalAmount: number } {
+        const taxAmount = data.taxAmount || 0;
+        const discountAmount = data.discountAmount || 0;
+        const totalAmount = subtotal + taxAmount - discountAmount;
+
+        return {
+            taxAmount: roundCurrency(taxAmount),
+            discountAmount: roundCurrency(discountAmount),
+            totalAmount: roundCurrency(totalAmount),
+        };
+    }
+
+    /**
+     * Get total paid amount from data
+     */
+    private static getTotalPaid(data: CreateSaleInput): number {
+        if (data.payments && data.payments.length > 0) {
+            return calculateTotalPaid(data.payments);
+        }
+        return data.amountPaid;
+    }
+
+    /**
+     * Prepare payment records for insertion
+     */
+    private static preparePayments(data: CreateSaleInput, totalPaid: number): any[] {
+        if (data.payments && data.payments.length > 0) {
+            return createPaymentData(data.payments);
+        }
+        if (data.paymentMethodId) {
+            return createSinglePaymentData(data.paymentMethodId, totalPaid);
+        }
+        return [];
+    }
+
+    /**
+     * Create the sale record in the database
+     */
+    private static async createSaleRecord(
+        tx: any,
+        params: {
+            tenantId: string;
+            branchId: string;
+            saleNumber: string;
+            data: CreateSaleInput;
+            totals: { taxAmount: number; discountAmount: number; totalAmount: number };
+            totalPaid: number;
+            processedItems: ProcessedSaleItem[];
+            payments: any[];
+        }
+    ): Promise<any> {
+        const { tenantId, branchId, saleNumber, data, totals, totalPaid, processedItems, payments } = params;
+        const changeAmount = totalPaid - totals.totalAmount;
+
+        return tx.sale.create({
+            data: {
+                id: uuidv4(),
+                tenantId,
+                branchId,
+                saleNumber,
+                customerId: data.customerId,
+                terminalId: data.terminalId,
+                userId: data.userId,
+                subtotal: processedItems.reduce((sum, item) => sum + item.subtotal, 0),
+                taxAmount: totals.taxAmount,
+                discountAmount: totals.discountAmount,
+                totalAmount: totals.totalAmount,
+                amountPaid: totalPaid,
+                changeAmount,
+                paymentMethodId: data.payments?.[0]?.paymentMethodId || data.paymentMethodId,
+                status: 'COMPLETED',
+                notes: data.notes,
+                items: {
+                    create: processedItems.map(({ inventoryId: _inventoryId, ...item }) => ({
+                        id: uuidv4(),
+                        ...item,
+                    })),
+                },
+                ...(payments.length > 0 && {
+                    payments: { create: payments },
+                }),
+            },
+            include: buildSaleInclude(),
+        });
+    }
+
+    /**
+     * Update inventory quantities and record stock movements
+     */
+    private static async updateInventoryForSale(
+        tx: any,
+        items: ProcessedSaleItem[],
+        saleId: string,
+        saleNumber: string,
+        userId: string,
+        tenantId: string,
+        branchId: string
+    ): Promise<void> {
+        for (const item of items) {
+            await tx.inventory.update({
+                where: { id: item.inventoryId },
+                data: {
+                    availableQuantity: { decrement: item.quantity },
+                    lastSoldAt: new Date(),
+                },
+            });
+
+            await StockMovementService.recordMovement(
+                {
+                    tenantId,
+                    branchId,
+                    inventoryId: item.inventoryId,
+                    movementType: MOVEMENT_TYPES.SALE,
+                    quantity: item.quantity,
+                    referenceType: 'SALE',
+                    referenceId: saleId,
+                    unitCost: item.unitCost,
+                    notes: `Sale ${saleNumber}`,
+                    movedBy: userId,
+                },
+                tx
+            );
+        }
+    }
+
+    /**
+     * Restore inventory when voiding a sale
+     */
+    private static async restoreInventoryForVoid(
+        tx: any,
+        sale: any,
+        data: VoidSaleInput,
+        tenantId: string,
+        branchId: string
+    ): Promise<void> {
+        for (const item of sale.items) {
+            const inventory = item.variant?.inventory;
+            if (!inventory) continue;
+
+            await tx.inventory.update({
+                where: { id: inventory.id },
+                data: {
+                    availableQuantity: { increment: item.quantity },
+                },
+            });
+
+            await StockMovementService.recordMovement(
+                {
+                    tenantId,
+                    branchId,
+                    inventoryId: inventory.id,
+                    movementType: MOVEMENT_TYPES.RETURN,
+                    quantity: item.quantity,
+                    referenceType: 'SALE',
+                    referenceId: sale.id,
+                    unitCost: Number(item.unitCost),
+                    notes: `Void sale ${sale.saleNumber}: ${data.voidReason}`,
+                    movedBy: data.voidedBy,
+                },
+                tx
+            );
+        }
+    }
+
+    /**
+     * Generate unique sale number with retry support
+     */
+    private static async generateSaleNumber(
+        tenantId: string,
+        branchId: string,
+        tx: any,
+        retryCount = 0
+    ): Promise<string> {
+        const prefix = generateSaleNumberPrefix();
+
+        // On retries, use main client to see committed transactions
+        const queryClient = retryCount > 0 ? prisma : tx;
+
+        const lastSale = await queryClient.sale.findFirst({
+            where: {
+                tenantId,
+                branchId,
+                saleNumber: { startsWith: prefix },
+            },
+            orderBy: { saleNumber: 'desc' },
+        });
+
+        let sequence = 1;
+        if (lastSale) {
+            sequence = extractSequenceNumber(lastSale.saleNumber) + 1;
+        }
+
+        // Add retry offset for safety
+        sequence += retryCount;
+
+        return formatSaleNumber(prefix, sequence);
+    }
+
+    /**
+     * Build where clause for listing sales
+     */
+    private static buildListSalesWhere(
+        tenantId: string,
+        branchId: string,
+        options?: ListSalesOptions
+    ): any {
+        const where: any = { tenantId, branchId };
+
+        if (options?.status) where.status = options.status;
+        if (options?.userId) where.userId = options.userId;
+        if (options?.terminalId) where.terminalId = options.terminalId;
+        if (options?.paymentMethodId) where.paymentMethodId = options.paymentMethodId;
+
+        const dateFilter = buildDateFilter(options?.startDate, options?.endDate);
+        if (dateFilter) where.saleDate = dateFilter;
+
+        if (options?.search) {
+            where.OR = buildSearchFilter(options.search);
+        }
+
+        return where;
+    }
+
+    /**
+     * Build where clause for sales summary
+     */
+    private static buildSummaryWhere(
+        tenantId: string,
+        branchId: string,
+        filters: SalesSummaryOptions
+    ): any {
+        const where: any = { tenantId, branchId };
+
+        if (filters.status) where.status = filters.status;
+        if (filters.paymentMethodId) where.paymentMethodId = filters.paymentMethodId;
+        if (filters.userId) where.userId = filters.userId;
+        if (filters.terminalId) where.terminalId = filters.terminalId;
+
+        const dateFilter = buildDateFilter(filters.startDate, filters.endDate);
+        if (dateFilter) where.saleDate = dateFilter;
+
+        return where;
+    }
+
+    /**
+     * Calculate summary statistics from sales data
+     */
+    private static calculateSummary(sales: any[]): SalesSummary {
         let totalSales = 0;
         let totalVoided = 0;
         let completedCount = 0;
@@ -749,12 +589,10 @@ export class SaleService {
             }
         }
 
-        const netSales = totalSales - totalVoided;
-
         return {
-            totalSales: Math.round(totalSales * 100) / 100,
-            totalVoided: Math.round(totalVoided * 100) / 100,
-            netSales: Math.round(netSales * 100) / 100,
+            totalSales: roundCurrency(totalSales),
+            totalVoided: roundCurrency(totalVoided),
+            netSales: roundCurrency(totalSales - totalVoided),
             totalCount: sales.length,
             completedCount,
             voidedCount,
@@ -762,294 +600,21 @@ export class SaleService {
         };
     }
 
-    // ==========================================
-    // PARKED SALES METHODS
-    // ==========================================
-
     /**
-     * Park a sale (create a parked sale)
+     * Check if error is a unique constraint violation
      */
-    static async parkSale(
-        data: any,
-        tenantId: string,
-        branchId: string
-    ): Promise<any> {
-        // Map items with proper field names matching ParkedSaleItem schema
-        const items = (data.items || []).map((item: any) => ({
-            productId: item.productId,
-            categoryId: item.categoryId || null,
-            name: item.name || item.productName || 'Unknown Product',
-            barcode: item.barcode || null,
-            sku: item.sku || null,
-            unit: item.unit || null,
-            quantity: item.quantity || 1,
-            unitPrice: item.unitPrice || item.price || 0,
-            sellPrice: item.sellPrice || item.unitPrice || item.price || 0,
-            purchasePrice: item.purchasePrice || item.costPrice || 0,
-            discount: item.discount || item.discountAmount || 0,
-            taxAmount: item.taxAmount || item.tax || 0,
-            subtotal: item.subtotal || ((item.quantity || 1) * (item.unitPrice || item.sellPrice || item.price || 0)),
-        }));
-
-        // Calculate totals from items if not provided
-        const totalItems = data.totalItems || items.length;
-        const subtotal = data.subtotal || items.reduce((sum: number, item: any) => sum + Number(item.subtotal || 0), 0);
-        const taxAmount = data.taxAmount || items.reduce((sum: number, item: any) => sum + Number(item.taxAmount || 0), 0);
-        const discountAmount = data.discountAmount || items.reduce((sum: number, item: any) => sum + Number(item.discount || 0), 0);
-        const totalAmount = data.totalAmount || data.total || (subtotal + taxAmount - discountAmount);
-
-        const parkedSale = await prisma.parkedSale.create({
-            data: {
-                tenantId,
-                branchId,
-                userId: data.userId,
-                terminalId: data.terminalId || null,
-                customerId: data.customerId || null,
-                reference: data.reference || `PARK-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`,
-                subtotal,
-                taxAmount,
-                discountAmount,
-                totalAmount,
-                totalItems,
-                status: 'PARKED',
-                notes: data.notes || null,
-                items: {
-                    create: items,
-                },
-            },
-            include: {
-                items: true,
-            },
-        });
-
-        return parkedSale;
+    private static isUniqueConstraintError(error: any): boolean {
+        return (
+            error.message?.includes('Unique constraint failed') ||
+            error.message?.includes('sales_sale_number_key') ||
+            error.code === 'P2002'
+        );
     }
 
     /**
-     * List all parked sales
+     * Async delay helper
      */
-    static async listParkedSales(
-        tenantId: string,
-        branchId: string,
-        options?: {
-            userId?: string;
-            terminalId?: string;
-            status?: string;
-            page?: number;
-            limit?: number;
-        }
-    ): Promise<{ parkedSales: any[]; total: number; totalPages: number }> {
-        const page = options?.page || 1;
-        const limit = options?.limit || 50;
-        const skip = (page - 1) * limit;
-
-        const where: any = {
-            tenantId,
-            branchId,
-        };
-
-        if (options?.userId) {
-            where.userId = options.userId;
-        }
-
-        if (options?.terminalId) {
-            where.terminalId = options.terminalId;
-        }
-
-        if (options?.status) {
-            where.status = options.status;
-        }
-
-        const [parkedSales, total] = await Promise.all([
-            prisma.parkedSale.findMany({
-                where,
-                include: {
-                    items: true,
-                },
-                skip,
-                take: limit,
-                orderBy: { parkedAt: 'desc' },
-            }),
-            prisma.parkedSale.count({ where }),
-        ]);
-
-        const totalPages = Math.ceil(total / limit);
-
-        return {
-            parkedSales,
-            total,
-            totalPages,
-        };
-    }
-
-    /**
-     * Get a parked sale by ID
-     */
-    static async getParkedSaleById(
-        parkedSaleId: string,
-        tenantId: string,
-        branchId: string
-    ): Promise<any | null> {
-        const parkedSale = await prisma.parkedSale.findFirst({
-            where: {
-                id: parkedSaleId,
-                tenantId,
-                branchId,
-            },
-            include: {
-                items: true,
-            },
-        });
-
-        return parkedSale;
-    }
-
-    /**
-     * Update a parked sale
-     */
-    static async updateParkedSale(
-        parkedSaleId: string,
-        tenantId: string,
-        branchId: string,
-        data: any
-    ): Promise<any> {
-        // First verify it exists and belongs to tenant/branch
-        const existing = await prisma.parkedSale.findFirst({
-            where: {
-                id: parkedSaleId,
-                tenantId,
-                branchId,
-            },
-        });
-
-        if (!existing) {
-            throw new Error('Parked sale not found');
-        }
-
-        // Update the parked sale
-        const { items: _items, ...updateData } = data;
-
-        const updatedSale = await prisma.parkedSale.update({
-            where: { id: parkedSaleId },
-            data: updateData,
-            include: {
-                items: true,
-            },
-        });
-
-        return updatedSale;
-    }
-
-    /**
-     * Resume a parked sale
-     * Returns the parked sale data so it can be loaded into POS
-     */
-    static async resumeParkedSale(
-        parkedSaleId: string,
-        tenantId: string,
-        branchId: string
-    ): Promise<any> {
-        // First get the parked sale with items
-        const parkedSale = await prisma.parkedSale.findFirst({
-            where: {
-                id: parkedSaleId,
-                tenantId,
-                branchId,
-            },
-            include: {
-                items: true,
-            },
-        });
-
-        if (!parkedSale) {
-            throw new Error('Parked sale not found');
-        }
-
-        // Update status to resumed
-        await prisma.parkedSale.update({
-            where: { id: parkedSaleId },
-            data: {
-                status: 'RESUMED',
-                resumedAt: new Date(),
-            },
-        });
-
-        return parkedSale;
-    }
-
-    /**
-     * Delete a parked sale
-     */
-    static async deleteParkedSale(
-        parkedSaleId: string,
-        tenantId: string,
-        branchId: string
-    ): Promise<void> {
-        // First verify it exists and belongs to tenant/branch
-        const existing = await prisma.parkedSale.findFirst({
-            where: {
-                id: parkedSaleId,
-                tenantId,
-                branchId,
-            },
-        });
-
-        if (!existing) {
-            throw new Error('Parked sale not found');
-        }
-
-        // Delete items first, then the parked sale
-        await prisma.parkedSaleItem.deleteMany({
-            where: { parkedSaleId },
-        });
-
-        await prisma.parkedSale.delete({
-            where: { id: parkedSaleId },
-        });
-    }
-
-    /**
-     * Get parked sales count
-     */
-    static async getParkedSalesCount(
-        tenantId: string,
-        branchId: string,
-        options?: {
-            userId?: string;
-            terminalId?: string;
-        }
-    ): Promise<{ total: number; byStatus: Record<string, number> }> {
-        const where: any = {
-            tenantId,
-            branchId,
-        };
-
-        if (options?.userId) {
-            where.userId = options.userId;
-        }
-
-        if (options?.terminalId) {
-            where.terminalId = options.terminalId;
-        }
-
-        const [total, parkedCount, resumedCount, cancelledCount, completedCount, expiredCount] = await Promise.all([
-            prisma.parkedSale.count({ where }),
-            prisma.parkedSale.count({ where: { ...where, status: 'PARKED' } }),
-            prisma.parkedSale.count({ where: { ...where, status: 'RESUMED' } }),
-            prisma.parkedSale.count({ where: { ...where, status: 'CANCELLED' } }),
-            prisma.parkedSale.count({ where: { ...where, status: 'COMPLETED' } }),
-            prisma.parkedSale.count({ where: { ...where, status: 'EXPIRED' } }),
-        ]);
-
-        return {
-            total,
-            byStatus: {
-                parked: parkedCount,
-                resumed: resumedCount,
-                cancelled: cancelledCount,
-                completed: completedCount,
-                expired: expiredCount,
-            },
-        };
+    private static delay(ms: number): Promise<void> {
+        return new Promise(resolve => setTimeout(resolve, ms));
     }
 }
