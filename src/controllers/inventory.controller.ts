@@ -31,6 +31,11 @@ export class InventoryController extends BaseController {
 
         // Handle validation errors
         if (error instanceof ValidationError) {
+            // If a specific field is provided, use sendBadRequest for cleaner format
+            if (error.field) {
+                BaseController.sendBadRequest(res, error.message, error.field);
+                return;
+            }
             BaseController.sendValidationError(res, error.message, error.errors);
             return;
         }
