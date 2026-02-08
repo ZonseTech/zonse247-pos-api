@@ -418,71 +418,18 @@ export class InventoryModel {
     }
 
     /**
-     * Create new product with variant and inventory
+     * Create new product with variant(s) and inventory
+     * Supports both single variant (flat) and multi-variant (variants array) formats
      * Validates input and handles database errors gracefully
      */
     static async create(inventoryData: Record<string, any>, auth: AuthenticatedUser): Promise<void> {
         try {
-            const validationErrors: Record<string, string> = {};
-
+            // Validate product name (required)
             if (!inventoryData.name || inventoryData.name.trim().length === 0) {
-                validationErrors.name = 'Product name is required.';
+                throw new ValidationError('Product name is required and cannot be empty.', {}, 'name');
             }
 
-            const sellPrice = parseFloat(inventoryData.sellPrice || inventoryData.sellingPrice || 0);
-            if (sellPrice < 0) {
-                validationErrors.sellingPrice = ProductErrors.INVALID_PRICE;
-            }
-
-            const quantity = parseInt(inventoryData.quantity || 0);
-            if (quantity < 0) {
-                validationErrors.quantity = ProductErrors.INVALID_QUANTITY;
-            }
-
-            const minStock = inventoryData.minStock ? parseInt(inventoryData.minStock) : null;
-            const maxStock = inventoryData.maxStock ? parseInt(inventoryData.maxStock) : null;
-            if (minStock !== null && maxStock !== null && minStock > maxStock) {
-                validationErrors.minStock = InventoryErrors.MIN_EXCEEDS_MAX(minStock, maxStock);
-            }
-
-            if (Object.keys(validationErrors).length > 0) {
-                throw new ValidationError('Inventory item validation failed', validationErrors);
-            }
-
-            const primaryBarcode = inventoryData.barcode || inventoryData.primaryBarcode;
-            const additionalBarcodes = inventoryData.additionalBarcodes?.map((bc: any) => ({
-                barcode: typeof bc === 'string' ? bc : bc.code || bc.barcode
-            }));
-
-            // Validate barcodes for duplicates
-            await ProductService.validateBarcodesForDuplicates(
-                primaryBarcode,
-                additionalBarcodes,
-                auth.tenantId,
-                auth.branchId
-            );
-
-            const sku = inventoryData.sku || inventoryData.barcode;
-
-            // Check SKU uniqueness on variants
-            if (sku) {
-                const existingSku = await prisma.productVariant.findFirst({
-                    where: {
-                        sku,
-                        tenantId: auth.tenantId,
-                        branchId: auth.branchId,
-                        isActive: true,
-                    },
-                    include: {
-                        product: { select: { name: true } }
-                    }
-                });
-
-                if (existingSku) {
-                    throw new ConflictError(ProductErrors.SKU_EXISTS(sku), 'sku');
-                }
-            }
-
+            // Validate category if provided
             if (inventoryData.categoryId) {
                 const categoryExists = await prisma.category.findFirst({
                     where: {
@@ -492,14 +439,108 @@ export class InventoryModel {
                     },
                 });
                 if (!categoryExists) {
-                    throw new NotFoundError('Category', inventoryData.categoryId);
+                    throw new ValidationError(
+                        `Category with ID "${inventoryData.categoryId}" was not found.`,
+                        {},
+                        'categoryId'
+                    );
+                }
+            }
+
+            // Handle variants array format from frontend
+            const variants = inventoryData.variants && Array.isArray(inventoryData.variants)
+                ? inventoryData.variants
+                : [inventoryData]; // Fallback to flat structure for backward compatibility
+
+            if (variants.length === 0) {
+                throw new ValidationError(
+                    'At least one product variant is required.',
+                    {},
+                    'variants'
+                );
+            }
+
+            // Validate each variant
+            for (let i = 0; i < variants.length; i++) {
+                const variant = variants[i];
+                const variantLabel = variants.length > 1 ? ` (Variant ${i + 1})` : '';
+                const variantField = variants.length > 1 ? `variants[${i}]` : 'variant';
+
+                // Validate sell price
+                const sellPrice = parseFloat(variant.sellPrice || variant.sellingPrice || 0);
+                if (sellPrice < 0) {
+                    throw new ValidationError(
+                        `Selling price${variantLabel} cannot be negative. Received: ${sellPrice}`,
+                        {},
+                        `${variantField}.sellPrice`
+                    );
+                }
+
+                // Validate quantity
+                const quantity = parseInt(variant.quantity || 0);
+                if (quantity < 0) {
+                    throw new ValidationError(
+                        `Quantity${variantLabel} cannot be negative. Received: ${quantity}`,
+                        {},
+                        `${variantField}.quantity`
+                    );
+                }
+
+                // Validate minStock vs maxStock
+                const minStock = variant.minStock ? parseInt(variant.minStock) : null;
+                const maxStock = variant.maxStock ? parseInt(variant.maxStock) : null;
+                if (minStock !== null && maxStock !== null && minStock > maxStock) {
+                    throw new ValidationError(
+                        `Minimum stock${variantLabel} (${minStock}) cannot exceed maximum stock (${maxStock}).`,
+                        {},
+                        `${variantField}.minStock`
+                    );
+                }
+
+                // Validate barcode for duplicates
+                const primaryBarcode = variant.barcode || variant.primaryBarcode;
+                const additionalBarcodes = variant.additionalBarcodes?.map((bc: any) => ({
+                    barcode: typeof bc === 'string' ? bc : bc.code || bc.barcode
+                }));
+
+                await ProductService.validateBarcodesForDuplicates(
+                    primaryBarcode,
+                    additionalBarcodes,
+                    auth.tenantId,
+                    auth.branchId
+                );
+
+                // Check SKU uniqueness
+                const sku = variant.sku || variant.barcode;
+                if (sku) {
+                    const existingSku = await prisma.productVariant.findFirst({
+                        where: {
+                            sku,
+                            tenantId: auth.tenantId,
+                            branchId: auth.branchId,
+                            isActive: true,
+                        },
+                        include: {
+                            product: { select: { name: true } }
+                        }
+                    });
+
+                    if (existingSku) {
+                        const productName = existingSku.product?.name || 'another product';
+                        throw new ConflictError(
+                            `SKU "${sku}"${variantLabel} is already assigned to "${productName}".`,
+                            `${variantField}.sku`
+                        );
+                    }
                 }
             }
 
             const productId = uuidv4();
-            const variantId = uuidv4();
 
             await prisma.$transaction(async (tx) => {
+                // Get first variant for product-level defaults
+                const firstVariant = variants[0];
+
                 // Create the product (parent)
                 await tx.product.create({
                     data: {
@@ -508,80 +549,96 @@ export class InventoryModel {
                         branchId: auth.branchId,
                         name: inventoryData.name.trim(),
                         categoryId: inventoryData.categoryId || null,
-                        description: inventoryData.description || null,
-                        brand: inventoryData.brand || null,
-                        isTaxable: inventoryData.isTaxable !== false,
-                        supplierName: inventoryData.supplierName || null,
-                        supplierCode: inventoryData.supplierCode || null,
-                        defaultUnit: inventoryData.unit || 'piece',
-                        isActive: inventoryData.status !== 'inactive'
+                        description: firstVariant.description || inventoryData.description || null,
+                        brand: firstVariant.brand || inventoryData.brand || null,
+                        isTaxable: firstVariant.isTaxable !== false,
+                        supplierName: firstVariant.supplierName || inventoryData.supplierName || null,
+                        supplierCode: firstVariant.supplierCode || inventoryData.supplierCode || null,
+                        defaultUnit: inventoryData.unit || firstVariant.unit || 'piece',
+                        isActive: firstVariant.status !== 'inactive'
                     }
                 });
 
-                // Create the default variant
-                await tx.productVariant.create({
-                    data: {
-                        id: variantId,
-                        productId: productId,
-                        tenantId: auth.tenantId,
-                        branchId: auth.branchId,
-                        sku: sku,
-                        variantName: inventoryData.variantName || 'Default',
-                        primaryBarcode: primaryBarcode,
-                        sellingPrice: sellPrice,
-                        costPrice: parseFloat(inventoryData.costPrice || 0),
-                        unit: inventoryData.unit || 'piece',
-                        description: inventoryData.description || null,
-                        brand: inventoryData.brand || null,
-                        size: inventoryData.size || null,
-                        weight: inventoryData.weight ? parseFloat(inventoryData.weight) : null,
-                        dimensions: inventoryData.dimensions || null,
-                        promoPrice: inventoryData.promoPrice ? parseFloat(inventoryData.promoPrice) : null,
-                        promoStart: inventoryData.promoStart ? new Date(inventoryData.promoStart) : null,
-                        promoEnd: inventoryData.promoEnd ? new Date(inventoryData.promoEnd) : null,
-                        isTaxable: inventoryData.isTaxable !== false,
-                        expirationDate: inventoryData.expirationDate ? new Date(inventoryData.expirationDate) : null,
-                        manufactureDate: inventoryData.manufactureDate ? new Date(inventoryData.manufactureDate) : null,
-                        supplierName: inventoryData.supplierName || null,
-                        supplierCode: inventoryData.supplierCode || null,
-                        isDefault: true,
-                        isActive: inventoryData.status !== 'inactive'
-                    }
-                });
+                // Create variants and their inventories
+                for (let i = 0; i < variants.length; i++) {
+                    const variant = variants[i];
+                    const variantId = variant.id || uuidv4();
 
-                // Create inventory for the variant
-                await tx.inventory.create({
-                    data: {
-                        id: uuidv4(),
-                        tenantId: auth.tenantId,
-                        branchId: auth.branchId,
-                        variantId: variantId,
-                        availableQuantity: quantity,
-                        reservedQuantity: parseInt(inventoryData.reservedQuantity || 0),
-                        damagedQuantity: 0,
-                        averageCost: parseFloat(inventoryData.costPrice || 0),
-                        lastPurchaseCost: parseFloat(inventoryData.costPrice || 0),
-                        reorderPoint: minStock,
-                        maxStock: maxStock,
-                        trackInventory: inventoryData.trackInventory !== false,
-                        allowNegativeStock: inventoryData.allowNegativeStock || false
-                    }
-                });
+                    const sellPrice = parseFloat(variant.sellPrice || variant.sellingPrice || 0);
+                    const quantity = parseInt(variant.quantity || 0);
+                    const minStock = variant.minStock ? parseInt(variant.minStock) : null;
+                    const maxStock = variant.maxStock ? parseInt(variant.maxStock) : null;
+                    const primaryBarcode = variant.barcode || variant.primaryBarcode || null;
+                    const sku = variant.sku || variant.barcode || null;
 
-                // Create additional barcodes
-                if (inventoryData.additionalBarcodes && Array.isArray(inventoryData.additionalBarcodes)) {
-                    for (const barcode of inventoryData.additionalBarcodes) {
-                        const barcodeValue = typeof barcode === 'string' ? barcode : barcode.code || barcode.barcode;
-                        await tx.variantBarcode.create({
-                            data: {
-                                id: uuidv4(),
-                                variantId: variantId,
-                                barcode: barcodeValue,
-                                barcodeType: barcode.type || 'EAN13',
-                                barcodeSource: barcode.source || 'STORE',
-                                isActive: true
+                    // Create the variant
+                    await tx.productVariant.create({
+                        data: {
+                            id: variantId,
+                            productId: productId,
+                            tenantId: auth.tenantId,
+                            branchId: auth.branchId,
+                            sku: sku,
+                            variantName: variant.variantName || (variants.length > 1 ? `Variant ${i + 1}` : 'Default'),
+                            primaryBarcode: primaryBarcode,
+                            sellingPrice: sellPrice,
+                            costPrice: parseFloat(variant.costPrice || 0),
+                            unit: variant.unit || inventoryData.unit || 'piece',
+                            description: variant.description || null,
+                            brand: variant.brand || null,
+                            size: variant.size || null,
+                            weight: variant.weight ? parseFloat(variant.weight) : null,
+                            dimensions: variant.dimensions || null,
+                            promoPrice: variant.promoPrice ? parseFloat(variant.promoPrice) : null,
+                            promoStart: variant.promoStart ? new Date(variant.promoStart) : null,
+                            promoEnd: variant.promoEnd ? new Date(variant.promoEnd) : null,
+                            isTaxable: variant.isTaxable !== false,
+                            expirationDate: variant.expirationDate ? new Date(variant.expirationDate) : null,
+                            manufactureDate: variant.manufactureDate ? new Date(variant.manufactureDate) : null,
+                            supplierName: variant.supplierName || null,
+                            supplierCode: variant.supplierCode || null,
+                            isDefault: i === 0 || variant.isDefault === true,
+                            isActive: variant.status !== 'inactive'
+                        }
+                    });
+
+                    // Create inventory for the variant
+                    await tx.inventory.create({
+                        data: {
+                            id: uuidv4(),
+                            tenantId: auth.tenantId,
+                            branchId: auth.branchId,
+                            productId: productId, // References the parent product
+                            variantId: variantId, // References the variant
+                            availableQuantity: quantity,
+                            reservedQuantity: parseInt(variant.reservedQuantity || 0),
+                            damagedQuantity: 0,
+                            averageCost: parseFloat(variant.costPrice || 0),
+                            lastPurchaseCost: parseFloat(variant.costPrice || 0),
+                            reorderPoint: minStock,
+                            maxStock: maxStock,
+                            trackInventory: variant.trackInventory !== false,
+                            allowNegativeStock: variant.allowNegativeStock || false
+                        }
+                    });
+
+                    // Create additional barcodes
+                    if (variant.additionalBarcodes && Array.isArray(variant.additionalBarcodes)) {
+                        for (const barcode of variant.additionalBarcodes) {
+                            const barcodeValue = typeof barcode === 'string' ? barcode : barcode.code || barcode.barcode;
+                            if (barcodeValue) {
+                                await tx.variantBarcode.create({
+                                    data: {
+                                        id: uuidv4(),
+                                        variantId: variantId,
+                                        barcode: barcodeValue,
+                                        barcodeType: barcode.type || 'EAN13',
+                                        barcodeSource: barcode.source || 'STORE',
+                                        isActive: true
+                                    }
+                                });
                             }
-                        });
+                        }
                     }
                 }
             });
