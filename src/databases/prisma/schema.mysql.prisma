@@ -16,7 +16,7 @@ model Product {
   tenantId    String     @map("tenant_id")
   branchId    String     @map("branch_id")
   categoryId  String?    @map("category_id")
-  sku         String     @unique @map("sku")
+  sku         String?    @map("sku")
   name        String     @map("name")
   
   // Primary barcode (what you sell/scan at POS)
@@ -63,11 +63,11 @@ model Product {
   saleItems   SaleItem[]
   productBarcodes ProductBarcode[] // Multiple barcodes
   
-  @@unique([branchId, sku], name: "unique_branch_sku")
   @@index([branchId])
   @@index([tenantId])
   @@index([categoryId])
   @@index([primaryBarcode])
+  @@index([sku])
   @@map("products")
 }
 
