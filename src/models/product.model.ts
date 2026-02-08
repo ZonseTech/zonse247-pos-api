@@ -5,7 +5,7 @@ export interface Product {
     tenantId: string;
     branchId: string;
     categoryId?: string;
-    sku: string;
+    sku?: string | null;
     name: string;
     primaryBarcode?: string;
     description?: string;
@@ -33,7 +33,7 @@ export interface CreateProductInput {
     tenantId: string;
     branchId: string;
     categoryId?: string;
-    sku: string;
+    sku?: string | null;
     name: string;
     primaryBarcode?: string;
     description?: string;

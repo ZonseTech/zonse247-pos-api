@@ -7,7 +7,7 @@ import { Category } from "categoty";
 export interface InventoryItem {
     // Product fields
     productId: string;
-    sku: string;
+    sku?: string | null;
     name: string;
     description?: string;
     unit: string;
