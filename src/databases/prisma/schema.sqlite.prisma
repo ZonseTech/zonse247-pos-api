@@ -13,61 +13,146 @@ model Product {
   tenantId   String  @map("tenant_id")
   branchId   String  @map("branch_id")
   categoryId String? @map("category_id")
-  sku        String? @map("sku")
   name       String  @map("name")
+  description String? @map("description")
 
-  // Primary barcode (what you sell/scan at POS)
-  primaryBarcode String? @unique @map("primary_barcode")
-
-  description  String?  @map("description")
-  unit         String   @default("piece") @map("unit")
-  sellingPrice Float    @default(0.00) @map("selling_price")
-
-  // Product attributes
+  // Brand info
   brand      String? @map("brand")
-  color      String? @map("color")
-  size       String? @map("size")
-  dimensions String? @map("dimensions")
-  weight     Float?  @map("weight")
 
-  // Promotional pricing
-  promoPrice Float?    @map("promo_price")
-  promoStart DateTime? @map("promo_start")
-  promoEnd   DateTime? @map("promo_end")
+  // Tax (applies to all variants unless overridden)
+  isTaxable  Boolean? @map("is_taxable")
 
-  // Tax
-  isTaxable Boolean @default(true) @map("is_taxable")
-
-  // Dates
-  expirationDate  DateTime? @map("expiration_date")
-  manufactureDate DateTime? @map("manufacture_date")
-
-  // Supplier info
+  // Supplier info (common supplier for all variants)
   supplierName String? @map("supplier_name")
   supplierCode String? @map("supplier_code")
 
-  isActive  Boolean  @default(true) @map("is_active")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  // Default unit for variants (can be overridden per variant)
+  defaultUnit String? @map("default_unit")
+
+  // Custom attributes schema (defines what custom fields variants can have)
+  customAttributeSchema String? @map("custom_attribute_schema")
+
+  // Image for the product (main product image)
+  imageUrl   String? @map("image_url")
+
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
 
   // Relations
   tenant   Tenant    @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade)
   branch   Branch    @relation(fields: [branchId], references: [branchId], onDelete: Cascade)
   category Category? @relation(fields: [categoryId], references: [categoryId], onDelete: SetNull)
 
-  inventories        Inventory[]
-  purchaseOrderItems PurchaseOrderItem[]
-  saleItems          SaleItem[]
-  productBarcodes    ProductBarcode[] // Multiple barcodes
+  variants ProductVariant[] // All variants of this product
 
+  @@unique([branchId, name], name: "unique_branch_product_name")
   @@index([branchId])
   @@index([tenantId])
   @@index([categoryId])
-  @@index([primaryBarcode])
-  @@index([sku])
+  @@index([name])
   @@map("products")
 }
 
+// ProductVariant is the sellable unit (e.g., "Nivea 50ml", "Nivea 200ml")
+model ProductVariant {
+  id         String  @id @default(cuid()) @map("variant_id")
+  productId  String  @map("product_id")
+  tenantId   String  @map("tenant_id")
+  branchId   String  @map("branch_id")
+
+  // Variant identification
+  sku         String? @map("sku")
+  variantName String  @map("variant_name")
+
+  // Primary barcode for this variant
+  primaryBarcode String? @unique @map("primary_barcode")
+
+  // Pricing
+  sellingPrice Float   @default(0.00) @map("selling_price")
+  costPrice    Float   @default(0.00) @map("cost_price")
+
+  // Unit for this variant
+  unit        String  @default("piece") @map("unit")
+
+  // Optional variant-level overrides (inherit from Product if null)
+  description  String?  @map("description")
+  brand        String?  @map("brand")
+  imageUrl     String?  @map("image_url")
+  isTaxable    Boolean? @map("is_taxable")
+  supplierName String?  @map("supplier_name")
+  supplierCode String?  @map("supplier_code")
+
+  // Size/weight/volume attributes
+  size        String? @map("size")
+  weight      Float?  @map("weight")
+  weightUnit  String? @map("weight_unit")
+  volume      Float?  @map("volume")
+  volumeUnit  String? @map("volume_unit")
+  dimensions  String? @map("dimensions")
+
+  // Additional variant attributes (JSON)
+  customAttributes String? @map("custom_attributes")
+
+  // Promotional pricing
+  promoPrice  Float?    @map("promo_price")
+  promoStart  DateTime? @map("promo_start")
+  promoEnd    DateTime? @map("promo_end")
+
+  // Dates
+  expirationDate  DateTime? @map("expiration_date")
+  manufactureDate DateTime? @map("manufacture_date")
+
+  // Is this the default variant?
+  isDefault   Boolean @default(false) @map("is_default")
+
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  product     Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  tenant      Tenant  @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade)
+  branch      Branch  @relation(fields: [branchId], references: [branchId], onDelete: Cascade)
+
+  inventory   Inventory?
+  purchaseOrderItems PurchaseOrderItem[]
+  saleItems   SaleItem[]
+  barcodes    VariantBarcode[]
+
+  @@unique([productId, variantName], name: "unique_product_variant")
+  @@index([productId])
+  @@index([branchId])
+  @@index([tenantId])
+  @@index([sku])
+  @@index([primaryBarcode])
+  @@index([variantName])
+  @@map("product_variants")
+}
+
+// VariantBarcode - multiple barcodes per variant
+model VariantBarcode {
+  id          String      @id @default(cuid()) @map("variant_barcode_id")
+  variantId   String      @map("variant_id")
+  barcode     String      @unique @map("barcode")
+  barcodeType BarcodeType @default(EAN13) @map("barcode_type")
+
+  barcodeSource BarcodeSource @default(SUPPLIER) @map("barcode_source")
+  description   String?       @map("description")
+
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  variant ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+
+  @@unique([variantId, barcode], name: "unique_variant_barcode")
+  @@index([variantId])
+  @@index([barcode])
+  @@map("variant_barcodes")
+}
+
+// DEPRECATED: Keep for backward compatibility
 model ProductBarcode {
   id          String      @id @default(cuid()) @map("product_barcode_id")
   productId   String      @map("product_id")
@@ -82,11 +167,9 @@ model ProductBarcode {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
-
   @@unique([productId, barcode], name: "unique_product_barcode")
   @@index([productId])
-  @@index([barcode]) // Critical for fast searches
+  @@index([barcode])
   @@map("product_barcodes")
 }
 
@@ -173,7 +256,7 @@ model PurchaseOrder {
 model PurchaseOrderItem {
   id               String   @id @default(cuid()) @map("purchase_order_item_id")
   purchaseOrderId  String   @map("purchase_order_id")
-  productId        String   @map("product_id")
+  variantId        String   @map("variant_id")
   orderedQuantity  Int      @default(0) @map("ordered_quantity")
   receivedQuantity Int      @default(0) @map("received_quantity")
   damagedQuantity  Int      @default(0) @map("damaged_quantity")
@@ -183,12 +266,12 @@ model PurchaseOrderItem {
   createdAt        DateTime @default(now()) @map("created_at")
   updatedAt        DateTime @updatedAt @map("updated_at")
 
-  purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
-  product       Product       @relation(fields: [productId], references: [id], onDelete: Restrict)
+  purchaseOrder PurchaseOrder  @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  variant       ProductVariant @relation(fields: [variantId], references: [id], onDelete: Restrict)
 
-  @@unique([purchaseOrderId, productId], name: "unique_po_product")
+  @@unique([purchaseOrderId, variantId], name: "unique_po_variant")
   @@index([purchaseOrderId])
-  @@index([productId])
+  @@index([variantId])
   @@map("purchase_order_items")
 }
 
@@ -196,7 +279,7 @@ model Inventory {
   id        String @id @default(cuid()) @map("inventory_id")
   tenantId  String @map("tenant_id")
   branchId  String @map("branch_id")
-  productId String @unique @map("product_id")
+  variantId String @unique @map("variant_id")
 
   availableQuantity Int @default(0) @map("available_quantity")
   reservedQuantity  Int @default(0) @map("reserved_quantity")
@@ -217,12 +300,12 @@ model Inventory {
 
   tenant         Tenant          @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade)
   branch         Branch          @relation(fields: [branchId], references: [branchId], onDelete: Cascade)
-  product        Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variant        ProductVariant  @relation(fields: [variantId], references: [id], onDelete: Cascade)
   stockMovements StockMovement[]
 
   @@index([branchId])
   @@index([tenantId])
-  @@index([productId])
+  @@index([variantId])
   @@map("inventory")
 }
 
@@ -318,7 +401,7 @@ model Sale {
 model SaleItem {
   id        String @id @default(cuid()) @map("sale_item_id")
   saleId    String @map("sale_id")
-  productId String @map("product_id")
+  variantId String @map("variant_id")
 
   quantity  Int   @map("quantity")
   unitPrice Float @map("unit_price")
@@ -331,12 +414,12 @@ model SaleItem {
 
   createdAt DateTime @default(now()) @map("created_at")
 
-  sale    Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
-  product Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+  sale    Sale           @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  variant ProductVariant @relation(fields: [variantId], references: [id], onDelete: Restrict)
 
-  @@unique([saleId, productId], name: "unique_sale_product")
+  @@unique([saleId, variantId], name: "unique_sale_variant")
   @@index([saleId])
-  @@index([productId])
+  @@index([variantId])
   @@map("sale_items")
 }
 
@@ -508,6 +591,7 @@ model Branch {
 
   // ADDED: New inventory flow relations
   products       Product[]
+  productVariants ProductVariant[]
   suppliers      Supplier[]
   purchaseOrders PurchaseOrder[]
   inventories    Inventory[]
@@ -868,6 +952,7 @@ model Tenant {
 
   // ADDED: New inventory flow relations
   products       Product[]
+  productVariants ProductVariant[]
   suppliers      Supplier[]
   purchaseOrders PurchaseOrder[]
   inventories    Inventory[]
