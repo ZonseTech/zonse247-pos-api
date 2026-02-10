@@ -51,6 +51,7 @@ export interface InventoryItem {
     lastSoldAt?: Date | string;
     expirationDate?: Date | string;
     manufactureDate?: Date | string;
+    expiryDateAlert?: number;  // Days before expiration to trigger alert
     createdAt: Date | string;
     updatedAt: Date | string;
 

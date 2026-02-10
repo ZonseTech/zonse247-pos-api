@@ -18,7 +18,7 @@ import { getDatabaseConfig } from '../../config/db';
  * Current schema version - INCREMENT THIS when schema changes
  * Format: YYYYMMDD_NN (date + sequence number)
  */
-export const CURRENT_DB_VERSION = '20260208_03';
+export const CURRENT_DB_VERSION = '20260210_01';
 
 /**
  * Minimum supported version for migration (older versions require fresh install)
@@ -990,6 +990,26 @@ export const MIGRATIONS: Migration[] = [
                 `DROP INDEX inventory_variant_id_key ON inventory`,
                 `DROP INDEX idx_inventory_product_id ON inventory`,
                 `CREATE UNIQUE INDEX inventory_product_id_key ON inventory (product_id)`,
+            ],
+        },
+    },
+    {
+        version: '20260210_01',
+        description: 'Add expiry_date_alert column to product_variants table for expiration alerts',
+        up: {
+            sqlite: [
+                `ALTER TABLE "product_variants" ADD COLUMN "expiry_date_alert" INTEGER`,
+            ],
+            mysql: [
+                `ALTER TABLE product_variants ADD COLUMN expiry_date_alert INT NULL`,
+            ],
+        },
+        down: {
+            sqlite: [
+                // SQLite doesn't support DROP COLUMN easily, would need table recreation
+            ],
+            mysql: [
+                `ALTER TABLE product_variants DROP COLUMN expiry_date_alert`,
             ],
         },
     },

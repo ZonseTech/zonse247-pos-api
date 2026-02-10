@@ -50,6 +50,7 @@ export interface ProductVariant {
     promoEnd?: Date | null;
     expirationDate?: Date | null;
     manufactureDate?: Date | null;
+    expiryDateAlert?: number | null;  // Days before expiration to trigger alert
     isDefault: boolean;
     isActive: boolean;
     createdAt: Date;
@@ -154,6 +155,7 @@ export interface CreateVariantInput {
     promoEnd?: Date;
     expirationDate?: Date;
     manufactureDate?: Date;
+    expiryDateAlert?: number;  // Days before expiration to trigger alert
     isDefault?: boolean;
     trackInventory?: boolean;
     allowNegativeStock?: boolean;
@@ -206,6 +208,7 @@ export interface UpdateVariantInput {
     promoEnd?: Date;
     expirationDate?: Date;
     manufactureDate?: Date;
+    expiryDateAlert?: number;  // Days before expiration to trigger alert
     isDefault?: boolean;
     isActive?: boolean;
     trackInventory?: boolean;
@@ -258,36 +261,36 @@ export interface ProductWithInventory {
     tenantId: string;
     branchId: string;
     categoryId?: string | null;
-    
+
     // Variant identification
     sku?: string | null;
     name: string;          // Product name
     variantName: string;   // Variant name (e.g., "50ml")
     displayName: string;   // Combined: "Nivea Lotion - 50ml"
     primaryBarcode?: string | null;
-    
+
     // Pricing
     sellingPrice: number;
     costPrice: number;
-    
+
     // Unit
     unit: string;
-    
+
     // Other fields
     description?: string | null;
     brand?: string | null;
     imageUrl?: string | null;
     isTaxable?: boolean | null;
-    
+
     // Status
     isActive: boolean;
     status?: 'ACTIVE' | 'INACTIVE' | 'OUT_OF_STOCK' | 'DISCONTINUED';
     isDefault: boolean;
-    
+
     // Timestamps
     createdAt: Date;
     updatedAt: Date;
-    
+
     // Inventory
     inventory?: {
         availableQuantity: number;
@@ -300,7 +303,7 @@ export interface ProductWithInventory {
         trackInventory: boolean;
         allowNegativeStock: boolean;
     };
-    
+
     // Category
     categoryDetails?: {
         categoryId: string;
@@ -309,7 +312,7 @@ export interface ProductWithInventory {
         isActive?: boolean | null;
         isDefault?: boolean | null;
     };
-    
+
     // Barcodes
     barcodes?: VariantBarcode[];
 }

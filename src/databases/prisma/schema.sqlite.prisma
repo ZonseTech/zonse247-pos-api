@@ -103,6 +103,9 @@ model ProductVariant {
   expirationDate  DateTime? @map("expiration_date")
   manufactureDate DateTime? @map("manufacture_date")
 
+  // Expiry date alert - days before expiration to trigger alert (e.g., 30 days)
+  expiryDateAlert Int?     @map("expiry_date_alert")
+
   // Is this the default variant?
   isDefault   Boolean @default(false) @map("is_default")
 

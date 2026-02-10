@@ -41,6 +41,7 @@ export interface CreateVariantData {
     promoEnd?: Date;
     expirationDate?: Date;
     manufactureDate?: Date;
+    expiryDateAlert?: number;  // Days before expiration to trigger alert
     isDefault?: boolean;
     barcodes?: BarcodeInput[];
     inventory?: {
@@ -211,6 +212,7 @@ export class ProductRepository {
                     promoEnd: data.promoEnd,
                     expirationDate: data.expirationDate,
                     manufactureDate: data.manufactureDate,
+                    expiryDateAlert: data.expiryDateAlert,
                     isDefault: data.isDefault ?? false,
                     barcodes: data.barcodes ? { create: createBarcodeRecords(data.barcodes) } : undefined,
                     inventory: { create: createInventoryData(scope.tenantId, scope.branchId, data.inventory) },
@@ -263,6 +265,7 @@ export class ProductRepository {
                     promoEnd: data.promoEnd,
                     expirationDate: data.expirationDate,
                     manufactureDate: data.manufactureDate,
+                    expiryDateAlert: data.expiryDateAlert,
                     isDefault: data.isDefault,
                     isActive: data.isActive,
                 },

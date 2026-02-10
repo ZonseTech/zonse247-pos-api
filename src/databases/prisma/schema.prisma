@@ -110,6 +110,7 @@ model ProductVariant {
   // Dates
   expirationDate  DateTime? @map("expiration_date")
   manufactureDate DateTime? @map("manufacture_date")
+  expiryDateAlert Int?      @map("expiry_date_alert")
   
   // Is this the default variant? (shown first in lists)
   isDefault   Boolean    @default(false) @map("is_default")
