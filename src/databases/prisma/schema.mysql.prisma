@@ -414,6 +414,7 @@ model Sale {
 model SaleItem {
   id              String   @id @default(uuid()) @map("sale_item_id")
   saleId          String   @map("sale_id")
+  productId       String   @map("product_id")  // Legacy field - parent product ID
   variantId       String   @map("variant_id")
   
   quantity        Int      @map("quantity")
@@ -433,6 +434,7 @@ model SaleItem {
   @@unique([saleId, variantId], name: "unique_sale_variant")
   @@index([saleId])
   @@index([variantId])
+  @@index([productId])
   @@map("sale_items")
 }
 

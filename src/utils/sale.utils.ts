@@ -73,11 +73,13 @@ export function calculateItemTotals(item: CreateSaleItemInput): {
 export function createProcessedItem(
     item: CreateSaleItemInput,
     inventoryId: string,
-    averageCost: number
+    averageCost: number,
+    productId: string
 ): ProcessedSaleItem {
     const { subtotal, taxAmount, discountAmount, totalAmount } = calculateItemTotals(item);
 
     return {
+        productId,  // Parent product ID for legacy database column
         variantId: item.variantId || item.productId!,
         quantity: item.quantity,
         unitPrice: item.unitPrice,

@@ -305,8 +305,8 @@ export class SaleService {
             const displayName = getProductDisplayName(variant.product.name, variant.variantName);
             validateStockAvailability(inventory, item.quantity, displayName);
 
-            // Create processed item
-            const processedItem = createProcessedItem(item, inventory.id, Number(inventory.averageCost));
+            // Create processed item (include productId for legacy database column)
+            const processedItem = createProcessedItem(item, inventory.id, Number(inventory.averageCost), variant.productId);
             processedItems.push(processedItem);
             subtotal += processedItem.subtotal;
         }

@@ -233,6 +233,7 @@ export interface ProductInfo {
  * Internal type for processing sale items with cost information
  */
 export interface ProcessedSaleItem {
+    productId: string;  // Parent product ID (for legacy support)
     variantId: string;
     quantity: number;
     unitPrice: number;

@@ -18,7 +18,7 @@ import { getDatabaseConfig } from '../../config/db';
  * Current schema version - INCREMENT THIS when schema changes
  * Format: YYYYMMDD_NN (date + sequence number)
  */
-export const CURRENT_DB_VERSION = '20260210_01';
+export const CURRENT_DB_VERSION = '20260210_03';
 
 /**
  * Minimum supported version for migration (older versions require fresh install)
@@ -1010,6 +1010,89 @@ export const MIGRATIONS: Migration[] = [
             ],
             mysql: [
                 `ALTER TABLE product_variants DROP COLUMN expiry_date_alert`,
+            ],
+        },
+    },
+    {
+        version: '20260210_02',
+        description: 'Add productId field to SaleItem Prisma schema (column already exists in database)',
+        up: {
+            sqlite: [
+                // productId column already exists from initial schema - no SQL needed
+                // This migration syncs Prisma schema with existing database structure
+                `SELECT 1`, // No-op placeholder
+            ],
+            mysql: [
+                // productId column already exists from initial schema - no SQL needed
+                // This migration syncs Prisma schema with existing database structure
+                // Add index if not exists for better query performance
+                `DROP PROCEDURE IF EXISTS add_sale_items_product_id_idx`,
+                `CREATE PROCEDURE add_sale_items_product_id_idx()
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM INFORMATION_SCHEMA.STATISTICS 
+                        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'sale_items' AND INDEX_NAME = 'idx_sale_items_product_id'
+                    ) THEN
+                        CREATE INDEX idx_sale_items_product_id ON sale_items (product_id);
+                    END IF;
+                END`,
+                `CALL add_sale_items_product_id_idx()`,
+                `DROP PROCEDURE IF EXISTS add_sale_items_product_id_idx`,
+            ],
+        },
+        down: {
+            sqlite: [
+                `SELECT 1`, // No-op - column should remain
+            ],
+            mysql: [
+                // Don't drop productId - it's a legacy column needed for existing data
+                `DROP INDEX idx_sale_items_product_id ON sale_items`,
+            ],
+        },
+    },
+    {
+        version: '20260210_03',
+        description: 'Fix sale_items unique constraint from (sale_id, product_id) to (sale_id, variant_id)',
+        up: {
+            sqlite: [
+                // SQLite: Drop old constraint and create new one
+                `DROP INDEX IF EXISTS "sale_items_sale_id_product_id_key"`,
+                `CREATE UNIQUE INDEX IF NOT EXISTS "unique_sale_variant" ON "sale_items" ("sale_id", "variant_id")`,
+            ],
+            mysql: [
+                // MySQL: Drop old unique constraint and create new one
+                // Use stored procedure for idempotent operation
+                `DROP PROCEDURE IF EXISTS fix_sale_items_unique_constraint`,
+                `CREATE PROCEDURE fix_sale_items_unique_constraint()
+                BEGIN
+                    -- Drop old constraint if exists (sale_id, product_id)
+                    IF EXISTS (
+                        SELECT 1 FROM INFORMATION_SCHEMA.STATISTICS 
+                        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'sale_items' AND INDEX_NAME = 'sale_items_sale_id_product_id_key'
+                    ) THEN
+                        ALTER TABLE sale_items DROP INDEX sale_items_sale_id_product_id_key;
+                    END IF;
+                    
+                    -- Create new constraint if not exists (sale_id, variant_id)
+                    IF NOT EXISTS (
+                        SELECT 1 FROM INFORMATION_SCHEMA.STATISTICS 
+                        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'sale_items' AND INDEX_NAME = 'unique_sale_variant'
+                    ) THEN
+                        CREATE UNIQUE INDEX unique_sale_variant ON sale_items (sale_id, variant_id);
+                    END IF;
+                END`,
+                `CALL fix_sale_items_unique_constraint()`,
+                `DROP PROCEDURE IF EXISTS fix_sale_items_unique_constraint`,
+            ],
+        },
+        down: {
+            sqlite: [
+                `DROP INDEX IF EXISTS "unique_sale_variant"`,
+                `CREATE UNIQUE INDEX "sale_items_sale_id_product_id_key" ON "sale_items" ("sale_id", "product_id")`,
+            ],
+            mysql: [
+                `DROP INDEX unique_sale_variant ON sale_items`,
+                `CREATE UNIQUE INDEX sale_items_sale_id_product_id_key ON sale_items (sale_id, product_id)`,
             ],
         },
     },
