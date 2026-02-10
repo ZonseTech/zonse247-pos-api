@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-non-null-assertion */
 import validator from 'validator';
 import { UserModel } from '../models/user.model';
 import { RoleModel } from '../models/role.model';
@@ -159,10 +160,8 @@ export class UserService {
 
 	static async createUser(userData: Partial<User>, auth: { tenantId: string; branchId: string; userId: string }): Promise<any> {
 		try {
-			// Validate input
 			this.validateUserInput(userData, true);
 
-			// Check if user already exists
 			const userExists = await UserModel.checkUserExists(
 				userData.username!,
 				userData.email || ''
