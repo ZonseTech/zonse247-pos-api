@@ -57,7 +57,7 @@ export class InventoryService {
         return await InventoryModel.getTopValueInventoryItems(auth, limit);
     }
 
-    static async getInventoryItemByUuid(productId: string, auth: AuthenticatedUser): Promise<InventoryItem | null> {
+    static async getInventoryItemByUuid(productId: string, auth: AuthenticatedUser): Promise<InventoryItem | any | null> {
         return await InventoryModel.findById(productId, auth);
     }
 
@@ -73,8 +73,32 @@ export class InventoryService {
         filter = 'all',
         categoryId?: string,
         startDate?: string,
-        endDate?: string
-    ): Promise<{ inventoryItems: InventoryItem[]; total: number; totalPages: number }> {
+        endDate?: string,
+        groupByProduct = false
+    ): Promise<{ inventoryItems?: InventoryItem[]; products?: any[]; total: number; totalPages: number }> {
+        const skip = (page - 1) * perPage;
+
+        if (groupByProduct) {
+            const { products, total } = await InventoryModel.findProductsWithVariants(
+                auth,
+                skip,
+                perPage,
+                search,
+                filter,
+                categoryId,
+                startDate,
+                endDate
+            );
+
+            const totalPages = Math.ceil(total / perPage);
+
+            return {
+                products,
+                total,
+                totalPages
+            };
+        }
+
         const categories: Category[] = await CategoryService.getAllCategories(auth);
 
         const categoryMap = new Map<string, Category>();
@@ -83,8 +107,6 @@ export class InventoryService {
                 categoryMap.set(category.categoryId, category);
             }
         });
-
-        const skip = (page - 1) * perPage;
 
         const inventoryItems: InventoryItem[] = await InventoryModel.findActiveWithPagination(
             auth,
@@ -98,7 +120,8 @@ export class InventoryService {
         );
 
         const totalItems = await InventoryModel.getFilteredCount(auth, search, filter, categoryId, startDate, endDate);
-        const totalPages = Math.ceil(totalItems / perPage); const enhancedItems = inventoryItems.map((item) => ({
+        const totalPages = Math.ceil(totalItems / perPage);
+        const enhancedItems = inventoryItems.map((item) => ({
             ...item,
             categoryDetails: item.categoryId ? categoryMap.get(item.categoryId) : undefined
         }));

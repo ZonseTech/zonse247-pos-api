@@ -29,13 +29,14 @@ import {
 export class InventoryModel {
 
     /**
-     * Find inventory item by variant ID
-     * Note: productId in the API actually refers to variantId now
+     * Find inventory item by variant ID or product ID
+     * First tries to find a variant, then falls back to finding a product with its variants
      */
-    static async findById(variantId: string, auth: AuthenticatedUser): Promise<InventoryItem | null> {
-        const result = await prisma.productVariant.findFirst({
+    static async findById(id: string, auth: AuthenticatedUser): Promise<InventoryItem | any | null> {
+        // First try to find as a variant
+        const variantResult = await prisma.productVariant.findFirst({
             where: {
-                id: variantId,
+                id: id,
                 tenantId: auth.tenantId,
                 branchId: auth.branchId
             },
@@ -52,7 +53,35 @@ export class InventoryModel {
             }
         });
 
-        return this.mapToInventoryItem(result);
+        if (variantResult) {
+            return this.mapToInventoryItem(variantResult);
+        }
+
+        // If not found as variant, try to find as a product
+        const productResult = await prisma.product.findFirst({
+            where: {
+                id: id,
+                tenantId: auth.tenantId,
+                branchId: auth.branchId
+            },
+            include: {
+                category: true,
+                variants: {
+                    where: { isActive: true },
+                    orderBy: [{ isDefault: 'desc' }, { variantName: 'asc' }],
+                    include: {
+                        inventory: true,
+                        barcodes: { where: { isActive: true } }
+                    }
+                }
+            }
+        });
+
+        if (productResult) {
+            return this.mapToProductWithVariants(productResult);
+        }
+
+        return null;
     }
 
     /**
@@ -757,6 +786,137 @@ export class InventoryModel {
     }
 
     /**
+     * Update a product with all its variants
+     * Handles the case where a product ID is passed with nested variants array
+     */
+    static async updateProductWithVariants(productId: string, updateData: Record<string, any>, _auth: AuthenticatedUser): Promise<number> {
+        await prisma.$transaction(async (tx) => {
+            // Update product-level fields
+            const productUpdate: any = {};
+            if (updateData.name !== undefined) productUpdate.name = updateData.name;
+            if (updateData.categoryId !== undefined) productUpdate.categoryId = updateData.categoryId || null;
+            if (updateData.description !== undefined) productUpdate.description = updateData.description || null;
+            if (updateData.brand !== undefined) productUpdate.brand = updateData.brand || null;
+            if (updateData.isTaxable !== undefined) productUpdate.isTaxable = updateData.isTaxable;
+            if (updateData.supplierName !== undefined) productUpdate.supplierName = updateData.supplierName || null;
+            if (updateData.supplierCode !== undefined) productUpdate.supplierCode = updateData.supplierCode || null;
+            if (updateData.defaultUnit !== undefined || updateData.unit !== undefined) {
+                productUpdate.defaultUnit = updateData.defaultUnit || updateData.unit;
+            }
+            if (updateData.imageUrl !== undefined) productUpdate.imageUrl = updateData.imageUrl || null;
+            if (updateData.isActive !== undefined) productUpdate.isActive = updateData.isActive;
+
+            if (Object.keys(productUpdate).length > 0) {
+                await tx.product.update({
+                    where: { id: productId },
+                    data: productUpdate
+                });
+            }
+
+            // Update each variant if variants array is provided
+            if (updateData.variants && Array.isArray(updateData.variants)) {
+                for (const variantData of updateData.variants) {
+                    if (!variantData.id) continue;
+
+                    const variantUpdate: any = {};
+
+                    // Variant identification
+                    if (variantData.variantName !== undefined) variantUpdate.variantName = variantData.variantName;
+                    if (variantData.sku !== undefined) variantUpdate.sku = variantData.sku || null;
+                    if (variantData.primaryBarcode !== undefined || variantData.barcode !== undefined) {
+                        variantUpdate.primaryBarcode = variantData.primaryBarcode || variantData.barcode || null;
+                    }
+
+                    // Pricing
+                    if (variantData.sellingPrice !== undefined || variantData.sellPrice !== undefined) {
+                        variantUpdate.sellingPrice = parseFloat(variantData.sellingPrice ?? variantData.sellPrice);
+                    }
+                    if (variantData.costPrice !== undefined) {
+                        variantUpdate.costPrice = parseFloat(variantData.costPrice);
+                    }
+
+                    // Unit
+                    if (variantData.unit !== undefined) variantUpdate.unit = variantData.unit;
+
+                    // Optional fields
+                    if (variantData.description !== undefined) variantUpdate.description = variantData.description || null;
+                    if (variantData.brand !== undefined) variantUpdate.brand = variantData.brand || null;
+                    if (variantData.imageUrl !== undefined) variantUpdate.imageUrl = variantData.imageUrl || null;
+                    if (variantData.isTaxable !== undefined) variantUpdate.isTaxable = variantData.isTaxable;
+                    if (variantData.supplierName !== undefined) variantUpdate.supplierName = variantData.supplierName || null;
+                    if (variantData.supplierCode !== undefined) variantUpdate.supplierCode = variantData.supplierCode || null;
+
+                    // Size/weight/volume
+                    if (variantData.size !== undefined) variantUpdate.size = variantData.size || null;
+                    if (variantData.weight !== undefined) variantUpdate.weight = variantData.weight ? parseFloat(variantData.weight) : null;
+                    if (variantData.weightUnit !== undefined) variantUpdate.weightUnit = variantData.weightUnit || null;
+                    if (variantData.volume !== undefined) variantUpdate.volume = variantData.volume ? parseFloat(variantData.volume) : null;
+                    if (variantData.volumeUnit !== undefined) variantUpdate.volumeUnit = variantData.volumeUnit || null;
+                    if (variantData.dimensions !== undefined) variantUpdate.dimensions = variantData.dimensions || null;
+                    if (variantData.color !== undefined) variantUpdate.customAttributes = JSON.stringify({ color: variantData.color });
+
+                    // Promotional pricing
+                    if (variantData.promoPrice !== undefined) variantUpdate.promoPrice = variantData.promoPrice ? parseFloat(variantData.promoPrice) : null;
+                    if (variantData.promoStart !== undefined) variantUpdate.promoStart = variantData.promoStart && variantData.promoStart !== '' ? new Date(variantData.promoStart) : null;
+                    if (variantData.promoEnd !== undefined) variantUpdate.promoEnd = variantData.promoEnd && variantData.promoEnd !== '' ? new Date(variantData.promoEnd) : null;
+
+                    // Dates
+                    if (variantData.expirationDate !== undefined) variantUpdate.expirationDate = variantData.expirationDate && variantData.expirationDate !== '' ? new Date(variantData.expirationDate) : null;
+                    if (variantData.manufactureDate !== undefined) variantUpdate.manufactureDate = variantData.manufactureDate && variantData.manufactureDate !== '' ? new Date(variantData.manufactureDate) : null;
+                    if (variantData.expiryDateAlert !== undefined) variantUpdate.expiryDateAlert = variantData.expiryDateAlert && variantData.expiryDateAlert !== '' ? parseInt(variantData.expiryDateAlert) : null;
+
+                    // Status
+                    if (variantData.isDefault !== undefined) variantUpdate.isDefault = variantData.isDefault;
+                    if (variantData.isActive !== undefined) variantUpdate.isActive = variantData.isActive;
+                    if (variantData.status !== undefined) variantUpdate.isActive = variantData.status === 'active';
+
+                    if (Object.keys(variantUpdate).length > 0) {
+                        await tx.productVariant.update({
+                            where: { id: variantData.id },
+                            data: variantUpdate
+                        });
+                    }
+
+                    // Update inventory for this variant
+                    const inventoryUpdate: any = {};
+                    if (variantData.quantity !== undefined || variantData.availableQuantity !== undefined) {
+                        inventoryUpdate.availableQuantity = parseInt(variantData.quantity ?? variantData.availableQuantity);
+                    }
+                    if (variantData.reservedQuantity !== undefined) {
+                        inventoryUpdate.reservedQuantity = parseInt(variantData.reservedQuantity);
+                    }
+                    if (variantData.costPrice !== undefined) {
+                        inventoryUpdate.averageCost = parseFloat(variantData.costPrice);
+                        inventoryUpdate.lastPurchaseCost = parseFloat(variantData.costPrice);
+                    }
+                    if (variantData.minStock !== undefined || variantData.reorderLevel !== undefined) {
+                        const reorderValue = variantData.minStock ?? variantData.reorderLevel;
+                        inventoryUpdate.reorderPoint = reorderValue ? parseInt(reorderValue) : null;
+                    }
+                    if (variantData.maxStock !== undefined) {
+                        inventoryUpdate.maxStock = variantData.maxStock ? parseInt(variantData.maxStock) : null;
+                    }
+                    if (variantData.trackInventory !== undefined) {
+                        inventoryUpdate.trackInventory = variantData.trackInventory;
+                    }
+                    if (variantData.allowNegativeStock !== undefined) {
+                        inventoryUpdate.allowNegativeStock = variantData.allowNegativeStock;
+                    }
+
+                    if (Object.keys(inventoryUpdate).length > 0) {
+                        await tx.inventory.updateMany({
+                            where: { variantId: variantData.id },
+                            data: inventoryUpdate
+                        });
+                    }
+                }
+            }
+        });
+
+        return 1;
+    }
+
+    /**
      * Update with user context
      */
     static async updateWithUser(variantId: string, updateData: Record<string, any>, _auth: AuthenticatedUser): Promise<number> {
@@ -1287,6 +1447,7 @@ export class InventoryModel {
                 // Dates
                 expirationDate: data.expirationDate,
                 manufactureDate: data.manufactureDate,
+                expiryDateAlert: data.expiryDateAlert,
                 // Supplier info
                 supplierName: data.supplierName || product?.supplierName,
                 supplierCode: data.supplierCode || product?.supplierCode,
@@ -1349,6 +1510,7 @@ export class InventoryModel {
             // Dates
             expirationDate: data.expirationDate,
             manufactureDate: data.manufactureDate,
+            expiryDateAlert: data.expiryDateAlert,
             // Supplier info
             supplierName: data.supplierName || product?.supplierName,
             supplierCode: data.supplierCode || product?.supplierCode,
@@ -1398,12 +1560,77 @@ export class InventoryModel {
     /**
      * Additional methods for compatibility
      */
-    static async updateWithValidation(variantId: string, inventoryData: Record<string, any>, auth: AuthenticatedUser): Promise<number> {
+    static async updateWithValidation(id: string, inventoryData: Record<string, any>, auth: AuthenticatedUser): Promise<number> {
         try {
-            // Verify variant exists and belongs to tenant/branch
-            const exists = await this.exists(variantId, auth);
+            // Check if this is a product update (has variants array or productId matches)
+            const isProductUpdate = inventoryData.variants && Array.isArray(inventoryData.variants);
+
+            if (isProductUpdate) {
+                // Verify product exists and belongs to tenant/branch
+                const productExists = await prisma.product.findFirst({
+                    where: {
+                        id: id,
+                        tenantId: auth.tenantId,
+                        branchId: auth.branchId
+                    }
+                });
+
+                if (!productExists) {
+                    throw new NotFoundError('Product', id);
+                }
+
+                // Validate category if being updated
+                if (inventoryData.categoryId !== undefined && inventoryData.categoryId !== null) {
+                    const categoryExists = await prisma.category.findFirst({
+                        where: {
+                            categoryId: inventoryData.categoryId,
+                            tenantId: auth.tenantId,
+                            branchId: auth.branchId,
+                        },
+                    });
+                    if (!categoryExists) {
+                        throw new NotFoundError('Category', inventoryData.categoryId);
+                    }
+                }
+
+                // Validate each variant's barcode
+                for (const variantData of inventoryData.variants) {
+                    if (!variantData.id) continue;
+
+                    const newBarcode = variantData.barcode || variantData.primaryBarcode;
+                    if (newBarcode !== undefined && newBarcode !== null && newBarcode !== '') {
+                        const duplicateCheck = await ProductService.checkDuplicateBarcode(
+                            newBarcode,
+                            auth.tenantId,
+                            auth.branchId,
+                            variantData.id
+                        );
+                        if (duplicateCheck.exists) {
+                            throw new ConflictError(
+                                ProductErrors.BARCODE_EXISTS(newBarcode, duplicateCheck.productName),
+                                'barcode'
+                            );
+                        }
+                    }
+
+                    // Validate min/max stock for each variant
+                    const minStock = variantData.minStock !== undefined ? parseInt(variantData.minStock) : null;
+                    const maxStock = variantData.maxStock !== undefined ? parseInt(variantData.maxStock) : null;
+                    if (minStock !== null && maxStock !== null && minStock > maxStock) {
+                        throw new ValidationError(
+                            'Invalid stock configuration',
+                            { minStock: InventoryErrors.MIN_EXCEEDS_MAX(minStock, maxStock) }
+                        );
+                    }
+                }
+
+                return await this.updateProductWithVariants(id, inventoryData, auth);
+            }
+
+            // Single variant update (original behavior)
+            const exists = await this.exists(id, auth);
             if (!exists) {
-                throw new NotFoundError('Product', variantId);
+                throw new NotFoundError('Product', id);
             }
 
             // Validate min/max stock relationship if both are provided
@@ -1424,7 +1651,7 @@ export class InventoryModel {
                     newBarcode,
                     auth.tenantId,
                     auth.branchId,
-                    variantId
+                    id
                 );
                 if (duplicateCheck.exists) {
                     throw new ConflictError(
@@ -1448,7 +1675,7 @@ export class InventoryModel {
                 }
             }
 
-            return await this.update(variantId, inventoryData);
+            return await this.update(id, inventoryData);
         } catch (error) {
             // Re-throw if it's already a handled error
             if (error instanceof ValidationError ||
@@ -1477,6 +1704,278 @@ export class InventoryModel {
             throw new Error('Inventory item not found or access denied');
         }
         return await this.delete(variantId);
+    }
+
+    /**
+     * Find products with their variants grouped (for inventory listing)
+     * Returns products with nested variants instead of flat inventory items
+     */
+    static async findProductsWithVariants(
+        auth: AuthenticatedUser,
+        skip: number,
+        limit: number,
+        search = '',
+        filter = 'all',
+        categoryId?: string,
+        startDate?: string,
+        endDate?: string
+    ): Promise<{ products: any[]; total: number }> {
+        // Build product-level where clause
+        const productWhere: any = {
+            tenantId: auth.tenantId,
+            branchId: auth.branchId,
+        };
+
+        if (filter === 'all' || filter === 'active') {
+            productWhere.isActive = true;
+        } else if (filter === 'inactive') {
+            productWhere.isActive = false;
+        } else if (filter === 'new' || filter === 'new-stock') {
+            const oneWeekAgo = new Date();
+            oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+            productWhere.createdAt = { gte: oneWeekAgo };
+            productWhere.isActive = true;
+        } else {
+            productWhere.isActive = true;
+        }
+
+        // Date range filter
+        if (startDate || endDate) {
+            productWhere.createdAt = productWhere.createdAt || {};
+            if (startDate) {
+                productWhere.createdAt.gte = new Date(startDate);
+            }
+            if (endDate) {
+                const endDateTime = new Date(endDate);
+                endDateTime.setHours(23, 59, 59, 999);
+                productWhere.createdAt.lte = endDateTime;
+            }
+        }
+
+        if (categoryId) {
+            productWhere.categoryId = categoryId;
+        }
+
+        if (search) {
+            productWhere.OR = [
+                { name: { contains: search } },
+                { brand: { contains: search } },
+                { description: { contains: search } },
+                { variants: { some: { sku: { contains: search } } } },
+                { variants: { some: { primaryBarcode: { contains: search } } } },
+                { variants: { some: { variantName: { contains: search } } } },
+                { variants: { some: { barcodes: { some: { barcode: { contains: search } } } } } },
+            ];
+        }
+
+        // Build variant filter based on filter type
+        const variantWhere: any = { isActive: true };
+        if (filter === 'expiring-soon') {
+            const now = new Date();
+            const thirtyDaysFromNow = new Date();
+            thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
+            variantWhere.expirationDate = { gte: now, lte: thirtyDaysFromNow };
+        } else if (filter === 'expired') {
+            const now = new Date();
+            variantWhere.expirationDate = { lt: now };
+        }
+
+        const [results, totalCount] = await Promise.all([
+            prisma.product.findMany({
+                where: productWhere,
+                include: {
+                    category: true,
+                    variants: {
+                        where: variantWhere,
+                        orderBy: [{ isDefault: 'desc' }, { variantName: 'asc' }],
+                        include: {
+                            inventory: true,
+                            barcodes: { where: { isActive: true } },
+                        },
+                    },
+                },
+                skip,
+                take: limit,
+                orderBy: { name: 'asc' },
+            }),
+            prisma.product.count({ where: productWhere }),
+        ]);
+
+        // Filter out products with no variants after variant filtering
+        let filteredResults = results.filter(p => p.variants.length > 0);
+
+        // Apply low-stock filter at variant level
+        if (filter === 'low-stock') {
+            filteredResults = filteredResults.map(product => ({
+                ...product,
+                variants: product.variants.filter((v: any) => {
+                    const inv = v.inventory;
+                    if (!inv || !inv.reorderPoint) return false;
+                    return inv.availableQuantity <= inv.reorderPoint;
+                })
+            })).filter(p => p.variants.length > 0);
+        }
+
+        const products = filteredResults.map((product) => this.mapToProductWithVariants(product));
+
+        return { products, total: totalCount };
+    }
+
+    /**
+     * Get count of products (for grouped view pagination)
+     */
+    static async getProductCount(
+        auth: AuthenticatedUser,
+        search = '',
+        filter = 'all',
+        categoryId?: string,
+        startDate?: string,
+        endDate?: string
+    ): Promise<number> {
+        const productWhere: any = {
+            tenantId: auth.tenantId,
+            branchId: auth.branchId,
+        };
+
+        if (filter === 'all' || filter === 'active') {
+            productWhere.isActive = true;
+        } else if (filter === 'inactive') {
+            productWhere.isActive = false;
+        } else if (filter === 'new' || filter === 'new-stock') {
+            const oneWeekAgo = new Date();
+            oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+            productWhere.createdAt = { gte: oneWeekAgo };
+            productWhere.isActive = true;
+        } else {
+            productWhere.isActive = true;
+        }
+
+        if (startDate || endDate) {
+            productWhere.createdAt = productWhere.createdAt || {};
+            if (startDate) {
+                productWhere.createdAt.gte = new Date(startDate);
+            }
+            if (endDate) {
+                const endDateTime = new Date(endDate);
+                endDateTime.setHours(23, 59, 59, 999);
+                productWhere.createdAt.lte = endDateTime;
+            }
+        }
+
+        if (categoryId) {
+            productWhere.categoryId = categoryId;
+        }
+
+        if (search) {
+            productWhere.OR = [
+                { name: { contains: search } },
+                { brand: { contains: search } },
+                { description: { contains: search } },
+                { variants: { some: { sku: { contains: search } } } },
+                { variants: { some: { primaryBarcode: { contains: search } } } },
+                { variants: { some: { variantName: { contains: search } } } },
+            ];
+        }
+
+        // Ensure products have at least one active variant
+        productWhere.variants = { some: { isActive: true } };
+
+        return await prisma.product.count({ where: productWhere });
+    }
+
+    /**
+     * Map Prisma product result to ProductWithVariants structure
+     */
+    private static mapToProductWithVariants(data: any): any {
+        if (!data) return null;
+
+        const variants = (data.variants || []).map((variant: any) => {
+            const inventory = variant.inventory;
+            return {
+                id: variant.id,
+                sku: variant.sku,
+                variantName: variant.variantName,
+                primaryBarcode: variant.primaryBarcode,
+                sellingPrice: Number(variant.sellingPrice),
+                costPrice: Number(variant.costPrice),
+                unit: variant.unit,
+                description: variant.description,
+                brand: variant.brand,
+                imageUrl: variant.imageUrl,
+                isTaxable: variant.isTaxable,
+                supplierName: variant.supplierName,
+                supplierCode: variant.supplierCode,
+                size: variant.size,
+                weight: variant.weight ? Number(variant.weight) : null,
+                weightUnit: variant.weightUnit,
+                volume: variant.volume ? Number(variant.volume) : null,
+                volumeUnit: variant.volumeUnit,
+                dimensions: variant.dimensions,
+                customAttributes: variant.customAttributes,
+                promoPrice: variant.promoPrice ? Number(variant.promoPrice) : null,
+                promoStart: variant.promoStart,
+                promoEnd: variant.promoEnd,
+                expirationDate: variant.expirationDate,
+                manufactureDate: variant.manufactureDate,
+                expiryDateAlert: variant.expiryDateAlert,
+                isDefault: variant.isDefault,
+                isActive: variant.isActive,
+                createdAt: variant.createdAt,
+                updatedAt: variant.updatedAt,
+                inventory: inventory ? {
+                    inventoryId: inventory.id,
+                    availableQuantity: inventory.availableQuantity,
+                    reservedQuantity: inventory.reservedQuantity,
+                    damagedQuantity: inventory.damagedQuantity,
+                    averageCost: Number(inventory.averageCost),
+                    lastPurchaseCost: Number(inventory.lastPurchaseCost),
+                    reorderPoint: inventory.reorderPoint,
+                    maxStock: inventory.maxStock,
+                    trackInventory: inventory.trackInventory,
+                    allowNegativeStock: inventory.allowNegativeStock,
+                    lastRestockedAt: inventory.lastRestockedAt,
+                    lastSoldAt: inventory.lastSoldAt,
+                } : null,
+                barcodes: (variant.barcodes || []).map((b: any) => ({
+                    barcode: b.barcode,
+                    barcodeType: b.barcodeType,
+                    barcodeSource: b.barcodeSource,
+                    isActive: b.isActive,
+                })),
+            };
+        });
+
+        // Calculate aggregated inventory info for the product
+        const totalAvailableQuantity = variants.reduce((sum: number, v: any) => sum + (v.inventory?.availableQuantity || 0), 0);
+        const totalReservedQuantity = variants.reduce((sum: number, v: any) => sum + (v.inventory?.reservedQuantity || 0), 0);
+
+        return {
+            id: data.id,
+            tenantId: data.tenantId,
+            branchId: data.branchId,
+            categoryId: data.categoryId,
+            name: data.name,
+            description: data.description,
+            brand: data.brand,
+            isTaxable: data.isTaxable,
+            supplierName: data.supplierName,
+            supplierCode: data.supplierCode,
+            defaultUnit: data.defaultUnit,
+            imageUrl: data.imageUrl,
+            isActive: data.isActive,
+            createdAt: data.createdAt,
+            updatedAt: data.updatedAt,
+            categoryDetails: data.category ? {
+                categoryId: data.category.categoryId || data.category.id,
+                name: data.category.name,
+                description: data.category.description,
+                isDefault: data.category.isDefault,
+            } : null,
+            variantCount: variants.length,
+            totalAvailableQuantity,
+            totalReservedQuantity,
+            variants,
+        };
     }
 
     static async disconnect(): Promise<void> {

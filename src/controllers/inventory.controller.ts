@@ -230,8 +230,8 @@ export class InventoryController extends BaseController {
             const categoryId = req.query.categoryId as string | undefined;
             const startDate = req.query.startDate as string | undefined;
             const endDate = req.query.endDate as string | undefined;
+            const groupByProduct = req.query.groupByProduct === 'true';
 
-            // Validate pagination
             if (page < 1) {
                 BaseController.sendBadRequest(res, 'Page number must be at least 1');
                 return;
@@ -241,7 +241,7 @@ export class InventoryController extends BaseController {
                 return;
             }
 
-            const { inventoryItems, total, totalPages } = await InventoryService.getInventoryItemsWithCategories(
+            const result = await InventoryService.getInventoryItemsWithCategories(
                 auth,
                 page,
                 perPage,
@@ -249,18 +249,31 @@ export class InventoryController extends BaseController {
                 filter,
                 categoryId,
                 startDate,
-                endDate
+                endDate,
+                groupByProduct
             );
 
-            BaseController.sendSuccess(res, 'Inventory items with categories retrieved successfully.', {
-                inventoryItems,
-                pagination: {
-                    currentPage: page,
-                    totalPages,
-                    totalItems: total,
-                    itemsPerPage: perPage
-                }
-            });
+            if (groupByProduct) {
+                BaseController.sendSuccess(res, 'Products with variants retrieved successfully.', {
+                    products: result.products,
+                    pagination: {
+                        currentPage: page,
+                        totalPages: result.totalPages,
+                        totalItems: result.total,
+                        itemsPerPage: perPage
+                    }
+                });
+            } else {
+                BaseController.sendSuccess(res, 'Inventory items with categories retrieved successfully.', {
+                    inventoryItems: result.inventoryItems,
+                    pagination: {
+                        currentPage: page,
+                        totalPages: result.totalPages,
+                        totalItems: result.total,
+                        itemsPerPage: perPage
+                    }
+                });
+            }
         } catch (error) {
             InventoryController.handleError(res, error, 'getInventoryItems');
         }
