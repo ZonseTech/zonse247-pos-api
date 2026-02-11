@@ -4,6 +4,7 @@ import { UserModel } from '../models/user.model';
 import { RoleModel } from '../models/role.model';
 import { RolePermissionModel } from '../models/role-permission.model';
 import { PermissionModel } from '../models/permission.model';
+import { StaffModel } from '../models/staff.model';
 import type { PublicUser, User } from 'users';
 import type { Permission } from 'role-permission';
 import { UserUncheckedCreateInput } from 'src/databases/prisma/generated/prisma/models';
@@ -44,8 +45,10 @@ export class UserService {
 		const errors: Record<string, string> = {};
 
 		if (isCreate) {
-			if (!userData.username || userData.username.trim().length === 0) {
-				errors.username = UserErrors.USERNAME_REQUIRED;
+			// Username can be generated from email, so only require one of them
+			if ((!userData.username || userData.username.trim().length === 0) &&
+				(!userData.email || userData.email.trim().length === 0)) {
+				errors.username = 'Username or email is required';
 			}
 
 			if (!userData.fullname || userData.fullname.trim().length === 0) {
@@ -56,9 +59,8 @@ export class UserService {
 				errors.roleId = UserErrors.ROLE_REQUIRED;
 			}
 
-			if (!userData.password || userData.password.length === 0) {
-				errors.password = UserErrors.PASSWORD_REQUIRED;
-			} else if (userData.password.length < 6) {
+			// Password is optional for staff creation (auto-generated)
+			if (userData.password !== undefined && userData.password !== null && userData.password.length > 0 && userData.password.length < 6) {
 				errors.password = UserErrors.PASSWORD_TOO_SHORT(6);
 			}
 		}
@@ -160,24 +162,149 @@ export class UserService {
 
 	static async createUser(userData: Partial<User>, auth: { tenantId: string; branchId: string; userId: string }): Promise<any> {
 		try {
-			this.validateUserInput(userData, true);
+			// Extract staff-related fields from userData
+			const {
+				trackAttendance,
+				allowAppAccess,
+				calculateAs,
+				staffSalary,
+				avgShiftHours,
+				joiningDate,
+				allowSelfAttendance,
+				attendanceType,
+				department,
+				designation,
+				employeeCode,
+				salaryFrequency,
+				emergencyContactName,
+				emergencyContactPhone,
+				emergencyContactRelation,
+				address,
+				city,
+				state,
+				postalCode,
+				country,
+				nationalId,
+				dateOfBirth,
+				gender,
+				bankName,
+				bankAccountNumber,
+				bankBranchCode,
+				notes,
+				createStaffRecord,
+				...userOnlyData
+			} = userData as any;
+
+			// Determine if we should create a staff record
+			// Create staff record if any staff-related field is provided or createStaffRecord is true
+			const shouldCreateStaff = createStaffRecord === true ||
+				trackAttendance !== undefined ||
+				allowAppAccess !== undefined ||
+				calculateAs !== undefined ||
+				staffSalary !== undefined ||
+				avgShiftHours !== undefined ||
+				joiningDate !== undefined ||
+				allowSelfAttendance !== undefined ||
+				attendanceType !== undefined;
+
+			// If staff doesn't have app access, assign them the 'viewer' role
+			// The viewer role has minimal permissions - just read-only access
+			const VIEWER_ROLE_ID = 'viewer';
+			let effectiveRoleId = userOnlyData.roleId;
+
+			// If creating staff and no roleId provided, or allowAppAccess is false, use viewer role
+			if (shouldCreateStaff) {
+				if (allowAppAccess === false || !effectiveRoleId) {
+					effectiveRoleId = VIEWER_ROLE_ID;
+				}
+			}
+
+			userOnlyData.roleId = effectiveRoleId;
+
+			// Generate username from email if not provided
+			let generatedUsername = userOnlyData.username;
+			let generatedPassword = userOnlyData.password;
+
+			if (!generatedUsername && userOnlyData.email) {
+				generatedUsername = userOnlyData.email;
+			}
+
+			// Get next user ID for password generation if needed
+			if (!generatedPassword && shouldCreateStaff) {
+				const nextId = await UserModel.count({}) + 1;
+				generatedPassword = `password${nextId}`;
+			}
+
+			// Update userOnlyData with generated values
+			userOnlyData.username = generatedUsername;
+			userOnlyData.password = generatedPassword;
+
+			this.validateUserInput(userOnlyData, true);
 
 			const userExists = await UserModel.checkUserExists(
-				userData.username!,
-				userData.email || ''
+				userOnlyData.username!,
+				userOnlyData.email || ''
 			);
 			if (userExists) {
 				throw new ConflictError(UserErrors.USER_EXISTS, 'username');
 			}
 
 			const user = await UserModel.create({
-				...userData,
+				...userOnlyData,
 				tenantId: auth.tenantId,
-				branchId: userData.branchId || auth.branchId,
-				status: userData.status || 'active'
+				branchId: userOnlyData.branchId || auth.branchId,
+				status: userOnlyData.status || 'active'
 			} as unknown as UserUncheckedCreateInput);
 
-			return UserModel.getPublicUser(user);
+			// Create staff record if applicable
+			let staffRecord = null;
+			if (shouldCreateStaff) {
+				try {
+					staffRecord = await StaffModel.create({
+						userId: user.userId,
+						tenantId: auth.tenantId,
+						branchId: userOnlyData.branchId || auth.branchId,
+						trackAttendance: trackAttendance ?? false,
+						allowAppAccess: allowAppAccess ?? false,
+						calculateAs: calculateAs?.toUpperCase() || 'DAILY',
+						staffSalary: staffSalary ?? 0,
+						avgShiftHours: avgShiftHours ?? 8,
+						joiningDate: joiningDate ? new Date(joiningDate) : new Date(),
+						allowSelfAttendance: allowSelfAttendance ?? false,
+						attendanceType: attendanceType?.toUpperCase() || 'PUNCH',
+						department: department || null,
+						designation: designation || null,
+						employeeCode: employeeCode || await StaffModel.getNextEmployeeCode(auth.tenantId),
+						salaryFrequency: salaryFrequency?.toUpperCase() || 'MONTHLY',
+						emergencyContactName: emergencyContactName || null,
+						emergencyContactPhone: emergencyContactPhone || null,
+						emergencyContactRelation: emergencyContactRelation || null,
+						address: address || null,
+						city: city || null,
+						state: state || null,
+						postalCode: postalCode || null,
+						country: country || null,
+						nationalId: nationalId || null,
+						dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
+						gender: gender?.toUpperCase() || null,
+						bankName: bankName || null,
+						bankAccountNumber: bankAccountNumber || null,
+						bankBranchCode: bankBranchCode || null,
+						notes: notes || null,
+						employmentStatus: 'ACTIVE'
+					});
+				} catch (staffError) {
+					console.error('Error creating staff record:', staffError);
+					// Don't fail user creation if staff creation fails
+					// Log the error but continue
+				}
+			}
+
+			const publicUser = UserModel.getPublicUser(user);
+			return {
+				...publicUser,
+				staff: staffRecord
+			};
 		} catch (error) {
 			if (error instanceof ValidationError || error instanceof ConflictError || error instanceof NotFoundError) {
 				throw error;
@@ -186,32 +313,169 @@ export class UserService {
 		}
 	}
 
-	static async updateUser(userId: string, userData: any, tenantId: string, branchId: string): Promise<Omit<User, 'password'>> {
+	static async updateUser(userId: string, userData: any, tenantId: string, branchId: string): Promise<any> {
 		if (!userId) {
 			throw new ValidationError('User ID is required', { userId: 'User ID field is required.' });
 		}
 
 		try {
+			// Extract staff-related fields from userData
+			const {
+				trackAttendance,
+				allowAppAccess,
+				calculateAs,
+				staffSalary,
+				avgShiftHours,
+				joiningDate,
+				allowSelfAttendance,
+				attendanceType,
+				department,
+				designation,
+				employeeCode,
+				salaryFrequency,
+				emergencyContactName,
+				emergencyContactPhone,
+				emergencyContactRelation,
+				address,
+				city,
+				state,
+				postalCode,
+				country,
+				nationalId,
+				dateOfBirth,
+				gender,
+				bankName,
+				bankAccountNumber,
+				bankBranchCode,
+				notes,
+				createStaffRecord,
+				...userOnlyData
+			} = userData;
+
+			// Check if any staff-related field is provided
+			const hasStaffFields = trackAttendance !== undefined ||
+				allowAppAccess !== undefined ||
+				calculateAs !== undefined ||
+				staffSalary !== undefined ||
+				avgShiftHours !== undefined ||
+				joiningDate !== undefined ||
+				allowSelfAttendance !== undefined ||
+				attendanceType !== undefined ||
+				department !== undefined ||
+				designation !== undefined ||
+				createStaffRecord === true;
+
 			// Validate input (not a create operation)
-			this.validateUserInput(userData, false);
+			this.validateUserInput(userOnlyData, false);
 
 			const existingUser = await UserModel.findById(userId, tenantId, branchId);
 			if (!existingUser) {
 				throw new NotFoundError('User', userId);
 			}
 
-			const updatedUserData = { ...userData };
+			const updatedUserData = { ...userOnlyData };
 
 			delete updatedUserData.repeatPassword;
+			delete updatedUserData.tenantId; // Don't update tenantId
+			delete updatedUserData.branchId; // Don't update branchId through this
 
 			if (userData.password === '') {
 				delete updatedUserData.password;
 			}
 
+			// Handle roleId based on allowAppAccess
+			if (hasStaffFields && allowAppAccess === false) {
+				updatedUserData.roleId = 'viewer';
+			}
+
 			await UserModel.update(userId, updatedUserData);
 
+			// Handle staff record update/creation
+			let staffRecord = null;
+			if (hasStaffFields) {
+				const existingStaff = await StaffModel.findByUserId(userId);
+
+				const staffData: any = {};
+				if (trackAttendance !== undefined) staffData.trackAttendance = trackAttendance;
+				if (allowAppAccess !== undefined) staffData.allowAppAccess = allowAppAccess;
+				if (calculateAs !== undefined) staffData.calculateAs = calculateAs?.toUpperCase() || 'DAILY';
+				if (staffSalary !== undefined) staffData.staffSalary = staffSalary;
+				if (avgShiftHours !== undefined) staffData.avgShiftHours = avgShiftHours;
+				if (joiningDate !== undefined) staffData.joiningDate = joiningDate ? new Date(joiningDate) : null;
+				if (allowSelfAttendance !== undefined) staffData.allowSelfAttendance = allowSelfAttendance;
+				if (attendanceType !== undefined) staffData.attendanceType = attendanceType?.toUpperCase() || 'PUNCH';
+				if (department !== undefined) staffData.department = department || null;
+				if (designation !== undefined) staffData.designation = designation || null;
+				if (employeeCode !== undefined) staffData.employeeCode = employeeCode || null;
+				if (salaryFrequency !== undefined) staffData.salaryFrequency = salaryFrequency?.toUpperCase() || 'MONTHLY';
+				if (emergencyContactName !== undefined) staffData.emergencyContactName = emergencyContactName || null;
+				if (emergencyContactPhone !== undefined) staffData.emergencyContactPhone = emergencyContactPhone || null;
+				if (emergencyContactRelation !== undefined) staffData.emergencyContactRelation = emergencyContactRelation || null;
+				if (address !== undefined) staffData.address = address || null;
+				if (city !== undefined) staffData.city = city || null;
+				if (state !== undefined) staffData.state = state || null;
+				if (postalCode !== undefined) staffData.postalCode = postalCode || null;
+				if (country !== undefined) staffData.country = country || null;
+				if (nationalId !== undefined) staffData.nationalId = nationalId || null;
+				if (dateOfBirth !== undefined) staffData.dateOfBirth = dateOfBirth ? new Date(dateOfBirth) : null;
+				if (gender !== undefined) staffData.gender = gender?.toUpperCase() || null;
+				if (bankName !== undefined) staffData.bankName = bankName || null;
+				if (bankAccountNumber !== undefined) staffData.bankAccountNumber = bankAccountNumber || null;
+				if (bankBranchCode !== undefined) staffData.bankBranchCode = bankBranchCode || null;
+				if (notes !== undefined) staffData.notes = notes || null;
+
+				if (existingStaff) {
+					// Update existing staff record
+					await StaffModel.update(existingStaff.staffId, staffData);
+					staffRecord = await StaffModel.findByUserId(userId);
+				} else {
+					// Create new staff record
+					staffRecord = await StaffModel.create({
+						userId,
+						tenantId,
+						branchId: existingUser.branchId,
+						trackAttendance: trackAttendance ?? false,
+						allowAppAccess: allowAppAccess ?? false,
+						calculateAs: calculateAs?.toUpperCase() || 'DAILY',
+						staffSalary: staffSalary ?? 0,
+						avgShiftHours: avgShiftHours ?? 8,
+						joiningDate: joiningDate ? new Date(joiningDate) : new Date(),
+						allowSelfAttendance: allowSelfAttendance ?? false,
+						attendanceType: attendanceType?.toUpperCase() || 'PUNCH',
+						department: department || null,
+						designation: designation || null,
+						employeeCode: employeeCode || await StaffModel.getNextEmployeeCode(tenantId),
+						salaryFrequency: salaryFrequency?.toUpperCase() || 'MONTHLY',
+						emergencyContactName: emergencyContactName || null,
+						emergencyContactPhone: emergencyContactPhone || null,
+						emergencyContactRelation: emergencyContactRelation || null,
+						address: address || null,
+						city: city || null,
+						state: state || null,
+						postalCode: postalCode || null,
+						country: country || null,
+						nationalId: nationalId || null,
+						dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
+						gender: gender?.toUpperCase() || null,
+						bankName: bankName || null,
+						bankAccountNumber: bankAccountNumber || null,
+						bankBranchCode: bankBranchCode || null,
+						notes: notes || null,
+						employmentStatus: 'ACTIVE'
+					});
+				}
+			} else {
+				// Check if staff record exists and include it in response
+				staffRecord = await StaffModel.findByUserId(userId);
+			}
+
 			const updatedUser = await UserModel.findById(userId, tenantId, branchId);
-			return UserModel.getPublicUser(updatedUser!);
+			const publicUser = UserModel.getPublicUser(updatedUser!);
+
+			return {
+				...publicUser,
+				staff: staffRecord
+			};
 		} catch (error) {
 			if (error instanceof ValidationError || error instanceof ConflictError || error instanceof NotFoundError) {
 				throw error;
