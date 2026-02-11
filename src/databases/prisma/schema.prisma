@@ -601,6 +601,7 @@ model Branch {
   userPermissions    UserPermission[]
   usersBranch        User[]                   @relation("users_branch_idTobranches")
   usersCurrentBranch User[]                   @relation("users_current_branch_idTobranches")
+  staff              Staff[]                  @relation("staff_branch_idTobranches")
   
   // ADDED: New inventory flow relations
   products           Product[]
@@ -962,6 +963,7 @@ model Tenant {
   tenantSubscriptions TenantSubscription[]
   terminals           Terminal[]
   users               User[]
+  staff               Staff[]
   
   // ADDED: New inventory flow relations
   products           Product[]
@@ -1179,6 +1181,9 @@ model User {
   stockMovements           StockMovement[]
   sales                    Sale[]
   voidedSales              Sale[]           @relation("sales_voided_by")
+  
+  // ADDED: Staff relation (one-to-one)
+  staff                    Staff?
 
   @@unique([tenantId, username], name: "unique_tenant_username")
   @@index([branchId])
@@ -1198,6 +1203,124 @@ model SyncStatus {
   updatedAt    DateTime @updatedAt @map("updatedAt")
 
   @@map("SyncStatus")
+}
+
+// ==========================================
+// STAFF MANAGEMENT MODEL
+// ==========================================
+// Staff model for employee/staff management with attendance tracking
+// Links to User model for authentication and authorization
+
+model Staff {
+  id                   Int             @id @default(autoincrement())
+  staffId              String          @unique @map("staff_id")
+  userId               String          @unique @map("user_id")
+  tenantId             String          @map("tenant_id")
+  branchId             String          @map("branch_id")
+  
+  // Staff employment details
+  employeeCode         String?         @map("employee_code")
+  department           String?         @map("department")
+  designation          String?         @map("designation")
+  joiningDate          DateTime?       @map("joining_date")
+  terminationDate      DateTime?       @map("termination_date")
+  
+  // Salary and compensation
+  calculateAs          StaffSalaryType @default(DAILY) @map("calculate_as")
+  staffSalary          Decimal         @default(0.00) @map("staff_salary") @db.Decimal(12, 2)
+  salaryFrequency      SalaryFrequency @default(MONTHLY) @map("salary_frequency")
+  
+  // Attendance settings
+  trackAttendance      Boolean         @default(false) @map("track_attendance")
+  allowSelfAttendance  Boolean         @default(false) @map("allow_self_attendance")
+  attendanceType       AttendanceType  @default(PUNCH) @map("attendance_type")
+  avgShiftHours        Decimal         @default(8.00) @map("avg_shift_hours") @db.Decimal(4, 2)
+  
+  // Access permissions
+  allowAppAccess       Boolean         @default(false) @map("allow_app_access")
+  
+  // Emergency contact
+  emergencyContactName  String?        @map("emergency_contact_name")
+  emergencyContactPhone String?        @map("emergency_contact_phone")
+  emergencyContactRelation String?     @map("emergency_contact_relation")
+  
+  // Additional staff info
+  address              String?         @map("address")
+  city                 String?         @map("city")
+  state                String?         @map("state")
+  postalCode           String?         @map("postal_code")
+  country              String?         @map("country")
+  nationalId           String?         @map("national_id")
+  dateOfBirth          DateTime?       @map("date_of_birth")
+  gender               Gender?         @map("gender")
+  
+  // Bank details for salary
+  bankName             String?         @map("bank_name")
+  bankAccountNumber    String?         @map("bank_account_number")
+  bankBranchCode       String?         @map("bank_branch_code")
+  
+  // Status
+  employmentStatus     EmploymentStatus @default(ACTIVE) @map("employment_status")
+  notes                String?         @map("notes") @db.Text
+  
+  synced               Int             @default(0) @map("synced")
+  createdAt            DateTime        @default(now()) @map("created_at")
+  updatedAt            DateTime        @updatedAt @map("updated_at")
+  
+  // Relations
+  user                 User            @relation(fields: [userId], references: [userId], onDelete: Cascade, onUpdate: NoAction)
+  tenant               Tenant          @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade, onUpdate: NoAction)
+  branch               Branch          @relation("staff_branch_idTobranches", fields: [branchId], references: [branchId], onDelete: Cascade, onUpdate: NoAction)
+  
+  @@unique([tenantId, employeeCode], name: "unique_tenant_employee_code")
+  @@index([userId])
+  @@index([tenantId])
+  @@index([branchId])
+  @@index([employmentStatus])
+  @@index([joiningDate])
+  @@map("staff")
+}
+
+// Staff salary calculation type
+enum StaffSalaryType {
+  HOURLY
+  DAILY
+  WEEKLY
+  MONTHLY
+  FIXED
+}
+
+// Salary payment frequency
+enum SalaryFrequency {
+  WEEKLY
+  BIWEEKLY
+  MONTHLY
+  SEMIMONTHLY
+}
+
+// Attendance tracking type
+enum AttendanceType {
+  PUNCH         // Clock in/out
+  SHIFT         // Scheduled shifts
+  FLEXIBLE      // Flexible hours
+  REMOTE        // Remote work tracking
+}
+
+// Gender enum
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+  PREFER_NOT_TO_SAY
+}
+
+// Employment status
+enum EmploymentStatus {
+  ACTIVE
+  ON_LEAVE
+  SUSPENDED
+  TERMINATED
+  RESIGNED
 }
 
 model PaymentServiceProvider {
