@@ -43,8 +43,6 @@ router.put(
 
 router.get('/list', asyncHandler(UserController.list));
 
-// router.use(authMiddleware.requireAdmin);
-
 router.delete(
 	'/profile/:id',
 	validateParams(userValidationSchemas.userId),
