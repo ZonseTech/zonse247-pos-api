@@ -96,16 +96,16 @@ export class AuthController extends BaseController {
      * @param res - Express response
      * @returns Promise<void>
      */
-    static async logout(req: Request<{ id: string }>, res: Response): Promise<void> {
+    static async logout(req: Request<{ userId: string }>, res: Response): Promise<void> {
         try {
-            const { id } = req.params;
+            const { userId } = req.params;
 
-            if (!id) {
+            if (!userId) {
                 BaseController.sendResponse(res, 400, false, 'User ID is required');
                 return;
             }
 
-            await AuthService.logoutUser(id);
+            await AuthService.logoutUser(userId);
             BaseController.sendResponse(res, 200, true, 'User logged out successfully');
         } catch (error: any) {
             console.error('Error during logout:', error);
@@ -195,14 +195,14 @@ export class AuthController extends BaseController {
      * @returns Promise<void>
      */
     static async changePassword(
-        req: Request<{ id: string }, ApiResponse<{ status: boolean }>, { currentPassword: string; newPassword: string }>,
+        req: Request<{ userId: string }, ApiResponse<{ status: boolean }>, { currentPassword: string; newPassword: string }>,
         res: Response
     ): Promise<void> {
         try {
-            const { id } = req.params;
+            const { userId } = req.params;
             const { currentPassword, newPassword } = req.body;
 
-            if (!id) {
+            if (!userId) {
                 BaseController.sendResponse(res, 400, false, 'User ID is required');
                 return;
             }
@@ -212,7 +212,7 @@ export class AuthController extends BaseController {
                 return;
             }
 
-            await AuthService.changePassword(id, currentPassword, newPassword);
+            await AuthService.changePassword(userId, currentPassword, newPassword);
             BaseController.sendResponse(res, 200, true, 'Password changed successfully', { status: true });
         } catch (error: any) {
             console.error('Error changing password:', error);
@@ -236,16 +236,16 @@ export class AuthController extends BaseController {
      * @param res - Express response
      * @returns Promise<void>
      */
-    static async resetPassword(req: Request<{ id: string }>, res: Response): Promise<void> {
+    static async resetPassword(req: Request<{ userId: string }>, res: Response): Promise<void> {
         try {
-            const { id } = req.params;
+            const { userId } = req.params;
 
-            if (!id) {
+            if (!userId) {
                 BaseController.sendResponse(res, 400, false, 'User ID is required');
                 return;
             }
 
-            const result = await AuthService.resetPassword(id);
+            const result = await AuthService.resetPassword(userId);
             BaseController.sendResponse(res, 200, true, 'Password reset successfully', result);
         } catch (error: any) {
             console.error('Error resetting password:', error);

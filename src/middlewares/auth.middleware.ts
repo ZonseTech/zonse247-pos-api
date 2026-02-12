@@ -54,7 +54,7 @@ export class AuthMiddleware {
 	verifyOwnership = (req: Request, res: Response, next: NextFunction): void => {
 		const user = this.extractUserFromToken(req)
 
-		const userId = req.params.userId || req.params.id;
+		const userId = req.params.userId;
 		const requestingUserId = user?.userId;
 		const userRole = user?.roleId;
 

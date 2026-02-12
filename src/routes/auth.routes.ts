@@ -27,13 +27,13 @@ router.post(
 );
 
 router.get(
-    '/logout/:id',
-    validateParams(userValidationSchemas.id),
+    '/logout/:userId',
+    validateParams(userValidationSchemas.userId),
     asyncHandler(AuthController.logout)
 )
 
 router.post(
-    '/reset-password/:id',
+    '/reset-password/:userId',
     validateParams(userValidationSchemas.userId),
     asyncHandler(AuthController.resetPassword)
 );
@@ -51,8 +51,8 @@ router.get(
 );
 
 router.put(
-    '/change-password/:id',
-    validateParams(userValidationSchemas.id),
+    '/change-password/:userId',
+    validateParams(userValidationSchemas.userId),
     validateBody(userValidationSchemas.changePassword),
     authMiddleware.verifyOwnership,
     createUserSpecificLimiter(
