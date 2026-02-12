@@ -363,6 +363,7 @@ model Sale {
   subtotal       Float @default(0.00) @map("subtotal")
   taxAmount      Float @default(0.00) @map("tax_amount")
   discountAmount Float @default(0.00) @map("discount_amount")
+  otherCharges   Float @default(0.00) @map("other_charges")
   totalAmount    Float @default(0.00) @map("total_amount")
 
   amountPaid      Float   @default(0.00) @map("amount_paid")
@@ -1322,6 +1323,7 @@ model ParkedSale {
   subtotal       Float             @default(0) @map("subtotal")
   taxAmount      Float             @default(0) @map("tax_amount")
   discountAmount Float             @default(0) @map("discount_amount")
+  otherCharges   Float             @default(0) @map("other_charges")
   totalAmount    Float             @default(0) @map("total_amount")
   totalItems     Int               @default(0) @map("total_items")
   

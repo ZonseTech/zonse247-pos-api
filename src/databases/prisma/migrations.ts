@@ -18,7 +18,7 @@ import { getDatabaseConfig } from '../../config/db';
  * Current schema version - INCREMENT THIS when schema changes
  * Format: YYYYMMDD_NN (date + sequence number)
  */
-export const CURRENT_DB_VERSION = '20260211_01';
+export const CURRENT_DB_VERSION = '20260212_01';
 
 /**
  * Minimum supported version for migration (older versions require fresh install)
@@ -1204,6 +1204,30 @@ export const MIGRATIONS: Migration[] = [
         down: {
             sqlite: [`DROP TABLE IF EXISTS "staff"`],
             mysql: [`DROP TABLE IF EXISTS staff`],
+        },
+    },
+    {
+        version: '20260212_01',
+        description: 'Add other_charges column to sales and parked_sales tables',
+        up: {
+            sqlite: [
+                `ALTER TABLE "sales" ADD COLUMN "other_charges" REAL DEFAULT 0.00`,
+                `ALTER TABLE "parked_sales" ADD COLUMN "other_charges" REAL DEFAULT 0.00`,
+            ],
+            mysql: [
+                `ALTER TABLE sales ADD COLUMN other_charges DECIMAL(12, 2) DEFAULT 0.00 AFTER discount_amount`,
+                `ALTER TABLE parked_sales ADD COLUMN other_charges DECIMAL(12, 2) DEFAULT 0.00 AFTER discount_amount`,
+            ],
+        },
+        down: {
+            sqlite: [
+                // SQLite doesn't support DROP COLUMN directly, but for rollback purposes
+                `-- Cannot drop column in SQLite without recreating table`,
+            ],
+            mysql: [
+                `ALTER TABLE sales DROP COLUMN other_charges`,
+                `ALTER TABLE parked_sales DROP COLUMN other_charges`,
+            ],
         },
     },
     // Add future migrations here:
