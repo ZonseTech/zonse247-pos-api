@@ -14,6 +14,7 @@ export interface Sale {
     subtotal: number;
     taxAmount: number;
     discountAmount: number;
+    otherCharges: number;
     totalAmount: number;
     amountPaid: number;
     changeAmount: number;
@@ -91,11 +92,23 @@ export interface CreateSaleInput {
     userId: string;
     taxAmount?: number;
     discountAmount?: number;
+    otherCharges?: number | OtherChargeInput[];
     amountPaid: number;
     paymentMethodId?: string;
     payments?: SalePaymentInput[];
     notes?: string;
     items: CreateSaleItemInput[];
+}
+
+/**
+ * Input for other charges (fees, service charges, etc.)
+ */
+export interface OtherChargeInput {
+    type: string;
+    label: string;
+    value: number;
+    isPercentage: boolean;
+    amount: number;
 }
 
 /**

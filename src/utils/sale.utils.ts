@@ -154,6 +154,7 @@ export function mapSaleToResponse(sale: any): SaleWithItems {
         subtotal: Number(sale.subtotal),
         taxAmount: Number(sale.taxAmount),
         discountAmount: Number(sale.discountAmount),
+        otherCharges: Number(sale.otherCharges || 0),
         totalAmount: Number(sale.totalAmount),
         amountPaid: Number(sale.amountPaid),
         changeAmount: Number(sale.changeAmount),

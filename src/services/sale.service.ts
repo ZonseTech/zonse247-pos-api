@@ -320,14 +320,24 @@ export class SaleService {
     private static calculateSaleTotals(
         data: CreateSaleInput,
         subtotal: number
-    ): { taxAmount: number; discountAmount: number; totalAmount: number } {
+    ): { taxAmount: number; discountAmount: number; otherCharges: number; totalAmount: number } {
         const taxAmount = data.taxAmount || 0;
         const discountAmount = data.discountAmount || 0;
-        const totalAmount = subtotal + taxAmount - discountAmount;
+
+        // Handle otherCharges as array of objects or as a number
+        let otherCharges = 0;
+        if (Array.isArray(data.otherCharges)) {
+            otherCharges = data.otherCharges.reduce((sum, charge) => sum + (charge.amount || 0), 0);
+        } else if (typeof data.otherCharges === 'number') {
+            otherCharges = data.otherCharges;
+        }
+
+        const totalAmount = subtotal + taxAmount + otherCharges - discountAmount;
 
         return {
             taxAmount: roundCurrency(taxAmount),
             discountAmount: roundCurrency(discountAmount),
+            otherCharges: roundCurrency(otherCharges),
             totalAmount: roundCurrency(totalAmount),
         };
     }
@@ -365,7 +375,7 @@ export class SaleService {
             branchId: string;
             saleNumber: string;
             data: CreateSaleInput;
-            totals: { taxAmount: number; discountAmount: number; totalAmount: number };
+            totals: { taxAmount: number; discountAmount: number; otherCharges: number; totalAmount: number };
             totalPaid: number;
             processedItems: ProcessedSaleItem[];
             payments: any[];
@@ -386,6 +396,7 @@ export class SaleService {
                 subtotal: processedItems.reduce((sum, item) => sum + item.subtotal, 0),
                 taxAmount: totals.taxAmount,
                 discountAmount: totals.discountAmount,
+                otherCharges: totals.otherCharges,
                 totalAmount: totals.totalAmount,
                 amountPaid: totalPaid,
                 changeAmount,

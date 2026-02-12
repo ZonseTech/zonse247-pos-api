@@ -31,7 +31,16 @@ export class ParkedSalesService {
         const subtotal = data.subtotal || items.reduce((sum: number, item: any) => sum + Number(item.subtotal || 0), 0);
         const taxAmount = data.taxAmount || items.reduce((sum: number, item: any) => sum + Number(item.taxAmount || 0), 0);
         const discountAmount = data.discountAmount || items.reduce((sum: number, item: any) => sum + Number(item.discount || 0), 0);
-        const totalAmount = data.totalAmount || data.total || (subtotal + taxAmount - discountAmount);
+
+        // Handle otherCharges as array of objects or as a number
+        let otherCharges = 0;
+        if (Array.isArray(data.otherCharges)) {
+            otherCharges = data.otherCharges.reduce((sum: number, charge: any) => sum + (charge.amount || 0), 0);
+        } else if (typeof data.otherCharges === 'number') {
+            otherCharges = data.otherCharges;
+        }
+
+        const totalAmount = data.totalAmount || data.total || (subtotal + taxAmount + otherCharges - discountAmount);
 
         const parkedSale = await prisma.parkedSale.create({
             data: {
@@ -44,6 +53,7 @@ export class ParkedSalesService {
                 subtotal,
                 taxAmount,
                 discountAmount,
+                otherCharges,
                 totalAmount,
                 totalItems,
                 status: 'PARKED',
