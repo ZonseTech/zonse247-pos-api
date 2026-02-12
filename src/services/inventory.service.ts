@@ -211,8 +211,14 @@ export class InventoryService {
         return await InventoryModel.decrementInventory(products, auth);
     }
 
-    static async getInventoryItemCount(auth: AuthenticatedUser, includeVoided = false): Promise<number> {
-        return await InventoryModel.getCount(auth, includeVoided);
+    static async getInventoryItemCounts(auth: AuthenticatedUser): Promise<{
+        totalItems: number;
+        incompleteItems: number;
+        itemsInStock: number;
+        lowStockItems: number;
+        expiredItems: number;
+    }> {
+        return await InventoryModel.getDetailedCounts(auth);
     }
 
     static async inventoryItemExists(productUuid: string, auth: AuthenticatedUser): Promise<boolean> {

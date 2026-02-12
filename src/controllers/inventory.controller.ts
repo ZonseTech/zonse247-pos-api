@@ -181,9 +181,8 @@ export class InventoryController extends BaseController {
     static async getCount(req: Request & AuthRequest, res: Response): Promise<void> {
         try {
             const auth = InventoryController.getAuthContext(req);
-            const includeVoided = req.query.includeVoided === 'true';
-            const count = await InventoryService.getInventoryItemCount(auth, includeVoided);
-            BaseController.sendSuccess(res, 'Inventory count retrieved successfully.', { count });
+            const counts = await InventoryService.getInventoryItemCounts(auth);
+            BaseController.sendSuccess(res, 'Inventory counts retrieved successfully.', counts);
         } catch (error) {
             InventoryController.handleError(res, error, 'getCount');
         }
