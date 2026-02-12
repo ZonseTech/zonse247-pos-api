@@ -1,3 +1,4 @@
+/* eslint-disable no-control-regex */
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 import { PrinterModel, PrintJobModel } from '../models/printer.model';
 import {
