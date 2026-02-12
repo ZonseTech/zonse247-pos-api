@@ -98,12 +98,33 @@ export interface ReceiptData {
         loyaltyPoints?: number;
     };
     items: Array<{
+        id: string;
+        saleId: string;
+        variantId: string;
+        productId: string;
         name: string;
         quantity: number;
         unitPrice: number;
+        unitCost: number;
+        subtotal: number;
         total: number;
         discount?: number;
         tax?: number;
+        createdAt: Date;
+        variant: {
+            id: string;
+            variantName: string;
+            sku: string | null;
+            product: {
+                id: string;
+                name: string;
+            };
+        };
+        product: {
+            id: string;
+            name: string;
+            sku: string | null;
+        };
     }>;
     subtotal: number;
     taxAmount: number;
@@ -154,15 +175,45 @@ export class PrintContentService {
         // Get branch data
         const branch = await BranchModel.findById(branchId);
 
-        // Map sale items to receipt items
-        const items = sale.items.map((item) => ({
-            name: item.product?.name || 'Unknown Product',
-            quantity: item.quantity || 1,
-            unitPrice: Number(item.unitPrice || 0),
-            total: Number(item.subtotal || item.totalAmount || 0),
-            discount: Number(item.discountAmount || 0),
-            tax: Number(item.taxAmount || 0)
-        }));
+        // Map sale items to receipt items with full variant/product data
+        const items = sale.items.map((item) => {
+            const variantName = item.variant?.variantName || '';
+            const productName = item.variant?.product?.name || item.product?.name || 'Unknown Product';
+            // Show "ProductName - VariantName" only if variantName differs from productName
+            const displayName = variantName && variantName !== productName && variantName !== 'Default'
+                ? `${productName} - ${variantName}`
+                : productName;
+
+            return {
+                id: item.id,
+                saleId: item.saleId,
+                variantId: item.variantId || '',
+                productId: item.productId || '',
+                name: displayName,
+                quantity: item.quantity || 1,
+                unitPrice: Number(item.unitPrice || 0),
+                unitCost: Number(item.unitCost || 0),
+                subtotal: Number(item.subtotal || 0),
+                total: Number(item.totalAmount || item.subtotal || 0),
+                discount: Number(item.discountAmount || 0),
+                tax: Number(item.taxAmount || 0),
+                createdAt: new Date(item.createdAt),
+                variant: {
+                    id: item.variant?.id || item.variantId || '',
+                    variantName: item.variant?.variantName || 'Default',
+                    sku: item.variant?.sku || null,
+                    product: {
+                        id: item.variant?.product?.id || item.productId || '',
+                        name: item.variant?.product?.name || productName
+                    }
+                },
+                product: {
+                    id: item.product?.id || item.productId || '',
+                    name: displayName,
+                    sku: item.variant?.sku || item.product?.sku || null
+                }
+            };
+        });
 
         // Determine payment method name - check for multiple payments first
         let paymentMethodName = 'Cash';
@@ -216,13 +267,34 @@ export class PrintContentService {
         const firstOrder = orders[0] as any;
 
         // Build items from orders (each order record might be an item)
-        const items = orders.map((order: any) => ({
+        const items = orders.map((order: any, index: number) => ({
+            id: order.id || `order-item-${index}`,
+            saleId: order.saleId || orderId,
+            variantId: order.variantId || '',
+            productId: order.productId || '',
             name: order.productName || 'Product',
             quantity: order.qty || order.quantity || 1,
             unitPrice: parseFloat(order.sellingPrice || order.unitPrice || 0),
+            unitCost: parseFloat(order.costPrice || order.unitCost || 0),
+            subtotal: parseFloat(order.subtotal || order.total || 0),
             total: parseFloat(order.total || 0),
             discount: parseFloat(order.discount || 0),
-            tax: parseFloat(order.tax || 0)
+            tax: parseFloat(order.tax || 0),
+            createdAt: new Date(order.createdAt || new Date()),
+            variant: {
+                id: order.variantId || '',
+                variantName: order.variantName || 'Default',
+                sku: order.sku || null,
+                product: {
+                    id: order.productId || '',
+                    name: order.productName || 'Product'
+                }
+            },
+            product: {
+                id: order.productId || '',
+                name: order.productName || 'Product',
+                sku: order.sku || null
+            }
         }));
 
         const subtotal = items.reduce((sum, item) => sum + item.total, 0);
@@ -282,137 +354,87 @@ export class PrintContentService {
     /**
      * Format receipt content with ESC/POS commands
      */
-    private static formatReceiptContent(data: ReceiptData, request: ReceiptContentRequest): string {
+    private static formatReceiptContent(data: ReceiptData, _request: ReceiptContentRequest): string {
         let content = '';
-        const lineWidth = 48; // Standard 80mm thermal printer width in characters
+        const lineWidth = 32; // Standard receipt width
 
         // Initialize printer
         content += ESC_POS.INIT;
 
         // Header
-        if (request.includeHeader !== false) {
-            content += ESC_POS.ALIGN_CENTER;
-
-            // Business name (large)
-            content += ESC_POS.DOUBLE_SIZE;
-            content += ESC_POS.BOLD_ON;
-            content += `${data.businessName}\n`;
-            content += ESC_POS.BOLD_OFF;
-            content += ESC_POS.NORMAL;
-
-            // Branch name
-            if (data.branchName && data.branchName !== data.businessName) {
-                content += `${data.branchName}\n`;
-            }
-
-            // Address
-            if (data.address) {
-                content += `${data.address}\n`;
-            }
-
-            // Contact info
-            if (data.phone) {
-                content += `Tel: ${data.phone}\n`;
-            }
-            if (data.email) {
-                content += `${data.email}\n`;
-            }
-            if (data.taxId) {
-                content += `Tax ID: ${data.taxId}\n`;
-            }
-
-            content += '='.repeat(lineWidth) + '\n';
-        }
+        content += ESC_POS.ALIGN_CENTER;
+        content += '='.repeat(lineWidth) + '\n';
+        content += ESC_POS.BOLD_ON;
+        content += 'RECEIPT\n';
+        content += ESC_POS.BOLD_OFF;
+        content += '='.repeat(lineWidth) + '\n';
 
         // Receipt details
         content += ESC_POS.ALIGN_LEFT;
-        content += ESC_POS.BOLD_ON;
         content += `Receipt #: ${data.receiptNumber}\n`;
-        content += ESC_POS.BOLD_OFF;
-        content += `Date: ${data.date.toLocaleDateString()} ${data.date.toLocaleTimeString()}\n`;
 
+        // Format date as "Feb 07, 2026"
+        const dateOptions: Intl.DateTimeFormatOptions = { month: 'short', day: '2-digit', year: 'numeric' };
+        content += `Date: ${data.date.toLocaleDateString('en-US', dateOptions)}\n`;
+
+        // Customer info
+        if (data.customer) {
+            content += `Customer: ${data.customer.name}\n`;
+        } else {
+            content += `Customer: Walk-in Customer\n`;
+        }
+
+        // Cashier
         if (data.cashier) {
             content += `Cashier: ${data.cashier}\n`;
         }
 
-        // Customer info
-        if (data.customer) {
-            content += '-'.repeat(lineWidth) + '\n';
-            content += `Customer: ${data.customer.name}\n`;
-            if (data.customer.phone) {
-                content += `Phone: ${data.customer.phone}\n`;
-            }
-            if (data.customer.loyaltyPoints !== undefined) {
-                content += `Loyalty Points: ${data.customer.loyaltyPoints}\n`;
-            }
+        // Terminal
+        if (data.terminal) {
+            content += `Terminal: ${data.terminal}\n`;
         }
 
-        // Items header
+        // Items section
         content += '='.repeat(lineWidth) + '\n';
-        content += this.formatLine('Item', 'Qty', 'Price', 'Total', lineWidth);
-        content += '-'.repeat(lineWidth) + '\n';
+        content += ESC_POS.ALIGN_CENTER;
+        content += 'ITEMS\n';
+        content += '='.repeat(lineWidth) + '\n';
+        content += ESC_POS.ALIGN_LEFT;
 
-        // Items
+        // Items - format: "Name  qty x price = total"
         for (const item of data.items) {
-            // Item name (may wrap)
-            const itemName = item.name.length > 24 ? item.name.substring(0, 24) + '...' : item.name;
-            content += `${itemName}\n`;
-            content += this.formatLine(
-                '',
-                `${item.quantity}x`,
-                this.formatCurrency(item.unitPrice, data.currency),
-                this.formatCurrency(item.total, data.currency),
-                lineWidth
-            );
-
-            if (item.discount && item.discount > 0) {
-                content += `  Discount: -${this.formatCurrency(item.discount, data.currency)}\n`;
-            }
+            const itemLine = `${item.name}  ${item.quantity} x ${item.unitPrice.toFixed(2)} = ${item.total.toFixed(2)}`;
+            content += `${itemLine}\n`;
         }
 
-        // Totals
+        // Subtotal
         content += '='.repeat(lineWidth) + '\n';
-        content += this.formatTotalLine('Subtotal:', data.subtotal, data.currency, lineWidth);
+        content += `Subtotal: ${data.subtotal.toFixed(2)}\n`;
 
+        // Discount (if any)
         if (data.discountAmount > 0) {
-            content += this.formatTotalLine('Discount:', -data.discountAmount, data.currency, lineWidth);
+            content += `Discount: -${data.discountAmount.toFixed(2)}\n`;
         }
 
+        // Tax (if any)
         if (data.taxAmount > 0) {
-            content += this.formatTotalLine('Tax:', data.taxAmount, data.currency, lineWidth);
+            content += `Tax: ${data.taxAmount.toFixed(2)}\n`;
         }
 
-        content += '-'.repeat(lineWidth) + '\n';
-        content += ESC_POS.DOUBLE_HEIGHT;
+        // Total section
+        content += '='.repeat(lineWidth) + '\n';
         content += ESC_POS.BOLD_ON;
-        content += this.formatTotalLine('TOTAL:', data.totalAmount, data.currency, lineWidth);
+        content += `TOTAL: ${data.totalAmount.toFixed(2)}\n`;
         content += ESC_POS.BOLD_OFF;
-        content += ESC_POS.NORMAL;
-
-        // Payment info
-        content += '-'.repeat(lineWidth) + '\n';
-        content += this.formatTotalLine(`${data.paymentMethod}:`, data.amountPaid, data.currency, lineWidth);
-
-        if (data.changeAmount > 0) {
-            content += this.formatTotalLine('Change:', data.changeAmount, data.currency, lineWidth);
-        }
+        content += `Paid: ${data.amountPaid.toFixed(2)}\n`;
+        content += `Change: ${data.changeAmount.toFixed(2)}\n`;
+        content += `Payment: ${data.paymentMethod}\n`;
 
         // Footer
-        if (request.includeFooter !== false) {
-            content += '='.repeat(lineWidth) + '\n';
-            content += ESC_POS.ALIGN_CENTER;
-            content += '\n';
-            content += 'Thank you for your purchase!\n';
-            content += 'Please come again\n';
-
-            if (request.customMessage) {
-                content += '\n';
-                content += `${request.customMessage}\n`;
-            }
-
-            content += '\n';
-            content += `Printed: ${new Date().toLocaleString()}\n`;
-        }
+        content += '='.repeat(lineWidth) + '\n';
+        content += ESC_POS.ALIGN_CENTER;
+        content += 'Thank you for your business!\n';
+        content += '='.repeat(lineWidth) + '\n';
 
         // Feed and cut
         content += ESC_POS.FEED_LINES(4);

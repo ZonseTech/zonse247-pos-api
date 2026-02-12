@@ -41,9 +41,9 @@ export class ReportService {
                         },
                     },
                 }),
-                // Get top category by sales count
+                // Get top category by sales count (group by variantId)
                 prisma.saleItem.groupBy({
-                    by: ['productId'],
+                    by: ['variantId'],
                     where: { sale: salesWhereClause },
                     _sum: { quantity: true },
                     orderBy: { _sum: { quantity: 'desc' } },
@@ -76,14 +76,18 @@ export class ReportService {
             // Gross Profit = (Revenue - Discount) - Cost
             const grossProfit = Number(totalSales) - totalDiscount - totalCost;
 
-            // Get top category name
+            // Get top category name from the top selling variant
             let topCategory = '';
             if (topCategoryData.length > 0) {
-                const topProduct = await prisma.product.findUnique({
-                    where: { id: topCategoryData[0].productId },
-                    include: { category: { select: { name: true } } },
+                const topVariant = await prisma.productVariant.findUnique({
+                    where: { id: topCategoryData[0].variantId },
+                    include: {
+                        product: {
+                            include: { category: { select: { name: true } } }
+                        }
+                    },
                 });
-                topCategory = topProduct?.category?.name || '';
+                topCategory = topVariant?.product?.category?.name || '';
             }
 
             return {
@@ -281,8 +285,9 @@ export class ReportService {
             const filters: ReportFilters = { tenantId, branchId, startDate, endDate };
             const salesWhereClause = buildSalesWhereClause(filters);
 
-            const topSellingProducts = await prisma.saleItem.groupBy({
-                by: ['productId'],
+            // Group by variantId (the sellable unit in the new schema)
+            const topSellingVariants = await prisma.saleItem.groupBy({
+                by: ['variantId'],
                 where: {
                     sale: salesWhereClause,
                 },
@@ -297,27 +302,40 @@ export class ReportService {
                 take: 10,
             });
 
-            const productIds = topSellingProducts.map(item => item.productId);
-            const products = await prisma.product.findMany({
+            const variantIds = topSellingVariants.map(item => item.variantId);
+
+            // Get variants with their parent product info
+            const variants = await prisma.productVariant.findMany({
                 where: {
-                    id: { in: productIds },
+                    id: { in: variantIds },
                 },
                 select: {
                     id: true,
-                    name: true,
+                    variantName: true,
                     sellingPrice: true,
+                    product: {
+                        select: {
+                            name: true,
+                        },
+                    },
                 },
             });
 
-            type ProductInfo = { id: string; name: string; sellingPrice: any };
-            const productMap = new Map<string, ProductInfo>(products.map(p => [p.id, p]));
+            type VariantInfo = { id: string; variantName: string; sellingPrice: any; product: { name: string } };
+            const variantMap = new Map<string, VariantInfo>(variants.map(v => [v.id, v]));
 
-            const data = topSellingProducts.map(item => {
-                const product = productMap.get(item.productId);
+            const data = topSellingVariants.map(item => {
+                const variant = variantMap.get(item.variantId);
+                // Display name: "Product Name - Variant" or just "Product Name" if variant is "Default"
+                const displayName = variant
+                    ? (variant.variantName && variant.variantName !== 'Default'
+                        ? `${variant.product.name} - ${variant.variantName}`
+                        : variant.product.name)
+                    : 'Unknown Product';
                 return {
-                    name: product?.name || 'Unknown Product',
+                    name: displayName,
                     quantity: item._sum.quantity || 0,
-                    pricing: Number(product?.sellingPrice || 0),
+                    pricing: Number(variant?.sellingPrice || 0),
                 };
             });
 
@@ -342,7 +360,7 @@ export class ReportService {
             const filters: ReportFilters = { tenantId, branchId, startDate, endDate };
             const salesWhereClause = buildSalesWhereClause(filters);
 
-            // Get all sale items with product category info
+            // Get all sale items with variant -> product -> category info
             const saleItems = await prisma.saleItem.findMany({
                 where: {
                     sale: salesWhereClause,
@@ -350,12 +368,16 @@ export class ReportService {
                 select: {
                     quantity: true,
                     totalAmount: true,
-                    product: {
+                    variant: {
                         select: {
-                            categoryId: true,
-                            category: {
+                            product: {
                                 select: {
-                                    name: true,
+                                    categoryId: true,
+                                    category: {
+                                        select: {
+                                            name: true,
+                                        },
+                                    },
                                 },
                             },
                         },
@@ -366,8 +388,8 @@ export class ReportService {
             // Group by category
             const categoryMap: Record<string, { name: string; orderCount: number; totalPrice: number }> = {};
             for (const item of saleItems) {
-                const categoryId = item.product.categoryId || 'uncategorized';
-                const categoryName = item.product.category?.name || 'Uncategorized';
+                const categoryId = item.variant?.product?.categoryId || 'uncategorized';
+                const categoryName = item.variant?.product?.category?.name || 'Uncategorized';
 
                 if (!categoryMap[categoryId]) {
                     categoryMap[categoryId] = {

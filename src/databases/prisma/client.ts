@@ -29,23 +29,31 @@ let prismaClient: PrismaClientInstance | null = null;
 let isInitialized = false;
 
 /**
- * For MySQL, database is always "ready" - no file verification needed.
+ * Track whether MySQL initialization has been run.
+ * This allows ensureReadyForMySQL to run migrations on first call.
+ */
+let mysqlInitialized = false;
+
+/**
+ * Mark MySQL as initialized (after migrations have run).
  * These functions exist for API compatibility with SQLite client.
  */
 export const setDatabaseReady = (_dbUrl?: string): void => {
+    mysqlInitialized = true;
     console.log('✓ MySQL database marked as ready for connections');
 };
 
 /**
- * For MySQL, always return true - no pre-verification needed
+ * Check if MySQL initialization has been run.
+ * Returns false on first call to allow migrations to run.
  */
-export const isDatabaseReady = (): boolean => true;
+export const isDatabaseReady = (): boolean => mysqlInitialized;
 
 /**
  * Reset state (for testing)
  */
 export const resetDatabaseState = (): void => {
-    // No-op for MySQL
+    mysqlInitialized = false;
 };
 
 /**

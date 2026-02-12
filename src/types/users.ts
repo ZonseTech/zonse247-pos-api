@@ -63,4 +63,36 @@ export interface CreateUserRequest {
     pinCode?: string | null;
     currentBranchId?: string | null;
     forcePasswordChange?: boolean;
+
+    // Staff-related fields for creating staff record alongside user
+    trackAttendance?: boolean;
+    allowAppAccess?: boolean;
+    calculateAs?: 'HOURLY' | 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'FIXED';
+    staffSalary?: number;
+    avgShiftHours?: number;
+    joiningDate?: Date | string | null;
+    allowSelfAttendance?: boolean;
+    attendanceType?: 'PUNCH' | 'SHIFT' | 'FLEXIBLE' | 'REMOTE';
+    department?: string | null;
+    designation?: string | null;
+    employeeCode?: string | null;
+    salaryFrequency?: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY' | 'SEMIMONTHLY';
+    emergencyContactName?: string | null;
+    emergencyContactPhone?: string | null;
+    emergencyContactRelation?: string | null;
+    address?: string | null;
+    city?: string | null;
+    state?: string | null;
+    postalCode?: string | null;
+    country?: string | null;
+    nationalId?: string | null;
+    dateOfBirth?: Date | string | null;
+    gender?: 'MALE' | 'FEMALE' | 'OTHER' | 'PREFER_NOT_TO_SAY' | null;
+    bankName?: string | null;
+    bankAccountNumber?: string | null;
+    bankBranchCode?: string | null;
+    notes?: string | null;
+
+    // Flag to create staff record
+    createStaffRecord?: boolean;
 }

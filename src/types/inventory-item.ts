@@ -7,7 +7,7 @@ import { Category } from "categoty";
 export interface InventoryItem {
     // Product fields
     productId: string;
-    sku: string;
+    sku?: string | null;
     name: string;
     description?: string;
     unit: string;
@@ -51,6 +51,7 @@ export interface InventoryItem {
     lastSoldAt?: Date | string;
     expirationDate?: Date | string;
     manufactureDate?: Date | string;
+    expiryDateAlert?: number;  // Days before expiration to trigger alert
     createdAt: Date | string;
     updatedAt: Date | string;
 

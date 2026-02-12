@@ -16,6 +16,7 @@ export * from './payment-method';
 export * from './payment-service-provider';
 export * from './role-permission';
 export * from './security';
+export * from './staff';
 export * from './terminal-settings';
 export * from './subscription';
 export * from './sync';

@@ -26,6 +26,7 @@ import ProductsRoutes from './products.routes'
 import SuppliersRoutes from './suppliers.routes'
 import PurchaseOrdersRoutes from './purchase-orders.routes'
 import SalesRoutes from './sales.routes'
+import ParkedSalesRoutes from './parked-sales.routes'
 import StockMovementsRoutes from './stock-movements.routes'
 import PrinterRoutes from './printer.routes'
 import TenantRegistrationDetailRoutes from './tenant-registration-detail.routes'
@@ -103,6 +104,7 @@ router.use('/products', ProductsRoutes);
 router.use('/suppliers', SuppliersRoutes);
 router.use('/purchase-orders', PurchaseOrdersRoutes);
 router.use('/sales', SalesRoutes);
+router.use('/parked-sales', ParkedSalesRoutes);
 router.use('/sales/migration', TransactionMigrationRoutes);
 router.use('/stock-movements', StockMovementsRoutes);
 router.use('/printers', PrinterRoutes);

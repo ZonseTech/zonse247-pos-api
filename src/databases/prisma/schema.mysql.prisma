@@ -11,43 +11,35 @@ datasource db {
 // INVENTORY BUSINESS FLOW MODELS
 // ==========================================
 
+// Product is the master/parent product (e.g., "Nivea Lotion")
+// Contains common attributes shared across all variants
 model Product {
   id          String     @id @default(uuid()) @map("product_id")
   tenantId    String     @map("tenant_id")
   branchId    String     @map("branch_id")
   categoryId  String?    @map("category_id")
-  sku         String     @unique @map("sku")
   name        String     @map("name")
-  
-  // Primary barcode (what you sell/scan at POS)
-  primaryBarcode String? @unique @map("primary_barcode")
-  
   description String?    @map("description")
-  unit        String     @default("piece") @map("unit")
-  sellingPrice Decimal   @default(0.00) @map("selling_price")
   
-  // Product attributes
+  // Brand info
   brand       String?    @map("brand")
-  color       String?    @map("color")
-  size        String?    @map("size")
-  dimensions  String?    @map("dimensions")
-  weight      Decimal?   @map("weight")
   
-  // Promotional pricing
-  promoPrice  Decimal?   @map("promo_price")
-  promoStart  DateTime?  @map("promo_start")
-  promoEnd    DateTime?  @map("promo_end")
+  // Tax (applies to all variants unless overridden)
+  isTaxable   Boolean?   @map("is_taxable")
   
-  // Tax
-  isTaxable   Boolean    @default(true) @map("is_taxable")
-  
-  // Dates
-  expirationDate  DateTime? @map("expiration_date")
-  manufactureDate DateTime? @map("manufacture_date")
-  
-  // Supplier info
+  // Supplier info (common supplier for all variants)
   supplierName String?   @map("supplier_name")
   supplierCode String?   @map("supplier_code")
+  
+  // Default unit for variants (can be overridden per variant)
+  defaultUnit String?    @map("default_unit")
+  
+  // Custom attributes schema (defines what custom fields variants can have)
+  // e.g., ["color", "flavor", "material"] - JSON array
+  customAttributeSchema String? @map("custom_attribute_schema") @db.Text
+  
+  // Image for the product (main product image)
+  imageUrl    String?    @map("image_url")
   
   isActive    Boolean    @default(true) @map("is_active")
   createdAt   DateTime   @default(now()) @map("created_at")
@@ -58,19 +50,120 @@ model Product {
   branch      Branch     @relation(fields: [branchId], references: [branchId], onDelete: Cascade)
   category    Category?  @relation(fields: [categoryId], references: [categoryId], onDelete: SetNull)
   
-  inventories Inventory[]
-  purchaseOrderItems PurchaseOrderItem[]
-  saleItems   SaleItem[]
-  productBarcodes ProductBarcode[] // Multiple barcodes
+  variants    ProductVariant[]  // All variants of this product
   
-  @@unique([branchId, sku], name: "unique_branch_sku")
+  @@unique([branchId, name], name: "unique_branch_product_name")
   @@index([branchId])
   @@index([tenantId])
   @@index([categoryId])
-  @@index([primaryBarcode])
+  @@index([name])
   @@map("products")
 }
 
+// ProductVariant is the sellable unit (e.g., "Nivea 50ml", "Nivea 200ml")
+// Each variant has its own SKU, price, barcode, and inventory
+model ProductVariant {
+  id          String     @id @default(uuid()) @map("variant_id")
+  productId   String     @map("product_id")
+  tenantId    String     @map("tenant_id")
+  branchId    String     @map("branch_id")
+  
+  // Variant identification
+  sku         String?    @map("sku")
+  variantName String     @map("variant_name")  // e.g., "50ml", "200ml", "Large"
+  
+  // Primary barcode for this variant
+  primaryBarcode String? @unique @map("primary_barcode")
+  
+  // Pricing
+  sellingPrice Decimal   @default(0.00) @map("selling_price")
+  costPrice    Decimal   @default(0.00) @map("cost_price")
+  
+  // Unit for this variant (overrides product default)
+  unit        String     @default("piece") @map("unit")
+  
+  // Optional variant-level overrides (inherit from Product if null)
+  description  String?   @map("description")
+  brand        String?   @map("brand")
+  imageUrl     String?   @map("image_url")
+  isTaxable    Boolean?  @map("is_taxable")
+  supplierName String?   @map("supplier_name")
+  supplierCode String?   @map("supplier_code")
+  
+  // Size/weight/volume attributes
+  size        String?    @map("size")        // e.g., "Small", "Medium", "Large"
+  weight      Decimal?   @map("weight")      // in grams/kg
+  weightUnit  String?    @map("weight_unit") // "g", "kg", "oz", "lb"
+  volume      Decimal?   @map("volume")      // in ml/L
+  volumeUnit  String?    @map("volume_unit") // "ml", "L", "oz", "gal"
+  dimensions  String?    @map("dimensions")  // "LxWxH"
+  
+  // Additional variant attributes (JSON for flexible custom properties)
+  // e.g., {"color": "blue", "flavor": "vanilla", "material": "cotton"}
+  customAttributes String? @map("custom_attributes") @db.Text
+  
+  // Promotional pricing (variant-specific)
+  promoPrice  Decimal?   @map("promo_price")
+  promoStart  DateTime?  @map("promo_start")
+  promoEnd    DateTime?  @map("promo_end")
+  
+  // Dates
+  expirationDate  DateTime? @map("expiration_date")
+  manufactureDate DateTime? @map("manufacture_date")
+  
+  // Expiry date alert - days before expiration to trigger alert (e.g., 30 days)
+  expiryDateAlert Int?      @map("expiry_date_alert")
+  
+  // Is this the default variant? (shown first in lists)
+  isDefault   Boolean    @default(false) @map("is_default")
+  
+  isActive    Boolean    @default(true) @map("is_active")
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+  
+  // Relations
+  product     Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  tenant      Tenant     @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade)
+  branch      Branch     @relation(fields: [branchId], references: [branchId], onDelete: Cascade)
+  
+  inventory   Inventory?
+  purchaseOrderItems PurchaseOrderItem[]
+  saleItems   SaleItem[]
+  barcodes    VariantBarcode[]
+  
+  @@unique([productId, variantName], name: "unique_product_variant")
+  @@index([productId])
+  @@index([branchId])
+  @@index([tenantId])
+  @@index([sku])
+  @@index([primaryBarcode])
+  @@index([variantName])
+  @@map("product_variants")
+}
+
+// VariantBarcode - multiple barcodes per variant (replaces ProductBarcode)
+model VariantBarcode {
+  id          String      @id @default(uuid()) @map("variant_barcode_id")
+  variantId   String      @map("variant_id")
+  barcode     String      @unique @map("barcode")
+  barcodeType BarcodeType @default(EAN13) @map("barcode_type")
+  
+  barcodeSource BarcodeSource @default(SUPPLIER) @map("barcode_source")
+  description   String?       @map("description")
+  
+  isActive      Boolean    @default(true) @map("is_active")
+  createdAt     DateTime   @default(now()) @map("created_at")
+  updatedAt     DateTime   @updatedAt @map("updated_at")
+  
+  variant       ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  
+  @@unique([variantId, barcode], name: "unique_variant_barcode")
+  @@index([variantId])
+  @@index([barcode])
+  @@map("variant_barcodes")
+}
+
+// DEPRECATED: Keep for backward compatibility during migration
 model ProductBarcode {
   id          String      @id @default(uuid()) @map("product_barcode_id")
   productId   String      @map("product_id")
@@ -84,8 +177,6 @@ model ProductBarcode {
   isActive      Boolean    @default(true) @map("is_active")
   createdAt     DateTime   @default(now()) @map("created_at")
   updatedAt     DateTime   @updatedAt @map("updated_at")
-  
-  product       Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
   
   @@unique([productId, barcode], name: "unique_product_barcode")
   @@index([productId])
@@ -176,7 +267,7 @@ model PurchaseOrder {
 model PurchaseOrderItem {
   id              String   @id @default(uuid()) @map("purchase_order_item_id")
   purchaseOrderId String   @map("purchase_order_id")
-  productId       String   @map("product_id")
+  variantId       String   @map("variant_id")
   orderedQuantity Int      @default(0) @map("ordered_quantity")
   receivedQuantity Int     @default(0) @map("received_quantity")
   damagedQuantity Int      @default(0) @map("damaged_quantity")
@@ -186,12 +277,12 @@ model PurchaseOrderItem {
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
   
-  purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
-  product       Product       @relation(fields: [productId], references: [id], onDelete: Restrict)
+  purchaseOrder PurchaseOrder  @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  variant       ProductVariant @relation(fields: [variantId], references: [id], onDelete: Restrict)
   
-  @@unique([purchaseOrderId, productId], name: "unique_po_product")
+  @@unique([purchaseOrderId, variantId], name: "unique_po_variant")
   @@index([purchaseOrderId])
-  @@index([productId])
+  @@index([variantId])
   @@map("purchase_order_items")
 }
 
@@ -199,7 +290,8 @@ model Inventory {
   id                String         @id @default(uuid()) @map("inventory_id")
   tenantId          String         @map("tenant_id")
   branchId          String         @map("branch_id")
-  productId         String         @unique @map("product_id")
+  productId         String         @map("product_id")
+  variantId         String?        @unique @map("variant_id")
   
   availableQuantity Int            @default(0) @map("available_quantity")
   reservedQuantity  Int            @default(0) @map("reserved_quantity")
@@ -220,11 +312,12 @@ model Inventory {
   
   tenant            Tenant         @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade)
   branch            Branch         @relation(fields: [branchId], references: [branchId], onDelete: Cascade)
-  product           Product        @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variant           ProductVariant? @relation(fields: [variantId], references: [id], onDelete: Cascade)
   stockMovements    StockMovement[]
   
   @@index([branchId])
   @@index([tenantId])
+  @@index([variantId])
   @@index([productId])
   @@map("inventory")
 }
@@ -321,7 +414,8 @@ model Sale {
 model SaleItem {
   id              String   @id @default(uuid()) @map("sale_item_id")
   saleId          String   @map("sale_id")
-  productId       String   @map("product_id")
+  productId       String   @map("product_id")  // Legacy field - parent product ID
+  variantId       String   @map("variant_id")
   
   quantity        Int      @map("quantity")
   unitPrice       Decimal  @map("unit_price")
@@ -334,11 +428,12 @@ model SaleItem {
   
   createdAt       DateTime @default(now()) @map("created_at")
   
-  sale            Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
-  product         Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
+  sale            Sale           @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  variant         ProductVariant @relation(fields: [variantId], references: [id], onDelete: Restrict)
   
-  @@unique([saleId, productId], name: "unique_sale_product")
+  @@unique([saleId, variantId], name: "unique_sale_variant")
   @@index([saleId])
+  @@index([variantId])
   @@index([productId])
   @@map("sale_items")
 }
@@ -511,12 +606,14 @@ model Branch {
   
   // ADDED: New inventory flow relations
   products           Product[]
+  productVariants    ProductVariant[]
   suppliers          Supplier[]
   purchaseOrders     PurchaseOrder[]
   inventories        Inventory[]
   stockMovements     StockMovement[]
   sales              Sale[]
   printers           Printer[]
+  staff              Staff[]
   
   // ADDED: Relation to old inventory for backward compatibility
   inventoryOld       InventoryOld[]
@@ -871,12 +968,14 @@ model Tenant {
   
   // ADDED: New inventory flow relations
   products           Product[]
+  productVariants    ProductVariant[]
   suppliers          Supplier[]
   purchaseOrders     PurchaseOrder[]
   inventories        Inventory[]
   stockMovements     StockMovement[]
   sales              Sale[]
   printers           Printer[]
+  staff              Staff[]
 
   @@index([email])
   @@index([subscriptionStatus])
@@ -1084,6 +1183,7 @@ model User {
   stockMovements           StockMovement[]
   sales                    Sale[]
   voidedSales              Sale[]           @relation("sales_voided_by")
+  staff                    Staff?
 
   @@unique([tenantId, username], name: "unique_tenant_username")
   @@index([branchId])
@@ -1629,4 +1729,94 @@ model TenantRegistrationDetail {
   @@index([email])
   @@index([isProcessed])
   @@map("tenant_registration_details")
+}
+
+// Staff model for employee/staff management with attendance tracking
+enum CalculateAs {
+  HOURLY
+  DAILY
+  WEEKLY
+  MONTHLY
+  FIXED
+}
+
+enum SalaryFrequency {
+  WEEKLY
+  BIWEEKLY
+  MONTHLY
+  SEMIMONTHLY
+}
+
+enum AttendanceType {
+  PUNCH
+  SHIFT
+  FLEXIBLE
+  REMOTE
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+  PREFER_NOT_TO_SAY
+}
+
+enum EmploymentStatus {
+  ACTIVE
+  ON_LEAVE
+  SUSPENDED
+  TERMINATED
+  RESIGNED
+}
+
+model Staff {
+  id                       Int               @id @default(autoincrement())
+  staffId                  String            @unique @map("staff_id")
+  userId                   String            @unique @map("user_id")
+  tenantId                 String            @map("tenant_id")
+  branchId                 String            @map("branch_id")
+  employeeCode             String?           @map("employee_code")
+  department               String?           @map("department")
+  designation              String?           @map("designation")
+  joiningDate              DateTime?         @map("joining_date")
+  terminationDate          DateTime?         @map("termination_date")
+  calculateAs              CalculateAs       @default(DAILY) @map("calculate_as")
+  staffSalary              Decimal           @default(0.00) @map("staff_salary") @db.Decimal(12, 2)
+  salaryFrequency          SalaryFrequency   @default(MONTHLY) @map("salary_frequency")
+  trackAttendance          Boolean           @default(false) @map("track_attendance")
+  allowSelfAttendance      Boolean           @default(false) @map("allow_self_attendance")
+  attendanceType           AttendanceType    @default(PUNCH) @map("attendance_type")
+  avgShiftHours            Decimal           @default(8.00) @map("avg_shift_hours") @db.Decimal(4, 2)
+  allowAppAccess           Boolean           @default(false) @map("allow_app_access")
+  emergencyContactName     String?           @map("emergency_contact_name")
+  emergencyContactPhone    String?           @map("emergency_contact_phone")
+  emergencyContactRelation String?           @map("emergency_contact_relation")
+  address                  String?           @map("address")
+  city                     String?           @map("city")
+  state                    String?           @map("state")
+  postalCode               String?           @map("postal_code")
+  country                  String?           @map("country")
+  nationalId               String?           @map("national_id")
+  dateOfBirth              DateTime?         @map("date_of_birth")
+  gender                   Gender?           @map("gender")
+  bankName                 String?           @map("bank_name")
+  bankAccountNumber        String?           @map("bank_account_number")
+  bankBranchCode           String?           @map("bank_branch_code")
+  employmentStatus         EmploymentStatus  @default(ACTIVE) @map("employment_status")
+  notes                    String?           @map("notes") @db.Text
+  synced                   Int               @default(0) @map("synced")
+  createdAt                DateTime          @default(now()) @map("created_at")
+  updatedAt                DateTime          @updatedAt @map("updated_at")
+
+  user                     User              @relation(fields: [userId], references: [userId], onDelete: Cascade, onUpdate: NoAction)
+  tenant                   Tenant            @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade, onUpdate: NoAction)
+  branch                   Branch            @relation(fields: [branchId], references: [branchId], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([tenantId, employeeCode], name: "unique_tenant_employee_code")
+  @@index([userId], name: "idx_staff_user_id")
+  @@index([tenantId], name: "idx_staff_tenant_id")
+  @@index([branchId], name: "idx_staff_branch_id")
+  @@index([employmentStatus], name: "idx_staff_employment_status")
+  @@index([joiningDate], name: "idx_staff_joining_date")
+  @@map("staff")
 }

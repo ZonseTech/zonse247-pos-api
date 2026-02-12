@@ -188,7 +188,7 @@ export class UserModel {
             phone: data.phone || null,
             roleId: data.roleId,
             status: data.status || 'active',
-            accessibleBranches: (data.accessibleBranches || null) as unknown as any,
+            accessibleBranches: (data.accessibleBranches || ['*']) as unknown as any,
             allowedTerminals: (data.allowedTerminals || null) as unknown as any,
             maxDiscountPercent: parseFloat((data.maxDiscountPercent || 0).toString()),
             canOverridePrices: data.canOverridePrices || false,

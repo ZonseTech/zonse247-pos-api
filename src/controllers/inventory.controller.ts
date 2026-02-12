@@ -31,6 +31,11 @@ export class InventoryController extends BaseController {
 
         // Handle validation errors
         if (error instanceof ValidationError) {
+            // If a specific field is provided, use sendBadRequest for cleaner format
+            if (error.field) {
+                BaseController.sendBadRequest(res, error.message, error.field);
+                return;
+            }
             BaseController.sendValidationError(res, error.message, error.errors);
             return;
         }
@@ -176,9 +181,8 @@ export class InventoryController extends BaseController {
     static async getCount(req: Request & AuthRequest, res: Response): Promise<void> {
         try {
             const auth = InventoryController.getAuthContext(req);
-            const includeVoided = req.query.includeVoided === 'true';
-            const count = await InventoryService.getInventoryItemCount(auth, includeVoided);
-            BaseController.sendSuccess(res, 'Inventory count retrieved successfully.', { count });
+            const counts = await InventoryService.getInventoryItemCounts(auth);
+            BaseController.sendSuccess(res, 'Inventory counts retrieved successfully.', counts);
         } catch (error) {
             InventoryController.handleError(res, error, 'getCount');
         }
@@ -225,8 +229,8 @@ export class InventoryController extends BaseController {
             const categoryId = req.query.categoryId as string | undefined;
             const startDate = req.query.startDate as string | undefined;
             const endDate = req.query.endDate as string | undefined;
+            const groupByProduct = req.query.groupByProduct === 'true';
 
-            // Validate pagination
             if (page < 1) {
                 BaseController.sendBadRequest(res, 'Page number must be at least 1');
                 return;
@@ -236,7 +240,7 @@ export class InventoryController extends BaseController {
                 return;
             }
 
-            const { inventoryItems, total, totalPages } = await InventoryService.getInventoryItemsWithCategories(
+            const result = await InventoryService.getInventoryItemsWithCategories(
                 auth,
                 page,
                 perPage,
@@ -244,18 +248,31 @@ export class InventoryController extends BaseController {
                 filter,
                 categoryId,
                 startDate,
-                endDate
+                endDate,
+                groupByProduct
             );
 
-            BaseController.sendSuccess(res, 'Inventory items with categories retrieved successfully.', {
-                inventoryItems,
-                pagination: {
-                    currentPage: page,
-                    totalPages,
-                    totalItems: total,
-                    itemsPerPage: perPage
-                }
-            });
+            if (groupByProduct) {
+                BaseController.sendSuccess(res, 'Products with variants retrieved successfully.', {
+                    products: result.products,
+                    pagination: {
+                        currentPage: page,
+                        totalPages: result.totalPages,
+                        totalItems: result.total,
+                        itemsPerPage: perPage
+                    }
+                });
+            } else {
+                BaseController.sendSuccess(res, 'Inventory items with categories retrieved successfully.', {
+                    inventoryItems: result.inventoryItems,
+                    pagination: {
+                        currentPage: page,
+                        totalPages: result.totalPages,
+                        totalItems: result.total,
+                        itemsPerPage: perPage
+                    }
+                });
+            }
         } catch (error) {
             InventoryController.handleError(res, error, 'getInventoryItems');
         }

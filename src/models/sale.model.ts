@@ -29,7 +29,8 @@ export interface Sale {
 export interface SaleItem {
     id: string;
     saleId: string;
-    productId: string;
+    variantId: string;      // Changed from productId
+    productId?: string;     // Legacy - kept for backward compatibility
     quantity: number;
     unitPrice: number;
     unitCost: number;
@@ -83,7 +84,8 @@ export interface CreateSaleInput {
     payments?: SalePaymentInput[]; // NEW: Multiple payments support
     notes?: string;
     items: {
-        productId: string;
+        variantId: string;      // Now uses variantId
+        productId?: string;     // Legacy - kept for backward compatibility, mapped to variantId
         quantity: number;
         unitPrice: number;
         taxAmount?: number;
@@ -93,10 +95,20 @@ export interface CreateSaleInput {
 
 export interface SaleWithItems extends Sale {
     items: (SaleItem & {
-        product: {
+        variant?: {
+            id: string;
+            variantName: string;
+            sku?: string | null;
+            product: {
+                id: string;
+                name: string;
+            };
+        };
+        // Legacy: Flattened product info for backward compatibility
+        product?: {
             id: string;
             name: string;
-            sku: string;
+            sku?: string | null;
         };
     })[];
     payments?: SalePayment[]; // NEW: Include payments in response

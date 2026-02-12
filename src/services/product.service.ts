@@ -1,130 +1,93 @@
-import { v4 as uuidv4 } from 'uuid';
-import { Prisma } from '../databases/prisma/generated/prisma/client';
-import { prisma } from '../databases/prisma/client';
-import {
-    CreateProductInput,
-    UpdateProductInput,
-    ProductWithInventory,
-    SearchProductResult,
-} from '../models/product.model';
 import {
     DbErrorHandler,
     ValidationError,
     ConflictError,
     NotFoundError,
     BusinessLogicError,
-    ProductErrors,
-    InventoryErrors,
 } from '../utils/db-error-handler.util';
+import {
+    CreateProductInput,
+    CreateVariantInput,
+    UpdateProductInput,
+    UpdateVariantInput,
+    ProductWithInventory,
+    ProductWithVariants,
+    SearchProductResult,
+    DuplicateBarcodeResult,
+    PaginatedProductsResponse,
+} from '../types/product.types';
+import {
+    PAGINATION,
+    ERROR_MESSAGES,
+    normalizeBarcode,
+    stringifyCustomAttributes,
+} from '../constants/product.constants';
+import {
+    mapVariantToProductWithInventory,
+    mapProductWithVariants,
+    filterByStockStatus,
+    filterByStockFilter,
+    extractVariantData,
+} from '../utils/product.utils';
+import { ProductRepository, TenantBranchScope } from '../repositories/product.repository';
 
-
+/**
+ * Product Service - handles all product-related business logic
+ */
 export class ProductService {
-    /**
-     * Check if a barcode already exists in the store (tenant + branch)
-     * Returns the product name if duplicate found, null otherwise
-     */
     static async checkDuplicateBarcode(
         barcode: string,
         tenantId: string,
         branchId: string,
-        excludeProductId?: string
-    ): Promise<{ exists: boolean; productName?: string; matchType?: 'primary' | 'alternative' }> {
-        const existingPrimaryBarcode = await prisma.product.findFirst({
-            where: {
-                primaryBarcode: barcode,
-                tenantId,
-                branchId,
-                isActive: true,
-                ...(excludeProductId && { id: { not: excludeProductId } }),
-            },
-            select: { id: true, name: true },
-        });
+        excludeVariantId?: string
+    ): Promise<DuplicateBarcodeResult> {
+        const scope = { tenantId, branchId };
 
-        if (existingPrimaryBarcode) {
-            return {
-                exists: true,
-                productName: existingPrimaryBarcode.name,
-                matchType: 'primary',
-            };
+        const primary = await ProductRepository.findByPrimaryBarcode(barcode, scope, excludeVariantId);
+        if (primary) {
+            return { exists: true, productName: primary.product.name, variantName: primary.variantName, matchType: 'primary' };
         }
 
-        const existingAlternativeBarcode = await prisma.productBarcode.findFirst({
-            where: {
-                barcode,
-                isActive: true,
-                product: {
-                    tenantId,
-                    branchId,
-                    isActive: true,
-                    ...(excludeProductId && { id: { not: excludeProductId } }),
-                },
-            },
-            include: {
-                product: {
-                    select: { id: true, name: true },
-                },
-            },
-        });
-
-        if (existingAlternativeBarcode) {
-            return {
-                exists: true,
-                productName: existingAlternativeBarcode.product.name,
-                matchType: 'alternative',
-            };
+        const alternative = await ProductRepository.findByAlternativeBarcode(barcode, scope, excludeVariantId);
+        if (alternative) {
+            return { exists: true, productName: alternative.variant.product.name, variantName: alternative.variant.variantName, matchType: 'alternative' };
         }
 
         return { exists: false };
     }
 
-    /**
-     * Validate all barcodes for duplicates before creating/updating a product
-     */
     static async validateBarcodesForDuplicates(
         primaryBarcode: string | undefined,
         alternativeBarcodes: { barcode: string }[] | undefined,
         tenantId: string,
         branchId: string,
-        excludeProductId?: string
+        excludeVariantId?: string
     ): Promise<void> {
         const errors: Record<string, string> = {};
         const barcodeSet = new Set<string>();
 
-        // Validate primary barcode
         if (primaryBarcode) {
-            const duplicateCheck = await this.checkDuplicateBarcode(
-                primaryBarcode,
-                tenantId,
-                branchId,
-                excludeProductId
-            );
-            if (duplicateCheck.exists) {
-                errors.primaryBarcode = ProductErrors.BARCODE_EXISTS(primaryBarcode, duplicateCheck.productName);
+            const dup = await this.checkDuplicateBarcode(primaryBarcode, tenantId, branchId, excludeVariantId);
+            if (dup.exists) {
+                const displayName = dup.variantName ? `${dup.productName} - ${dup.variantName}` : dup.productName;
+                errors.primaryBarcode = ERROR_MESSAGES.BARCODE_EXISTS(primaryBarcode, displayName);
             }
-            barcodeSet.add(primaryBarcode.toLowerCase());
+            barcodeSet.add(normalizeBarcode(primaryBarcode));
         }
 
-        // Validate alternative barcodes
-        if (alternativeBarcodes && alternativeBarcodes.length > 0) {
+        if (alternativeBarcodes?.length) {
             for (let i = 0; i < alternativeBarcodes.length; i++) {
                 const bc = alternativeBarcodes[i];
-                const normalizedBarcode = bc.barcode.toLowerCase();
+                const normalized = normalizeBarcode(bc.barcode);
 
-                // Check for duplicates within the request itself
-                if (barcodeSet.has(normalizedBarcode)) {
-                    errors[`barcodes[${i}]`] = ProductErrors.DUPLICATE_BARCODES_IN_REQUEST(bc.barcode);
+                if (barcodeSet.has(normalized)) {
+                    errors[`barcodes[${i}]`] = ERROR_MESSAGES.DUPLICATE_BARCODES_IN_REQUEST(bc.barcode);
                 } else {
-                    barcodeSet.add(normalizedBarcode);
-
-                    // Check for duplicates in the database
-                    const duplicateCheck = await this.checkDuplicateBarcode(
-                        bc.barcode,
-                        tenantId,
-                        branchId,
-                        excludeProductId
-                    );
-                    if (duplicateCheck.exists) {
-                        errors[`barcodes[${i}]`] = ProductErrors.BARCODE_EXISTS(bc.barcode, duplicateCheck.productName);
+                    barcodeSet.add(normalized);
+                    const dup = await this.checkDuplicateBarcode(bc.barcode, tenantId, branchId, excludeVariantId);
+                    if (dup.exists) {
+                        const displayName = dup.variantName ? `${dup.productName} - ${dup.variantName}` : dup.productName;
+                        errors[`barcodes[${i}]`] = ERROR_MESSAGES.BARCODE_EXISTS(bc.barcode, displayName);
                     }
                 }
             }
@@ -135,34 +98,24 @@ export class ProductService {
         }
     }
 
-    /**
-     * Validate product input data
-     */
     static validateProductInput(data: CreateProductInput): void {
         const errors: Record<string, string> = {};
 
         if (!data.name || data.name.trim().length === 0) {
-            errors.name = 'Product name is required.';
+            errors.name = ERROR_MESSAGES.NAME_REQUIRED;
         }
 
-        if (!data.sku || data.sku.trim().length === 0) {
-            errors.sku = 'SKU is required.';
+        const sellingPrice = data.variant?.sellingPrice ?? data.sellingPrice;
+        if (sellingPrice !== undefined && sellingPrice < 0) {
+            errors.sellingPrice = ERROR_MESSAGES.INVALID_PRICE;
         }
 
-        if (data.sellingPrice !== undefined && data.sellingPrice < 0) {
-            errors.sellingPrice = ProductErrors.INVALID_PRICE;
+        if (data.minStock !== undefined && data.maxStock !== undefined && data.minStock > data.maxStock) {
+            errors.minStock = ERROR_MESSAGES.MIN_EXCEEDS_MAX(data.minStock, data.maxStock);
         }
 
-        if (data.minStock !== undefined && data.maxStock !== undefined) {
-            if (data.minStock > data.maxStock) {
-                errors.minStock = InventoryErrors.MIN_EXCEEDS_MAX(data.minStock, data.maxStock);
-            }
-        }
-
-        if (data.reorderLevel !== undefined && data.maxStock !== undefined) {
-            if (data.reorderLevel > data.maxStock) {
-                errors.reorderLevel = InventoryErrors.REORDER_EXCEEDS_MAX(data.reorderLevel, data.maxStock);
-            }
+        if (data.reorderLevel !== undefined && data.maxStock !== undefined && data.reorderLevel > data.maxStock) {
+            errors.reorderLevel = ERROR_MESSAGES.REORDER_EXCEEDS_MAX(data.reorderLevel, data.maxStock);
         }
 
         if (Object.keys(errors).length > 0) {
@@ -170,619 +123,174 @@ export class ProductService {
         }
     }
 
-    /**
-     * Create a new product with inventory
-     */
+    private static async validateSkuUniqueness(sku: string, scope: TenantBranchScope, excludeVariantId?: string): Promise<void> {
+        const existing = await ProductRepository.findBySku(sku, scope, excludeVariantId);
+        if (existing) throw new ConflictError(ERROR_MESSAGES.SKU_EXISTS(sku), 'sku');
+    }
+
+    private static async validateCategoryExists(categoryId: string, scope: TenantBranchScope): Promise<void> {
+        const category = await ProductRepository.findCategoryById(categoryId, scope);
+        if (!category) throw new NotFoundError('Category', categoryId);
+    }
+
+    private static async validateVariantNameUniqueness(productId: string, variantName: string, excludeVariantId?: string): Promise<void> {
+        const existing = await ProductRepository.findVariantByName(productId, variantName, excludeVariantId);
+        if (existing) throw new ConflictError(ERROR_MESSAGES.VARIANT_NAME_EXISTS(variantName), 'variantName');
+    }
+
+    private static handleServiceError(error: unknown): never {
+        if (error instanceof ValidationError || error instanceof ConflictError || error instanceof NotFoundError || error instanceof BusinessLogicError) {
+            throw error;
+        }
+        throw DbErrorHandler.handlePrismaError(error);
+    }
+
     static async createProduct(data: CreateProductInput, tenantId: string, branchId: string): Promise<ProductWithInventory> {
         try {
-            // Validate input data
+            const scope = { tenantId, branchId };
             this.validateProductInput(data);
 
-            // Check for duplicate barcodes
-            await this.validateBarcodesForDuplicates(
-                data.primaryBarcode,
-                data.barcodes,
-                tenantId,
-                branchId
+            const variantData = extractVariantData(data);
+
+            await this.validateBarcodesForDuplicates(variantData.barcode, variantData.barcodes, tenantId, branchId);
+            if (variantData.sku) await this.validateSkuUniqueness(variantData.sku, scope);
+            if (data.categoryId) await this.validateCategoryExists(data.categoryId, scope);
+
+            const result = await ProductRepository.createProductWithVariant(
+                { name: data.name, categoryId: data.categoryId, description: data.description, brand: data.brand, isTaxable: data.isTaxable, supplierName: data.supplierName, supplierCode: data.supplierCode, defaultUnit: data.defaultUnit, imageUrl: data.imageUrl },
+                { productId: '', sku: variantData.sku, variantName: variantData.variantName, primaryBarcode: variantData.barcode, sellingPrice: variantData.sellingPrice, costPrice: variantData.costPrice, unit: variantData.unit, barcodes: variantData.barcodes, inventory: { trackInventory: data.trackInventory, allowNegativeStock: data.allowNegativeStock, reorderLevel: data.reorderLevel, minStock: data.minStock, maxStock: data.maxStock } },
+                scope
             );
 
-            // Check for duplicate SKU
-            const existingSku = await prisma.product.findFirst({
-                where: {
-                    sku: data.sku,
-                    tenantId,
-                    branchId,
-                    isActive: true,
-                },
-                select: { id: true, name: true },
-            });
-
-            if (existingSku) {
-                throw new ConflictError(ProductErrors.SKU_EXISTS(data.sku), 'sku');
-            }
-
-            // Verify category exists if provided
-            if (data.categoryId) {
-                const categoryExists = await prisma.category.findFirst({
-                    where: {
-                        categoryId: data.categoryId,
-                        tenantId,
-                        branchId,
-                    },
-                });
-                if (!categoryExists) {
-                    throw new NotFoundError('Category', data.categoryId);
-                }
-            }
-
-            const product = await prisma.$transaction(async (tx) => {
-                const newProduct = await tx.product.create({
-                    data: {
-                        id: uuidv4(),
-                        tenantId: tenantId,
-                        branchId: branchId,
-                        categoryId: data.categoryId,
-                        sku: data.sku,
-                        name: data.name.trim(),
-                        primaryBarcode: data.primaryBarcode,
-                        description: data.description,
-                        unit: data.unit || 'piece',
-                        sellingPrice: data.sellingPrice,
-                        productBarcodes: data.barcodes
-                            ? {
-                                create: data.barcodes.map((bc) => ({
-                                    id: uuidv4(),
-                                    barcode: bc.barcode,
-                                    barcodeType: bc.barcodeType || 'EAN13',
-                                    barcodeSource: bc.barcodeSource || 'SUPPLIER',
-                                    description: bc.description,
-                                })),
-                            }
-                            : undefined,
-                        inventories: {
-                            create: {
-                                id: uuidv4(),
-                                tenantId: tenantId,
-                                branchId: branchId,
-                                availableQuantity: 0,
-                                reservedQuantity: 0,
-                                damagedQuantity: 0,
-                                averageCost: 0,
-                                lastPurchaseCost: 0,
-                                reorderPoint: data.reorderLevel || data.minStock,
-                                maxStock: data.maxStock,
-                                trackInventory: data.trackInventory !== undefined ? data.trackInventory : true,
-                                allowNegativeStock: data.allowNegativeStock !== undefined ? data.allowNegativeStock : false,
-                            },
-                        },
-                    },
-                    include: {
-                        inventories: true,
-                        productBarcodes: true,
-                        category: true,
-                    },
-                });
-
-                return newProduct;
-            });
-
-            return this.mapProductWithInventory(product);
+            return mapVariantToProductWithInventory(result);
         } catch (error) {
-            // Re-throw if it's already a handled error
-            if (error instanceof ValidationError ||
-                error instanceof ConflictError ||
-                error instanceof NotFoundError ||
-                error instanceof BusinessLogicError) {
-                throw error;
-            }
-
-            // Handle Prisma errors
-            throw DbErrorHandler.handlePrismaError(error);
+            this.handleServiceError(error);
         }
     }
 
-    /**
-     * Get product by ID with inventory
-     */
-    static async getProductById(
-        productId: string,
-        tenantId: string,
-        branchId: string
-    ): Promise<ProductWithInventory | null> {
-        const product = await prisma.product.findFirst({
-            where: {
-                id: productId,
-                tenantId,
-                branchId,
-            },
-            include: {
-                inventories: true,
-                productBarcodes: {
-                    where: { isActive: true },
-                },
-                category: true,
-            },
-        });
+    static async createVariant(data: CreateVariantInput, tenantId: string, branchId: string): Promise<ProductWithInventory> {
+        try {
+            const scope = { tenantId, branchId };
 
-        if (!product) return null;
+            await this.validateBarcodesForDuplicates(data.primaryBarcode, data.barcodes, tenantId, branchId);
+            if (data.sku) await this.validateSkuUniqueness(data.sku, scope);
 
-        return this.mapProductWithInventory(product);
+            const product = await ProductRepository.findActiveProductById(data.productId, scope);
+            if (!product) throw new NotFoundError('Product', data.productId);
+
+            await this.validateVariantNameUniqueness(data.productId, data.variantName);
+
+            const result = await ProductRepository.createVariant(
+                { ...data, customAttributes: stringifyCustomAttributes(data.customAttributes), inventory: { trackInventory: data.trackInventory, allowNegativeStock: data.allowNegativeStock, reorderLevel: data.reorderLevel, minStock: data.minStock, maxStock: data.maxStock } },
+                scope,
+                product.defaultUnit ?? undefined
+            );
+
+            return mapVariantToProductWithInventory(result);
+        } catch (error) {
+            this.handleServiceError(error);
+        }
     }
 
-    /**
-     * Search product by SKU, barcode, or name
-     */
-    static async searchProduct(
-        searchTerm: string,
-        tenantId: string,
-        branchId: string
-    ): Promise<SearchProductResult | null> {
-        // First try exact match on SKU
-        let product = await prisma.product.findFirst({
-            where: {
-                sku: searchTerm,
-                tenantId,
-                branchId,
-                isActive: true,
-            },
-            include: {
-                inventories: true,
-                productBarcodes: {
-                    where: { isActive: true },
-                },
-                category: true,
-            },
-        });
+    static async getProductById(productId: string, tenantId: string, branchId: string): Promise<ProductWithVariants | null> {
+        const product = await ProductRepository.findProductById(productId, { tenantId, branchId });
+        return product ? mapProductWithVariants(product) : null;
+    }
 
-        if (product) {
-            return {
-                product: this.mapProductWithInventory(product),
-                matchedBy: 'sku',
-            };
+    static async getVariantById(variantId: string, tenantId: string, branchId: string): Promise<ProductWithInventory | null> {
+        const variant = await ProductRepository.findVariantById(variantId, { tenantId, branchId });
+        return variant ? mapVariantToProductWithInventory(variant) : null;
+    }
+
+    static async searchProduct(searchTerm: string, tenantId: string, branchId: string): Promise<SearchProductResult | null> {
+        const scope = { tenantId, branchId };
+
+        let variant = await ProductRepository.searchBySku(searchTerm, scope);
+        if (variant) return { product: mapVariantToProductWithInventory(variant), matchedBy: 'sku' };
+
+        variant = await ProductRepository.searchByPrimaryBarcode(searchTerm, scope);
+        if (variant) return { product: mapVariantToProductWithInventory(variant), matchedBy: 'primaryBarcode' };
+
+        const barcode = await ProductRepository.searchByAlternativeBarcode(searchTerm, scope);
+        if (barcode) return { product: mapVariantToProductWithInventory(barcode.variant), matchedBy: 'barcode' };
+
+        const product = await ProductRepository.searchByProductName(searchTerm, scope);
+        if (product?.variants.length) {
+            return { product: mapVariantToProductWithInventory({ ...product.variants[0], product: { ...product, variants: undefined as any } }), matchedBy: 'name' };
         }
 
-        // Try primary barcode
-        product = await prisma.product.findFirst({
-            where: {
-                primaryBarcode: searchTerm,
-                tenantId,
-                branchId,
-                isActive: true,
-            },
-            include: {
-                inventories: true,
-                productBarcodes: {
-                    where: { isActive: true },
-                },
-                category: true,
-            },
-        });
-
-        if (product) {
-            return {
-                product: this.mapProductWithInventory(product),
-                matchedBy: 'primaryBarcode',
-            };
-        }
-
-        // Try alternative barcodes
-        const barcode = await prisma.productBarcode.findFirst({
-            where: {
-                barcode: searchTerm,
-                isActive: true,
-                product: {
-                    tenantId,
-                    branchId,
-                    isActive: true,
-                },
-            },
-            include: {
-                product: {
-                    include: {
-                        inventories: true,
-                        productBarcodes: {
-                            where: { isActive: true },
-                        },
-                        category: true,
-                    },
-                },
-            },
-        });
-
-        if (barcode) {
-            return {
-                product: this.mapProductWithInventory(barcode.product),
-                matchedBy: 'barcode',
-            };
-        }
-
-        // Finally, try name (partial match)
-        product = await prisma.product.findFirst({
-            where: {
-                name: {
-                    contains: searchTerm,
-                },
-                tenantId,
-                branchId,
-                isActive: true,
-            },
-            include: {
-                inventories: true,
-                productBarcodes: {
-                    where: { isActive: true },
-                },
-                category: true,
-            },
-        });
-
-        if (product) {
-            return {
-                product: this.mapProductWithInventory(product),
-                matchedBy: 'name',
-            };
-        }
+        variant = await ProductRepository.searchByVariantName(searchTerm, scope);
+        if (variant) return { product: mapVariantToProductWithInventory(variant), matchedBy: 'variantName' };
 
         return null;
     }
 
-    /**
-     * List all products for a branch
-     */
     static async listProducts(
         tenantId: string,
         branchId: string,
-        page = 1,
-        perPage = 10,
+        page: number = PAGINATION.DEFAULT_PAGE,
+        perPage: number = PAGINATION.DEFAULT_PER_PAGE,
         search = '',
         filter = 'all',
         status?: string,
         categoryId?: string,
         includeInactive = false
-    ): Promise<{ products: ProductWithInventory[]; total: number; totalPages: number }> {
-        const skip = (page - 1) * perPage;
+    ): Promise<PaginatedProductsResponse> {
+        const { results, totalCount } = await ProductRepository.listVariants({ tenantId, branchId }, { page, perPage, search, filter, status, categoryId, includeInactive });
 
-        const whereClause: Prisma.ProductWhereInput = {
-            tenantId,
-            branchId,
-        };
+        let products = results.map(mapVariantToProductWithInventory);
+        products = filterByStockStatus(products, status);
+        products = filterByStockFilter(products, filter);
 
-        // Status filter (frontend: ACTIVE, INACTIVE, OUT_OF_STOCK, DISCONTINUED)
-        if (status === 'ACTIVE') {
-            whereClause.isActive = true;
-            // Will post-filter to exclude out of stock
-        } else if (status === 'INACTIVE' || status === 'DISCONTINUED') {
-            whereClause.isActive = false;
-        } else if (status === 'OUT_OF_STOCK') {
-            whereClause.isActive = true;
-            // Will post-filter for availableQuantity = 0
-        } else if (filter === 'all' && !includeInactive) {
-            whereClause.isActive = true;
-        } else if (filter === 'active') {
-            whereClause.isActive = true;
-        } else if (filter === 'inactive') {
-            whereClause.isActive = false;
-        } else if (filter === 'new' || filter === 'new-stock') {
-            const oneWeekAgo = new Date();
-            oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-            whereClause.createdAt = { gte: oneWeekAgo };
-            whereClause.isActive = true;
-        } else if (filter === 'low-stock' || filter === 'out-of-stock') {
-            whereClause.isActive = true;
-            // Will filter in post-processing
-        } else if (!includeInactive) {
-            whereClause.isActive = true;
-        }
+        const requiresPostFilter = status === 'ACTIVE' || status === 'OUT_OF_STOCK' || filter === 'low-stock' || filter === 'out-of-stock';
+        const total = requiresPostFilter ? products.length : totalCount;
 
-        // Filter by category
-        if (categoryId) {
-            whereClause.categoryId = categoryId;
-        }
-
-        // Search
-        if (search) {
-            whereClause.OR = [
-                { name: { contains: search } },
-                { sku: { contains: search } },
-                { primaryBarcode: { contains: search } },
-                {
-                    productBarcodes: {
-                        some: {
-                            barcode: { contains: search }
-                        }
-                    }
-                }
-            ];
-        }
-
-        const [results, totalCount] = await Promise.all([
-            prisma.product.findMany({
-                where: whereClause,
-                include: {
-                    inventories: true,
-                    productBarcodes: {
-                        where: { isActive: true },
-                    },
-                    category: true,
-                },
-                skip,
-                take: perPage,
-                orderBy: { createdAt: 'desc' },
-            }),
-            prisma.product.count({ where: whereClause }),
-        ]);
-
-        let products = results.map((p) => this.mapProductWithInventory(p));
-
-        // Post-process for status filters
-        if (status === 'ACTIVE') {
-            // Exclude out of stock items from active
-            products = products.filter(product =>
-                product.inventory && product.inventory.availableQuantity > 0
-            );
-        } else if (status === 'OUT_OF_STOCK') {
-            products = products.filter(product =>
-                product.inventory && product.inventory.availableQuantity === 0
-            );
-        } else if (filter === 'low-stock') {
-            products = products.filter(product => {
-                if (!product.inventory) return false;
-                const reorderPoint = product.inventory.reorderPoint || 0;
-                return product.inventory.availableQuantity > 0 && product.inventory.availableQuantity <= reorderPoint;
-            });
-        } else if (filter === 'out-of-stock') {
-            products = products.filter(product =>
-                product.inventory && product.inventory.availableQuantity === 0
-            );
-        }
-
-        const total = (status === 'ACTIVE' || status === 'OUT_OF_STOCK' || filter === 'low-stock' || filter === 'out-of-stock')
-            ? products.length
-            : totalCount;
-        const totalPages = Math.ceil(total / perPage);
-
-        return {
-            products,
-            total,
-            totalPages,
-        };
+        return { products, total, totalPages: Math.ceil(total / perPage) };
     }
 
-    /**
-     * Update product
-     */
-    static async updateProduct(
-        productId: string,
-        tenantId: string,
-        branchId: string,
-        data: UpdateProductInput
-    ): Promise<ProductWithInventory> {
-        await this.validateBarcodesForDuplicates(
-            data.primaryBarcode,
-            data.barcodes,
-            tenantId,
-            branchId,
-            productId
-        );
-
-        const product = await prisma.$transaction(async (tx) => {
-            await tx.product.update({
-                where: {
-                    id: productId,
-                    tenantId,
-                    branchId,
-                },
-                data: {
-                    name: data.name,
-                    categoryId: data.categoryId,
-                    primaryBarcode: data.primaryBarcode,
-                    description: data.description,
-                    unit: data.unit,
-                    sellingPrice: data.sellingPrice,
-                    isActive: data.isActive,
-                },
-            });
-
-            if (
-                data.trackInventory !== undefined ||
-                data.allowNegativeStock !== undefined ||
-                data.minStock !== undefined ||
-                data.maxStock !== undefined ||
-                data.reorderLevel !== undefined
-            ) {
-                await tx.inventory.updateMany({
-                    where: {
-                        productId,
-                        tenantId,
-                        branchId,
-                    },
-                    data: {
-                        ...(data.trackInventory !== undefined && { trackInventory: data.trackInventory }),
-                        ...(data.allowNegativeStock !== undefined && { allowNegativeStock: data.allowNegativeStock }),
-                        ...(data.reorderLevel !== undefined && { reorderPoint: data.reorderLevel }),
-                        ...(data.minStock !== undefined && { reorderPoint: data.minStock }),
-                        ...(data.maxStock !== undefined && { maxStock: data.maxStock }),
-                    },
-                });
-            }
-
-            if (data.barcodes !== undefined) {
-                await tx.productBarcode.updateMany({
-                    where: {
-                        productId,
-                    },
-                    data: {
-                        isActive: false,
-                    },
-                });
-
-                if (data.barcodes.length > 0) {
-                    await tx.productBarcode.createMany({
-                        data: data.barcodes.map((bc) => ({
-                            id: uuidv4(),
-                            productId,
-                            barcode: bc.barcode,
-                            barcodeType: bc.barcodeType || 'EAN13',
-                            barcodeSource: bc.barcodeSource || 'SUPPLIER',
-                            description: bc.description,
-                            isActive: true,
-                        })),
-                    });
-                }
-            }
-
-            return tx.product.findUnique({
-                where: { id: productId },
-                include: {
-                    inventories: true,
-                    productBarcodes: {
-                        where: { isActive: true },
-                    },
-                    category: true,
-                },
-            });
-        });
-
-        if (!product) {
-            throw new Error('Product not found');
-        }
-
-        return this.mapProductWithInventory(product);
+    static async updateProduct(productId: string, tenantId: string, branchId: string, data: UpdateProductInput): Promise<ProductWithVariants> {
+        const product = await ProductRepository.updateProduct(productId, { tenantId, branchId }, data);
+        return mapProductWithVariants(product);
     }
 
-    /**
-     * Delete (deactivate) product
-     */
-    static async deleteProduct(
-        productId: string,
-        tenantId: string,
-        branchId: string
-    ): Promise<void> {
-        await prisma.product.update({
-            where: {
-                id: productId,
-                tenantId,
-                branchId,
-            },
-            data: {
-                isActive: false,
-            },
-        });
-    }
+    static async updateVariant(variantId: string, tenantId: string, branchId: string, data: UpdateVariantInput): Promise<ProductWithInventory> {
+        const scope = { tenantId, branchId };
 
-    /**
-     * Add barcode to product
-     */
-    static async addBarcode(
-        productId: string,
-        tenantId: string,
-        branchId: string,
-        barcode: string,
-        barcodeType: string,
-        barcodeSource: string,
-        description?: string
-    ): Promise<void> {
-        // Verify product belongs to tenant and branch
-        const product = await prisma.product.findFirst({
-            where: {
-                id: productId,
-                tenantId,
-                branchId,
-            },
-        });
-
-        if (!product) {
-            throw new Error('Product not found');
+        if (data.primaryBarcode || data.barcodes) {
+            await this.validateBarcodesForDuplicates(data.primaryBarcode, data.barcodes, tenantId, branchId, variantId);
         }
 
-        const duplicateCheck = await this.checkDuplicateBarcode(
-            barcode,
-            tenantId,
-            branchId,
-            productId
-        );
-
-        if (duplicateCheck.exists) {
-            throw new Error(
-                `Barcode "${barcode}" is already assigned to product "${duplicateCheck.productName}"`
-            );
-        }
-
-        await prisma.productBarcode.create({
-            data: {
-                id: uuidv4(),
-                productId,
-                barcode,
-                barcodeType: barcodeType as any,
-                barcodeSource: barcodeSource as any,
-                description,
-            },
-        });
-    }
-
-    /**
-     * Helper: Map product with inventory
-     */
-    private static mapProductWithInventory(product: any): ProductWithInventory {
-        const inventory = product.inventories?.[0] || product.inventory;
-
-        // Determine status based on isActive and inventory
-        let status: 'ACTIVE' | 'INACTIVE' | 'OUT_OF_STOCK' | 'DISCONTINUED' = 'ACTIVE';
-        if (!product.isActive) {
-            status = 'DISCONTINUED'; // or 'INACTIVE'
-        } else if (inventory && inventory.availableQuantity === 0) {
-            status = 'OUT_OF_STOCK';
-        } else {
-            status = 'ACTIVE';
-        }
-
-        return {
-            id: product.id,
-            tenantId: product.tenantId,
-            branchId: product.branchId,
-            categoryId: product.categoryId,
-            sku: product.sku,
-            name: product.name,
-            primaryBarcode: product.primaryBarcode,
-            description: product.description,
-            unit: product.unit,
-            sellingPrice: Number(product.sellingPrice),
-            isActive: product.isActive,
-            status: status,
-            createdAt: product.createdAt,
-            updatedAt: product.updatedAt,
-            inventory: inventory
-                ? {
-                    availableQuantity: inventory.availableQuantity,
-                    reservedQuantity: inventory.reservedQuantity,
-                    damagedQuantity: inventory.damagedQuantity,
-                    averageCost: Number(inventory.averageCost),
-                    lastPurchaseCost: Number(inventory.lastPurchaseCost),
-                    reorderPoint: inventory.reorderPoint,
-                    maxStock: inventory.maxStock,
-                    trackInventory: inventory.trackInventory,
-                    allowNegativeStock: inventory.allowNegativeStock,
-                }
+        const variant = await ProductRepository.updateVariant(variantId, scope, {
+            ...data,
+            customAttributes: stringifyCustomAttributes(data.customAttributes),
+            inventory: (data.trackInventory !== undefined || data.allowNegativeStock !== undefined || data.minStock !== undefined || data.maxStock !== undefined || data.reorderLevel !== undefined)
+                ? { trackInventory: data.trackInventory, allowNegativeStock: data.allowNegativeStock, reorderLevel: data.reorderLevel, minStock: data.minStock, maxStock: data.maxStock }
                 : undefined,
-            categoryDetails: product.category
-                ? {
-                    categoryId: product.category.categoryId,
-                    name: product.category.name,
-                    description: product.category.description,
-                    isActive: product.category.isActive,
-                    isDefault: product.category.isDefault,
-                }
-                : undefined,
-            barcodes: product.productBarcodes?.map((bc: any) => ({
-                id: bc.id,
-                productId: bc.productId,
-                barcode: bc.barcode,
-                barcodeType: bc.barcodeType,
-                barcodeSource: bc.barcodeSource,
-                description: bc.description,
-                isActive: bc.isActive,
-                createdAt: bc.createdAt,
-                updatedAt: bc.updatedAt,
-            })),
-        };
+        });
+
+        if (!variant) throw new NotFoundError('Variant', variantId);
+        return mapVariantToProductWithInventory(variant);
+    }
+
+    static async deleteProduct(productId: string, tenantId: string, branchId: string): Promise<void> {
+        await ProductRepository.softDeleteProduct(productId, { tenantId, branchId });
+    }
+
+    static async deleteVariant(variantId: string, tenantId: string, branchId: string): Promise<void> {
+        await ProductRepository.softDeleteVariant(variantId, { tenantId, branchId });
+    }
+
+    static async addBarcode(variantId: string, tenantId: string, branchId: string, barcode: string, barcodeType: string, barcodeSource: string, description?: string): Promise<void> {
+        const scope = { tenantId, branchId };
+        const variant = await ProductRepository.findVariantById(variantId, scope);
+        if (!variant) throw new NotFoundError('Variant', variantId);
+
+        const dup = await this.checkDuplicateBarcode(barcode, tenantId, branchId, variantId);
+        if (dup.exists) {
+            const displayName = dup.variantName ? `${dup.productName} - ${dup.variantName}` : dup.productName;
+            throw new ConflictError(ERROR_MESSAGES.BARCODE_EXISTS(barcode, displayName), 'barcode');
+        }
+
+        await ProductRepository.createBarcode(variantId, barcode, barcodeType, barcodeSource, description);
     }
 }

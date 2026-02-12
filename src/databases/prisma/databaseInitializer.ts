@@ -10,6 +10,7 @@ import {
 	MigrationManager,
 	CURRENT_DB_VERSION,
 	initializeVersionTracking,
+	ensureDbMetaTableExists,
 } from './migrations';
 import { getConfig } from '../../config/app.config';
 
@@ -82,6 +83,10 @@ export class DatabaseInitializer {
 
 			// Import Prisma now that DB is ready
 			const { default: prisma } = await import('./client');
+
+			// Ensure db_meta table exists for version tracking (MUST be done before migrations)
+			// Note: We only create the table here, NOT set the version - migrations handle versioning
+			await ensureDbMetaTableExists(prisma, 'mysql');
 
 			// Initialize migration manager for MySQL
 			this.migrationManager = new MigrationManager(
@@ -340,7 +345,7 @@ export class DatabaseInitializer {
 		if (!templatePath) {
 			throw new Error(
 				`Template database (${TEMPLATE_DB_NAME}) not found. ` +
-					'Run "npm run db:build-template" during build to create it.'
+				'Run "npm run db:build-template" during build to create it.'
 			);
 		}
 

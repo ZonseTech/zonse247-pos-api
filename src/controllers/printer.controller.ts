@@ -15,6 +15,7 @@ import {
     PrintLabelRequest,
     PrinterConnectionType
 } from "../types/printer";
+import { SaleService } from "../services/sale.service";
 
 export class PrinterController extends BaseController {
     /**
@@ -412,13 +413,29 @@ export class PrinterController extends BaseController {
      */
     static async printReceipt(req: Request & AuthRequest, res: Response): Promise<void> {
         try {
+            const request = req.body as PrintReceiptRequest;
+
             const printJob = await PrinterService.printReceipt(
-                req.body as PrintReceiptRequest,
+                request,
                 req.auth.tenantId,
                 req.auth.branchId,
                 req.auth.userId
             );
-            BaseController.sendSuccess(res, 'Receipt print job created', printJob);
+
+            // Fetch full sale data if saleId is provided
+            let saleData = null;
+            if (request.saleId) {
+                saleData = await SaleService.getSaleById(
+                    request.saleId,
+                    req.auth.tenantId,
+                    req.auth.branchId
+                );
+            }
+
+            BaseController.sendSuccess(res, 'Receipt print job created', {
+                printJob,
+                sale: saleData
+            });
         } catch (error: any) {
             console.error('Error printing receipt:', error);
             let statusCode = 500;
