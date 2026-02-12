@@ -1,5 +1,4 @@
 import { v4 as uuidv4 } from 'uuid';
-import { Prisma } from '../databases/prisma/generated/prisma/client';
 import { prisma } from '../databases/prisma/client';
 import { DEFAULTS, getNewProductDate } from '../constants/product.constants';
 import { BarcodeInput } from '../types/product.types';
@@ -367,9 +366,9 @@ export class ProductRepository {
         return { results, totalCount };
     }
 
-    private static buildListWhere(scope: TenantBranchScope, opts: { filter?: string; status?: string; categoryId?: string; search?: string; includeInactive?: boolean }): Prisma.ProductVariantWhereInput {
+    private static buildListWhere(scope: TenantBranchScope, opts: { filter?: string; status?: string; categoryId?: string; search?: string; includeInactive?: boolean }): any {
         const { filter, status, categoryId, search, includeInactive } = opts;
-        const where: Prisma.ProductVariantWhereInput = { ...scope };
+        const where: any = { ...scope };
 
         if (status === 'ACTIVE' || status === 'OUT_OF_STOCK') {
             where.isActive = true;
