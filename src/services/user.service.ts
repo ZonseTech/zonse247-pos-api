@@ -221,12 +221,12 @@ export class UserService {
 
 			userOnlyData.roleId = effectiveRoleId;
 
-			// Generate username from email if not provided
+			// Generate username from email if not provided (extract part before @)
 			let generatedUsername = userOnlyData.username;
 			let generatedPassword = userOnlyData.password;
 
 			if (!generatedUsername && userOnlyData.email) {
-				generatedUsername = userOnlyData.email;
+				generatedUsername = userOnlyData.email.split('@')[0];
 			}
 
 			// Get next user ID for password generation if needed
@@ -303,7 +303,8 @@ export class UserService {
 			const publicUser = UserModel.getPublicUser(user);
 			return {
 				...publicUser,
-				staff: staffRecord
+				staff: staffRecord,
+				generatedPassword: shouldCreateStaff ? generatedPassword : undefined
 			};
 		} catch (error) {
 			if (error instanceof ValidationError || error instanceof ConflictError || error instanceof NotFoundError) {
