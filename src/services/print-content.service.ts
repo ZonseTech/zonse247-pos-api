@@ -129,6 +129,7 @@ export interface ReceiptData {
     subtotal: number;
     taxAmount: number;
     discountAmount: number;
+    otherCharges: number;
     totalAmount: number;
     amountPaid: number;
     changeAmount: number;
@@ -247,6 +248,7 @@ export class PrintContentService {
             subtotal: Number(sale.subtotal || 0),
             taxAmount: Number(sale.taxAmount || 0),
             discountAmount: Number(sale.discountAmount || 0),
+            otherCharges: Number(sale.otherCharges || 0),
             totalAmount: Number(sale.totalAmount || 0),
             amountPaid: Number(sale.amountPaid || sale.totalAmount || 0),
             changeAmount: Number(sale.changeAmount || 0),
@@ -308,6 +310,7 @@ export class PrintContentService {
             subtotal,
             taxAmount: 0,
             discountAmount: 0,
+            otherCharges: 0,
             totalAmount: subtotal,
             amountPaid: subtotal,
             changeAmount: 0,
@@ -414,6 +417,11 @@ export class PrintContentService {
         // Discount (if any)
         if (data.discountAmount > 0) {
             content += `Discount: -${data.discountAmount.toFixed(2)}\n`;
+        }
+
+        // Other charges (if any)
+        if (data.otherCharges > 0) {
+            content += `Other Charges: ${data.otherCharges.toFixed(2)}\n`;
         }
 
         // Tax (if any)
