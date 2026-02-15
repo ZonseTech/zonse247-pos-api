@@ -118,10 +118,17 @@ export class BranchModel {
         });
     }
 
-    // Find branches by district
-    static async findByDistrict(district: string): Promise<Branch[]> {
+    // Find branches by district ID
+    static async findByDistrictId(districtId: string): Promise<Branch[]> {
         return await prisma.branch.findMany({
-            where: { district }
+            where: { districtId }
+        });
+    }
+
+    // Find branches by location
+    static async findByLocation(location: string): Promise<Branch[]> {
+        return await prisma.branch.findMany({
+            where: { location }
         });
     }
 
@@ -263,7 +270,9 @@ export class BranchModel {
             addressLine1: data.addressLine1 || null,
             addressLine2: data.addressLine2 || null,
             addressLine3: data.addressLine3 || null,
-            district: data.district || null,
+            districtId: data.districtId || null,
+            location: data.location || null,
+            businessType: data.businessType || 'PRODUCT_BASED',
             city: data.city || null,
             state: data.state || null,
             postalCode: data.postalCode || null,

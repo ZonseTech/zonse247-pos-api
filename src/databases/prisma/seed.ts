@@ -3,6 +3,7 @@ import {
 	seedBranch,
 	seedCategories,
 	seedCustomers,
+	seedDistricts,
 	seedPaymentMethods,
 	seedPaymentServiceProviders,
 	seedPermissions,
@@ -28,6 +29,7 @@ async function main() {
 		await seedRoles(prisma);
 		await seedPermissions(prisma);
 		await seedRolePermissions(prisma);
+		await seedDistricts(prisma);
 		await seedTenant(prisma);
 		await seedBranch(prisma);
 		await seedTerminal(prisma);

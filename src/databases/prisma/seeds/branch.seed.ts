@@ -1,7 +1,12 @@
-import { PrismaClient } from "../generated/prisma/client";
+import { PrismaClient } from "../generated/mysql/client";
 
 export async function seedBranch(prisma: PrismaClient) {
     console.log('📝 Seeding branch...');
+
+    // First, find the Lilongwe district to get its ID
+    const lilongweDistrict = await prisma.district.findFirst({
+        where: { code: 'LIL' }
+    });
 
     await prisma.branch.upsert({
         where: { branchId: '-1' },
@@ -13,7 +18,9 @@ export async function seedBranch(prisma: PrismaClient) {
             branchCode: 'BR001',
             addressLine1: '123 Main Street',
             city: 'Lilongwe',
-            district: 'Lilongwe Urban',
+            districtId: lilongweDistrict?.districtId || null,
+            location: 'Area 47',
+            businessType: 'PRODUCT_BASED',
             phoneNumber: '+265999000111',
             email: 'branch@example.com',
             status: 'active',

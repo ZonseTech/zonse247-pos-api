@@ -4,37 +4,91 @@ CREATE TABLE `products` (
     `tenant_id` VARCHAR(191) NOT NULL,
     `branch_id` VARCHAR(191) NOT NULL,
     `category_id` VARCHAR(191) NULL,
-    `sku` VARCHAR(191) NOT NULL,
     `name` VARCHAR(191) NOT NULL,
-    `primary_barcode` VARCHAR(191) NULL,
     `description` VARCHAR(191) NULL,
-    `unit` VARCHAR(191) NOT NULL DEFAULT 'piece',
-    `selling_price` DECIMAL(65, 30) NOT NULL DEFAULT 0.00,
     `brand` VARCHAR(191) NULL,
-    `color` VARCHAR(191) NULL,
-    `size` VARCHAR(191) NULL,
-    `dimensions` VARCHAR(191) NULL,
-    `weight` DECIMAL(65, 30) NULL,
-    `promo_price` DECIMAL(65, 30) NULL,
-    `promo_start` DATETIME(3) NULL,
-    `promo_end` DATETIME(3) NULL,
-    `is_taxable` BOOLEAN NOT NULL DEFAULT true,
-    `expiration_date` DATETIME(3) NULL,
-    `manufacture_date` DATETIME(3) NULL,
+    `is_taxable` BOOLEAN NULL,
     `supplier_name` VARCHAR(191) NULL,
     `supplier_code` VARCHAR(191) NULL,
+    `default_unit` VARCHAR(191) NULL,
+    `custom_attribute_schema` TEXT NULL,
+    `image_url` VARCHAR(191) NULL,
     `is_active` BOOLEAN NOT NULL DEFAULT true,
     `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updated_at` DATETIME(3) NOT NULL,
 
-    UNIQUE INDEX `products_sku_key`(`sku`),
-    UNIQUE INDEX `products_primary_barcode_key`(`primary_barcode`),
     INDEX `products_branch_id_idx`(`branch_id`),
     INDEX `products_tenant_id_idx`(`tenant_id`),
     INDEX `products_category_id_idx`(`category_id`),
-    INDEX `products_primary_barcode_idx`(`primary_barcode`),
-    UNIQUE INDEX `products_branch_id_sku_key`(`branch_id`, `sku`),
+    INDEX `products_name_idx`(`name`),
+    UNIQUE INDEX `products_branch_id_name_key`(`branch_id`, `name`),
     PRIMARY KEY (`product_id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `product_variants` (
+    `variant_id` VARCHAR(191) NOT NULL,
+    `product_id` VARCHAR(191) NOT NULL,
+    `tenant_id` VARCHAR(191) NOT NULL,
+    `branch_id` VARCHAR(191) NOT NULL,
+    `sku` VARCHAR(191) NULL,
+    `variant_name` VARCHAR(191) NOT NULL,
+    `primary_barcode` VARCHAR(191) NULL,
+    `selling_price` DECIMAL(65, 30) NOT NULL DEFAULT 0.00,
+    `cost_price` DECIMAL(65, 30) NOT NULL DEFAULT 0.00,
+    `unit` VARCHAR(191) NOT NULL DEFAULT 'piece',
+    `description` VARCHAR(191) NULL,
+    `brand` VARCHAR(191) NULL,
+    `image_url` VARCHAR(191) NULL,
+    `is_taxable` BOOLEAN NULL,
+    `supplier_name` VARCHAR(191) NULL,
+    `supplier_code` VARCHAR(191) NULL,
+    `size` VARCHAR(191) NULL,
+    `weight` DECIMAL(65, 30) NULL,
+    `weight_unit` VARCHAR(191) NULL,
+    `volume` DECIMAL(65, 30) NULL,
+    `volume_unit` VARCHAR(191) NULL,
+    `dimensions` VARCHAR(191) NULL,
+    `custom_attributes` TEXT NULL,
+    `promo_price` DECIMAL(65, 30) NULL,
+    `promo_start` DATETIME(3) NULL,
+    `promo_end` DATETIME(3) NULL,
+    `expiration_date` DATETIME(3) NULL,
+    `manufacture_date` DATETIME(3) NULL,
+    `expiry_date_alert` INTEGER NULL,
+    `is_default` BOOLEAN NOT NULL DEFAULT false,
+    `is_active` BOOLEAN NOT NULL DEFAULT true,
+    `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updated_at` DATETIME(3) NOT NULL,
+
+    UNIQUE INDEX `product_variants_primary_barcode_key`(`primary_barcode`),
+    INDEX `product_variants_product_id_idx`(`product_id`),
+    INDEX `product_variants_branch_id_idx`(`branch_id`),
+    INDEX `product_variants_tenant_id_idx`(`tenant_id`),
+    INDEX `product_variants_sku_idx`(`sku`),
+    INDEX `product_variants_primary_barcode_idx`(`primary_barcode`),
+    INDEX `product_variants_variant_name_idx`(`variant_name`),
+    UNIQUE INDEX `product_variants_product_id_variant_name_key`(`product_id`, `variant_name`),
+    PRIMARY KEY (`variant_id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `variant_barcodes` (
+    `variant_barcode_id` VARCHAR(191) NOT NULL,
+    `variant_id` VARCHAR(191) NOT NULL,
+    `barcode` VARCHAR(191) NOT NULL,
+    `barcode_type` ENUM('EAN13', 'EAN8', 'UPCA', 'UPCE', 'CODE39', 'CODE128', 'QR', 'CUSTOM') NOT NULL DEFAULT 'EAN13',
+    `barcode_source` ENUM('MANUFACTURER', 'SUPPLIER', 'STORE', 'BUNDLE', 'PACKAGING', 'CUSTOM') NOT NULL DEFAULT 'SUPPLIER',
+    `description` VARCHAR(191) NULL,
+    `is_active` BOOLEAN NOT NULL DEFAULT true,
+    `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updated_at` DATETIME(3) NOT NULL,
+
+    UNIQUE INDEX `variant_barcodes_barcode_key`(`barcode`),
+    INDEX `variant_barcodes_variant_id_idx`(`variant_id`),
+    INDEX `variant_barcodes_barcode_idx`(`barcode`),
+    UNIQUE INDEX `variant_barcodes_variant_id_barcode_key`(`variant_id`, `barcode`),
+    PRIMARY KEY (`variant_barcode_id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
@@ -110,7 +164,7 @@ CREATE TABLE `purchase_orders` (
 CREATE TABLE `purchase_order_items` (
     `purchase_order_item_id` VARCHAR(191) NOT NULL,
     `purchase_order_id` VARCHAR(191) NOT NULL,
-    `product_id` VARCHAR(191) NOT NULL,
+    `variant_id` VARCHAR(191) NOT NULL,
     `ordered_quantity` INTEGER NOT NULL DEFAULT 0,
     `received_quantity` INTEGER NOT NULL DEFAULT 0,
     `damaged_quantity` INTEGER NOT NULL DEFAULT 0,
@@ -121,8 +175,8 @@ CREATE TABLE `purchase_order_items` (
     `updated_at` DATETIME(3) NOT NULL,
 
     INDEX `purchase_order_items_purchase_order_id_idx`(`purchase_order_id`),
-    INDEX `purchase_order_items_product_id_idx`(`product_id`),
-    UNIQUE INDEX `purchase_order_items_purchase_order_id_product_id_key`(`purchase_order_id`, `product_id`),
+    INDEX `purchase_order_items_variant_id_idx`(`variant_id`),
+    UNIQUE INDEX `purchase_order_items_purchase_order_id_variant_id_key`(`purchase_order_id`, `variant_id`),
     PRIMARY KEY (`purchase_order_item_id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -132,6 +186,7 @@ CREATE TABLE `inventory` (
     `tenant_id` VARCHAR(191) NOT NULL,
     `branch_id` VARCHAR(191) NOT NULL,
     `product_id` VARCHAR(191) NOT NULL,
+    `variant_id` VARCHAR(191) NULL,
     `available_quantity` INTEGER NOT NULL DEFAULT 0,
     `reserved_quantity` INTEGER NOT NULL DEFAULT 0,
     `damaged_quantity` INTEGER NOT NULL DEFAULT 0,
@@ -146,9 +201,10 @@ CREATE TABLE `inventory` (
     `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updated_at` DATETIME(3) NOT NULL,
 
-    UNIQUE INDEX `inventory_product_id_key`(`product_id`),
+    UNIQUE INDEX `inventory_variant_id_key`(`variant_id`),
     INDEX `inventory_branch_id_idx`(`branch_id`),
     INDEX `inventory_tenant_id_idx`(`tenant_id`),
+    INDEX `inventory_variant_id_idx`(`variant_id`),
     INDEX `inventory_product_id_idx`(`product_id`),
     PRIMARY KEY (`inventory_id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
@@ -193,6 +249,7 @@ CREATE TABLE `sales` (
     `subtotal` DECIMAL(65, 30) NOT NULL DEFAULT 0.00,
     `tax_amount` DECIMAL(65, 30) NOT NULL DEFAULT 0.00,
     `discount_amount` DECIMAL(65, 30) NOT NULL DEFAULT 0.00,
+    `other_charges` DECIMAL(65, 30) NOT NULL DEFAULT 0.00,
     `total_amount` DECIMAL(65, 30) NOT NULL DEFAULT 0.00,
     `amount_paid` DECIMAL(65, 30) NOT NULL DEFAULT 0.00,
     `change_amount` DECIMAL(65, 30) NOT NULL DEFAULT 0.00,
@@ -207,7 +264,6 @@ CREATE TABLE `sales` (
     `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updated_at` DATETIME(3) NOT NULL,
 
-    UNIQUE INDEX `sales_sale_number_key`(`sale_number`),
     INDEX `sales_branch_id_idx`(`branch_id`),
     INDEX `sales_tenant_id_idx`(`tenant_id`),
     INDEX `sales_customer_id_idx`(`customer_id`),
@@ -215,6 +271,7 @@ CREATE TABLE `sales` (
     INDEX `sales_user_id_idx`(`user_id`),
     INDEX `sales_sale_date_idx`(`sale_date`),
     INDEX `sales_sale_number_idx`(`sale_number`),
+    UNIQUE INDEX `sales_tenant_id_branch_id_sale_number_key`(`tenant_id`, `branch_id`, `sale_number`),
     PRIMARY KEY (`sale_id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -223,6 +280,7 @@ CREATE TABLE `sale_items` (
     `sale_item_id` VARCHAR(191) NOT NULL,
     `sale_id` VARCHAR(191) NOT NULL,
     `product_id` VARCHAR(191) NOT NULL,
+    `variant_id` VARCHAR(191) NOT NULL,
     `quantity` INTEGER NOT NULL,
     `unit_price` DECIMAL(65, 30) NOT NULL,
     `unit_cost` DECIMAL(65, 30) NOT NULL DEFAULT 0.00,
@@ -233,9 +291,33 @@ CREATE TABLE `sale_items` (
     `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
 
     INDEX `sale_items_sale_id_idx`(`sale_id`),
+    INDEX `sale_items_variant_id_idx`(`variant_id`),
     INDEX `sale_items_product_id_idx`(`product_id`),
-    UNIQUE INDEX `sale_items_sale_id_product_id_key`(`sale_id`, `product_id`),
+    UNIQUE INDEX `sale_items_sale_id_variant_id_key`(`sale_id`, `variant_id`),
     PRIMARY KEY (`sale_item_id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `sale_payments` (
+    `sale_payment_id` VARCHAR(191) NOT NULL,
+    `sale_id` VARCHAR(191) NOT NULL,
+    `payment_method_id` VARCHAR(191) NOT NULL,
+    `amount` DECIMAL(10, 2) NOT NULL,
+    `reference` VARCHAR(191) NULL,
+    `provider_id` VARCHAR(191) NULL,
+    `provider_ref` VARCHAR(191) NULL,
+    `status` ENUM('PENDING', 'COMPLETED', 'FAILED', 'REFUNDED', 'CANCELLED') NOT NULL DEFAULT 'COMPLETED',
+    `processed_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `notes` VARCHAR(191) NULL,
+    `synced` INTEGER NOT NULL DEFAULT 0,
+    `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updated_at` DATETIME(3) NOT NULL,
+
+    INDEX `sale_payments_sale_id_idx`(`sale_id`),
+    INDEX `sale_payments_payment_method_id_idx`(`payment_method_id`),
+    INDEX `sale_payments_status_idx`(`status`),
+    INDEX `sale_payments_processed_at_idx`(`processed_at`),
+    PRIMARY KEY (`sale_payment_id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
@@ -291,6 +373,24 @@ CREATE TABLE `audit_logs` (
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
+CREATE TABLE `districts` (
+    `id` INTEGER NOT NULL AUTO_INCREMENT,
+    `district_id` VARCHAR(191) NOT NULL,
+    `name` VARCHAR(191) NOT NULL,
+    `region` VARCHAR(191) NOT NULL,
+    `code` VARCHAR(191) NOT NULL,
+    `is_active` BOOLEAN NOT NULL DEFAULT true,
+    `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updated_at` DATETIME(3) NOT NULL,
+
+    UNIQUE INDEX `districts_district_id_key`(`district_id`),
+    UNIQUE INDEX `districts_code_key`(`code`),
+    INDEX `districts_region_idx`(`region`),
+    INDEX `districts_is_active_idx`(`is_active`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
 CREATE TABLE `branch_settings` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
     `branch_setting_id` VARCHAR(191) NOT NULL,
@@ -331,7 +431,9 @@ CREATE TABLE `branches` (
     `address_line_1` VARCHAR(191) NULL,
     `address_line_2` VARCHAR(191) NULL,
     `address_line_3` VARCHAR(191) NULL,
-    `district` VARCHAR(191) NULL,
+    `district_id` VARCHAR(191) NULL,
+    `location` VARCHAR(191) NULL,
+    `business_type` ENUM('PRODUCT_BASED', 'SERVICE_BASED', 'HYBRID') NULL DEFAULT 'PRODUCT_BASED',
     `city` VARCHAR(191) NULL,
     `state` VARCHAR(191) NULL,
     `postal_code` VARCHAR(191) NULL,
@@ -1003,51 +1105,64 @@ CREATE TABLE `terminal_settings_overrides` (
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
-CREATE TABLE `HoldOrder` (
-    `id` VARCHAR(191) NOT NULL,
-    `itemId` VARCHAR(191) NOT NULL,
+CREATE TABLE `parked_sales` (
+    `parked_sale_id` VARCHAR(191) NOT NULL,
+    `tenant_id` VARCHAR(191) NOT NULL,
+    `branch_id` VARCHAR(191) NOT NULL,
+    `user_id` VARCHAR(191) NOT NULL,
+    `terminal_id` VARCHAR(191) NULL,
+    `customer_id` VARCHAR(191) NULL,
     `reference` VARCHAR(191) NOT NULL,
-    `total` DECIMAL(65, 30) NOT NULL DEFAULT 0,
-    `totalItems` INTEGER NOT NULL DEFAULT 0,
-    `date` DATETIME(3) NOT NULL,
-    `status` ENUM('hold', 'resumed', 'cancelled', 'completed', 'expired') NOT NULL DEFAULT 'hold',
-    `userId` VARCHAR(191) NULL,
-    `till` VARCHAR(191) NULL,
-    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-    `updatedAt` DATETIME(3) NOT NULL,
-    `tenantId` VARCHAR(191) NULL,
-    `branchId` VARCHAR(191) NULL,
+    `subtotal` DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+    `tax_amount` DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+    `discount_amount` DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+    `other_charges` DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+    `total_amount` DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+    `total_items` INTEGER NOT NULL DEFAULT 0,
+    `status` ENUM('PARKED', 'RESUMED', 'CANCELLED', 'COMPLETED', 'EXPIRED') NOT NULL DEFAULT 'PARKED',
+    `notes` VARCHAR(191) NULL,
+    `parked_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `expires_at` DATETIME(3) NULL,
+    `resumed_at` DATETIME(3) NULL,
+    `synced` INTEGER NOT NULL DEFAULT 0,
+    `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updated_at` DATETIME(3) NOT NULL,
 
-    UNIQUE INDEX `HoldOrder_itemId_key`(`itemId`),
-    UNIQUE INDEX `HoldOrder_reference_key`(`reference`),
-    INDEX `HoldOrder_itemId_idx`(`itemId`),
-    INDEX `HoldOrder_reference_idx`(`reference`),
-    INDEX `HoldOrder_date_idx`(`date`),
-    INDEX `HoldOrder_status_idx`(`status`),
-    INDEX `HoldOrder_userId_idx`(`userId`),
-    INDEX `HoldOrder_createdAt_idx`(`createdAt`),
-    PRIMARY KEY (`id`)
+    UNIQUE INDEX `parked_sales_reference_key`(`reference`),
+    INDEX `parked_sales_tenant_id_idx`(`tenant_id`),
+    INDEX `parked_sales_branch_id_idx`(`branch_id`),
+    INDEX `parked_sales_user_id_idx`(`user_id`),
+    INDEX `parked_sales_terminal_id_idx`(`terminal_id`),
+    INDEX `parked_sales_reference_idx`(`reference`),
+    INDEX `parked_sales_status_idx`(`status`),
+    INDEX `parked_sales_parked_at_idx`(`parked_at`),
+    INDEX `parked_sales_created_at_idx`(`created_at`),
+    PRIMARY KEY (`parked_sale_id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
-CREATE TABLE `HoldOrderItem` (
-    `id` VARCHAR(191) NOT NULL,
-    `holdOrderId` VARCHAR(191) NOT NULL,
-    `productId` VARCHAR(191) NOT NULL,
-    `productName` VARCHAR(191) NOT NULL,
-    `quantity` INTEGER NOT NULL DEFAULT 1,
-    `price` DECIMAL(65, 30) NOT NULL DEFAULT 0,
-    `subtotal` DECIMAL(65, 30) NOT NULL DEFAULT 0,
-    `sku` VARCHAR(191) NULL,
+CREATE TABLE `parked_sale_items` (
+    `parked_sale_item_id` VARCHAR(191) NOT NULL,
+    `parked_sale_id` VARCHAR(191) NOT NULL,
+    `product_id` VARCHAR(191) NOT NULL,
+    `category_id` VARCHAR(191) NULL,
+    `name` VARCHAR(191) NOT NULL,
     `barcode` VARCHAR(191) NULL,
+    `sku` VARCHAR(191) NULL,
     `unit` VARCHAR(191) NULL,
-    `discount` DECIMAL(65, 30) NULL DEFAULT 0,
-    `tax` DECIMAL(65, 30) NULL DEFAULT 0,
-    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `quantity` INTEGER NOT NULL DEFAULT 1,
+    `unit_price` DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+    `sell_price` DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+    `purchase_price` DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+    `discount` DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+    `tax_amount` DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+    `subtotal` DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+    `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
 
-    INDEX `HoldOrderItem_holdOrderId_idx`(`holdOrderId`),
-    INDEX `HoldOrderItem_productId_idx`(`productId`),
-    PRIMARY KEY (`id`)
+    INDEX `parked_sale_items_parked_sale_id_idx`(`parked_sale_id`),
+    INDEX `parked_sale_items_product_id_idx`(`product_id`),
+    INDEX `parked_sale_items_category_id_idx`(`category_id`),
+    PRIMARY KEY (`parked_sale_item_id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
@@ -1151,6 +1266,57 @@ CREATE TABLE `tenant_registration_details` (
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
+-- CreateTable
+CREATE TABLE `staff` (
+    `id` INTEGER NOT NULL AUTO_INCREMENT,
+    `staff_id` VARCHAR(191) NOT NULL,
+    `user_id` VARCHAR(191) NOT NULL,
+    `tenant_id` VARCHAR(191) NOT NULL,
+    `branch_id` VARCHAR(191) NOT NULL,
+    `employee_code` VARCHAR(191) NULL,
+    `department` VARCHAR(191) NULL,
+    `designation` VARCHAR(191) NULL,
+    `joining_date` DATETIME(3) NULL,
+    `termination_date` DATETIME(3) NULL,
+    `calculate_as` ENUM('HOURLY', 'DAILY', 'WEEKLY', 'MONTHLY', 'FIXED') NOT NULL DEFAULT 'DAILY',
+    `staff_salary` DECIMAL(12, 2) NOT NULL DEFAULT 0.00,
+    `salary_frequency` ENUM('WEEKLY', 'BIWEEKLY', 'MONTHLY', 'SEMIMONTHLY') NOT NULL DEFAULT 'MONTHLY',
+    `track_attendance` BOOLEAN NOT NULL DEFAULT false,
+    `allow_self_attendance` BOOLEAN NOT NULL DEFAULT false,
+    `attendance_type` ENUM('PUNCH', 'SHIFT', 'FLEXIBLE', 'REMOTE') NOT NULL DEFAULT 'PUNCH',
+    `avg_shift_hours` DECIMAL(4, 2) NOT NULL DEFAULT 8.00,
+    `allow_app_access` BOOLEAN NOT NULL DEFAULT false,
+    `emergency_contact_name` VARCHAR(191) NULL,
+    `emergency_contact_phone` VARCHAR(191) NULL,
+    `emergency_contact_relation` VARCHAR(191) NULL,
+    `address` VARCHAR(191) NULL,
+    `city` VARCHAR(191) NULL,
+    `state` VARCHAR(191) NULL,
+    `postal_code` VARCHAR(191) NULL,
+    `country` VARCHAR(191) NULL,
+    `national_id` VARCHAR(191) NULL,
+    `date_of_birth` DATETIME(3) NULL,
+    `gender` ENUM('MALE', 'FEMALE', 'OTHER', 'PREFER_NOT_TO_SAY') NULL,
+    `bank_name` VARCHAR(191) NULL,
+    `bank_account_number` VARCHAR(191) NULL,
+    `bank_branch_code` VARCHAR(191) NULL,
+    `employment_status` ENUM('ACTIVE', 'ON_LEAVE', 'SUSPENDED', 'TERMINATED', 'RESIGNED') NOT NULL DEFAULT 'ACTIVE',
+    `notes` TEXT NULL,
+    `synced` INTEGER NOT NULL DEFAULT 0,
+    `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updated_at` DATETIME(3) NOT NULL,
+
+    UNIQUE INDEX `staff_staff_id_key`(`staff_id`),
+    UNIQUE INDEX `staff_user_id_key`(`user_id`),
+    INDEX `idx_staff_user_id`(`user_id`),
+    INDEX `idx_staff_tenant_id`(`tenant_id`),
+    INDEX `idx_staff_branch_id`(`branch_id`),
+    INDEX `idx_staff_employment_status`(`employment_status`),
+    INDEX `idx_staff_joining_date`(`joining_date`),
+    UNIQUE INDEX `staff_tenant_id_employee_code_key`(`tenant_id`, `employee_code`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
 -- AddForeignKey
 ALTER TABLE `products` ADD CONSTRAINT `products_tenant_id_fkey` FOREIGN KEY (`tenant_id`) REFERENCES `tenants`(`tenant_id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
@@ -1161,7 +1327,16 @@ ALTER TABLE `products` ADD CONSTRAINT `products_branch_id_fkey` FOREIGN KEY (`br
 ALTER TABLE `products` ADD CONSTRAINT `products_category_id_fkey` FOREIGN KEY (`category_id`) REFERENCES `categories`(`category_id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE `product_barcodes` ADD CONSTRAINT `product_barcodes_product_id_fkey` FOREIGN KEY (`product_id`) REFERENCES `products`(`product_id`) ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE `product_variants` ADD CONSTRAINT `product_variants_product_id_fkey` FOREIGN KEY (`product_id`) REFERENCES `products`(`product_id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `product_variants` ADD CONSTRAINT `product_variants_tenant_id_fkey` FOREIGN KEY (`tenant_id`) REFERENCES `tenants`(`tenant_id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `product_variants` ADD CONSTRAINT `product_variants_branch_id_fkey` FOREIGN KEY (`branch_id`) REFERENCES `branches`(`branch_id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `variant_barcodes` ADD CONSTRAINT `variant_barcodes_variant_id_fkey` FOREIGN KEY (`variant_id`) REFERENCES `product_variants`(`variant_id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `suppliers` ADD CONSTRAINT `suppliers_tenant_id_fkey` FOREIGN KEY (`tenant_id`) REFERENCES `tenants`(`tenant_id`) ON DELETE CASCADE ON UPDATE CASCADE;
@@ -1188,7 +1363,7 @@ ALTER TABLE `purchase_orders` ADD CONSTRAINT `purchase_orders_received_by_fkey` 
 ALTER TABLE `purchase_order_items` ADD CONSTRAINT `purchase_order_items_purchase_order_id_fkey` FOREIGN KEY (`purchase_order_id`) REFERENCES `purchase_orders`(`purchase_order_id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE `purchase_order_items` ADD CONSTRAINT `purchase_order_items_product_id_fkey` FOREIGN KEY (`product_id`) REFERENCES `products`(`product_id`) ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE `purchase_order_items` ADD CONSTRAINT `purchase_order_items_variant_id_fkey` FOREIGN KEY (`variant_id`) REFERENCES `product_variants`(`variant_id`) ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `inventory` ADD CONSTRAINT `inventory_tenant_id_fkey` FOREIGN KEY (`tenant_id`) REFERENCES `tenants`(`tenant_id`) ON DELETE CASCADE ON UPDATE CASCADE;
@@ -1197,7 +1372,7 @@ ALTER TABLE `inventory` ADD CONSTRAINT `inventory_tenant_id_fkey` FOREIGN KEY (`
 ALTER TABLE `inventory` ADD CONSTRAINT `inventory_branch_id_fkey` FOREIGN KEY (`branch_id`) REFERENCES `branches`(`branch_id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE `inventory` ADD CONSTRAINT `inventory_product_id_fkey` FOREIGN KEY (`product_id`) REFERENCES `products`(`product_id`) ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE `inventory` ADD CONSTRAINT `inventory_variant_id_fkey` FOREIGN KEY (`variant_id`) REFERENCES `product_variants`(`variant_id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `stock_movements` ADD CONSTRAINT `stock_movements_tenant_id_fkey` FOREIGN KEY (`tenant_id`) REFERENCES `tenants`(`tenant_id`) ON DELETE CASCADE ON UPDATE CASCADE;
@@ -1218,7 +1393,7 @@ ALTER TABLE `sales` ADD CONSTRAINT `sales_tenant_id_fkey` FOREIGN KEY (`tenant_i
 ALTER TABLE `sales` ADD CONSTRAINT `sales_branch_id_fkey` FOREIGN KEY (`branch_id`) REFERENCES `branches`(`branch_id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE `sales` ADD CONSTRAINT `sales_customer_id_fkey` FOREIGN KEY (`customer_id`) REFERENCES `customers`(`customer_id`) ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE `sales` ADD CONSTRAINT `fk_sales_customer` FOREIGN KEY (`customer_id`) REFERENCES `customers`(`customer_id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `sales` ADD CONSTRAINT `sales_terminal_id_fkey` FOREIGN KEY (`terminal_id`) REFERENCES `terminals`(`terminal_id`) ON DELETE SET NULL ON UPDATE CASCADE;
@@ -1236,7 +1411,13 @@ ALTER TABLE `sales` ADD CONSTRAINT `sales_voided_by_fkey` FOREIGN KEY (`voided_b
 ALTER TABLE `sale_items` ADD CONSTRAINT `sale_items_sale_id_fkey` FOREIGN KEY (`sale_id`) REFERENCES `sales`(`sale_id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE `sale_items` ADD CONSTRAINT `sale_items_product_id_fkey` FOREIGN KEY (`product_id`) REFERENCES `products`(`product_id`) ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE `sale_items` ADD CONSTRAINT `sale_items_variant_id_fkey` FOREIGN KEY (`variant_id`) REFERENCES `product_variants`(`variant_id`) ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `sale_payments` ADD CONSTRAINT `sale_payments_sale_id_fkey` FOREIGN KEY (`sale_id`) REFERENCES `sales`(`sale_id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `sale_payments` ADD CONSTRAINT `sale_payments_payment_method_id_fkey` FOREIGN KEY (`payment_method_id`) REFERENCES `payment_methods`(`method_id`) ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `mra_api_config_table` ADD CONSTRAINT `mra_api_config_table_tenant_id_fkey` FOREIGN KEY (`tenant_id`) REFERENCES `tenants`(`tenant_id`) ON DELETE CASCADE ON UPDATE NO ACTION;
@@ -1258,6 +1439,9 @@ ALTER TABLE `branch_settings` ADD CONSTRAINT `branch_settings_branch_id_fkey` FO
 
 -- AddForeignKey
 ALTER TABLE `branches` ADD CONSTRAINT `branches_tenant_id_fkey` FOREIGN KEY (`tenant_id`) REFERENCES `tenants`(`tenant_id`) ON DELETE CASCADE ON UPDATE NO ACTION;
+
+-- AddForeignKey
+ALTER TABLE `branches` ADD CONSTRAINT `branches_district_id_fkey` FOREIGN KEY (`district_id`) REFERENCES `districts`(`district_id`) ON DELETE SET NULL ON UPDATE NO ACTION;
 
 -- AddForeignKey
 ALTER TABLE `categories` ADD CONSTRAINT `categories_branch_id_fkey` FOREIGN KEY (`branch_id`) REFERENCES `branches`(`branch_id`) ON DELETE CASCADE ON UPDATE NO ACTION;
@@ -1305,7 +1489,7 @@ ALTER TABLE `terminals` ADD CONSTRAINT `terminals_branch_id_fkey` FOREIGN KEY (`
 ALTER TABLE `transactions` ADD CONSTRAINT `transactions_branch_id_fkey` FOREIGN KEY (`branch_id`) REFERENCES `branches`(`branch_id`) ON DELETE CASCADE ON UPDATE NO ACTION;
 
 -- AddForeignKey
-ALTER TABLE `transactions` ADD CONSTRAINT `transactions_customer_id_fkey` FOREIGN KEY (`customer_id`) REFERENCES `customers`(`customer_id`) ON DELETE SET NULL ON UPDATE NO ACTION;
+ALTER TABLE `transactions` ADD CONSTRAINT `fk_transactions_customer` FOREIGN KEY (`customer_id`) REFERENCES `customers`(`customer_id`) ON DELETE SET NULL ON UPDATE NO ACTION;
 
 -- AddForeignKey
 ALTER TABLE `transactions` ADD CONSTRAINT `transactions_user_id_fkey` FOREIGN KEY (`user_id`) REFERENCES `users`(`user_id`) ON DELETE SET NULL ON UPDATE NO ACTION;
@@ -1359,7 +1543,7 @@ ALTER TABLE `users` ADD CONSTRAINT `users_current_branch_id_fkey` FOREIGN KEY (`
 ALTER TABLE `terminal_settings` ADD CONSTRAINT `terminal_settings_terminal_id_fkey` FOREIGN KEY (`terminal_id`) REFERENCES `terminals`(`terminal_id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE `HoldOrderItem` ADD CONSTRAINT `HoldOrderItem_holdOrderId_fkey` FOREIGN KEY (`holdOrderId`) REFERENCES `HoldOrder`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE `parked_sale_items` ADD CONSTRAINT `parked_sale_items_parked_sale_id_fkey` FOREIGN KEY (`parked_sale_id`) REFERENCES `parked_sales`(`parked_sale_id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `printers` ADD CONSTRAINT `printers_tenant_id_fkey` FOREIGN KEY (`tenant_id`) REFERENCES `tenants`(`tenant_id`) ON DELETE CASCADE ON UPDATE NO ACTION;
@@ -1369,3 +1553,12 @@ ALTER TABLE `printers` ADD CONSTRAINT `printers_branch_id_fkey` FOREIGN KEY (`br
 
 -- AddForeignKey
 ALTER TABLE `print_jobs` ADD CONSTRAINT `print_jobs_printer_id_fkey` FOREIGN KEY (`printer_id`) REFERENCES `printers`(`printer_id`) ON DELETE CASCADE ON UPDATE NO ACTION;
+
+-- AddForeignKey
+ALTER TABLE `staff` ADD CONSTRAINT `staff_user_id_fkey` FOREIGN KEY (`user_id`) REFERENCES `users`(`user_id`) ON DELETE CASCADE ON UPDATE NO ACTION;
+
+-- AddForeignKey
+ALTER TABLE `staff` ADD CONSTRAINT `staff_tenant_id_fkey` FOREIGN KEY (`tenant_id`) REFERENCES `tenants`(`tenant_id`) ON DELETE CASCADE ON UPDATE NO ACTION;
+
+-- AddForeignKey
+ALTER TABLE `staff` ADD CONSTRAINT `staff_branch_id_fkey` FOREIGN KEY (`branch_id`) REFERENCES `branches`(`branch_id`) ON DELETE CASCADE ON UPDATE NO ACTION;

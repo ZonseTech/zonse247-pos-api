@@ -384,7 +384,7 @@ model Sale {
 
   tenant        Tenant         @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade)
   branch        Branch         @relation(fields: [branchId], references: [branchId], onDelete: Cascade)
-  customer      Customer?      @relation(fields: [customerId], references: [customerId], onDelete: SetNull)
+  customer      Customer?      @relation(fields: [customerId], references: [customerId], onDelete: SetNull, map: "fk_sales_customer")
   terminal      Terminal?      @relation(fields: [terminalId], references: [terminalId], onDelete: SetNull)
   user          User           @relation(fields: [userId], references: [userId], onDelete: Restrict)
   paymentMethod PaymentMethod? @relation(fields: [paymentMethodId], references: [methodId], onDelete: SetNull)
@@ -526,6 +526,24 @@ model AuditLog {
   @@map("audit_logs")
 }
 
+// District model for Malawi districts
+model District {
+  id          Int       @id @default(autoincrement())
+  districtId  String    @unique @map("district_id")
+  name        String    @map("name")
+  region      String    @map("region") // Northern, Central, Southern
+  code        String    @unique @map("code") // District code (e.g., DOW for Dowa)
+  isActive    Boolean   @default(true) @map("is_active")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  
+  branches    Branch[]
+  
+  @@index([region])
+  @@index([isActive])
+  @@map("districts")
+}
+
 model BranchSetting {
   id              Int                  @id @default(autoincrement())
   branchSettingId String               @unique @map("branch_setting_id")
@@ -564,7 +582,9 @@ model Branch {
   addressLine1       String?                  @map("address_line_1")
   addressLine2       String?                  @map("address_line_2")
   addressLine3       String?                  @map("address_line_3")
-  district           String?                  @map("district")
+  districtId         String?                  @map("district_id")
+  location           String?                  @map("location")
+  businessType       BusinessType?            @default(PRODUCT_BASED) @map("business_type")
   city               String?                  @map("city")
   state              String?                  @map("state")
   postalCode         String?                  @map("postal_code")
@@ -588,6 +608,7 @@ model Branch {
   auditLogs          AuditLog[]
   branchSetting      BranchSetting?
   tenant             Tenant            @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade)
+  districtRef        District?         @relation(fields: [districtId], references: [districtId])
   categories         Category[]
   customers          Customer[]
   serviceProviders   ServiceProvider[]
@@ -1064,7 +1085,7 @@ model Transaction {
   saleId String? @map("sale_id")
 
   branch                 Branch                  @relation(fields: [branchId], references: [branchId], onDelete: Cascade)
-  customer               Customer?               @relation(fields: [customerId], references: [customerId], onDelete: SetNull)
+  customer               Customer?               @relation(fields: [customerId], references: [customerId], onDelete: SetNull, map: "fk_transactions_customer")
   user                   User?                   @relation(fields: [userId], references: [userId], onDelete: SetNull)
   paymentMethod          PaymentMethod?          @relation(fields: [paymentMethodId], references: [methodId], onDelete: SetNull)
   paymentServiceProvider PaymentServiceProvider? @relation(fields: [paymentServiceProviderId], references: [providerId], onDelete: SetNull)
@@ -1634,6 +1655,12 @@ enum BranchStatus {
   active
   inactive
   suspended
+}
+
+enum BusinessType {
+  PRODUCT_BASED
+  SERVICE_BASED
+  HYBRID
 }
 
 enum InventoryStatus {

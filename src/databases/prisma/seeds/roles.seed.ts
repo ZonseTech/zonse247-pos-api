@@ -1,4 +1,4 @@
-import { PrismaClient } from "../generated/prisma/client";
+import { PrismaClient } from "../generated/mysql/client";
 
 export async function seedRoles(prisma: PrismaClient) {
     console.log('📝 Seeding roles...');

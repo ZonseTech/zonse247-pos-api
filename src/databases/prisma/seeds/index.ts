@@ -11,3 +11,4 @@ export { seedPaymentMethods } from './payment-methods.seed';
 export { seedPaymentServiceProviders } from './payment-service-providers.seed';
 export { seedSubscriptionPlans } from './subscription-plans.seed';
 export { seedPlanFeatures } from './plan-features.seed';
+export { seedDistricts } from './district.seed';

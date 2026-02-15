@@ -1,4 +1,4 @@
-import { PrismaClient } from "../generated/prisma/client";
+import { PrismaClient } from "../generated/mysql/client";
 import { SubscriptionPlan } from "../../../types/subscription";
 
 const plans: Array<SubscriptionPlan & { planCode: string }> = [

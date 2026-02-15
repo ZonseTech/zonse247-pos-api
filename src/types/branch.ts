@@ -2,6 +2,7 @@ import { BranchMRAApprovalStatus } from "../databases/prisma/generated/prisma/en
 
 export type MraApprovalStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 export type BranchStatus = 'active' | 'inactive' | 'suspended';
+export type BranchBusinessType = 'PRODUCT_BASED' | 'SERVICE_BASED' | 'HYBRID';
 
 export interface Branch {
     branchId: string;
@@ -14,7 +15,9 @@ export interface Branch {
     addressLine1?: string | null;
     addressLine2?: string | null;
     addressLine3?: string | null;
-    district?: string | null;
+    districtId?: string | null;
+    location?: string | null;
+    businessType?: BranchBusinessType | null;
     city?: string | null;
     state?: string | null;
     postalCode?: string | null;
@@ -49,7 +52,9 @@ export interface CreateBranchRequest {
     addressLine1?: string;
     addressLine2?: string;
     addressLine3?: string;
-    district?: string;
+    districtId?: string;
+    location?: string;
+    businessType?: BranchBusinessType;
     city?: string;
     state?: string;
     postalCode?: string;
