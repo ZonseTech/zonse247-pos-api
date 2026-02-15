@@ -1,4 +1,4 @@
-import { PrismaClient } from "../generated/prisma/client";
+import { PrismaClient } from "../generated/mysql/client";
 
 export async function seedTerminal(prisma: PrismaClient) {
     console.log('📝 Seeding terminal...');

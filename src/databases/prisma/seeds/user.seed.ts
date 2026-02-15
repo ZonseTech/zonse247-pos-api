@@ -1,4 +1,4 @@
-import { PrismaClient } from "../generated/prisma/client";
+import { PrismaClient } from "../generated/mysql/client";
 import bcrypt from 'bcryptjs';
 import { getConfig } from '../../../config/app.config';
 

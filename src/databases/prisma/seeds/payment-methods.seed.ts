@@ -1,4 +1,4 @@
-import { PrismaClient } from "../generated/prisma/client";
+import { PrismaClient } from "../generated/mysql/client";
 
 const PAYMENT_METHODS = [
     { methodId: 'cash', name: 'Cash', icon: '💵', sortOrder: 1, isActive: true },
