@@ -31,6 +31,7 @@ import StockMovementsRoutes from './stock-movements.routes'
 import PrinterRoutes from './printer.routes'
 import TenantRegistrationDetailRoutes from './tenant-registration-detail.routes'
 import TransactionMigrationRoutes from './transaction-migration.routes'
+import DistrictRoutes from './district.routes'
 import { AuthMiddleware } from '../middlewares/auth.middleware'
 import { apiMiddleware } from '../middlewares/api.middleware'
 import { preventSQLInjection, preventXSS, sanitizeInput } from '../middlewares/security.middleware'
@@ -81,6 +82,7 @@ router.use(authMiddleware.verifyToken)
 router.use('/terminal-settings', TerminalSettingsRoutes);
 router.use('/tenants', TenantsRoutes);
 router.use('/branches', BranchesRoutes);
+router.use('/districts', DistrictRoutes);
 
 router.use('/mailing', MailingRoutes);
 router.use('/export', DatabaseExportRoutes);
