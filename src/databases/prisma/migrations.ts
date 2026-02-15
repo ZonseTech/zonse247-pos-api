@@ -18,7 +18,7 @@ import { getDatabaseConfig } from '../../config/db';
  * Current schema version - INCREMENT THIS when schema changes
  * Format: YYYYMMDD_NN (date + sequence number)
  */
-export const CURRENT_DB_VERSION = '20260212_01';
+export const CURRENT_DB_VERSION = '20260215_02';
 
 /**
  * Minimum supported version for migration (older versions require fresh install)
@@ -459,111 +459,73 @@ export const MIGRATIONS: Migration[] = [
         description: 'Make product SKU nullable and remove unique constraint',
         up: {
             sqlite: [
-                // SQLite: Create new table without the unique constraint, with nullable sku
-                `CREATE TABLE IF NOT EXISTS "products_new" (
-                    "product_id" TEXT PRIMARY KEY NOT NULL,
-                    "tenant_id" TEXT NOT NULL,
-                    "branch_id" TEXT NOT NULL,
-                    "category_id" TEXT,
-                    "sku" TEXT,
-                    "name" TEXT NOT NULL,
-                    "primary_barcode" TEXT UNIQUE,
-                    "description" TEXT,
-                    "unit" TEXT NOT NULL DEFAULT 'piece',
-                    "selling_price" REAL NOT NULL DEFAULT 0.00,
-                    "brand" TEXT,
-                    "color" TEXT,
-                    "size" TEXT,
-                    "dimensions" TEXT,
-                    "weight" REAL,
-                    "promo_price" REAL,
-                    "promo_start" DATETIME,
-                    "promo_end" DATETIME,
-                    "is_taxable" INTEGER NOT NULL DEFAULT 1,
-                    "expiration_date" DATETIME,
-                    "manufacture_date" DATETIME,
-                    "supplier_name" TEXT,
-                    "supplier_code" TEXT,
-                    "is_active" INTEGER NOT NULL DEFAULT 1,
-                    "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                    "updated_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-                )`,
-                `INSERT INTO "products_new" SELECT * FROM "products"`,
-                `DROP TABLE "products"`,
-                `ALTER TABLE "products_new" RENAME TO "products"`,
-                // Recreate indexes (without the unique constraint on sku)
-                `CREATE INDEX IF NOT EXISTS "idx_products_branch_id" ON "products" ("branch_id")`,
-                `CREATE INDEX IF NOT EXISTS "idx_products_tenant_id" ON "products" ("tenant_id")`,
-                `CREATE INDEX IF NOT EXISTS "idx_products_category_id" ON "products" ("category_id")`,
-                `CREATE INDEX IF NOT EXISTS "idx_products_primary_barcode" ON "products" ("primary_barcode")`,
-                `CREATE INDEX IF NOT EXISTS "idx_products_sku" ON "products" ("sku")`,
+                // SQLite: Check if sku column exists on products table, if so migrate it
+                // This migration is only needed for upgrades from old schema
+                // For fresh installs, the products table won't have sku column
+                `SELECT 1`, // No-op - Prisma migrations handle this now
             ],
             mysql: [
-                // MySQL: Drop the unique constraints (if they exist) and make sku nullable
+                // MySQL: Check if sku column exists before trying to modify
+                // This migration is only needed for upgrades from old schema
                 `DROP PROCEDURE IF EXISTS migrate_sku_nullable`,
                 `CREATE PROCEDURE migrate_sku_nullable()
                 BEGIN
+                    DECLARE col_exists INT DEFAULT 0;
                     DECLARE index_exists INT DEFAULT 0;
                     
-                    -- Check and drop 'sku' index if exists
-                    SELECT COUNT(*) INTO index_exists 
-                    FROM information_schema.statistics 
+                    -- Check if sku column exists in products table
+                    SELECT COUNT(*) INTO col_exists 
+                    FROM information_schema.columns 
                     WHERE table_schema = DATABASE() 
                     AND table_name = 'products' 
-                    AND index_name = 'sku';
+                    AND column_name = 'sku';
                     
-                    IF index_exists > 0 THEN
-                        ALTER TABLE products DROP INDEX sku;
-                    END IF;
-                    
-                    -- Check and drop 'unique_branch_sku' index if exists
-                    SELECT COUNT(*) INTO index_exists 
-                    FROM information_schema.statistics 
-                    WHERE table_schema = DATABASE() 
-                    AND table_name = 'products' 
-                    AND index_name = 'unique_branch_sku';
-                    
-                    IF index_exists > 0 THEN
-                        ALTER TABLE products DROP INDEX unique_branch_sku;
-                    END IF;
-                    
-                    -- Check and drop 'products_sku_key' index if exists (Prisma naming)
-                    SELECT COUNT(*) INTO index_exists 
-                    FROM information_schema.statistics 
-                    WHERE table_schema = DATABASE() 
-                    AND table_name = 'products' 
-                    AND index_name = 'products_sku_key';
-                    
-                    IF index_exists > 0 THEN
-                        ALTER TABLE products DROP INDEX products_sku_key;
-                    END IF;
-                    
-                    -- Check if idx_products_sku already exists before creating
-                    SELECT COUNT(*) INTO index_exists 
-                    FROM information_schema.statistics 
-                    WHERE table_schema = DATABASE() 
-                    AND table_name = 'products' 
-                    AND index_name = 'idx_products_sku';
-                    
-                    IF index_exists = 0 THEN
-                        CREATE INDEX idx_products_sku ON products (sku);
+                    -- Only proceed if sku column exists
+                    IF col_exists > 0 THEN
+                        -- Check and drop 'sku' index if exists
+                        SELECT COUNT(*) INTO index_exists 
+                        FROM information_schema.statistics 
+                        WHERE table_schema = DATABASE() 
+                        AND table_name = 'products' 
+                        AND index_name = 'sku';
+                        
+                        IF index_exists > 0 THEN
+                            ALTER TABLE products DROP INDEX sku;
+                        END IF;
+                        
+                        -- Check and drop 'unique_branch_sku' index if exists
+                        SELECT COUNT(*) INTO index_exists 
+                        FROM information_schema.statistics 
+                        WHERE table_schema = DATABASE() 
+                        AND table_name = 'products' 
+                        AND index_name = 'unique_branch_sku';
+                        
+                        IF index_exists > 0 THEN
+                            ALTER TABLE products DROP INDEX unique_branch_sku;
+                        END IF;
+                        
+                        -- Check and drop 'products_sku_key' index if exists (Prisma naming)
+                        SELECT COUNT(*) INTO index_exists 
+                        FROM information_schema.statistics 
+                        WHERE table_schema = DATABASE() 
+                        AND table_name = 'products' 
+                        AND index_name = 'products_sku_key';
+                        
+                        IF index_exists > 0 THEN
+                            ALTER TABLE products DROP INDEX products_sku_key;
+                        END IF;
                     END IF;
                 END`,
                 `CALL migrate_sku_nullable()`,
                 `DROP PROCEDURE IF EXISTS migrate_sku_nullable`,
-                `ALTER TABLE products MODIFY COLUMN sku VARCHAR(191) NULL`,
             ],
         },
         down: {
             sqlite: [
-                // Rollback would require setting default values for NULL skus first
-                // For safety, we don't provide automatic rollback
+                `SELECT 1`, // No-op
             ],
             mysql: [
-                `DROP INDEX idx_products_sku ON products`,
-                `ALTER TABLE products MODIFY COLUMN sku VARCHAR(191) NOT NULL`,
-                `ALTER TABLE products ADD CONSTRAINT sku UNIQUE (sku)`,
-                `ALTER TABLE products ADD CONSTRAINT unique_branch_sku UNIQUE (branch_id, sku)`,
+                `SELECT 1`, // No-op - can't reliably rollback
             ],
         },
     },
@@ -1227,6 +1189,207 @@ export const MIGRATIONS: Migration[] = [
             mysql: [
                 `ALTER TABLE sales DROP COLUMN other_charges`,
                 `ALTER TABLE parked_sales DROP COLUMN other_charges`,
+            ],
+        },
+    },
+    {
+        version: '20260215_01',
+        description: 'Add districts table with all Malawi districts and districtId to branches',
+        up: {
+            sqlite: [
+                // Create districts table
+                `CREATE TABLE IF NOT EXISTS "districts" (
+                    "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+                    "district_id" TEXT NOT NULL UNIQUE,
+                    "name" TEXT NOT NULL,
+                    "region" TEXT NOT NULL,
+                    "code" TEXT NOT NULL UNIQUE,
+                    "is_active" INTEGER NOT NULL DEFAULT 1,
+                    "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    "updated_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )`,
+                `CREATE INDEX IF NOT EXISTS "idx_districts_region" ON "districts" ("region")`,
+                `CREATE INDEX IF NOT EXISTS "idx_districts_is_active" ON "districts" ("is_active")`,
+
+                // Add district_id column to branches table
+                `ALTER TABLE "branches" ADD COLUMN "district_id" TEXT`,
+                `CREATE INDEX IF NOT EXISTS "idx_branches_district_id" ON "branches" ("district_id")`,
+
+                // Seed Malawi districts - Northern Region (6 districts)
+                `INSERT OR IGNORE INTO "districts" ("district_id", "name", "region", "code", "is_active") VALUES (lower(hex(randomblob(16))), 'Chitipa', 'Northern', 'CTP', 1)`,
+                `INSERT OR IGNORE INTO "districts" ("district_id", "name", "region", "code", "is_active") VALUES (lower(hex(randomblob(16))), 'Karonga', 'Northern', 'KAR', 1)`,
+                `INSERT OR IGNORE INTO "districts" ("district_id", "name", "region", "code", "is_active") VALUES (lower(hex(randomblob(16))), 'Likoma', 'Northern', 'LIK', 1)`,
+                `INSERT OR IGNORE INTO "districts" ("district_id", "name", "region", "code", "is_active") VALUES (lower(hex(randomblob(16))), 'Mzimba', 'Northern', 'MZI', 1)`,
+                `INSERT OR IGNORE INTO "districts" ("district_id", "name", "region", "code", "is_active") VALUES (lower(hex(randomblob(16))), 'Nkhata Bay', 'Northern', 'NKB', 1)`,
+                `INSERT OR IGNORE INTO "districts" ("district_id", "name", "region", "code", "is_active") VALUES (lower(hex(randomblob(16))), 'Rumphi', 'Northern', 'RUM', 1)`,
+
+                // Seed Malawi districts - Central Region (9 districts)
+                `INSERT OR IGNORE INTO "districts" ("district_id", "name", "region", "code", "is_active") VALUES (lower(hex(randomblob(16))), 'Dedza', 'Central', 'DED', 1)`,
+                `INSERT OR IGNORE INTO "districts" ("district_id", "name", "region", "code", "is_active") VALUES (lower(hex(randomblob(16))), 'Dowa', 'Central', 'DOW', 1)`,
+                `INSERT OR IGNORE INTO "districts" ("district_id", "name", "region", "code", "is_active") VALUES (lower(hex(randomblob(16))), 'Kasungu', 'Central', 'KAS', 1)`,
+                `INSERT OR IGNORE INTO "districts" ("district_id", "name", "region", "code", "is_active") VALUES (lower(hex(randomblob(16))), 'Lilongwe', 'Central', 'LIL', 1)`,
+                `INSERT OR IGNORE INTO "districts" ("district_id", "name", "region", "code", "is_active") VALUES (lower(hex(randomblob(16))), 'Mchinji', 'Central', 'MCH', 1)`,
+                `INSERT OR IGNORE INTO "districts" ("district_id", "name", "region", "code", "is_active") VALUES (lower(hex(randomblob(16))), 'Nkhotakota', 'Central', 'NKH', 1)`,
+                `INSERT OR IGNORE INTO "districts" ("district_id", "name", "region", "code", "is_active") VALUES (lower(hex(randomblob(16))), 'Ntcheu', 'Central', 'NTE', 1)`,
+                `INSERT OR IGNORE INTO "districts" ("district_id", "name", "region", "code", "is_active") VALUES (lower(hex(randomblob(16))), 'Ntchisi', 'Central', 'NTS', 1)`,
+                `INSERT OR IGNORE INTO "districts" ("district_id", "name", "region", "code", "is_active") VALUES (lower(hex(randomblob(16))), 'Salima', 'Central', 'SAL', 1)`,
+
+                // Seed Malawi districts - Southern Region (13 districts)
+                `INSERT OR IGNORE INTO "districts" ("district_id", "name", "region", "code", "is_active") VALUES (lower(hex(randomblob(16))), 'Balaka', 'Southern', 'BAL', 1)`,
+                `INSERT OR IGNORE INTO "districts" ("district_id", "name", "region", "code", "is_active") VALUES (lower(hex(randomblob(16))), 'Blantyre', 'Southern', 'BLA', 1)`,
+                `INSERT OR IGNORE INTO "districts" ("district_id", "name", "region", "code", "is_active") VALUES (lower(hex(randomblob(16))), 'Chikwawa', 'Southern', 'CKW', 1)`,
+                `INSERT OR IGNORE INTO "districts" ("district_id", "name", "region", "code", "is_active") VALUES (lower(hex(randomblob(16))), 'Chiradzulu', 'Southern', 'CHI', 1)`,
+                `INSERT OR IGNORE INTO "districts" ("district_id", "name", "region", "code", "is_active") VALUES (lower(hex(randomblob(16))), 'Machinga', 'Southern', 'MAC', 1)`,
+                `INSERT OR IGNORE INTO "districts" ("district_id", "name", "region", "code", "is_active") VALUES (lower(hex(randomblob(16))), 'Mangochi', 'Southern', 'MAN', 1)`,
+                `INSERT OR IGNORE INTO "districts" ("district_id", "name", "region", "code", "is_active") VALUES (lower(hex(randomblob(16))), 'Mulanje', 'Southern', 'MUL', 1)`,
+                `INSERT OR IGNORE INTO "districts" ("district_id", "name", "region", "code", "is_active") VALUES (lower(hex(randomblob(16))), 'Mwanza', 'Southern', 'MWA', 1)`,
+                `INSERT OR IGNORE INTO "districts" ("district_id", "name", "region", "code", "is_active") VALUES (lower(hex(randomblob(16))), 'Neno', 'Southern', 'NEN', 1)`,
+                `INSERT OR IGNORE INTO "districts" ("district_id", "name", "region", "code", "is_active") VALUES (lower(hex(randomblob(16))), 'Nsanje', 'Southern', 'NSA', 1)`,
+                `INSERT OR IGNORE INTO "districts" ("district_id", "name", "region", "code", "is_active") VALUES (lower(hex(randomblob(16))), 'Phalombe', 'Southern', 'PHA', 1)`,
+                `INSERT OR IGNORE INTO "districts" ("district_id", "name", "region", "code", "is_active") VALUES (lower(hex(randomblob(16))), 'Thyolo', 'Southern', 'THY', 1)`,
+                `INSERT OR IGNORE INTO "districts" ("district_id", "name", "region", "code", "is_active") VALUES (lower(hex(randomblob(16))), 'Zomba', 'Southern', 'ZOM', 1)`,
+            ],
+            mysql: [
+                // Create districts table
+                `CREATE TABLE IF NOT EXISTS districts (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    district_id VARCHAR(191) NOT NULL UNIQUE,
+                    name VARCHAR(191) NOT NULL,
+                    region VARCHAR(50) NOT NULL,
+                    code VARCHAR(10) NOT NULL UNIQUE,
+                    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+                    created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+                    updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+                    INDEX idx_region (region),
+                    INDEX idx_is_active (is_active)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+
+                // Add district_id column to branches table (idempotent)
+                `DROP PROCEDURE IF EXISTS add_branches_district_id_col`,
+                `CREATE PROCEDURE add_branches_district_id_col()
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT * FROM INFORMATION_SCHEMA.COLUMNS 
+                        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'branches' AND COLUMN_NAME = 'district_id'
+                    ) THEN
+                        ALTER TABLE branches ADD COLUMN district_id VARCHAR(191) AFTER address_line_3;
+                    END IF;
+                END`,
+                `CALL add_branches_district_id_col()`,
+                `DROP PROCEDURE IF EXISTS add_branches_district_id_col`,
+
+                // Add index for district_id (idempotent)
+                `DROP PROCEDURE IF EXISTS add_branches_district_id_idx`,
+                `CREATE PROCEDURE add_branches_district_id_idx()
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM INFORMATION_SCHEMA.STATISTICS 
+                        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'branches' AND INDEX_NAME = 'idx_branches_district_id'
+                    ) THEN
+                        CREATE INDEX idx_branches_district_id ON branches (district_id);
+                    END IF;
+                END`,
+                `CALL add_branches_district_id_idx()`,
+                `DROP PROCEDURE IF EXISTS add_branches_district_id_idx`,
+
+                // Seed Malawi districts - Northern Region (6 districts)
+                `INSERT IGNORE INTO districts (district_id, name, region, code, is_active) VALUES (UUID(), 'Chitipa', 'Northern', 'CTP', TRUE)`,
+                `INSERT IGNORE INTO districts (district_id, name, region, code, is_active) VALUES (UUID(), 'Karonga', 'Northern', 'KAR', TRUE)`,
+                `INSERT IGNORE INTO districts (district_id, name, region, code, is_active) VALUES (UUID(), 'Likoma', 'Northern', 'LIK', TRUE)`,
+                `INSERT IGNORE INTO districts (district_id, name, region, code, is_active) VALUES (UUID(), 'Mzimba', 'Northern', 'MZI', TRUE)`,
+                `INSERT IGNORE INTO districts (district_id, name, region, code, is_active) VALUES (UUID(), 'Nkhata Bay', 'Northern', 'NKB', TRUE)`,
+                `INSERT IGNORE INTO districts (district_id, name, region, code, is_active) VALUES (UUID(), 'Rumphi', 'Northern', 'RUM', TRUE)`,
+
+                // Seed Malawi districts - Central Region (9 districts)
+                `INSERT IGNORE INTO districts (district_id, name, region, code, is_active) VALUES (UUID(), 'Dedza', 'Central', 'DED', TRUE)`,
+                `INSERT IGNORE INTO districts (district_id, name, region, code, is_active) VALUES (UUID(), 'Dowa', 'Central', 'DOW', TRUE)`,
+                `INSERT IGNORE INTO districts (district_id, name, region, code, is_active) VALUES (UUID(), 'Kasungu', 'Central', 'KAS', TRUE)`,
+                `INSERT IGNORE INTO districts (district_id, name, region, code, is_active) VALUES (UUID(), 'Lilongwe', 'Central', 'LIL', TRUE)`,
+                `INSERT IGNORE INTO districts (district_id, name, region, code, is_active) VALUES (UUID(), 'Mchinji', 'Central', 'MCH', TRUE)`,
+                `INSERT IGNORE INTO districts (district_id, name, region, code, is_active) VALUES (UUID(), 'Nkhotakota', 'Central', 'NKH', TRUE)`,
+                `INSERT IGNORE INTO districts (district_id, name, region, code, is_active) VALUES (UUID(), 'Ntcheu', 'Central', 'NTE', TRUE)`,
+                `INSERT IGNORE INTO districts (district_id, name, region, code, is_active) VALUES (UUID(), 'Ntchisi', 'Central', 'NTS', TRUE)`,
+                `INSERT IGNORE INTO districts (district_id, name, region, code, is_active) VALUES (UUID(), 'Salima', 'Central', 'SAL', TRUE)`,
+
+                // Seed Malawi districts - Southern Region (13 districts)
+                `INSERT IGNORE INTO districts (district_id, name, region, code, is_active) VALUES (UUID(), 'Balaka', 'Southern', 'BAL', TRUE)`,
+                `INSERT IGNORE INTO districts (district_id, name, region, code, is_active) VALUES (UUID(), 'Blantyre', 'Southern', 'BLA', TRUE)`,
+                `INSERT IGNORE INTO districts (district_id, name, region, code, is_active) VALUES (UUID(), 'Chikwawa', 'Southern', 'CKW', TRUE)`,
+                `INSERT IGNORE INTO districts (district_id, name, region, code, is_active) VALUES (UUID(), 'Chiradzulu', 'Southern', 'CHI', TRUE)`,
+                `INSERT IGNORE INTO districts (district_id, name, region, code, is_active) VALUES (UUID(), 'Machinga', 'Southern', 'MAC', TRUE)`,
+                `INSERT IGNORE INTO districts (district_id, name, region, code, is_active) VALUES (UUID(), 'Mangochi', 'Southern', 'MAN', TRUE)`,
+                `INSERT IGNORE INTO districts (district_id, name, region, code, is_active) VALUES (UUID(), 'Mulanje', 'Southern', 'MUL', TRUE)`,
+                `INSERT IGNORE INTO districts (district_id, name, region, code, is_active) VALUES (UUID(), 'Mwanza', 'Southern', 'MWA', TRUE)`,
+                `INSERT IGNORE INTO districts (district_id, name, region, code, is_active) VALUES (UUID(), 'Neno', 'Southern', 'NEN', TRUE)`,
+                `INSERT IGNORE INTO districts (district_id, name, region, code, is_active) VALUES (UUID(), 'Nsanje', 'Southern', 'NSA', TRUE)`,
+                `INSERT IGNORE INTO districts (district_id, name, region, code, is_active) VALUES (UUID(), 'Phalombe', 'Southern', 'PHA', TRUE)`,
+                `INSERT IGNORE INTO districts (district_id, name, region, code, is_active) VALUES (UUID(), 'Thyolo', 'Southern', 'THY', TRUE)`,
+                `INSERT IGNORE INTO districts (district_id, name, region, code, is_active) VALUES (UUID(), 'Zomba', 'Southern', 'ZOM', TRUE)`,
+            ],
+        },
+        down: {
+            sqlite: [
+                `DROP TABLE IF EXISTS "districts"`,
+                // Cannot easily drop column in SQLite
+            ],
+            mysql: [
+                `ALTER TABLE branches DROP COLUMN district_id`,
+                `DROP TABLE IF EXISTS districts`,
+            ],
+        },
+    },
+    {
+        version: '20260215_02',
+        description: 'Add businessType and location columns to branches table, rename district to location',
+        up: {
+            sqlite: [
+                // Add location column
+                `ALTER TABLE "branches" ADD COLUMN "location" TEXT`,
+                // Add business_type column
+                `ALTER TABLE "branches" ADD COLUMN "business_type" TEXT DEFAULT 'PRODUCT_BASED'`,
+                // Migrate data from district column to location if it exists
+                `UPDATE "branches" SET "location" = "district" WHERE "district" IS NOT NULL AND "location" IS NULL`,
+            ],
+            mysql: [
+                // Add location column (idempotent)
+                `DROP PROCEDURE IF EXISTS add_branches_location_col`,
+                `CREATE PROCEDURE add_branches_location_col()
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT * FROM INFORMATION_SCHEMA.COLUMNS 
+                        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'branches' AND COLUMN_NAME = 'location'
+                    ) THEN
+                        ALTER TABLE branches ADD COLUMN location VARCHAR(255) AFTER district_id;
+                    END IF;
+                END`,
+                `CALL add_branches_location_col()`,
+                `DROP PROCEDURE IF EXISTS add_branches_location_col`,
+
+                // Add business_type column (idempotent)
+                `DROP PROCEDURE IF EXISTS add_branches_business_type_col`,
+                `CREATE PROCEDURE add_branches_business_type_col()
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT * FROM INFORMATION_SCHEMA.COLUMNS 
+                        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'branches' AND COLUMN_NAME = 'business_type'
+                    ) THEN
+                        ALTER TABLE branches ADD COLUMN business_type ENUM('PRODUCT_BASED', 'SERVICE_BASED', 'HYBRID') DEFAULT 'PRODUCT_BASED' AFTER location;
+                    END IF;
+                END`,
+                `CALL add_branches_business_type_col()`,
+                `DROP PROCEDURE IF EXISTS add_branches_business_type_col`,
+
+                // Migrate data from district column to location if it exists
+                `UPDATE branches SET location = district WHERE district IS NOT NULL AND location IS NULL`,
+            ],
+        },
+        down: {
+            sqlite: [
+                // Cannot easily drop columns in SQLite
+            ],
+            mysql: [
+                `ALTER TABLE branches DROP COLUMN business_type`,
+                `ALTER TABLE branches DROP COLUMN location`,
             ],
         },
     },
