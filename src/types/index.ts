@@ -6,6 +6,7 @@ export * from './config';
 export * from './customer';
 export * from './dashboard';
 export * from './db-export';
+export * from './district';
 export * from './email';
 export * from './metadata';
 export * from './migrations';
