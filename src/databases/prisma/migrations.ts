@@ -18,7 +18,7 @@ import { getDatabaseConfig } from '../../config/db';
  * Current schema version - INCREMENT THIS when schema changes
  * Format: YYYYMMDD_NN (date + sequence number)
  */
-export const CURRENT_DB_VERSION = '20260215_02';
+export const CURRENT_DB_VERSION = '20260216_01';
 
 /**
  * Minimum supported version for migration (older versions require fresh install)
@@ -674,7 +674,18 @@ export const MIGRATIONS: Migration[] = [
                 `DROP PROCEDURE IF EXISTS add_products_default_unit_col`,
 
                 // Step 0b: Copy unit values to default_unit (only if both columns exist)
-                `UPDATE products SET default_unit = unit WHERE unit IS NOT NULL AND default_unit IS NULL`,
+                `DROP PROCEDURE IF EXISTS copy_unit_to_default_unit`,
+                `CREATE PROCEDURE copy_unit_to_default_unit()
+                BEGIN
+                    IF EXISTS (
+                        SELECT * FROM INFORMATION_SCHEMA.COLUMNS 
+                        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'products' AND COLUMN_NAME = 'unit'
+                    ) THEN
+                        UPDATE products SET default_unit = unit WHERE unit IS NOT NULL AND default_unit IS NULL;
+                    END IF;
+                END`,
+                `CALL copy_unit_to_default_unit()`,
+                `DROP PROCEDURE IF EXISTS copy_unit_to_default_unit`,
 
                 // Step 0c: Add custom_attribute_schema column to products table (idempotent)
                 `DROP PROCEDURE IF EXISTS add_products_custom_attr_col`,
@@ -768,22 +779,62 @@ export const MIGRATIONS: Migration[] = [
                     CONSTRAINT variant_barcodes_variant_id_fkey FOREIGN KEY (variant_id) REFERENCES product_variants(variant_id) ON DELETE CASCADE ON UPDATE CASCADE
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
 
-                // Step 3: Migrate existing products to variants
-                `INSERT INTO product_variants (
-                    variant_id, product_id, tenant_id, branch_id, sku, variant_name,
-                    primary_barcode, selling_price, cost_price, unit, description, brand,
-                    image_url, is_taxable, supplier_name, supplier_code, size, weight,
-                    dimensions, promo_price, promo_start, promo_end, expiration_date,
-                    manufacture_date, is_default, is_active, created_at, updated_at
-                )
-                SELECT 
-                    UUID(), product_id, tenant_id, branch_id, sku, 'Default',
-                    primary_barcode, selling_price, 0.00, COALESCE(unit, 'piece'), description, brand,
-                    NULL, is_taxable, supplier_name, supplier_code, size, weight,
-                    dimensions, promo_price, promo_start, promo_end, expiration_date,
-                    manufacture_date, TRUE, is_active, created_at, updated_at
-                FROM products p
-                WHERE NOT EXISTS (SELECT 1 FROM product_variants pv WHERE pv.product_id = p.product_id)`,
+                // Step 3: Migrate existing products to variants (handles schema variations)
+                // The procedure detects which columns exist in the products table and migrates accordingly
+                `DROP PROCEDURE IF EXISTS migrate_products_to_variants`,
+                `CREATE PROCEDURE migrate_products_to_variants()
+                BEGIN
+                    DECLARE has_old_columns BOOLEAN DEFAULT FALSE;
+                    
+                    -- Check if old schema columns exist (sku indicates old schema with variant columns in products)
+                    SELECT COUNT(*) > 0 INTO has_old_columns
+                    FROM INFORMATION_SCHEMA.COLUMNS 
+                    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'products' AND COLUMN_NAME = 'sku';
+                    
+                    IF has_old_columns THEN
+                        -- Old schema: products table has variant-level columns (sku, selling_price, etc.)
+                        -- Migrate all product data to variants
+                        SET @sql = CONCAT(
+                            'INSERT INTO product_variants (',
+                            'variant_id, product_id, tenant_id, branch_id, sku, variant_name, ',
+                            'primary_barcode, selling_price, cost_price, unit, description, brand, ',
+                            'image_url, is_taxable, supplier_name, supplier_code, size, weight, ',
+                            'dimensions, promo_price, promo_start, promo_end, expiration_date, ',
+                            'manufacture_date, is_default, is_active, created_at, updated_at) ',
+                            'SELECT UUID(), product_id, tenant_id, branch_id, sku, ''Default'', ',
+                            'primary_barcode, COALESCE(selling_price, 0), 0.00, ',
+                            'COALESCE(',
+                            (SELECT IF(EXISTS(SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'products' AND COLUMN_NAME = 'unit'), 'unit', 'default_unit')),
+                            ', ''piece''), description, brand, ',
+                            'NULL, is_taxable, supplier_name, supplier_code, size, weight, ',
+                            'dimensions, promo_price, promo_start, promo_end, expiration_date, ',
+                            'manufacture_date, TRUE, is_active, created_at, updated_at ',
+                            'FROM products p ',
+                            'WHERE NOT EXISTS (SELECT 1 FROM product_variants pv WHERE pv.product_id = p.product_id)'
+                        );
+                        PREPARE stmt FROM @sql;
+                        EXECUTE stmt;
+                        DEALLOCATE PREPARE stmt;
+                    ELSE
+                        -- New schema: products table only has core fields, variants are separate
+                        -- Create default variants with minimal data
+                        INSERT INTO product_variants (
+                            variant_id, product_id, tenant_id, branch_id, sku, variant_name,
+                            primary_barcode, selling_price, cost_price, unit, description, brand,
+                            image_url, is_taxable, supplier_name, supplier_code,
+                            is_default, is_active, created_at, updated_at
+                        )
+                        SELECT 
+                            UUID(), product_id, tenant_id, branch_id, NULL, 'Default',
+                            NULL, 0.00, 0.00, COALESCE(default_unit, 'piece'), description, brand,
+                            image_url, is_taxable, supplier_name, supplier_code,
+                            TRUE, is_active, created_at, updated_at
+                        FROM products p
+                        WHERE NOT EXISTS (SELECT 1 FROM product_variants pv WHERE pv.product_id = p.product_id);
+                    END IF;
+                END`,
+                `CALL migrate_products_to_variants()`,
+                `DROP PROCEDURE IF EXISTS migrate_products_to_variants`,
 
                 // Step 4: Migrate product_barcodes to variant_barcodes
                 `INSERT IGNORE INTO variant_barcodes (
@@ -810,13 +861,24 @@ export const MIGRATIONS: Migration[] = [
                 `CALL add_inventory_variant_id_col()`,
                 `DROP PROCEDURE IF EXISTS add_inventory_variant_id_col`,
 
-                // Step 6: Update inventory to reference variants
-                `UPDATE inventory i 
-                SET variant_id = (
-                    SELECT pv.variant_id FROM product_variants pv 
-                    WHERE pv.product_id = i.product_id AND pv.is_default = TRUE
-                    LIMIT 1
-                ) WHERE i.variant_id IS NULL`,
+                // Step 6: Update inventory to reference variants (only if product_id exists)
+                `DROP PROCEDURE IF EXISTS update_inventory_variant_id`,
+                `CREATE PROCEDURE update_inventory_variant_id()
+                BEGIN
+                    IF EXISTS (
+                        SELECT * FROM INFORMATION_SCHEMA.COLUMNS 
+                        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'inventory' AND COLUMN_NAME = 'product_id'
+                    ) THEN
+                        UPDATE inventory i 
+                        SET variant_id = (
+                            SELECT pv.variant_id FROM product_variants pv 
+                            WHERE pv.product_id = i.product_id AND pv.is_default = TRUE
+                            LIMIT 1
+                        ) WHERE i.variant_id IS NULL;
+                    END IF;
+                END`,
+                `CALL update_inventory_variant_id()`,
+                `DROP PROCEDURE IF EXISTS update_inventory_variant_id`,
 
                 // Step 7: Add variant_id to sale_items (idempotent)
                 `DROP PROCEDURE IF EXISTS add_sale_items_variant_id_col`,
@@ -832,13 +894,24 @@ export const MIGRATIONS: Migration[] = [
                 `CALL add_sale_items_variant_id_col()`,
                 `DROP PROCEDURE IF EXISTS add_sale_items_variant_id_col`,
 
-                // Step 8: Update sale_items to reference variants
-                `UPDATE sale_items si 
-                SET variant_id = (
-                    SELECT pv.variant_id FROM product_variants pv 
-                    WHERE pv.product_id = si.product_id AND pv.is_default = TRUE
-                    LIMIT 1
-                ) WHERE si.variant_id IS NULL`,
+                // Step 8: Update sale_items to reference variants (only if product_id exists)
+                `DROP PROCEDURE IF EXISTS update_sale_items_variant_id`,
+                `CREATE PROCEDURE update_sale_items_variant_id()
+                BEGIN
+                    IF EXISTS (
+                        SELECT * FROM INFORMATION_SCHEMA.COLUMNS 
+                        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'sale_items' AND COLUMN_NAME = 'product_id'
+                    ) THEN
+                        UPDATE sale_items si 
+                        SET variant_id = (
+                            SELECT pv.variant_id FROM product_variants pv 
+                            WHERE pv.product_id = si.product_id AND pv.is_default = TRUE
+                            LIMIT 1
+                        ) WHERE si.variant_id IS NULL;
+                    END IF;
+                END`,
+                `CALL update_sale_items_variant_id()`,
+                `DROP PROCEDURE IF EXISTS update_sale_items_variant_id`,
 
                 // Step 9: Add variant_id to purchase_order_items (idempotent)
                 `DROP PROCEDURE IF EXISTS add_purchase_order_items_variant_id_col`,
@@ -854,13 +927,24 @@ export const MIGRATIONS: Migration[] = [
                 `CALL add_purchase_order_items_variant_id_col()`,
                 `DROP PROCEDURE IF EXISTS add_purchase_order_items_variant_id_col`,
 
-                // Step 10: Update purchase_order_items to reference variants
-                `UPDATE purchase_order_items poi 
-                SET variant_id = (
-                    SELECT pv.variant_id FROM product_variants pv 
-                    WHERE pv.product_id = poi.product_id AND pv.is_default = TRUE
-                    LIMIT 1
-                ) WHERE poi.variant_id IS NULL`,
+                // Step 10: Update purchase_order_items to reference variants (only if product_id exists)
+                `DROP PROCEDURE IF EXISTS update_purchase_order_items_variant_id`,
+                `CREATE PROCEDURE update_purchase_order_items_variant_id()
+                BEGIN
+                    IF EXISTS (
+                        SELECT * FROM INFORMATION_SCHEMA.COLUMNS 
+                        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'purchase_order_items' AND COLUMN_NAME = 'product_id'
+                    ) THEN
+                        UPDATE purchase_order_items poi 
+                        SET variant_id = (
+                            SELECT pv.variant_id FROM product_variants pv 
+                            WHERE pv.product_id = poi.product_id AND pv.is_default = TRUE
+                            LIMIT 1
+                        ) WHERE poi.variant_id IS NULL;
+                    END IF;
+                END`,
+                `CALL update_purchase_order_items_variant_id()`,
+                `DROP PROCEDURE IF EXISTS update_purchase_order_items_variant_id`,
 
                 // Step 11: Add index for inventory variant_id (idempotent)
                 `DROP PROCEDURE IF EXISTS add_inventory_variant_id_idx`,
@@ -963,7 +1047,19 @@ export const MIGRATIONS: Migration[] = [
                 `ALTER TABLE "product_variants" ADD COLUMN "expiry_date_alert" INTEGER`,
             ],
             mysql: [
-                `ALTER TABLE product_variants ADD COLUMN expiry_date_alert INT NULL`,
+                // Add expiry_date_alert column (idempotent)
+                `DROP PROCEDURE IF EXISTS add_expiry_date_alert_col`,
+                `CREATE PROCEDURE add_expiry_date_alert_col()
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT * FROM INFORMATION_SCHEMA.COLUMNS 
+                        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'product_variants' AND COLUMN_NAME = 'expiry_date_alert'
+                    ) THEN
+                        ALTER TABLE product_variants ADD COLUMN expiry_date_alert INT NULL;
+                    END IF;
+                END`,
+                `CALL add_expiry_date_alert_col()`,
+                `DROP PROCEDURE IF EXISTS add_expiry_date_alert_col`,
             ],
         },
         down: {
@@ -1177,8 +1273,33 @@ export const MIGRATIONS: Migration[] = [
                 `ALTER TABLE "parked_sales" ADD COLUMN "other_charges" REAL DEFAULT 0.00`,
             ],
             mysql: [
-                `ALTER TABLE sales ADD COLUMN other_charges DECIMAL(12, 2) DEFAULT 0.00 AFTER discount_amount`,
-                `ALTER TABLE parked_sales ADD COLUMN other_charges DECIMAL(12, 2) DEFAULT 0.00 AFTER discount_amount`,
+                // Add other_charges to sales (idempotent)
+                `DROP PROCEDURE IF EXISTS add_sales_other_charges_col`,
+                `CREATE PROCEDURE add_sales_other_charges_col()
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT * FROM INFORMATION_SCHEMA.COLUMNS 
+                        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'sales' AND COLUMN_NAME = 'other_charges'
+                    ) THEN
+                        ALTER TABLE sales ADD COLUMN other_charges DECIMAL(12, 2) DEFAULT 0.00 AFTER discount_amount;
+                    END IF;
+                END`,
+                `CALL add_sales_other_charges_col()`,
+                `DROP PROCEDURE IF EXISTS add_sales_other_charges_col`,
+                
+                // Add other_charges to parked_sales (idempotent)
+                `DROP PROCEDURE IF EXISTS add_parked_sales_other_charges_col`,
+                `CREATE PROCEDURE add_parked_sales_other_charges_col()
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT * FROM INFORMATION_SCHEMA.COLUMNS 
+                        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'parked_sales' AND COLUMN_NAME = 'other_charges'
+                    ) THEN
+                        ALTER TABLE parked_sales ADD COLUMN other_charges DECIMAL(12, 2) DEFAULT 0.00 AFTER discount_amount;
+                    END IF;
+                END`,
+                `CALL add_parked_sales_other_charges_col()`,
+                `DROP PROCEDURE IF EXISTS add_parked_sales_other_charges_col`,
             ],
         },
         down: {
@@ -1379,8 +1500,19 @@ export const MIGRATIONS: Migration[] = [
                 `CALL add_branches_business_type_col()`,
                 `DROP PROCEDURE IF EXISTS add_branches_business_type_col`,
 
-                // Migrate data from district column to location if it exists
-                `UPDATE branches SET location = district WHERE district IS NOT NULL AND location IS NULL`,
+                // Migrate data from district column to location if it exists (idempotent)
+                `DROP PROCEDURE IF EXISTS migrate_district_to_location`,
+                `CREATE PROCEDURE migrate_district_to_location()
+                BEGIN
+                    IF EXISTS (
+                        SELECT * FROM INFORMATION_SCHEMA.COLUMNS 
+                        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'branches' AND COLUMN_NAME = 'district'
+                    ) THEN
+                        UPDATE branches SET location = district WHERE district IS NOT NULL AND location IS NULL;
+                    END IF;
+                END`,
+                `CALL migrate_district_to_location()`,
+                `DROP PROCEDURE IF EXISTS migrate_district_to_location`,
             ],
         },
         down: {
@@ -1390,6 +1522,310 @@ export const MIGRATIONS: Migration[] = [
             mysql: [
                 `ALTER TABLE branches DROP COLUMN business_type`,
                 `ALTER TABLE branches DROP COLUMN location`,
+            ],
+        },
+    },
+    {
+        version: '20260216_01',
+        description: 'Simplify terminal_settings table to use 4 JSON settings groups',
+        up: {
+            sqlite: [
+                // SQLite: Create new table with simplified structure
+                `CREATE TABLE IF NOT EXISTS "terminal_settings_new" (
+                    "id" TEXT PRIMARY KEY NOT NULL,
+                    "terminal_id" TEXT NOT NULL UNIQUE,
+                    "general_settings" TEXT,
+                    "receipt_settings" TEXT,
+                    "business_settings" TEXT,
+                    "security_settings" TEXT,
+                    "settings_version" TEXT NOT NULL DEFAULT '3.0.0',
+                    "is_active" INTEGER NOT NULL DEFAULT 1,
+                    "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    "updated_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY ("terminal_id") REFERENCES "terminals"("terminal_id") ON DELETE CASCADE
+                )`,
+                // Migrate existing data - consolidate old JSON columns into new structure
+                `INSERT INTO "terminal_settings_new" ("id", "terminal_id", "general_settings", "receipt_settings", "business_settings", "security_settings", "settings_version", "is_active", "created_at", "updated_at")
+                SELECT 
+                    "id", 
+                    "terminal_id",
+                    json_object(
+                        'dateFormat', COALESCE("date_format", 'DD/MM/YYYY'),
+                        'showProductImages', 1,
+                        'productDisplayMode', 'GRID',
+                        'barcodeScanMode', 'AUTO',
+                        'enableStockAlerts', 1,
+                        'enableVirtualKeyboard', 0,
+                        'virtualKeyboardLayout', 'qwerty',
+                        'virtualKeyboardTheme', 'default',
+                        'virtualKeyboardSound', 0,
+                        'virtualKeyboardHaptic', 0
+                    ),
+                    json_object(
+                        'storeName', COALESCE("store_name", 'My Store'),
+                        'storePhone', COALESCE("store_phone", ''),
+                        'storeAddress', COALESCE("store_address", ''),
+                        'storeWebsite', '',
+                        'taxTitle', 'VAT',
+                        'businessTaxId', COALESCE("business_tax_id", ''),
+                        'logoUrl', '',
+                        'receiptHeader', '',
+                        'showPhoneOnReceipt', 1,
+                        'showAddressOnReceipt', 1,
+                        'showTaxOnReceipt', 1,
+                        'showWebsiteOnReceipt', 0,
+                        'showStoreLogo', 0,
+                        'showListPrice', 1,
+                        'showRateInReceipt', 1,
+                        'showTotalMoneySaved', 0,
+                        'showCashierName', 1,
+                        'showCustomerPhone', 0,
+                        'showCustomerAddress', 0,
+                        'thankYouNote', 'Thank you for your purchase!',
+                        'useAppLanguage', 1,
+                        'showTotalItemCount', 1,
+                        'showChangeReturn', 1,
+                        'showPaymentDetails', 1,
+                        'showPoweredBy', 1,
+                        'orderItemsBy', 'orderAdded',
+                        'messageTemplate', 'Total Bill Amount is #total',
+                        'whatsappShareApp', 'whatsapp'
+                    ),
+                    json_object(
+                        'receiptNumberPrefix', 'RCP',
+                        'autoApplyTax', 1,
+                        'taxInclusivePricing', 0,
+                        'taxRate', COALESCE("tax_rate", 16.5),
+                        'enableDiscounts', 1,
+                        'requirePinForDiscount', 1,
+                        'maxDiscountPercentage', 20,
+                        'roundingEnabled', 1,
+                        'tableManagementEnabled', 0,
+                        'inventoryHealthScoreEnabled', 1
+                    ),
+                    json_object(
+                        'autoSyncOnReconnect', 1,
+                        'requirePinForVoid', 1,
+                        'requirePinForReturn', 1,
+                        'enableNotifications', 1,
+                        'apiBaseUrl', COALESCE("server_url", 'http://127.0.0.1:3001/api/v1')
+                    ),
+                    '3.0.0',
+                    "is_active",
+                    "created_at",
+                    "updated_at"
+                FROM "terminal_settings"`,
+                // Drop old table
+                `DROP TABLE IF EXISTS "terminal_settings"`,
+                // Rename new table
+                `ALTER TABLE "terminal_settings_new" RENAME TO "terminal_settings"`,
+                // Create index
+                `CREATE INDEX IF NOT EXISTS "idx_terminal_settings_terminal_id" ON "terminal_settings" ("terminal_id")`,
+            ],
+            mysql: [
+                // MySQL: Add new columns first
+                `DROP PROCEDURE IF EXISTS add_terminal_settings_cols`,
+                `CREATE PROCEDURE add_terminal_settings_cols()
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT * FROM INFORMATION_SCHEMA.COLUMNS 
+                        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'terminal_settings' AND COLUMN_NAME = 'general_settings'
+                    ) THEN
+                        ALTER TABLE terminal_settings ADD COLUMN general_settings JSON AFTER terminal_id;
+                    END IF;
+                    IF NOT EXISTS (
+                        SELECT * FROM INFORMATION_SCHEMA.COLUMNS 
+                        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'terminal_settings' AND COLUMN_NAME = 'business_settings'
+                    ) THEN
+                        ALTER TABLE terminal_settings ADD COLUMN business_settings JSON AFTER receipt_settings;
+                    END IF;
+                END`,
+                `CALL add_terminal_settings_cols()`,
+                `DROP PROCEDURE IF EXISTS add_terminal_settings_cols`,
+                
+                // Migrate data to new columns
+                `UPDATE terminal_settings SET 
+                    general_settings = JSON_OBJECT(
+                        'dateFormat', COALESCE(date_format, 'DD/MM/YYYY'),
+                        'showProductImages', true,
+                        'productDisplayMode', 'GRID',
+                        'barcodeScanMode', 'AUTO',
+                        'enableStockAlerts', true,
+                        'enableVirtualKeyboard', false,
+                        'virtualKeyboardLayout', 'qwerty',
+                        'virtualKeyboardTheme', 'default',
+                        'virtualKeyboardSound', false,
+                        'virtualKeyboardHaptic', false
+                    ),
+                    receipt_settings = JSON_OBJECT(
+                        'storeName', COALESCE(store_name, 'My Store'),
+                        'storePhone', COALESCE(store_phone, ''),
+                        'storeAddress', COALESCE(store_address, ''),
+                        'storeWebsite', '',
+                        'taxTitle', 'VAT',
+                        'businessTaxId', COALESCE(business_tax_id, ''),
+                        'logoUrl', '',
+                        'receiptHeader', '',
+                        'showPhoneOnReceipt', true,
+                        'showAddressOnReceipt', true,
+                        'showTaxOnReceipt', true,
+                        'showWebsiteOnReceipt', false,
+                        'showStoreLogo', false,
+                        'showListPrice', true,
+                        'showRateInReceipt', true,
+                        'showTotalMoneySaved', false,
+                        'showCashierName', true,
+                        'showCustomerPhone', false,
+                        'showCustomerAddress', false,
+                        'thankYouNote', 'Thank you for your purchase!',
+                        'useAppLanguage', true,
+                        'showTotalItemCount', true,
+                        'showChangeReturn', true,
+                        'showPaymentDetails', true,
+                        'showPoweredBy', true,
+                        'orderItemsBy', 'orderAdded',
+                        'messageTemplate', 'Total Bill Amount is #total',
+                        'whatsappShareApp', 'whatsapp'
+                    ),
+                    business_settings = JSON_OBJECT(
+                        'receiptNumberPrefix', 'RCP',
+                        'autoApplyTax', true,
+                        'taxInclusivePricing', false,
+                        'taxRate', COALESCE(tax_rate, 16.5),
+                        'enableDiscounts', true,
+                        'requirePinForDiscount', true,
+                        'maxDiscountPercentage', 20,
+                        'roundingEnabled', true,
+                        'tableManagementEnabled', false,
+                        'inventoryHealthScoreEnabled', true
+                    ),
+                    security_settings = JSON_OBJECT(
+                        'autoSyncOnReconnect', true,
+                        'requirePinForVoid', true,
+                        'requirePinForReturn', true,
+                        'enableNotifications', true,
+                        'apiBaseUrl', COALESCE(server_url, 'http://127.0.0.1:3001/api/v1')
+                    ),
+                    settings_version = '3.0.0'
+                WHERE general_settings IS NULL`,
+                
+                // Drop old columns
+                `DROP PROCEDURE IF EXISTS drop_terminal_settings_old_cols`,
+                `CREATE PROCEDURE drop_terminal_settings_old_cols()
+                BEGIN
+                    IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'terminal_settings' AND COLUMN_NAME = 'store_name') THEN
+                        ALTER TABLE terminal_settings DROP COLUMN store_name;
+                    END IF;
+                    IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'terminal_settings' AND COLUMN_NAME = 'store_address') THEN
+                        ALTER TABLE terminal_settings DROP COLUMN store_address;
+                    END IF;
+                    IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'terminal_settings' AND COLUMN_NAME = 'store_phone') THEN
+                        ALTER TABLE terminal_settings DROP COLUMN store_phone;
+                    END IF;
+                    IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'terminal_settings' AND COLUMN_NAME = 'store_email') THEN
+                        ALTER TABLE terminal_settings DROP COLUMN store_email;
+                    END IF;
+                    IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'terminal_settings' AND COLUMN_NAME = 'currency') THEN
+                        ALTER TABLE terminal_settings DROP COLUMN currency;
+                    END IF;
+                    IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'terminal_settings' AND COLUMN_NAME = 'tax_rate') THEN
+                        ALTER TABLE terminal_settings DROP COLUMN tax_rate;
+                    END IF;
+                    IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'terminal_settings' AND COLUMN_NAME = 'business_license') THEN
+                        ALTER TABLE terminal_settings DROP COLUMN business_license;
+                    END IF;
+                    IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'terminal_settings' AND COLUMN_NAME = 'business_tax_id') THEN
+                        ALTER TABLE terminal_settings DROP COLUMN business_tax_id;
+                    END IF;
+                    IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'terminal_settings' AND COLUMN_NAME = 'language') THEN
+                        ALTER TABLE terminal_settings DROP COLUMN language;
+                    END IF;
+                    IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'terminal_settings' AND COLUMN_NAME = 'timezone') THEN
+                        ALTER TABLE terminal_settings DROP COLUMN timezone;
+                    END IF;
+                    IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'terminal_settings' AND COLUMN_NAME = 'date_format') THEN
+                        ALTER TABLE terminal_settings DROP COLUMN date_format;
+                    END IF;
+                    IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'terminal_settings' AND COLUMN_NAME = 'time_format') THEN
+                        ALTER TABLE terminal_settings DROP COLUMN time_format;
+                    END IF;
+                    IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'terminal_settings' AND COLUMN_NAME = 'pin_length') THEN
+                        ALTER TABLE terminal_settings DROP COLUMN pin_length;
+                    END IF;
+                    IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'terminal_settings' AND COLUMN_NAME = 'session_timeout_minutes') THEN
+                        ALTER TABLE terminal_settings DROP COLUMN session_timeout_minutes;
+                    END IF;
+                    IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'terminal_settings' AND COLUMN_NAME = 'auto_logout_minutes') THEN
+                        ALTER TABLE terminal_settings DROP COLUMN auto_logout_minutes;
+                    END IF;
+                    IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'terminal_settings' AND COLUMN_NAME = 'server_url') THEN
+                        ALTER TABLE terminal_settings DROP COLUMN server_url;
+                    END IF;
+                    IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'terminal_settings' AND COLUMN_NAME = 'localization_settings') THEN
+                        ALTER TABLE terminal_settings DROP COLUMN localization_settings;
+                    END IF;
+                    IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'terminal_settings' AND COLUMN_NAME = 'transaction_settings') THEN
+                        ALTER TABLE terminal_settings DROP COLUMN transaction_settings;
+                    END IF;
+                    IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'terminal_settings' AND COLUMN_NAME = 'customer_settings') THEN
+                        ALTER TABLE terminal_settings DROP COLUMN customer_settings;
+                    END IF;
+                    IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'terminal_settings' AND COLUMN_NAME = 'payment_settings') THEN
+                        ALTER TABLE terminal_settings DROP COLUMN payment_settings;
+                    END IF;
+                    IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'terminal_settings' AND COLUMN_NAME = 'mra_compliance_settings') THEN
+                        ALTER TABLE terminal_settings DROP COLUMN mra_compliance_settings;
+                    END IF;
+                    IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'terminal_settings' AND COLUMN_NAME = 'inventory_settings') THEN
+                        ALTER TABLE terminal_settings DROP COLUMN inventory_settings;
+                    END IF;
+                    IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'terminal_settings' AND COLUMN_NAME = 'sync_settings') THEN
+                        ALTER TABLE terminal_settings DROP COLUMN sync_settings;
+                    END IF;
+                    IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'terminal_settings' AND COLUMN_NAME = 'performance_settings') THEN
+                        ALTER TABLE terminal_settings DROP COLUMN performance_settings;
+                    END IF;
+                    IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'terminal_settings' AND COLUMN_NAME = 'hardware_settings') THEN
+                        ALTER TABLE terminal_settings DROP COLUMN hardware_settings;
+                    END IF;
+                    IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'terminal_settings' AND COLUMN_NAME = 'integration_settings') THEN
+                        ALTER TABLE terminal_settings DROP COLUMN integration_settings;
+                    END IF;
+                    IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'terminal_settings' AND COLUMN_NAME = 'workflow_settings') THEN
+                        ALTER TABLE terminal_settings DROP COLUMN workflow_settings;
+                    END IF;
+                    IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'terminal_settings' AND COLUMN_NAME = 'backup_settings') THEN
+                        ALTER TABLE terminal_settings DROP COLUMN backup_settings;
+                    END IF;
+                    IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'terminal_settings' AND COLUMN_NAME = 'display_settings') THEN
+                        ALTER TABLE terminal_settings DROP COLUMN display_settings;
+                    END IF;
+                    IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'terminal_settings' AND COLUMN_NAME = 'tax_fee_settings') THEN
+                        ALTER TABLE terminal_settings DROP COLUMN tax_fee_settings;
+                    END IF;
+                    IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'terminal_settings' AND COLUMN_NAME = 'customer_management_settings') THEN
+                        ALTER TABLE terminal_settings DROP COLUMN customer_management_settings;
+                    END IF;
+                    IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'terminal_settings' AND COLUMN_NAME = 'reporting_settings') THEN
+                        ALTER TABLE terminal_settings DROP COLUMN reporting_settings;
+                    END IF;
+                    IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'terminal_settings' AND COLUMN_NAME = 'last_configured_by') THEN
+                        ALTER TABLE terminal_settings DROP COLUMN last_configured_by;
+                    END IF;
+                    IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'terminal_settings' AND COLUMN_NAME = 'configuration_date') THEN
+                        ALTER TABLE terminal_settings DROP COLUMN configuration_date;
+                    END IF;
+                END`,
+                `CALL drop_terminal_settings_old_cols()`,
+                `DROP PROCEDURE IF EXISTS drop_terminal_settings_old_cols`,
+            ],
+        },
+        down: {
+            sqlite: [
+                // Rollback not easily supported for SQLite restructure
+            ],
+            mysql: [
+                // Could add back old columns if needed
             ],
         },
     },

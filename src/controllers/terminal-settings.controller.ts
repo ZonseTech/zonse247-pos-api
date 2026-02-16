@@ -6,6 +6,7 @@ import { SettingsGroupName } from '../types/terminal-settings';
 export class TerminalSettingsController extends BaseController {
     /**
      * Get terminal settings by terminal ID
+     * Returns settings in display format: { general, receipt, business, security }
      */
     static async getSettings(req: Request, res: Response): Promise<void> {
         try {
@@ -95,6 +96,7 @@ export class TerminalSettingsController extends BaseController {
 
     /**
      * Update terminal settings
+     * Accepts format: { general, receipt, business, security }
      */
     static async updateSettings(req: Request, res: Response): Promise<void> {
         try {
@@ -132,7 +134,7 @@ export class TerminalSettingsController extends BaseController {
     }
 
     /**
-     * Update a specific settings group
+     * Update a specific settings group (general, receipt, business, security)
      */
     static async updateSettingsGroup(req: Request, res: Response): Promise<void> {
         try {
@@ -150,29 +152,10 @@ export class TerminalSettingsController extends BaseController {
             }
 
             // Validate group name
-            const validGroupNames: SettingsGroupName[] = [
-                'localizationSettings',
-                'transactionSettings',
-                'customerSettings',
-                'receiptSettings',
-                'paymentSettings',
-                'mraComplianceSettings',
-                'inventorySettings',
-                'syncSettings',
-                'securitySettings',
-                'performanceSettings',
-                'hardwareSettings',
-                'integrationSettings',
-                'workflowSettings',
-                'backupSettings',
-                'displaySettings',
-                'taxFeeSettings',
-                'customerManagementSettings',
-                'reportingSettings',
-            ];
+            const validGroupNames: SettingsGroupName[] = ['general', 'receipt', 'business', 'security'];
 
             if (!validGroupNames.includes(groupName as SettingsGroupName)) {
-                BaseController.sendResponse(res, 400, false, `Invalid settings group name: ${groupName}`);
+                BaseController.sendResponse(res, 400, false, `Invalid settings group name: ${groupName}. Valid options: ${validGroupNames.join(', ')}`);
                 return;
             }
 
@@ -191,7 +174,7 @@ export class TerminalSettingsController extends BaseController {
                 res,
                 200,
                 true,
-                `${groupName} updated successfully`,
+                `${groupName} settings updated successfully`,
                 result
             );
         } catch (error) {
@@ -207,39 +190,6 @@ export class TerminalSettingsController extends BaseController {
                 statusCode === 404 ? 'Terminal settings not found' : 'Internal server error',
                 null,
                 errorMessage
-            );
-        }
-    }
-
-    /**
-     * Delete terminal settings
-     */
-    static async deleteSettings(req: Request, res: Response): Promise<void> {
-        try {
-            const { terminalId } = req.params;
-
-            if (!terminalId) {
-                BaseController.sendResponse(res, 400, false, 'Terminal ID is required');
-                return;
-            }
-
-            const result = await TerminalSettingsService.deleteSettings(terminalId as string);
-
-            if (!result) {
-                BaseController.sendResponse(res, 404, false, 'Terminal settings not found or deletion failed');
-                return;
-            }
-
-            BaseController.sendResponse(res, 200, true, 'Terminal settings deleted successfully', { deleted: true });
-        } catch (error) {
-            console.error('Error in terminal settings controller - deleteSettings:', error);
-            BaseController.sendResponse(
-                res,
-                500,
-                false,
-                'Internal server error',
-                null,
-                error instanceof Error ? error.message : 'Unknown error'
             );
         }
     }
@@ -263,9 +213,78 @@ export class TerminalSettingsController extends BaseController {
                 return;
             }
 
-            BaseController.sendResponse(res, 200, true, 'Terminal settings deactivated successfully', { deactivated: true });
+            BaseController.sendResponse(res, 200, true, 'Terminal settings deactivated successfully');
         } catch (error) {
             console.error('Error in terminal settings controller - deactivateSettings:', error);
+
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            const statusCode = errorMessage.includes('not found') ? 404 : 500;
+
+            BaseController.sendResponse(
+                res,
+                statusCode,
+                false,
+                statusCode === 404 ? 'Terminal settings not found' : 'Internal server error',
+                null,
+                errorMessage
+            );
+        }
+    }
+
+    /**
+     * Delete terminal settings (hard delete)
+     */
+    static async deleteSettings(req: Request, res: Response): Promise<void> {
+        try {
+            const { terminalId } = req.params;
+
+            if (!terminalId) {
+                BaseController.sendResponse(res, 400, false, 'Terminal ID is required');
+                return;
+            }
+
+            const result = await TerminalSettingsService.deleteSettings(terminalId as string);
+
+            if (!result) {
+                BaseController.sendResponse(res, 404, false, 'Terminal settings not found or deletion failed');
+                return;
+            }
+
+            BaseController.sendResponse(res, 200, true, 'Terminal settings deleted successfully');
+        } catch (error) {
+            console.error('Error in terminal settings controller - deleteSettings:', error);
+
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            const statusCode = errorMessage.includes('not found') ? 404 : 500;
+
+            BaseController.sendResponse(
+                res,
+                statusCode,
+                false,
+                statusCode === 404 ? 'Terminal settings not found' : 'Internal server error',
+                null,
+                errorMessage
+            );
+        }
+    }
+
+    /**
+     * Reset terminal settings to defaults
+     */
+    static async resetSettings(req: Request, res: Response): Promise<void> {
+        try {
+            const { terminalId } = req.params;
+
+            if (!terminalId) {
+                BaseController.sendResponse(res, 400, false, 'Terminal ID is required');
+                return;
+            }
+
+            const result = await TerminalSettingsService.resetSettings(terminalId as string);
+
+            BaseController.sendResponse(res, 200, true, 'Terminal settings reset to defaults successfully', result);
+        } catch (error) {
+            console.error('Error in terminal settings controller - resetSettings:', error);
             BaseController.sendResponse(
                 res,
                 500,
@@ -313,9 +332,8 @@ export class TerminalSettingsController extends BaseController {
      */
     static async isConfigured(req: Request, res: Response): Promise<void> {
         try {
-            const isConfigured = await TerminalSettingsService.isConfigured();
-
-            BaseController.sendResponse(res, 200, true, 'Configuration status retrieved', { isConfigured });
+            const result = await TerminalSettingsService.isConfigured();
+            BaseController.sendResponse(res, 200, true, 'Configuration status retrieved', { isConfigured: result });
         } catch (error) {
             console.error('Error in terminal settings controller - isConfigured:', error);
             BaseController.sendResponse(
@@ -330,22 +348,14 @@ export class TerminalSettingsController extends BaseController {
     }
 
     /**
-     * Reset terminal settings to defaults
+     * Get default settings (without persisting)
      */
-    static async resetSettings(req: Request, res: Response): Promise<void> {
+    static async getDefaultSettings(req: Request, res: Response): Promise<void> {
         try {
-            const { terminalId } = req.params;
-
-            if (!terminalId) {
-                BaseController.sendResponse(res, 400, false, 'Terminal ID is required');
-                return;
-            }
-
-            const result = await TerminalSettingsService.resetSettings(terminalId as string);
-
-            BaseController.sendResponse(res, 200, true, 'Terminal settings reset to defaults successfully', result);
+            const result = TerminalSettingsService.getDefaultSettings();
+            BaseController.sendResponse(res, 200, true, 'Default settings retrieved', result);
         } catch (error) {
-            console.error('Error in terminal settings controller - resetSettings:', error);
+            console.error('Error in terminal settings controller - getDefaultSettings:', error);
             BaseController.sendResponse(
                 res,
                 500,
