@@ -3,26 +3,35 @@ import {
     TerminalSettings,
     CreateTerminalSettingsRequest,
     UpdateTerminalSettingsRequest,
+    TerminalDisplaySettings,
     SettingsGroupName,
+    GeneralSettings,
+    ReceiptDisplaySettings,
+    BusinessSettings,
+    SecurityDisplaySettings,
 } from '../types/terminal-settings';
 
 export class TerminalSettingsService {
     /**
      * Get terminal settings by terminal ID
+     * Returns settings in display format
      * If settings don't exist for the terminal, creates and saves default settings
      */
-    static async getSettings(terminalId: string): Promise<TerminalSettings | null> {
+    static async getSettings(terminalId: string): Promise<TerminalDisplaySettings | null> {
         try {
             if (!terminalId) {
                 throw new Error('Terminal ID is required');
             }
 
-            const existing = await TerminalSettingsModel.findByTerminalId(terminalId);
-            if (existing) {
-                return existing;
+            let dbSettings = await TerminalSettingsModel.findByTerminalId(terminalId);
+
+            if (!dbSettings) {
+                // Create default settings for this terminal
+                dbSettings = await TerminalSettingsModel.create({ terminalId });
             }
 
-            return await TerminalSettingsModel.create({ terminalId });
+            // Transform to display format
+            return TerminalSettingsModel.toDisplayFormat(dbSettings);
         } catch (error) {
             console.error('Error in terminal settings service - getSettings:', error);
             throw error;
@@ -30,11 +39,31 @@ export class TerminalSettingsService {
     }
 
     /**
-     * Get all terminal settings
+     * Get raw database settings by terminal ID
      */
-    static async getAllSettings(): Promise<TerminalSettings[]> {
+    static async getRawSettings(terminalId: string): Promise<TerminalSettings | null> {
         try {
-            return await TerminalSettingsModel.findAll();
+            if (!terminalId) {
+                throw new Error('Terminal ID is required');
+            }
+
+            return await TerminalSettingsModel.findByTerminalId(terminalId);
+        } catch (error) {
+            console.error('Error in terminal settings service - getRawSettings:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Get all terminal settings in display format
+     */
+    static async getAllSettings(): Promise<Array<{ terminalId: string; settings: TerminalDisplaySettings }>> {
+        try {
+            const allSettings = await TerminalSettingsModel.findAll();
+            return allSettings.map(dbSettings => ({
+                terminalId: dbSettings.terminalId,
+                settings: TerminalSettingsModel.toDisplayFormat(dbSettings),
+            }));
         } catch (error) {
             console.error('Error in terminal settings service - getAllSettings:', error);
             throw error;
@@ -44,7 +73,7 @@ export class TerminalSettingsService {
     /**
      * Create terminal settings
      */
-    static async createSettings(data: CreateTerminalSettingsRequest): Promise<TerminalSettings> {
+    static async createSettings(data: CreateTerminalSettingsRequest): Promise<TerminalDisplaySettings> {
         try {
             if (!data.terminalId) {
                 throw new Error('Terminal ID is required');
@@ -55,7 +84,8 @@ export class TerminalSettingsService {
                 throw new Error('Terminal settings already exist for this terminal');
             }
 
-            return await TerminalSettingsModel.create(data);
+            const dbSettings = await TerminalSettingsModel.create(data);
+            return TerminalSettingsModel.toDisplayFormat(dbSettings);
         } catch (error) {
             console.error('Error in terminal settings service - createSettings:', error);
             throw error;
@@ -64,22 +94,29 @@ export class TerminalSettingsService {
 
     /**
      * Update terminal settings
+     * Accepts format with general, receipt, business, security groups
      */
     static async updateSettings(
         terminalId: string,
         updateData: UpdateTerminalSettingsRequest
-    ): Promise<TerminalSettings | null> {
+    ): Promise<TerminalDisplaySettings | null> {
         try {
             if (!terminalId) {
                 throw new Error('Terminal ID is required');
             }
 
-            const existing = await TerminalSettingsModel.findByTerminalId(terminalId);
+            let existing = await TerminalSettingsModel.findByTerminalId(terminalId);
             if (!existing) {
-                throw new Error('Terminal settings not found');
+                // Auto-create settings if they don't exist
+                existing = await TerminalSettingsModel.create({ terminalId });
             }
 
-            return await TerminalSettingsModel.update(terminalId, updateData);
+            const dbSettings = await TerminalSettingsModel.update(terminalId, updateData);
+            if (!dbSettings) {
+                return null;
+            }
+
+            return TerminalSettingsModel.toDisplayFormat(dbSettings);
         } catch (error) {
             console.error('Error in terminal settings service - updateSettings:', error);
             throw error;
@@ -87,13 +124,13 @@ export class TerminalSettingsService {
     }
 
     /**
-     * Update a specific settings group
+     * Update a specific settings group (general, receipt, business, security)
      */
-    static async updateSettingsGroup<T extends object>(
+    static async updateSettingsGroup(
         terminalId: string,
         groupName: SettingsGroupName,
-        data: T
-    ): Promise<TerminalSettings | null> {
+        data: GeneralSettings | ReceiptDisplaySettings | BusinessSettings | SecurityDisplaySettings
+    ): Promise<TerminalDisplaySettings | null> {
         try {
             if (!terminalId) {
                 throw new Error('Terminal ID is required');
@@ -108,7 +145,31 @@ export class TerminalSettingsService {
                 throw new Error('Terminal settings not found');
             }
 
-            return await TerminalSettingsModel.updateSettingsGroup(terminalId, groupName, data);
+            // Build update request based on group name
+            const updateData: UpdateTerminalSettingsRequest = {};
+            switch (groupName) {
+                case 'general':
+                    updateData.general = data as GeneralSettings;
+                    break;
+                case 'receipt':
+                    updateData.receipt = data as ReceiptDisplaySettings;
+                    break;
+                case 'business':
+                    updateData.business = data as BusinessSettings;
+                    break;
+                case 'security':
+                    updateData.security = data as SecurityDisplaySettings;
+                    break;
+                default:
+                    throw new Error(`Invalid settings group name: ${groupName}`);
+            }
+
+            const dbSettings = await TerminalSettingsModel.update(terminalId, updateData);
+            if (!dbSettings) {
+                return null;
+            }
+
+            return TerminalSettingsModel.toDisplayFormat(dbSettings);
         } catch (error) {
             console.error(`Error in terminal settings service - updateSettingsGroup (${groupName}):`, error);
             throw error;
@@ -150,7 +211,7 @@ export class TerminalSettingsService {
     /**
      * Get or create terminal settings
      */
-    static async getOrCreateSettings(data: CreateTerminalSettingsRequest): Promise<TerminalSettings> {
+    static async getOrCreateSettings(data: CreateTerminalSettingsRequest): Promise<TerminalDisplaySettings> {
         try {
             if (!data.terminalId) {
                 throw new Error('Terminal ID is required');
@@ -158,10 +219,11 @@ export class TerminalSettingsService {
 
             const existing = await TerminalSettingsModel.findByTerminalId(data.terminalId);
             if (existing) {
-                return existing;
+                return TerminalSettingsModel.toDisplayFormat(existing);
             }
 
-            return await TerminalSettingsModel.create(data);
+            const dbSettings = await TerminalSettingsModel.create(data);
+            return TerminalSettingsModel.toDisplayFormat(dbSettings);
         } catch (error) {
             console.error('Error in terminal settings service - getOrCreateSettings:', error);
             throw error;
@@ -196,23 +258,32 @@ export class TerminalSettingsService {
      * Reset terminal settings to defaults
      * Deletes existing settings and creates new default settings
      */
-    static async resetSettings(terminalId: string): Promise<TerminalSettings> {
+    static async resetSettings(terminalId: string): Promise<TerminalDisplaySettings> {
         try {
             if (!terminalId) {
                 throw new Error('Terminal ID is required');
             }
 
             // Delete existing settings if they exist
-            const existing = await TerminalSettingsModel.findByTerminalId(terminalId);
-            if (existing) {
+            try {
                 await TerminalSettingsModel.delete(terminalId);
+            } catch {
+                // Ignore deletion errors (settings may not exist)
             }
 
-            // Create new default settings
-            return await TerminalSettingsModel.create({ terminalId });
+            // Create fresh default settings
+            const dbSettings = await TerminalSettingsModel.create({ terminalId });
+            return TerminalSettingsModel.toDisplayFormat(dbSettings);
         } catch (error) {
             console.error('Error in terminal settings service - resetSettings:', error);
             throw error;
         }
+    }
+
+    /**
+     * Get default settings without persisting
+     */
+    static getDefaultSettings(): TerminalDisplaySettings {
+        return TerminalSettingsModel.getDefaultDisplaySettings();
     }
 }
