@@ -384,7 +384,7 @@ model Sale {
 
   tenant        Tenant         @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade)
   branch        Branch         @relation(fields: [branchId], references: [branchId], onDelete: Cascade)
-  customer      Customer?      @relation(fields: [customerId], references: [customerId], onDelete: SetNull, map: "fk_sales_customer")
+  customer      Customer?      @relation(fields: [customerId], references: [customerId], onDelete: SetNull)
   terminal      Terminal?      @relation(fields: [terminalId], references: [terminalId], onDelete: SetNull)
   user          User           @relation(fields: [userId], references: [userId], onDelete: Restrict)
   paymentMethod PaymentMethod? @relation(fields: [paymentMethodId], references: [methodId], onDelete: SetNull)
@@ -1085,7 +1085,7 @@ model Transaction {
   saleId String? @map("sale_id")
 
   branch                 Branch                  @relation(fields: [branchId], references: [branchId], onDelete: Cascade)
-  customer               Customer?               @relation(fields: [customerId], references: [customerId], onDelete: SetNull, map: "fk_transactions_customer")
+  customer               Customer?               @relation(fields: [customerId], references: [customerId], onDelete: SetNull)
   user                   User?                   @relation(fields: [userId], references: [userId], onDelete: SetNull)
   paymentMethod          PaymentMethod?          @relation(fields: [paymentMethodId], references: [methodId], onDelete: SetNull)
   paymentServiceProvider PaymentServiceProvider? @relation(fields: [paymentServiceProviderId], references: [providerId], onDelete: SetNull)
