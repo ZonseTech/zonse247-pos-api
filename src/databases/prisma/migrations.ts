@@ -18,7 +18,7 @@ import { getDatabaseConfig } from '../../config/db';
  * Current schema version - INCREMENT THIS when schema changes
  * Format: YYYYMMDD_NN (date + sequence number)
  */
-export const CURRENT_DB_VERSION = '20260216_01';
+export const CURRENT_DB_VERSION = '20260219_01';
 
 /**
  * Minimum supported version for migration (older versions require fresh install)
@@ -534,6 +534,18 @@ export const MIGRATIONS: Migration[] = [
         description: 'Add ProductVariant model and migrate existing products to variants (non-destructive)',
         up: {
             sqlite: [
+                // Step 0a: Add default_unit column to products table (if not exists)
+                `ALTER TABLE "products" ADD COLUMN "default_unit" TEXT`,
+
+                // Step 0b: Copy unit values to default_unit (only if unit column exists - OLD schema)
+                `UPDATE "products" SET "default_unit" = "unit" WHERE "unit" IS NOT NULL AND "default_unit" IS NULL`,
+
+                // Step 0c: Add custom_attribute_schema column to products table (if not exists)
+                `ALTER TABLE "products" ADD COLUMN "custom_attribute_schema" TEXT`,
+
+                // Step 0d: Add image_url column to products table (if not exists)
+                `ALTER TABLE "products" ADD COLUMN "image_url" TEXT`,
+
                 // Step 1: Create product_variants table
                 `CREATE TABLE IF NOT EXISTS "product_variants" (
                     "variant_id" TEXT PRIMARY KEY NOT NULL,
@@ -585,8 +597,9 @@ export const MIGRATIONS: Migration[] = [
                     FOREIGN KEY ("variant_id") REFERENCES "product_variants" ("variant_id") ON DELETE CASCADE
                 )`,
 
-                // Step 3: Migrate existing products to variants (each product becomes a variant with name "Default")
-                `INSERT INTO "product_variants" (
+                // Step 3: Migrate existing products to variants (OLD schema only - has sku, selling_price, etc.)
+                // This SQL will fail with "no such column" on NEW schema installs - that's expected and handled
+                `INSERT OR IGNORE INTO "product_variants" (
                     "variant_id", "product_id", "tenant_id", "branch_id", "sku", "variant_name",
                     "primary_barcode", "selling_price", "cost_price", "unit", "description", "brand",
                     "image_url", "is_taxable", "supplier_name", "supplier_code", "size", "weight",
@@ -594,15 +607,15 @@ export const MIGRATIONS: Migration[] = [
                     "manufacture_date", "is_default", "is_active", "created_at", "updated_at"
                 )
                 SELECT 
-                    lower(hex(randomblob(16))), "product_id", "tenant_id", "branch_id", "sku", 'Default',
-                    "primary_barcode", "selling_price", 0.00, COALESCE("unit", 'piece'), "description", "brand",
-                    NULL, "is_taxable", "supplier_name", "supplier_code", "size", "weight",
-                    "dimensions", "promo_price", "promo_start", "promo_end", "expiration_date",
-                    "manufacture_date", 1, "is_active", "created_at", "updated_at"
-                FROM "products"
-                WHERE NOT EXISTS (SELECT 1 FROM "product_variants" WHERE "product_variants"."product_id" = "products"."product_id")`,
+                    lower(hex(randomblob(16))), p."product_id", p."tenant_id", p."branch_id", p."sku", 'Default',
+                    p."primary_barcode", p."selling_price", 0.00, COALESCE(p."unit", 'piece'), p."description", p."brand",
+                    NULL, p."is_taxable", p."supplier_name", p."supplier_code", p."size", p."weight",
+                    p."dimensions", p."promo_price", p."promo_start", p."promo_end", p."expiration_date",
+                    p."manufacture_date", 1, p."is_active", p."created_at", p."updated_at"
+                FROM "products" p
+                WHERE NOT EXISTS (SELECT 1 FROM "product_variants" pv WHERE pv."product_id" = p."product_id")`,
 
-                // Step 4: Migrate product_barcodes to variant_barcodes
+                // Step 4: Migrate product_barcodes to variant_barcodes (if product_id column exists - OLD schema)
                 `INSERT OR IGNORE INTO "variant_barcodes" (
                     "variant_barcode_id", "variant_id", "barcode", "barcode_type", "barcode_source",
                     "description", "is_active", "created_at", "updated_at"
@@ -613,7 +626,7 @@ export const MIGRATIONS: Migration[] = [
                 FROM "product_barcodes" pb
                 INNER JOIN "product_variants" pv ON pb."product_id" = pv."product_id"`,
 
-                // Step 5: Add variant_id column to inventory (keep product_id temporarily)
+                // Step 5: Add variant_id column to inventory (will skip if already exists due to error handling)
                 `ALTER TABLE "inventory" ADD COLUMN "variant_id" TEXT`,
 
                 // Step 6: Update inventory to reference variants
@@ -621,9 +634,9 @@ export const MIGRATIONS: Migration[] = [
                     SELECT pv."variant_id" FROM "product_variants" pv 
                     WHERE pv."product_id" = "inventory"."product_id" AND pv."is_default" = 1
                     LIMIT 1
-                )`,
+                ) WHERE "variant_id" IS NULL`,
 
-                // Step 7: Add variant_id to sale_items (keep product_id temporarily)
+                // Step 7: Add variant_id to sale_items (will skip if already exists)
                 `ALTER TABLE "sale_items" ADD COLUMN "variant_id" TEXT`,
 
                 // Step 8: Update sale_items to reference variants
@@ -631,9 +644,9 @@ export const MIGRATIONS: Migration[] = [
                     SELECT pv."variant_id" FROM "product_variants" pv 
                     WHERE pv."product_id" = "sale_items"."product_id" AND pv."is_default" = 1
                     LIMIT 1
-                )`,
+                ) WHERE "variant_id" IS NULL`,
 
-                // Step 9: Add variant_id to purchase_order_items (keep product_id temporarily)
+                // Step 9: Add variant_id to purchase_order_items (will skip if already exists)
                 `ALTER TABLE "purchase_order_items" ADD COLUMN "variant_id" TEXT`,
 
                 // Step 10: Update purchase_order_items to reference variants
@@ -641,7 +654,7 @@ export const MIGRATIONS: Migration[] = [
                     SELECT pv."variant_id" FROM "product_variants" pv 
                     WHERE pv."product_id" = "purchase_order_items"."product_id" AND pv."is_default" = 1
                     LIMIT 1
-                )`,
+                ) WHERE "variant_id" IS NULL`,
 
                 // Step 11: Create indexes for product_variants
                 `CREATE INDEX IF NOT EXISTS "idx_product_variants_product_id" ON "product_variants" ("product_id")`,
@@ -1286,7 +1299,7 @@ export const MIGRATIONS: Migration[] = [
                 END`,
                 `CALL add_sales_other_charges_col()`,
                 `DROP PROCEDURE IF EXISTS add_sales_other_charges_col`,
-                
+
                 // Add other_charges to parked_sales (idempotent)
                 `DROP PROCEDURE IF EXISTS add_parked_sales_other_charges_col`,
                 `CREATE PROCEDURE add_parked_sales_other_charges_col()
@@ -1642,7 +1655,7 @@ export const MIGRATIONS: Migration[] = [
                 END`,
                 `CALL add_terminal_settings_cols()`,
                 `DROP PROCEDURE IF EXISTS add_terminal_settings_cols`,
-                
+
                 // Migrate data to new columns
                 `UPDATE terminal_settings SET 
                     general_settings = JSON_OBJECT(
@@ -1708,7 +1721,7 @@ export const MIGRATIONS: Migration[] = [
                     ),
                     settings_version = '3.0.0'
                 WHERE general_settings IS NULL`,
-                
+
                 // Drop old columns
                 `DROP PROCEDURE IF EXISTS drop_terminal_settings_old_cols`,
                 `CREATE PROCEDURE drop_terminal_settings_old_cols()
@@ -1827,6 +1840,53 @@ export const MIGRATIONS: Migration[] = [
             mysql: [
                 // Could add back old columns if needed
             ],
+        },
+    },
+    {
+        version: '20260219_01',
+        description: 'Add missing columns to products table (default_unit, custom_attribute_schema, image_url)',
+        up: {
+            sqlite: [
+                // Add default_unit column to products table (if not exists)
+                `ALTER TABLE "products" ADD COLUMN "default_unit" TEXT`,
+
+                // Add custom_attribute_schema column to products table (if not exists)
+                `ALTER TABLE "products" ADD COLUMN "custom_attribute_schema" TEXT`,
+
+                // Add image_url column to products table (if not exists)
+                `ALTER TABLE "products" ADD COLUMN "image_url" TEXT`,
+            ],
+            mysql: [
+                // MySQL: Add columns idempotently using stored procedure
+                `DROP PROCEDURE IF EXISTS add_products_missing_cols`,
+                `CREATE PROCEDURE add_products_missing_cols()
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT * FROM INFORMATION_SCHEMA.COLUMNS 
+                        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'products' AND COLUMN_NAME = 'default_unit'
+                    ) THEN
+                        ALTER TABLE products ADD COLUMN default_unit VARCHAR(50) DEFAULT NULL;
+                    END IF;
+                    IF NOT EXISTS (
+                        SELECT * FROM INFORMATION_SCHEMA.COLUMNS 
+                        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'products' AND COLUMN_NAME = 'custom_attribute_schema'
+                    ) THEN
+                        ALTER TABLE products ADD COLUMN custom_attribute_schema TEXT DEFAULT NULL;
+                    END IF;
+                    IF NOT EXISTS (
+                        SELECT * FROM INFORMATION_SCHEMA.COLUMNS 
+                        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'products' AND COLUMN_NAME = 'image_url'
+                    ) THEN
+                        ALTER TABLE products ADD COLUMN image_url VARCHAR(500) DEFAULT NULL;
+                    END IF;
+                END`,
+                `CALL add_products_missing_cols()`,
+                `DROP PROCEDURE IF EXISTS add_products_missing_cols`,
+            ],
+        },
+        down: {
+            sqlite: [],
+            mysql: [],
         },
     },
     // Add future migrations here:
@@ -1958,7 +2018,6 @@ export class MigrationManager {
         console.log(`   Target version: ${CURRENT_DB_VERSION}`);
         console.log(`   Pending migrations: ${pendingMigrations.length}\n`);
 
-        // Create backup before migration (SQLite only)
         let backupPath: string | undefined;
         if (dbPath && this.dbType === 'sqlite') {
             try {
@@ -1974,17 +2033,47 @@ export class MigrationManager {
             console.log(`🔄 Applying migration ${migration.version}: ${migration.description}`);
 
             try {
-                // Get database-specific SQL statements
                 const sqlStatements = getSqlStatements(migration.up, this.dbType);
 
-                // Run each SQL statement in the migration
                 for (const sql of sqlStatements) {
                     if (sql.trim()) {
-                        await this.db.$executeRawUnsafe(sql);
+                        try {
+                            await this.db.$executeRawUnsafe(sql);
+                        } catch (sqlError) {
+                            const errorMsg = (sqlError as Error).message;
+                            if (this.dbType === 'sqlite' && errorMsg.includes('duplicate column name')) {
+                                console.log(`   ⏭️ Skipping (column already exists): ${sql.substring(0, 60)}...`);
+                                continue;
+                            }
+
+                            if (this.dbType === 'sqlite' && errorMsg.includes('table') && errorMsg.includes('already exists')) {
+                                console.log(`   ⏭️ Skipping (table already exists): ${sql.substring(0, 60)}...`);
+                                continue;
+                            }
+                            if (this.dbType === 'sqlite' && errorMsg.includes('index') && errorMsg.includes('already exists')) {
+                                console.log(`   ⏭️ Skipping (index already exists): ${sql.substring(0, 60)}...`);
+                                continue;
+                            }
+                            if (this.dbType === 'sqlite' && errorMsg.includes('no such column')) {
+                                if (sql.includes('INSERT') && (sql.includes('product_variants') || sql.includes('variant_barcodes'))) {
+                                    console.log(`   ⏭️ Skipping data migration (new schema detected, no old columns to migrate)`);
+                                    continue;
+                                }
+                                if (sql.includes('UPDATE') && sql.includes('variant_id')) {
+                                    console.log(`   ⏭️ Skipping variant_id update (column may not exist or no data to update)`);
+                                    continue;
+                                }
+                                // Skip UPDATE that copies old columns to new ones on fresh install
+                                if (sql.includes('UPDATE') && sql.includes('default_unit') && sql.includes('unit')) {
+                                    console.log(`   ⏭️ Skipping unit->default_unit copy (new schema, unit column doesn't exist)`);
+                                    continue;
+                                }
+                            }
+                            throw sqlError;
+                        }
                     }
                 }
 
-                // Update version after successful migration
                 await this.setVersion(migration.version);
                 migrationsApplied.push(migration.version);
                 console.log(`   ✓ Migration ${migration.version} applied`);
@@ -1992,7 +2081,6 @@ export class MigrationManager {
                 const errorMessage = (error as Error).message;
                 console.error(`   ❌ Migration ${migration.version} failed: ${errorMessage}`);
 
-                // Attempt rollback to backup (SQLite only)
                 if (backupPath && dbPath) {
                     console.log('🔙 Attempting rollback to backup...');
                     try {
