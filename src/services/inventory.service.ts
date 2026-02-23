@@ -145,10 +145,10 @@ export class InventoryService {
         }
     }
 
-    static async updateInventoryItem(productUuid: string, inventoryData: Record<string, any>, auth: AuthenticatedUser): Promise<number> {
-        const currentItem = await InventoryModel.findById(productUuid, auth);
+    static async updateInventoryItem(productId: string, inventoryData: Record<string, any>, auth: AuthenticatedUser): Promise<number> {
+        const currentItem = await InventoryModel.findById(productId, auth);
 
-        const result = await InventoryModel.updateWithValidation(productUuid, inventoryData, auth);
+        const result = await InventoryModel.updateWithValidation(productId, inventoryData, auth);
 
         const categoriesToSync = new Set<string>();
 
@@ -171,10 +171,10 @@ export class InventoryService {
         return result;
     }
 
-    static async voidInventoryItem(productUuid: string, auth: AuthenticatedUser): Promise<number> {
-        const inventoryItem = await InventoryModel.findById(productUuid, auth);
+    static async voidInventoryItem(productId: string, auth: AuthenticatedUser): Promise<number> {
+        const inventoryItem = await InventoryModel.findById(productId, auth);
 
-        const result = await InventoryModel.voidWithCheck(productUuid, auth);
+        const result = await InventoryModel.voidWithCheck(productId, auth);
 
         if (inventoryItem?.categoryId) {
             try {
@@ -187,10 +187,10 @@ export class InventoryService {
         return result;
     }
 
-    static async deleteInventoryItem(productUuid: string, auth: AuthenticatedUser): Promise<number> {
-        const inventoryItem = await InventoryModel.findById(productUuid, auth);
+    static async deleteInventoryItem(productId: string, auth: AuthenticatedUser): Promise<number> {
+        const inventoryItem = await InventoryModel.findById(productId, auth);
 
-        const result = await InventoryModel.deleteWithCheck(productUuid, auth);
+        const result = await InventoryModel.deleteWithCheck(productId, auth);
 
         if (inventoryItem?.categoryId) {
             try {

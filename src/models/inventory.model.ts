@@ -453,12 +453,10 @@ export class InventoryModel {
      */
     static async create(inventoryData: Record<string, any>, auth: AuthenticatedUser): Promise<void> {
         try {
-            // Validate product name (required)
             if (!inventoryData.name || inventoryData.name.trim().length === 0) {
                 throw new ValidationError('Product name is required and cannot be empty.', {}, 'name');
             }
 
-            // Validate category if provided
             if (inventoryData.categoryId) {
                 const categoryExists = await prisma.category.findFirst({
                     where: {
@@ -476,10 +474,9 @@ export class InventoryModel {
                 }
             }
 
-            // Handle variants array format from frontend
             const variants = inventoryData.variants && Array.isArray(inventoryData.variants)
                 ? inventoryData.variants
-                : [inventoryData]; // Fallback to flat structure for backward compatibility
+                : [inventoryData];
 
             if (variants.length === 0) {
                 throw new ValidationError(
@@ -489,13 +486,11 @@ export class InventoryModel {
                 );
             }
 
-            // Validate each variant
             for (let i = 0; i < variants.length; i++) {
                 const variant = variants[i];
                 const variantLabel = variants.length > 1 ? ` (Variant ${i + 1})` : '';
                 const variantField = variants.length > 1 ? `variants[${i}]` : 'variant';
 
-                // Validate sell price
                 const sellPrice = parseFloat(variant.sellPrice || variant.sellingPrice || 0);
                 if (sellPrice < 0) {
                     throw new ValidationError(
@@ -505,7 +500,6 @@ export class InventoryModel {
                     );
                 }
 
-                // Validate quantity
                 const quantity = parseInt(variant.quantity || 0);
                 if (quantity < 0) {
                     throw new ValidationError(
@@ -515,7 +509,6 @@ export class InventoryModel {
                     );
                 }
 
-                // Validate minStock vs maxStock
                 const minStock = variant.minStock ? parseInt(variant.minStock) : null;
                 const maxStock = variant.maxStock ? parseInt(variant.maxStock) : null;
                 if (minStock !== null && maxStock !== null && minStock > maxStock) {
@@ -526,8 +519,7 @@ export class InventoryModel {
                     );
                 }
 
-                // Validate barcode for duplicates
-                const primaryBarcode = variant.barcode || variant.primaryBarcode;
+                const primaryBarcode = variant.primaryBarcode || variant.barcode;
                 const additionalBarcodes = variant.additionalBarcodes?.map((bc: any) => ({
                     barcode: typeof bc === 'string' ? bc : bc.code || bc.barcode
                 }));
@@ -538,39 +530,13 @@ export class InventoryModel {
                     auth.tenantId,
                     auth.branchId
                 );
-
-                // Check SKU uniqueness
-                const sku = variant.sku || variant.barcode;
-                if (sku) {
-                    const existingSku = await prisma.productVariant.findFirst({
-                        where: {
-                            sku,
-                            tenantId: auth.tenantId,
-                            branchId: auth.branchId,
-                            isActive: true,
-                        },
-                        include: {
-                            product: { select: { name: true } }
-                        }
-                    });
-
-                    if (existingSku) {
-                        const productName = existingSku.product?.name || 'another product';
-                        throw new ConflictError(
-                            `SKU "${sku}"${variantLabel} is already assigned to "${productName}".`,
-                            `${variantField}.sku`
-                        );
-                    }
-                }
             }
 
             const productId = uuidv4();
 
             await prisma.$transaction(async (tx) => {
-                // Get first variant for product-level defaults
                 const firstVariant = variants[0];
 
-                // Create the product (parent)
                 await tx.product.create({
                     data: {
                         id: productId,
@@ -588,7 +554,6 @@ export class InventoryModel {
                     }
                 });
 
-                // Create variants and their inventories
                 for (let i = 0; i < variants.length; i++) {
                     const variant = variants[i];
                     const variantId = variant.id || uuidv4();
@@ -597,10 +562,9 @@ export class InventoryModel {
                     const quantity = parseInt(variant.quantity || 0);
                     const minStock = variant.minStock ? parseInt(variant.minStock) : null;
                     const maxStock = variant.maxStock ? parseInt(variant.maxStock) : null;
-                    const primaryBarcode = variant.barcode || variant.primaryBarcode || null;
+                    const primaryBarcode = variant.primaryBarcode || variant.barcode || null;
                     const sku = variant.sku || variant.barcode || null;
 
-                    // Create the variant
                     await tx.productVariant.create({
                         data: {
                             id: variantId,
@@ -631,14 +595,13 @@ export class InventoryModel {
                         }
                     });
 
-                    // Create inventory for the variant
                     await tx.inventory.create({
                         data: {
                             id: uuidv4(),
                             tenantId: auth.tenantId,
                             branchId: auth.branchId,
-                            productId: productId, // References the parent product
-                            variantId: variantId, // References the variant
+                            productId: productId,
+                            variantId: variantId,
                             availableQuantity: quantity,
                             reservedQuantity: parseInt(variant.reservedQuantity || 0),
                             damagedQuantity: 0,
@@ -651,7 +614,6 @@ export class InventoryModel {
                         }
                     });
 
-                    // Create additional barcodes
                     if (variant.additionalBarcodes && Array.isArray(variant.additionalBarcodes)) {
                         for (const barcode of variant.additionalBarcodes) {
                             const barcodeValue = typeof barcode === 'string' ? barcode : barcode.code || barcode.barcode;
@@ -679,6 +641,8 @@ export class InventoryModel {
                 throw error;
             }
 
+            console.log(error)
+
             throw DbErrorHandler.handlePrismaError(error);
         }
     }
@@ -691,7 +655,6 @@ export class InventoryModel {
         await prisma.$transaction(async (tx) => {
             const variantUpdate: any = {};
 
-            // Variant-level fields
             if (updateData.description !== undefined) variantUpdate.description = updateData.description || null;
             if (updateData.unit !== undefined) variantUpdate.unit = updateData.unit;
             if (updateData.sellPrice !== undefined || updateData.sellingPrice !== undefined) {
@@ -703,21 +666,16 @@ export class InventoryModel {
             if (updateData.status !== undefined) {
                 variantUpdate.isActive = updateData.status !== 'inactive';
             }
-            // Variant attributes
             if (updateData.brand !== undefined) variantUpdate.brand = updateData.brand || null;
             if (updateData.size !== undefined) variantUpdate.size = updateData.size || null;
             if (updateData.dimensions !== undefined) variantUpdate.dimensions = updateData.dimensions || null;
             if (updateData.weight !== undefined) variantUpdate.weight = updateData.weight ? parseFloat(updateData.weight) : null;
-            // Promotional pricing
             if (updateData.promoPrice !== undefined) variantUpdate.promoPrice = updateData.promoPrice ? parseFloat(updateData.promoPrice) : null;
             if (updateData.promoStart !== undefined) variantUpdate.promoStart = updateData.promoStart ? new Date(updateData.promoStart) : null;
             if (updateData.promoEnd !== undefined) variantUpdate.promoEnd = updateData.promoEnd ? new Date(updateData.promoEnd) : null;
-            // Tax
             if (updateData.isTaxable !== undefined) variantUpdate.isTaxable = updateData.isTaxable;
-            // Dates
             if (updateData.expirationDate !== undefined) variantUpdate.expirationDate = updateData.expirationDate ? new Date(updateData.expirationDate) : null;
             if (updateData.manufactureDate !== undefined) variantUpdate.manufactureDate = updateData.manufactureDate ? new Date(updateData.manufactureDate) : null;
-            // Supplier info
             if (updateData.supplierName !== undefined) variantUpdate.supplierName = updateData.supplierName || null;
             if (updateData.supplierCode !== undefined) variantUpdate.supplierCode = updateData.supplierCode || null;
 
@@ -728,7 +686,6 @@ export class InventoryModel {
                 });
             }
 
-            // Also update parent product fields if updating name or category
             const productUpdate: any = {};
             if (updateData.name !== undefined) productUpdate.name = updateData.name;
             if (updateData.categoryId !== undefined) productUpdate.categoryId = updateData.categoryId || null;
@@ -746,7 +703,6 @@ export class InventoryModel {
                 }
             }
 
-            // Inventory updates
             const inventoryUpdate: any = {};
             if (updateData.quantity !== undefined) {
                 inventoryUpdate.availableQuantity = parseInt(updateData.quantity);
@@ -789,10 +745,10 @@ export class InventoryModel {
      * Update a product with all its variants
      * Handles the case where a product ID is passed with nested variants array
      */
-    static async updateProductWithVariants(productId: string, updateData: Record<string, any>, _auth: AuthenticatedUser): Promise<number> {
+    static async updateProductWithVariants(productId: string, updateData: Record<string, any>, auth: AuthenticatedUser): Promise<number> {
         await prisma.$transaction(async (tx) => {
-            // Update product-level fields
             const productUpdate: any = {};
+
             if (updateData.name !== undefined) productUpdate.name = updateData.name;
             if (updateData.categoryId !== undefined) productUpdate.categoryId = updateData.categoryId || null;
             if (updateData.description !== undefined) productUpdate.description = updateData.description || null;
@@ -813,101 +769,173 @@ export class InventoryModel {
                 });
             }
 
-            // Update each variant if variants array is provided
             if (updateData.variants && Array.isArray(updateData.variants)) {
                 for (const variantData of updateData.variants) {
-                    if (!variantData.id) continue;
+                    if (variantData.id) {
+                        const variantUpdate: any = {};
 
-                    const variantUpdate: any = {};
+                        if (variantData.variantName !== undefined) variantUpdate.variantName = variantData.variantName;
+                        if (variantData.sku !== undefined) variantUpdate.sku = variantData.sku || null;
+                        if (variantData.primaryBarcode !== undefined || variantData.barcode !== undefined) {
+                            variantUpdate.primaryBarcode = variantData.primaryBarcode || variantData.barcode || null;
+                        }
 
-                    // Variant identification
-                    if (variantData.variantName !== undefined) variantUpdate.variantName = variantData.variantName;
-                    if (variantData.sku !== undefined) variantUpdate.sku = variantData.sku || null;
-                    if (variantData.primaryBarcode !== undefined || variantData.barcode !== undefined) {
-                        variantUpdate.primaryBarcode = variantData.primaryBarcode || variantData.barcode || null;
-                    }
+                        if (variantData.sellingPrice !== undefined || variantData.sellPrice !== undefined) {
+                            variantUpdate.sellingPrice = parseFloat(variantData.sellingPrice ?? variantData.sellPrice);
+                        }
+                        if (variantData.costPrice !== undefined) {
+                            variantUpdate.costPrice = parseFloat(variantData.costPrice);
+                        }
 
-                    // Pricing
-                    if (variantData.sellingPrice !== undefined || variantData.sellPrice !== undefined) {
-                        variantUpdate.sellingPrice = parseFloat(variantData.sellingPrice ?? variantData.sellPrice);
-                    }
-                    if (variantData.costPrice !== undefined) {
-                        variantUpdate.costPrice = parseFloat(variantData.costPrice);
-                    }
+                        if (variantData.unit !== undefined) variantUpdate.unit = variantData.unit;
 
-                    // Unit
-                    if (variantData.unit !== undefined) variantUpdate.unit = variantData.unit;
+                        if (variantData.description !== undefined) variantUpdate.description = variantData.description || null;
+                        if (variantData.brand !== undefined) variantUpdate.brand = variantData.brand || null;
+                        if (variantData.imageUrl !== undefined) variantUpdate.imageUrl = variantData.imageUrl || null;
+                        if (variantData.isTaxable !== undefined) variantUpdate.isTaxable = variantData.isTaxable;
+                        if (variantData.supplierName !== undefined) variantUpdate.supplierName = variantData.supplierName || null;
+                        if (variantData.supplierCode !== undefined) variantUpdate.supplierCode = variantData.supplierCode || null;
 
-                    // Optional fields
-                    if (variantData.description !== undefined) variantUpdate.description = variantData.description || null;
-                    if (variantData.brand !== undefined) variantUpdate.brand = variantData.brand || null;
-                    if (variantData.imageUrl !== undefined) variantUpdate.imageUrl = variantData.imageUrl || null;
-                    if (variantData.isTaxable !== undefined) variantUpdate.isTaxable = variantData.isTaxable;
-                    if (variantData.supplierName !== undefined) variantUpdate.supplierName = variantData.supplierName || null;
-                    if (variantData.supplierCode !== undefined) variantUpdate.supplierCode = variantData.supplierCode || null;
+                        if (variantData.size !== undefined) variantUpdate.size = variantData.size || null;
+                        if (variantData.weight !== undefined) variantUpdate.weight = variantData.weight ? parseFloat(variantData.weight) : null;
+                        if (variantData.weightUnit !== undefined) variantUpdate.weightUnit = variantData.weightUnit || null;
+                        if (variantData.volume !== undefined) variantUpdate.volume = variantData.volume ? parseFloat(variantData.volume) : null;
+                        if (variantData.volumeUnit !== undefined) variantUpdate.volumeUnit = variantData.volumeUnit || null;
+                        if (variantData.dimensions !== undefined) variantUpdate.dimensions = variantData.dimensions || null;
+                        if (variantData.color !== undefined) variantUpdate.customAttributes = JSON.stringify({ color: variantData.color });
 
-                    // Size/weight/volume
-                    if (variantData.size !== undefined) variantUpdate.size = variantData.size || null;
-                    if (variantData.weight !== undefined) variantUpdate.weight = variantData.weight ? parseFloat(variantData.weight) : null;
-                    if (variantData.weightUnit !== undefined) variantUpdate.weightUnit = variantData.weightUnit || null;
-                    if (variantData.volume !== undefined) variantUpdate.volume = variantData.volume ? parseFloat(variantData.volume) : null;
-                    if (variantData.volumeUnit !== undefined) variantUpdate.volumeUnit = variantData.volumeUnit || null;
-                    if (variantData.dimensions !== undefined) variantUpdate.dimensions = variantData.dimensions || null;
-                    if (variantData.color !== undefined) variantUpdate.customAttributes = JSON.stringify({ color: variantData.color });
+                        if (variantData.promoPrice !== undefined) variantUpdate.promoPrice = variantData.promoPrice ? parseFloat(variantData.promoPrice) : null;
+                        if (variantData.promoStart !== undefined) variantUpdate.promoStart = variantData.promoStart && variantData.promoStart !== '' ? new Date(variantData.promoStart) : null;
+                        if (variantData.promoEnd !== undefined) variantUpdate.promoEnd = variantData.promoEnd && variantData.promoEnd !== '' ? new Date(variantData.promoEnd) : null;
 
-                    // Promotional pricing
-                    if (variantData.promoPrice !== undefined) variantUpdate.promoPrice = variantData.promoPrice ? parseFloat(variantData.promoPrice) : null;
-                    if (variantData.promoStart !== undefined) variantUpdate.promoStart = variantData.promoStart && variantData.promoStart !== '' ? new Date(variantData.promoStart) : null;
-                    if (variantData.promoEnd !== undefined) variantUpdate.promoEnd = variantData.promoEnd && variantData.promoEnd !== '' ? new Date(variantData.promoEnd) : null;
+                        if (variantData.expirationDate !== undefined) variantUpdate.expirationDate = variantData.expirationDate && variantData.expirationDate !== '' ? new Date(variantData.expirationDate) : null;
+                        if (variantData.manufactureDate !== undefined) variantUpdate.manufactureDate = variantData.manufactureDate && variantData.manufactureDate !== '' ? new Date(variantData.manufactureDate) : null;
+                        if (variantData.expiryDateAlert !== undefined) variantUpdate.expiryDateAlert = variantData.expiryDateAlert && variantData.expiryDateAlert !== '' ? parseInt(variantData.expiryDateAlert) : null;
 
-                    // Dates
-                    if (variantData.expirationDate !== undefined) variantUpdate.expirationDate = variantData.expirationDate && variantData.expirationDate !== '' ? new Date(variantData.expirationDate) : null;
-                    if (variantData.manufactureDate !== undefined) variantUpdate.manufactureDate = variantData.manufactureDate && variantData.manufactureDate !== '' ? new Date(variantData.manufactureDate) : null;
-                    if (variantData.expiryDateAlert !== undefined) variantUpdate.expiryDateAlert = variantData.expiryDateAlert && variantData.expiryDateAlert !== '' ? parseInt(variantData.expiryDateAlert) : null;
+                        if (variantData.isDefault !== undefined) variantUpdate.isDefault = variantData.isDefault;
+                        if (variantData.isActive !== undefined) variantUpdate.isActive = variantData.isActive;
+                        if (variantData.status !== undefined) variantUpdate.isActive = variantData.status === 'active';
 
-                    // Status
-                    if (variantData.isDefault !== undefined) variantUpdate.isDefault = variantData.isDefault;
-                    if (variantData.isActive !== undefined) variantUpdate.isActive = variantData.isActive;
-                    if (variantData.status !== undefined) variantUpdate.isActive = variantData.status === 'active';
+                        if (Object.keys(variantUpdate).length > 0) {
+                            await tx.productVariant.update({
+                                where: { id: variantData.id },
+                                data: variantUpdate
+                            });
+                        }
 
-                    if (Object.keys(variantUpdate).length > 0) {
-                        await tx.productVariant.update({
-                            where: { id: variantData.id },
-                            data: variantUpdate
+                        const inventoryUpdate: any = {};
+                        if (variantData.quantity !== undefined || variantData.availableQuantity !== undefined) {
+                            inventoryUpdate.availableQuantity = parseInt(variantData.quantity ?? variantData.availableQuantity);
+                        }
+                        if (variantData.reservedQuantity !== undefined) {
+                            inventoryUpdate.reservedQuantity = parseInt(variantData.reservedQuantity);
+                        }
+                        if (variantData.costPrice !== undefined) {
+                            inventoryUpdate.averageCost = parseFloat(variantData.costPrice);
+                            inventoryUpdate.lastPurchaseCost = parseFloat(variantData.costPrice);
+                        }
+                        if (variantData.minStock !== undefined || variantData.reorderLevel !== undefined) {
+                            const reorderValue = variantData.minStock ?? variantData.reorderLevel;
+                            inventoryUpdate.reorderPoint = reorderValue ? parseInt(reorderValue) : null;
+                        }
+                        if (variantData.maxStock !== undefined) {
+                            inventoryUpdate.maxStock = variantData.maxStock ? parseInt(variantData.maxStock) : null;
+                        }
+                        if (variantData.trackInventory !== undefined) {
+                            inventoryUpdate.trackInventory = variantData.trackInventory;
+                        }
+                        if (variantData.allowNegativeStock !== undefined) {
+                            inventoryUpdate.allowNegativeStock = variantData.allowNegativeStock;
+                        }
+
+                        if (Object.keys(inventoryUpdate).length > 0) {
+                            await tx.inventory.updateMany({
+                                where: { variantId: variantData.id },
+                                data: inventoryUpdate
+                            });
+                        }
+                    } else {
+                        const newVariantId = uuidv4();
+
+                        const sellPrice = parseFloat(variantData.sellPrice || variantData.sellingPrice || 0);
+                        const quantity = parseInt(variantData.quantity || variantData.availableQuantity || 0);
+                        const minStock = variantData.minStock || variantData.reorderLevel ? parseInt(variantData.minStock || variantData.reorderLevel) : null;
+                        const maxStock = variantData.maxStock ? parseInt(variantData.maxStock) : null;
+                        const primaryBarcode = variantData.primaryBarcode || variantData.barcode || null;
+                        const sku = variantData.sku || variantData.barcode || null;
+
+                        await tx.productVariant.create({
+                            data: {
+                                id: newVariantId,
+                                productId: productId,
+                                tenantId: auth.tenantId,
+                                branchId: auth.branchId,
+                                sku: sku,
+                                variantName: variantData.variantName || updateData.name || 'Default',
+                                primaryBarcode: primaryBarcode,
+                                sellingPrice: sellPrice,
+                                costPrice: parseFloat(variantData.costPrice || 0),
+                                unit: variantData.unit || updateData.defaultUnit || updateData.unit || 'piece',
+                                description: variantData.description || null,
+                                brand: variantData.brand || null,
+                                imageUrl: variantData.imageUrl || null,
+                                size: variantData.size || null,
+                                weight: variantData.weight ? parseFloat(variantData.weight) : null,
+                                weightUnit: variantData.weightUnit || null,
+                                volume: variantData.volume ? parseFloat(variantData.volume) : null,
+                                volumeUnit: variantData.volumeUnit || null,
+                                dimensions: variantData.dimensions || null,
+                                customAttributes: variantData.color ? JSON.stringify({ color: variantData.color }) : null,
+                                promoPrice: variantData.promoPrice ? parseFloat(variantData.promoPrice) : null,
+                                promoStart: variantData.promoStart && variantData.promoStart !== '' ? new Date(variantData.promoStart) : null,
+                                promoEnd: variantData.promoEnd && variantData.promoEnd !== '' ? new Date(variantData.promoEnd) : null,
+                                isTaxable: variantData.isTaxable !== false,
+                                expirationDate: variantData.expirationDate && variantData.expirationDate !== '' ? new Date(variantData.expirationDate) : null,
+                                manufactureDate: variantData.manufactureDate && variantData.manufactureDate !== '' ? new Date(variantData.manufactureDate) : null,
+                                expiryDateAlert: variantData.expiryDateAlert ? parseInt(variantData.expiryDateAlert) : null,
+                                supplierName: variantData.supplierName || null,
+                                supplierCode: variantData.supplierCode || null,
+                                isDefault: variantData.isDefault === true,
+                                isActive: variantData.status !== 'inactive' && variantData.isActive !== false
+                            }
                         });
-                    }
 
-                    // Update inventory for this variant
-                    const inventoryUpdate: any = {};
-                    if (variantData.quantity !== undefined || variantData.availableQuantity !== undefined) {
-                        inventoryUpdate.availableQuantity = parseInt(variantData.quantity ?? variantData.availableQuantity);
-                    }
-                    if (variantData.reservedQuantity !== undefined) {
-                        inventoryUpdate.reservedQuantity = parseInt(variantData.reservedQuantity);
-                    }
-                    if (variantData.costPrice !== undefined) {
-                        inventoryUpdate.averageCost = parseFloat(variantData.costPrice);
-                        inventoryUpdate.lastPurchaseCost = parseFloat(variantData.costPrice);
-                    }
-                    if (variantData.minStock !== undefined || variantData.reorderLevel !== undefined) {
-                        const reorderValue = variantData.minStock ?? variantData.reorderLevel;
-                        inventoryUpdate.reorderPoint = reorderValue ? parseInt(reorderValue) : null;
-                    }
-                    if (variantData.maxStock !== undefined) {
-                        inventoryUpdate.maxStock = variantData.maxStock ? parseInt(variantData.maxStock) : null;
-                    }
-                    if (variantData.trackInventory !== undefined) {
-                        inventoryUpdate.trackInventory = variantData.trackInventory;
-                    }
-                    if (variantData.allowNegativeStock !== undefined) {
-                        inventoryUpdate.allowNegativeStock = variantData.allowNegativeStock;
-                    }
-
-                    if (Object.keys(inventoryUpdate).length > 0) {
-                        await tx.inventory.updateMany({
-                            where: { variantId: variantData.id },
-                            data: inventoryUpdate
+                        await tx.inventory.create({
+                            data: {
+                                id: uuidv4(),
+                                tenantId: auth.tenantId,
+                                branchId: auth.branchId,
+                                productId: productId,
+                                variantId: newVariantId,
+                                availableQuantity: quantity,
+                                reservedQuantity: parseInt(variantData.reservedQuantity || 0),
+                                damagedQuantity: 0,
+                                averageCost: parseFloat(variantData.costPrice || 0),
+                                lastPurchaseCost: parseFloat(variantData.costPrice || 0),
+                                reorderPoint: minStock,
+                                maxStock: maxStock,
+                                trackInventory: variantData.trackInventory !== false,
+                                allowNegativeStock: variantData.allowNegativeStock || false
+                            }
                         });
+
+                        if (variantData.additionalBarcodes && Array.isArray(variantData.additionalBarcodes)) {
+                            for (const barcode of variantData.additionalBarcodes) {
+                                const barcodeValue = typeof barcode === 'string' ? barcode : barcode.code || barcode.barcode;
+                                if (barcodeValue) {
+                                    await tx.variantBarcode.create({
+                                        data: {
+                                            id: uuidv4(),
+                                            variantId: newVariantId,
+                                            barcode: barcodeValue,
+                                            barcodeType: barcode.type || 'EAN13',
+                                            barcodeSource: barcode.source || 'STORE',
+                                            isActive: true
+                                        }
+                                    });
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -1660,11 +1688,9 @@ export class InventoryModel {
      */
     static async updateWithValidation(id: string, inventoryData: Record<string, any>, auth: AuthenticatedUser): Promise<number> {
         try {
-            // Check if this is a product update (has variants array or productId matches)
             const isProductUpdate = inventoryData.variants && Array.isArray(inventoryData.variants);
 
             if (isProductUpdate) {
-                // Verify product exists and belongs to tenant/branch
                 const productExists = await prisma.product.findFirst({
                     where: {
                         id: id,
@@ -1677,7 +1703,6 @@ export class InventoryModel {
                     throw new NotFoundError('Product', id);
                 }
 
-                // Validate category if being updated
                 if (inventoryData.categoryId !== undefined && inventoryData.categoryId !== null) {
                     const categoryExists = await prisma.category.findFirst({
                         where: {
@@ -1691,7 +1716,6 @@ export class InventoryModel {
                     }
                 }
 
-                // Validate each variant's barcode
                 for (const variantData of inventoryData.variants) {
                     if (!variantData.id) continue;
 
@@ -1711,7 +1735,6 @@ export class InventoryModel {
                         }
                     }
 
-                    // Validate min/max stock for each variant
                     const minStock = variantData.minStock !== undefined ? parseInt(variantData.minStock) : null;
                     const maxStock = variantData.maxStock !== undefined ? parseInt(variantData.maxStock) : null;
                     if (minStock !== null && maxStock !== null && minStock > maxStock) {
@@ -1725,13 +1748,11 @@ export class InventoryModel {
                 return await this.updateProductWithVariants(id, inventoryData, auth);
             }
 
-            // Single variant update (original behavior)
             const exists = await this.exists(id, auth);
             if (!exists) {
                 throw new NotFoundError('Product', id);
             }
 
-            // Validate min/max stock relationship if both are provided
             const minStock = inventoryData.minStock !== undefined ? parseInt(inventoryData.minStock) : null;
             const maxStock = inventoryData.maxStock !== undefined ? parseInt(inventoryData.maxStock) : null;
 
@@ -1742,7 +1763,6 @@ export class InventoryModel {
                 );
             }
 
-            // Validate barcode if being updated
             const newBarcode = inventoryData.barcode || inventoryData.primaryBarcode;
             if (newBarcode !== undefined) {
                 const duplicateCheck = await ProductService.checkDuplicateBarcode(
@@ -1759,7 +1779,6 @@ export class InventoryModel {
                 }
             }
 
-            // Validate category if being updated
             if (inventoryData.categoryId !== undefined && inventoryData.categoryId !== null) {
                 const categoryExists = await prisma.category.findFirst({
                     where: {
@@ -1775,7 +1794,6 @@ export class InventoryModel {
 
             return await this.update(id, inventoryData);
         } catch (error) {
-            // Re-throw if it's already a handled error
             if (error instanceof ValidationError ||
                 error instanceof ConflictError ||
                 error instanceof NotFoundError ||
@@ -1783,7 +1801,6 @@ export class InventoryModel {
                 throw error;
             }
 
-            // Handle Prisma errors
             throw DbErrorHandler.handlePrismaError(error);
         }
     }

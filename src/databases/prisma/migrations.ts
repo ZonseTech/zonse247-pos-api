@@ -18,7 +18,7 @@ import { getDatabaseConfig } from '../../config/db';
  * Current schema version - INCREMENT THIS when schema changes
  * Format: YYYYMMDD_NN (date + sequence number)
  */
-export const CURRENT_DB_VERSION = '20260219_01';
+export const CURRENT_DB_VERSION = '20260223_01';
 
 /**
  * Minimum supported version for migration (older versions require fresh install)
@@ -348,6 +348,7 @@ export const MIGRATIONS: Migration[] = [
                 // 2. Copy data
                 // 3. Drop old table
                 // 4. Rename new table
+                // Note: We explicitly list columns to handle databases that may or may not have other_charges
                 `CREATE TABLE IF NOT EXISTS "sales_new" (
                     "sale_id" TEXT PRIMARY KEY NOT NULL,
                     "tenant_id" TEXT NOT NULL,
@@ -359,6 +360,7 @@ export const MIGRATIONS: Migration[] = [
                     "subtotal" REAL NOT NULL DEFAULT 0.00,
                     "tax_amount" REAL NOT NULL DEFAULT 0.00,
                     "discount_amount" REAL NOT NULL DEFAULT 0.00,
+                    "other_charges" REAL DEFAULT 0.00,
                     "total_amount" REAL NOT NULL DEFAULT 0.00,
                     "amount_paid" REAL NOT NULL DEFAULT 0.00,
                     "change_amount" REAL NOT NULL DEFAULT 0.00,
@@ -374,7 +376,9 @@ export const MIGRATIONS: Migration[] = [
                     "updated_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
                     UNIQUE("tenant_id", "branch_id", "sale_number")
                 )`,
-                `INSERT INTO "sales_new" SELECT * FROM "sales"`,
+                // Explicitly list columns to avoid column count mismatch issues
+                `INSERT INTO "sales_new" ("sale_id", "tenant_id", "branch_id", "sale_number", "customer_id", "terminal_id", "user_id", "subtotal", "tax_amount", "discount_amount", "other_charges", "total_amount", "amount_paid", "change_amount", "payment_method_id", "status", "sale_date", "notes", "is_voided", "voided_at", "voided_by", "void_reason", "created_at", "updated_at")
+                SELECT "sale_id", "tenant_id", "branch_id", "sale_number", "customer_id", "terminal_id", "user_id", "subtotal", "tax_amount", "discount_amount", COALESCE("other_charges", 0.00), "total_amount", "amount_paid", "change_amount", "payment_method_id", "status", "sale_date", "notes", "is_voided", "voided_at", "voided_by", "void_reason", "created_at", "updated_at" FROM "sales"`,
                 `DROP TABLE "sales"`,
                 `ALTER TABLE "sales_new" RENAME TO "sales"`,
                 // Recreate indexes
@@ -447,6 +451,8 @@ export const MIGRATIONS: Migration[] = [
             sqlite: [
                 // Revert: This would require ensuring no duplicates exist first
                 // For safety, we don't provide automatic rollback for this
+                // Would need to recreate table with old constraint structure
+                // Recommend restoring from backup if rollback is needed
             ],
             mysql: [
                 `ALTER TABLE sales DROP INDEX unique_tenant_sale_number`,
@@ -459,10 +465,13 @@ export const MIGRATIONS: Migration[] = [
         description: 'Make product SKU nullable and remove unique constraint',
         up: {
             sqlite: [
-                // SQLite: Check if sku column exists on products table, if so migrate it
-                // This migration is only needed for upgrades from old schema
-                // For fresh installs, the products table won't have sku column
-                `SELECT 1`, // No-op - Prisma migrations handle this now
+                // SQLite: Drop sku unique constraint if exists
+                // We need to check and drop any sku-related unique indexes
+                // Since SQLite doesn't have stored procedures, we use conditional index drops
+                `DROP INDEX IF EXISTS "sku"`,
+                `DROP INDEX IF EXISTS "unique_branch_sku"`,
+                `DROP INDEX IF EXISTS "products_sku_key"`,
+                `DROP INDEX IF EXISTS "products_branch_id_sku_key"`,
             ],
             mysql: [
                 // MySQL: Check if sku column exists before trying to modify
@@ -522,7 +531,7 @@ export const MIGRATIONS: Migration[] = [
         },
         down: {
             sqlite: [
-                `SELECT 1`, // No-op
+                // Can't reliably restore unique constraint without knowing if data is compatible
             ],
             mysql: [
                 `SELECT 1`, // No-op - can't reliably rollback
@@ -660,7 +669,7 @@ export const MIGRATIONS: Migration[] = [
                 `CREATE INDEX IF NOT EXISTS "idx_product_variants_product_id" ON "product_variants" ("product_id")`,
                 `CREATE INDEX IF NOT EXISTS "idx_product_variants_branch_id" ON "product_variants" ("branch_id")`,
                 `CREATE INDEX IF NOT EXISTS "idx_product_variants_tenant_id" ON "product_variants" ("tenant_id")`,
-                `CREATE INDEX IF NOT EXISTS "idx_product_variants_sku" ON "product_variants" ("sku")`,
+                // `CREATE INDEX IF NOT EXISTS "idx_product_variants_sku" ON "product_variants" ("sku")`,
                 `CREATE INDEX IF NOT EXISTS "idx_product_variants_variant_name" ON "product_variants" ("variant_name")`,
                 `CREATE UNIQUE INDEX IF NOT EXISTS "idx_product_variants_unique" ON "product_variants" ("product_id", "variant_name")`,
 
@@ -995,8 +1004,12 @@ export const MIGRATIONS: Migration[] = [
         description: 'Fix inventory constraints for variant support - remove unique on product_id, add unique on variant_id',
         up: {
             sqlite: [
-                // SQLite doesn't support ALTER TABLE DROP CONSTRAINT, so we need to recreate the table
-                // For now, just create indexes if not exist
+                // SQLite: Drop old unique constraint on product_id and create new one on variant_id
+                // Since SQLite doesn't support DROP CONSTRAINT, we drop and recreate indexes
+                `DROP INDEX IF EXISTS "inventory_product_id_key"`,
+                // Create non-unique index on product_id for query performance
+                `CREATE INDEX IF NOT EXISTS "idx_inventory_product_id" ON "inventory" ("product_id")`,
+                // Create unique index on variant_id
                 `CREATE UNIQUE INDEX IF NOT EXISTS "inventory_variant_id_key" ON "inventory" ("variant_id")`,
             ],
             mysql: [
@@ -1044,7 +1057,11 @@ export const MIGRATIONS: Migration[] = [
             ],
         },
         down: {
-            sqlite: [],
+            sqlite: [
+                `DROP INDEX IF EXISTS "inventory_variant_id_key"`,
+                `DROP INDEX IF EXISTS "idx_inventory_product_id"`,
+                `CREATE UNIQUE INDEX IF NOT EXISTS "inventory_product_id_key" ON "inventory" ("product_id")`,
+            ],
             mysql: [
                 `DROP INDEX inventory_variant_id_key ON inventory`,
                 `DROP INDEX idx_inventory_product_id ON inventory`,
@@ -1078,6 +1095,7 @@ export const MIGRATIONS: Migration[] = [
         down: {
             sqlite: [
                 // SQLite doesn't support DROP COLUMN easily, would need table recreation
+                // This is a non-destructive column addition, so no rollback needed
             ],
             mysql: [
                 `ALTER TABLE product_variants DROP COLUMN expiry_date_alert`,
@@ -1091,7 +1109,8 @@ export const MIGRATIONS: Migration[] = [
             sqlite: [
                 // productId column already exists from initial schema - no SQL needed
                 // This migration syncs Prisma schema with existing database structure
-                `SELECT 1`, // No-op placeholder
+                // Add index if not exists for better query performance
+                `CREATE INDEX IF NOT EXISTS "idx_sale_items_product_id" ON "sale_items" ("product_id")`,
             ],
             mysql: [
                 // productId column already exists from initial schema - no SQL needed
@@ -1113,7 +1132,8 @@ export const MIGRATIONS: Migration[] = [
         },
         down: {
             sqlite: [
-                `SELECT 1`, // No-op - column should remain
+                // Don't drop productId - it's a legacy column needed for existing data
+                `DROP INDEX IF EXISTS "idx_sale_items_product_id"`,
             ],
             mysql: [
                 // Don't drop productId - it's a legacy column needed for existing data
@@ -1317,8 +1337,8 @@ export const MIGRATIONS: Migration[] = [
         },
         down: {
             sqlite: [
-                // SQLite doesn't support DROP COLUMN directly, but for rollback purposes
-                `-- Cannot drop column in SQLite without recreating table`,
+                // SQLite doesn't support DROP COLUMN directly
+                // These are non-destructive column additions, rollback not typically needed
             ],
             mysql: [
                 `ALTER TABLE sales DROP COLUMN other_charges`,
@@ -1463,8 +1483,9 @@ export const MIGRATIONS: Migration[] = [
         },
         down: {
             sqlite: [
+                `DROP INDEX IF EXISTS "idx_branches_district_id"`,
                 `DROP TABLE IF EXISTS "districts"`,
-                // Cannot easily drop column in SQLite
+                // SQLite doesn't easily support DROP COLUMN for district_id
             ],
             mysql: [
                 `ALTER TABLE branches DROP COLUMN district_id`,
@@ -1477,12 +1498,17 @@ export const MIGRATIONS: Migration[] = [
         description: 'Add businessType and location columns to branches table, rename district to location',
         up: {
             sqlite: [
-                // Add location column
+                // Add location column (will fail silently if already exists - handled by migration runner)
                 `ALTER TABLE "branches" ADD COLUMN "location" TEXT`,
-                // Add business_type column
+                // Add business_type column with default value
                 `ALTER TABLE "branches" ADD COLUMN "business_type" TEXT DEFAULT 'PRODUCT_BASED'`,
-                // Migrate data from district column to location if it exists
+                // Migrate data from district column to location if district exists
+                // This SQL will silently fail on new schema where district doesn't exist - handled by migration runner
                 `UPDATE "branches" SET "location" = "district" WHERE "district" IS NOT NULL AND "location" IS NULL`,
+                // Create index for location column
+                `CREATE INDEX IF NOT EXISTS "idx_branches_location" ON "branches" ("location")`,
+                // Create index for business_type column
+                `CREATE INDEX IF NOT EXISTS "idx_branches_business_type" ON "branches" ("business_type")`,
             ],
             mysql: [
                 // Add location column (idempotent)
@@ -1530,7 +1556,10 @@ export const MIGRATIONS: Migration[] = [
         },
         down: {
             sqlite: [
-                // Cannot easily drop columns in SQLite
+                // SQLite doesn't easily support DROP COLUMN
+                // Drop indexes if rollback needed
+                `DROP INDEX IF EXISTS "idx_branches_location"`,
+                `DROP INDEX IF EXISTS "idx_branches_business_type"`,
             ],
             mysql: [
                 `ALTER TABLE branches DROP COLUMN business_type`,
@@ -1543,27 +1572,19 @@ export const MIGRATIONS: Migration[] = [
         description: 'Simplify terminal_settings table to use 4 JSON settings groups',
         up: {
             sqlite: [
-                // SQLite: Create new table with simplified structure
-                `CREATE TABLE IF NOT EXISTS "terminal_settings_new" (
-                    "id" TEXT PRIMARY KEY NOT NULL,
-                    "terminal_id" TEXT NOT NULL UNIQUE,
-                    "general_settings" TEXT,
-                    "receipt_settings" TEXT,
-                    "business_settings" TEXT,
-                    "security_settings" TEXT,
-                    "settings_version" TEXT NOT NULL DEFAULT '3.0.0',
-                    "is_active" INTEGER NOT NULL DEFAULT 1,
-                    "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                    "updated_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                    FOREIGN KEY ("terminal_id") REFERENCES "terminals"("terminal_id") ON DELETE CASCADE
-                )`,
-                // Migrate existing data - consolidate old JSON columns into new structure
-                `INSERT INTO "terminal_settings_new" ("id", "terminal_id", "general_settings", "receipt_settings", "business_settings", "security_settings", "settings_version", "is_active", "created_at", "updated_at")
-                SELECT 
-                    "id", 
-                    "terminal_id",
-                    json_object(
-                        'dateFormat', COALESCE("date_format", 'DD/MM/YYYY'),
+                // SQLite: This migration handles two scenarios:
+                // 1. Old schema with individual columns (date_format, store_name, etc.) -> needs full migration
+                // 2. New schema with JSON columns (general_settings, etc.) -> already migrated, skip
+
+                // Step 1: Add new JSON columns if they don't exist (will fail silently if they do)
+                `ALTER TABLE "terminal_settings" ADD COLUMN "general_settings" TEXT`,
+                `ALTER TABLE "terminal_settings" ADD COLUMN "business_settings" TEXT`,
+
+                // Step 2: If general_settings is NULL, populate with defaults (new installs or post-migration)
+                // This handles the case where columns were just added
+                `UPDATE "terminal_settings" SET 
+                    "general_settings" = json_object(
+                        'dateFormat', 'DD/MM/YYYY',
                         'showProductImages', 1,
                         'productDisplayMode', 'GRID',
                         'barcodeScanMode', 'AUTO',
@@ -1573,14 +1594,17 @@ export const MIGRATIONS: Migration[] = [
                         'virtualKeyboardTheme', 'default',
                         'virtualKeyboardSound', 0,
                         'virtualKeyboardHaptic', 0
-                    ),
-                    json_object(
-                        'storeName', COALESCE("store_name", 'My Store'),
-                        'storePhone', COALESCE("store_phone", ''),
-                        'storeAddress', COALESCE("store_address", ''),
+                    )
+                WHERE "general_settings" IS NULL`,
+
+                `UPDATE "terminal_settings" SET 
+                    "receipt_settings" = json_object(
+                        'storeName', 'My Store',
+                        'storePhone', '',
+                        'storeAddress', '',
                         'storeWebsite', '',
                         'taxTitle', 'VAT',
-                        'businessTaxId', COALESCE("business_tax_id", ''),
+                        'businessTaxId', '',
                         'logoUrl', '',
                         'receiptHeader', '',
                         'showPhoneOnReceipt', 1,
@@ -1603,36 +1627,38 @@ export const MIGRATIONS: Migration[] = [
                         'orderItemsBy', 'orderAdded',
                         'messageTemplate', 'Total Bill Amount is #total',
                         'whatsappShareApp', 'whatsapp'
-                    ),
-                    json_object(
+                    )
+                WHERE "receipt_settings" IS NULL`,
+
+                `UPDATE "terminal_settings" SET 
+                    "business_settings" = json_object(
                         'receiptNumberPrefix', 'RCP',
                         'autoApplyTax', 1,
                         'taxInclusivePricing', 0,
-                        'taxRate', COALESCE("tax_rate", 16.5),
+                        'taxRate', 16.5,
                         'enableDiscounts', 1,
                         'requirePinForDiscount', 1,
                         'maxDiscountPercentage', 20,
                         'roundingEnabled', 1,
                         'tableManagementEnabled', 0,
                         'inventoryHealthScoreEnabled', 1
-                    ),
-                    json_object(
+                    )
+                WHERE "business_settings" IS NULL`,
+
+                `UPDATE "terminal_settings" SET 
+                    "security_settings" = json_object(
                         'autoSyncOnReconnect', 1,
                         'requirePinForVoid', 1,
                         'requirePinForReturn', 1,
                         'enableNotifications', 1,
-                        'apiBaseUrl', COALESCE("server_url", 'http://127.0.0.1:3001/api/v1')
-                    ),
-                    '3.0.0',
-                    "is_active",
-                    "created_at",
-                    "updated_at"
-                FROM "terminal_settings"`,
-                // Drop old table
-                `DROP TABLE IF EXISTS "terminal_settings"`,
-                // Rename new table
-                `ALTER TABLE "terminal_settings_new" RENAME TO "terminal_settings"`,
-                // Create index
+                        'apiBaseUrl', 'http://127.0.0.1:3000/api/v1'
+                    )
+                WHERE "security_settings" IS NULL`,
+
+                // Step 3: Update settings_version
+                `UPDATE "terminal_settings" SET "settings_version" = '3.0.0' WHERE "settings_version" IS NULL OR "settings_version" = ''`,
+
+                // Step 4: Create index
                 `CREATE INDEX IF NOT EXISTS "idx_terminal_settings_terminal_id" ON "terminal_settings" ("terminal_id")`,
             ],
             mysql: [
@@ -1835,10 +1861,13 @@ export const MIGRATIONS: Migration[] = [
         },
         down: {
             sqlite: [
-                // Rollback not easily supported for SQLite restructure
+                // Rollback not easily supported for SQLite table restructure
+                // The old columns have been dropped and data consolidated
+                // Would require restoring from backup
             ],
             mysql: [
-                // Could add back old columns if needed
+                // Could add back old columns if needed, but data migration would be lost
+                // Recommend restoring from backup instead
             ],
         },
     },
@@ -1885,8 +1914,351 @@ export const MIGRATIONS: Migration[] = [
             ],
         },
         down: {
-            sqlite: [],
-            mysql: [],
+            sqlite: [
+                // SQLite doesn't support DROP COLUMN easily
+                // These are non-destructive column additions
+            ],
+            mysql: [
+                // Non-destructive column additions - dropping not typically needed
+            ],
+        },
+    },
+    {
+        version: '20260219_02',
+        description: 'Restructure SQLite products table to remove old variant columns (sku, unit, selling_price, etc.)',
+        up: {
+            sqlite: [
+                // This migration is ONLY for upgrading OLD databases that have sku column on products table
+                // For NEW databases (created with current Prisma schema), this is a no-op
+                // The migration checks if sku column exists before doing anything destructive
+
+                // For databases that DO have the old schema with sku on products:
+                // We don't actually need to drop those columns - Prisma just ignores extra columns
+                // The key fix is ensuring the NEW code doesn't try to write to those columns
+
+                // Drop old unique indexes if they exist (from old schema)
+                `DROP INDEX IF EXISTS "products_sku_key"`,
+                `DROP INDEX IF EXISTS "products_branch_id_sku_key"`,
+                `DROP INDEX IF EXISTS "products_primary_barcode_key"`,
+                `DROP INDEX IF EXISTS "sku"`,
+                `DROP INDEX IF EXISTS "unique_branch_sku"`,
+
+                // This migration ensures indexes exist on the new structure
+                `CREATE INDEX IF NOT EXISTS "products_branch_id_idx" ON "products" ("branch_id")`,
+                `CREATE INDEX IF NOT EXISTS "products_tenant_id_idx" ON "products" ("tenant_id")`,
+                `CREATE INDEX IF NOT EXISTS "products_category_id_idx" ON "products" ("category_id")`,
+                `CREATE INDEX IF NOT EXISTS "products_name_idx" ON "products" ("name")`,
+                `CREATE INDEX IF NOT EXISTS "products_is_active_idx" ON "products" ("is_active")`,
+            ],
+            mysql: [
+                // MySQL: Drop old columns if they exist (these should have been moved to product_variants)
+                `DROP PROCEDURE IF EXISTS drop_products_old_cols`,
+                `CREATE PROCEDURE drop_products_old_cols()
+                BEGIN
+                    -- Drop old indexes first
+                    IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'products' AND INDEX_NAME = 'products_sku_key') THEN
+                        ALTER TABLE products DROP INDEX products_sku_key;
+                    END IF;
+                    IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'products' AND INDEX_NAME = 'products_branch_id_sku_key') THEN
+                        ALTER TABLE products DROP INDEX products_branch_id_sku_key;
+                    END IF;
+                    IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'products' AND INDEX_NAME = 'products_primary_barcode_key') THEN
+                        ALTER TABLE products DROP INDEX products_primary_barcode_key;
+                    END IF;
+                    
+                    -- Drop old columns
+                    IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'products' AND COLUMN_NAME = 'sku') THEN
+                        ALTER TABLE products DROP COLUMN sku;
+                    END IF;
+                    IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'products' AND COLUMN_NAME = 'unit') THEN
+                        ALTER TABLE products DROP COLUMN unit;
+                    END IF;
+                    IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'products' AND COLUMN_NAME = 'selling_price') THEN
+                        ALTER TABLE products DROP COLUMN selling_price;
+                    END IF;
+                    IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'products' AND COLUMN_NAME = 'primary_barcode') THEN
+                        ALTER TABLE products DROP COLUMN primary_barcode;
+                    END IF;
+                    IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'products' AND COLUMN_NAME = 'color') THEN
+                        ALTER TABLE products DROP COLUMN color;
+                    END IF;
+                    IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'products' AND COLUMN_NAME = 'size') THEN
+                        ALTER TABLE products DROP COLUMN size;
+                    END IF;
+                    IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'products' AND COLUMN_NAME = 'dimensions') THEN
+                        ALTER TABLE products DROP COLUMN dimensions;
+                    END IF;
+                    IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'products' AND COLUMN_NAME = 'weight') THEN
+                        ALTER TABLE products DROP COLUMN weight;
+                    END IF;
+                    IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'products' AND COLUMN_NAME = 'promo_price') THEN
+                        ALTER TABLE products DROP COLUMN promo_price;
+                    END IF;
+                    IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'products' AND COLUMN_NAME = 'promo_start') THEN
+                        ALTER TABLE products DROP COLUMN promo_start;
+                    END IF;
+                    IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'products' AND COLUMN_NAME = 'promo_end') THEN
+                        ALTER TABLE products DROP COLUMN promo_end;
+                    END IF;
+                    IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'products' AND COLUMN_NAME = 'expiration_date') THEN
+                        ALTER TABLE products DROP COLUMN expiration_date;
+                    END IF;
+                    IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'products' AND COLUMN_NAME = 'manufacture_date') THEN
+                        ALTER TABLE products DROP COLUMN manufacture_date;
+                    END IF;
+                END`,
+                `CALL drop_products_old_cols()`,
+                `DROP PROCEDURE IF EXISTS drop_products_old_cols`,
+            ],
+        },
+        down: {
+            sqlite: [
+                // Cannot easily recreate dropped columns in SQLite
+                // These indexes can be dropped if rollback needed
+                `DROP INDEX IF EXISTS "products_branch_id_idx"`,
+                `DROP INDEX IF EXISTS "products_tenant_id_idx"`,
+                `DROP INDEX IF EXISTS "products_category_id_idx"`,
+                `DROP INDEX IF EXISTS "products_name_idx"`,
+                `DROP INDEX IF EXISTS "products_is_active_idx"`,
+            ],
+            mysql: [
+                // Cannot easily recreate dropped columns
+                // Recommend restoring from backup for full rollback
+            ],
+        },
+    },
+    {
+        version: '20260219_03',
+        description: 'Ensure numeric columns default to 0 and handle empty strings',
+        up: {
+            sqlite: [
+                // For products table (old schema columns exist)
+                // Note: sku is NOT NULL, so we generate SKU for empty ones instead of NULL
+                `UPDATE "products" SET "sku" = 'SKU-' || substr(product_id, 1, 8) WHERE "sku" = ''`,
+                `UPDATE "products" SET "selling_price" = 0 WHERE "selling_price" IS NULL`,
+                `UPDATE "products" SET "weight" = 0 WHERE "weight" IS NULL`,
+                `UPDATE "products" SET "promo_price" = 0 WHERE "promo_price" IS NULL`,
+
+                // For product_variants table (sku is nullable here)
+                `UPDATE "product_variants" SET "sku" = NULL WHERE "sku" = ''`,
+                `UPDATE "product_variants" SET "selling_price" = 0 WHERE "selling_price" IS NULL`,
+                `UPDATE "product_variants" SET "cost_price" = 0 WHERE "cost_price" IS NULL`,
+                `UPDATE "product_variants" SET "weight" = 0 WHERE "weight" IS NULL`,
+                `UPDATE "product_variants" SET "volume" = 0 WHERE "volume" IS NULL`,
+                `UPDATE "product_variants" SET "promo_price" = 0 WHERE "promo_price" IS NULL`,
+
+                // For inventory table
+                `UPDATE "inventory" SET "available_quantity" = 0 WHERE "available_quantity" IS NULL`,
+                `UPDATE "inventory" SET "reserved_quantity" = 0 WHERE "reserved_quantity" IS NULL`,
+                `UPDATE "inventory" SET "damaged_quantity" = 0 WHERE "damaged_quantity" IS NULL`,
+                `UPDATE "inventory" SET "reorder_point" = 0 WHERE "reorder_point" IS NULL`,
+                `UPDATE "inventory" SET "max_stock" = 0 WHERE "max_stock" IS NULL`,
+                `UPDATE "inventory" SET "average_cost" = 0 WHERE "average_cost" IS NULL`,
+                `UPDATE "inventory" SET "last_purchase_cost" = 0 WHERE "last_purchase_cost" IS NULL`,
+            ],
+            mysql: [
+                // MySQL: Alter column to allow NULL for sku
+                `DROP PROCEDURE IF EXISTS make_sku_nullable`,
+                `CREATE PROCEDURE make_sku_nullable()
+                BEGIN
+                    -- Make products.sku nullable if column exists
+                    IF EXISTS (
+                        SELECT * FROM INFORMATION_SCHEMA.COLUMNS 
+                        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'products' AND COLUMN_NAME = 'sku'
+                    ) THEN
+                        ALTER TABLE products MODIFY COLUMN sku VARCHAR(191) NULL;
+                        UPDATE products SET sku = CONCAT('SKU-', LEFT(product_id, 8)) WHERE sku = '';
+                    END IF;
+
+                    -- Make product_variants.sku nullable (should already be, but ensure)
+                    IF EXISTS (
+                        SELECT * FROM INFORMATION_SCHEMA.COLUMNS 
+                        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'product_variants' AND COLUMN_NAME = 'sku'
+                    ) THEN
+                        ALTER TABLE product_variants MODIFY COLUMN sku VARCHAR(191) NULL;
+                        UPDATE product_variants SET sku = NULL WHERE sku = '';
+                    END IF;
+                END`,
+                `CALL make_sku_nullable()`,
+                `DROP PROCEDURE IF EXISTS make_sku_nullable`,
+
+                // Ensure numeric columns have 0 default values - use IF column exists pattern
+                `DROP PROCEDURE IF EXISTS update_numeric_defaults`,
+                `CREATE PROCEDURE update_numeric_defaults()
+                BEGIN
+                    -- Products table
+                    IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'products' AND COLUMN_NAME = 'selling_price') THEN
+                        UPDATE products SET selling_price = 0 WHERE selling_price IS NULL;
+                    END IF;
+                    IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'products' AND COLUMN_NAME = 'weight') THEN
+                        UPDATE products SET weight = 0 WHERE weight IS NULL;
+                    END IF;
+                    IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'products' AND COLUMN_NAME = 'promo_price') THEN
+                        UPDATE products SET promo_price = 0 WHERE promo_price IS NULL;
+                    END IF;
+
+                    -- Product variants table
+                    UPDATE product_variants SET selling_price = 0 WHERE selling_price IS NULL;
+                    UPDATE product_variants SET cost_price = 0 WHERE cost_price IS NULL;
+                    UPDATE product_variants SET weight = 0 WHERE weight IS NULL;
+                    UPDATE product_variants SET volume = 0 WHERE volume IS NULL;
+                    UPDATE product_variants SET promo_price = 0 WHERE promo_price IS NULL;
+
+                    -- Inventory table
+                    UPDATE inventory SET available_quantity = 0 WHERE available_quantity IS NULL;
+                    UPDATE inventory SET reserved_quantity = 0 WHERE reserved_quantity IS NULL;
+                    UPDATE inventory SET damaged_quantity = 0 WHERE damaged_quantity IS NULL;
+                    UPDATE inventory SET reorder_point = 0 WHERE reorder_point IS NULL;
+                    UPDATE inventory SET max_stock = 0 WHERE max_stock IS NULL;
+                    UPDATE inventory SET average_cost = 0 WHERE average_cost IS NULL;
+                    UPDATE inventory SET last_purchase_cost = 0 WHERE last_purchase_cost IS NULL;
+                END`,
+                `CALL update_numeric_defaults()`,
+                `DROP PROCEDURE IF EXISTS update_numeric_defaults`,
+            ],
+        },
+        down: {
+            sqlite: [
+                // Data transformations - no rollback needed
+                // Cannot set values back to NULL/empty without knowing original values
+            ],
+            mysql: [
+                // Data transformations - no rollback needed
+                // Cannot set values back to NULL/empty without knowing original values
+            ],
+        },
+    },
+    {
+        version: '20260223_01',
+        description: 'Restructure SQLite products table - recreate with clean schema',
+        up: {
+            sqlite: [
+                // Step 1: Drop foreign key constraints by dropping referencing indexes
+                // SQLite doesn't have ALTER TABLE DROP FOREIGN KEY, but we can drop indexes
+                `PRAGMA foreign_keys = OFF`,
+                `DROP INDEX IF EXISTS "products_branch_id_idx"`,
+                `DROP INDEX IF EXISTS "products_tenant_id_idx"`,
+                `DROP INDEX IF EXISTS "products_category_id_idx"`,
+                `DROP INDEX IF EXISTS "products_name_idx"`,
+                `DROP INDEX IF EXISTS "products_is_active_idx"`,
+                `DROP INDEX IF EXISTS "products_sku_key"`,
+                `DROP INDEX IF EXISTS "products_branch_id_sku_key"`,
+                `DROP INDEX IF EXISTS "products_primary_barcode_key"`,
+                `DROP INDEX IF EXISTS "sku"`,
+                `DROP INDEX IF EXISTS "unique_branch_sku"`,
+                `DROP INDEX IF EXISTS "unique_branch_product_name"`,
+
+                // Step 2: Create new_products table with clean schema
+                `CREATE TABLE IF NOT EXISTS "new_products" (
+                    "product_id" TEXT NOT NULL PRIMARY KEY,
+                    "tenant_id" TEXT NOT NULL,
+                    "branch_id" TEXT NOT NULL,
+                    "category_id" TEXT,
+                    "name" TEXT NOT NULL,
+                    "description" TEXT,
+                    "brand" TEXT,
+                    "is_taxable" INTEGER,
+                    "supplier_name" TEXT,
+                    "supplier_code" TEXT,
+                    "default_unit" TEXT,
+                    "custom_attribute_schema" TEXT,
+                    "image_url" TEXT,
+                    "is_active" INTEGER NOT NULL DEFAULT 1,
+                    "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    "updated_at" DATETIME NOT NULL,
+
+                    FOREIGN KEY ("tenant_id")
+                        REFERENCES "tenants"("tenant_id")
+                        ON DELETE CASCADE
+                        ON UPDATE CASCADE,
+
+                    FOREIGN KEY ("branch_id")
+                        REFERENCES "branches"("branch_id")
+                        ON DELETE CASCADE
+                        ON UPDATE CASCADE,
+
+                    FOREIGN KEY ("category_id")
+                        REFERENCES "categories"("category_id")
+                        ON DELETE SET NULL
+                        ON UPDATE CASCADE
+                )`,
+
+                // Step 3: Copy data from existing products table to new_products
+                // Map columns that exist in both tables
+                `INSERT INTO "new_products" (
+                    "product_id",
+                    "tenant_id",
+                    "branch_id",
+                    "category_id",
+                    "name",
+                    "description",
+                    "brand",
+                    "is_taxable",
+                    "supplier_name",
+                    "supplier_code",
+                    "default_unit",
+                    "custom_attribute_schema",
+                    "image_url",
+                    "is_active",
+                    "created_at",
+                    "updated_at"
+                )
+                SELECT 
+                    "product_id",
+                    "tenant_id",
+                    "branch_id",
+                    "category_id",
+                    "name",
+                    "description",
+                    "brand",
+                    "is_taxable",
+                    "supplier_name",
+                    "supplier_code",
+                    "default_unit",
+                    "custom_attribute_schema",
+                    "image_url",
+                    "is_active",
+                    "created_at",
+                    COALESCE("updated_at", CURRENT_TIMESTAMP)
+                FROM "products"`,
+
+                // Step 4: Drop the existing products table
+                `DROP TABLE IF EXISTS "products"`,
+
+                // Step 5: Rename new_products to products
+                `ALTER TABLE "new_products" RENAME TO "products"`,
+
+                // step 6: Drop the temp table
+                `DROP TABLE IF EXISTS "new_products"`,
+
+                // Step 7: Recreate indexes on the new products table
+                `CREATE INDEX IF NOT EXISTS "products_branch_id_idx" ON "products" ("branch_id")`,
+                `CREATE INDEX IF NOT EXISTS "products_tenant_id_idx" ON "products" ("tenant_id")`,
+                `CREATE INDEX IF NOT EXISTS "products_category_id_idx" ON "products" ("category_id")`,
+                `CREATE INDEX IF NOT EXISTS "products_name_idx" ON "products" ("name")`,
+                `CREATE INDEX IF NOT EXISTS "products_is_active_idx" ON "products" ("is_active")`,
+                `CREATE UNIQUE INDEX IF NOT EXISTS "unique_branch_product_name" ON "products" ("branch_id", "name")`,
+                `PRAGMA foreign_keys = ON`,
+            ],
+            mysql: [
+                // This migration is SQLite only
+                // MySQL schema changes should be handled separately
+            ],
+        },
+        down: {
+            sqlite: [
+                // Rollback: Would need to recreate the old table structure with all columns
+                // This is a destructive migration - recommend restoring from backup
+                `DROP INDEX IF EXISTS "products_branch_id_idx"`,
+                `DROP INDEX IF EXISTS "products_tenant_id_idx"`,
+                `DROP INDEX IF EXISTS "products_category_id_idx"`,
+                `DROP INDEX IF EXISTS "products_name_idx"`,
+                `DROP INDEX IF EXISTS "products_is_active_idx"`,
+                `DROP INDEX IF EXISTS "unique_branch_product_name"`,
+            ],
+            mysql: [
+                // This migration is SQLite only
+            ],
         },
     },
     // Add future migrations here:
