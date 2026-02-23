@@ -75,7 +75,7 @@ function loadFileMigrationsSync(): Migration[] {
                 const filePath = path.join(MIGRATIONS_APP_DIR, file);
                 // eslint-disable-next-line @typescript-eslint/no-var-requires
                 const migrationModule = require(filePath);
-                
+
                 if (migrationModule.migration && typeof migrationModule.migration === 'object') {
                     migrations.push(migrationModule.migration);
                 }
@@ -269,7 +269,7 @@ export class MigrationManager {
                             await this.db.$executeRawUnsafe(sql);
                         } catch (sqlError) {
                             const errorMsg = (sqlError as Error).message;
-                            
+
                             // Handle common idempotent errors
                             if (this.isSkippableError(errorMsg, sql)) {
                                 console.log(`   ⏭️ Skipping (already applied): ${sql.substring(0, 60)}...`);

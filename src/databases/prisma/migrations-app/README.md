@@ -20,6 +20,7 @@ This will create a new migration file in the `migrations-app/` directory with th
 ## Migration Structure
 
 Each migration file exports a `Migration` object with:
+
 - `version`: Auto-generated timestamp-based version (e.g., `20260223_01`)
 - `description`: Human-readable description
 - `up`: SQL statements to apply the migration (supports both SQLite and MySQL)
@@ -28,33 +29,30 @@ Each migration file exports a `Migration` object with:
 ## Example Migration
 
 ```typescript
-import { Migration } from '../migration.types';
+import { Migration } from "../migration.types";
 
 export const migration: Migration = {
-    version: '20260223_01',
-    description: 'Add status column to orders table',
-    up: {
-        sqlite: [
-            `ALTER TABLE "orders" ADD COLUMN "status" TEXT DEFAULT 'pending'`,
-        ],
-        mysql: [
-            `ALTER TABLE orders ADD COLUMN status VARCHAR(50) DEFAULT 'pending'`,
-        ],
-    },
-    down: {
-        sqlite: [
-            // SQLite doesn't support DROP COLUMN easily
-        ],
-        mysql: [
-            `ALTER TABLE orders DROP COLUMN status`,
-        ],
-    },
+  version: "20260223_01",
+  description: "Add status column to orders table",
+  up: {
+    sqlite: [`ALTER TABLE "orders" ADD COLUMN "status" TEXT DEFAULT 'pending'`],
+    mysql: [
+      `ALTER TABLE orders ADD COLUMN status VARCHAR(50) DEFAULT 'pending'`,
+    ],
+  },
+  down: {
+    sqlite: [
+      // SQLite doesn't support DROP COLUMN easily
+    ],
+    mysql: [`ALTER TABLE orders DROP COLUMN status`],
+  },
 };
 ```
 
 ## Running Migrations
 
 Migrations are automatically run on application startup. The migration system:
+
 1. Detects pending migrations
 2. Creates a backup (SQLite only)
 3. Applies migrations in order

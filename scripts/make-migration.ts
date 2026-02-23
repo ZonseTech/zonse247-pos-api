@@ -45,7 +45,7 @@ function generateMigrationVersion(): string {
                 return match ? parseInt(match[1], 10) : 0;
             })
             .filter(n => n > 0);
-        
+
         if (sequences.length > 0) {
             sequenceNum = Math.max(...sequences) + 1;
         }
