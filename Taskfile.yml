@@ -164,3 +164,43 @@ tasks:
     desc: Preview transaction migration (dry run)
     cmds:
       - npx ts-node scripts/migrate-transactions-to-sales.ts --dry-run
+
+  # Migration Management (Laravel-style)
+  make:migration:
+    desc: Create a new migration file (like Laravel artisan make:migration)
+    cmds:
+      - npx ts-node scripts/make-migration.ts {{.CLI_ARGS}}
+
+  migrate:status:
+    desc: Show migration status (current version, pending migrations)
+    cmds:
+      - npx ts-node -e "
+        const { MigrationManager, CURRENT_DB_VERSION } = require('./src/databases/prisma/migrations');
+        const { PrismaClient } = require('./src/databases/prisma/generated/client-sqlite');
+        const prisma = new PrismaClient();
+        const manager = new MigrationManager(prisma, '.', 'sqlite');
+        manager.getStatus().then(s => {
+          console.log('\\n📊 Migration Status');
+          console.log('   Current version:', s.currentVersion || 'none');
+          console.log('   Target version:', s.targetVersion);
+          console.log('   Pending migrations:', s.pendingCount);
+          if (s.pendingMigrations.length > 0) {
+            console.log('   Pending:', s.pendingMigrations.join(', '));
+          }
+          console.log('');
+          prisma.\$disconnect();
+        });
+        "
+
+  migrate:list:
+    desc: List all available migrations
+    cmds:
+      - npx ts-node -e "
+        const { getAllMigrations } = require('./src/databases/prisma/migrations');
+        const migrations = getAllMigrations();
+        console.log('\\n📋 Available Migrations (' + migrations.length + ' total)\\n');
+        migrations.forEach(m => {
+          console.log('  ' + m.version + ' - ' + m.description);
+        });
+        console.log('');
+        "
