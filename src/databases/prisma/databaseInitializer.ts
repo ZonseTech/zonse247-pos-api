@@ -170,6 +170,7 @@ export class DatabaseInitializer {
 				'sqlite'
 			);
 
+			let migrationsApplied = false;
 			if (await this.migrationManager.needsMigration()) {
 				const result = await this.migrationManager.migrate(this.targetDbPath);
 
@@ -177,10 +178,11 @@ export class DatabaseInitializer {
 					console.error('❌ Migration failed:', result.error);
 					return false;
 				}
+				migrationsApplied = result.migrationsApplied.length > 0;
 			}
 
-			// Step 8: Verify database integrity
-			const integrity = await this.migrationManager.verifyIntegrity();
+			// Step 8: Verify database integrity (skip version check if we just migrated)
+			const integrity = await this.migrationManager.verifyIntegrity(!migrationsApplied);
 			if (!integrity.valid) {
 				console.warn('⚠️ Database integrity issues:', integrity.issues);
 			}

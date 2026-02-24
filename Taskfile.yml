@@ -164,3 +164,40 @@ tasks:
     desc: Preview transaction migration (dry run)
     cmds:
       - npx ts-node scripts/migrate-transactions-to-sales.ts --dry-run
+
+  # Migration Management (Laravel-style)
+  make:migration:
+    desc: Create a new migration file (like Laravel artisan make:migration)
+    cmds:
+      - npx ts-node scripts/make-migration.ts {{.CLI_ARGS}}
+
+  migrate:status:
+    desc: Show target version and list all migrations
+    cmds:
+      - |
+        npx ts-node -e "
+        const { getAllMigrations, CURRENT_DB_VERSION } = require('./src/databases/prisma/migrations');
+        const migrations = getAllMigrations();
+        console.log('');
+        console.log('Migration Status');
+        console.log('   Target version:', CURRENT_DB_VERSION);
+        console.log('   Total migrations:', migrations.length);
+        console.log('   Note: Run the app to check db_meta for current DB version');
+        console.log('');
+        "
+
+  migrate:list:
+    desc: List all available migrations
+    cmds:
+      - |
+        npx ts-node -e "
+        const { getAllMigrations } = require('./src/databases/prisma/migrations');
+        const migrations = getAllMigrations();
+        console.log('');
+        console.log('Available Migrations (' + migrations.length + ' total)');
+        console.log('');
+        migrations.forEach(m => {
+          console.log('  ' + m.version + ' - ' + m.description);
+        });
+        console.log('');
+        "

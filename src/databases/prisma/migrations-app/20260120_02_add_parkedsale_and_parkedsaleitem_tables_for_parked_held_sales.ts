@@ -1,0 +1,133 @@
+/**
+ * Migration: 20260120_02
+ * Description: Add ParkedSale and ParkedSaleItem tables for parked/held sales
+ * 
+ * Auto-extracted from inline migrations
+ */
+
+import { Migration } from '../migration.types';
+
+export const migration: Migration = {
+    version: '20260120_02',
+    description: 'Add ParkedSale and ParkedSaleItem tables for parked/held sales',
+    up: {
+            sqlite: [
+                `CREATE TABLE IF NOT EXISTS "parked_sales" (
+                    "parked_sale_id" TEXT PRIMARY KEY NOT NULL,
+                    "tenant_id" TEXT NOT NULL,
+                    "branch_id" TEXT NOT NULL,
+                    "user_id" TEXT NOT NULL,
+                    "terminal_id" TEXT,
+                    "customer_id" TEXT,
+                    "reference" TEXT NOT NULL UNIQUE,
+                    "subtotal" REAL NOT NULL DEFAULT 0,
+                    "tax_amount" REAL NOT NULL DEFAULT 0,
+                    "discount_amount" REAL NOT NULL DEFAULT 0,
+                    "total_amount" REAL NOT NULL DEFAULT 0,
+                    "total_items" INTEGER NOT NULL DEFAULT 0,
+                    "status" TEXT NOT NULL DEFAULT 'PARKED',
+                    "notes" TEXT,
+                    "parked_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    "expires_at" DATETIME,
+                    "resumed_at" DATETIME,
+                    "synced" INTEGER NOT NULL DEFAULT 0,
+                    "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    "updated_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )`,
+                `CREATE INDEX IF NOT EXISTS "idx_parked_sales_tenant_id" ON "parked_sales" ("tenant_id")`,
+                `CREATE INDEX IF NOT EXISTS "idx_parked_sales_branch_id" ON "parked_sales" ("branch_id")`,
+                `CREATE INDEX IF NOT EXISTS "idx_parked_sales_user_id" ON "parked_sales" ("user_id")`,
+                `CREATE INDEX IF NOT EXISTS "idx_parked_sales_terminal_id" ON "parked_sales" ("terminal_id")`,
+                `CREATE INDEX IF NOT EXISTS "idx_parked_sales_reference" ON "parked_sales" ("reference")`,
+                `CREATE INDEX IF NOT EXISTS "idx_parked_sales_status" ON "parked_sales" ("status")`,
+                `CREATE INDEX IF NOT EXISTS "idx_parked_sales_parked_at" ON "parked_sales" ("parked_at")`,
+                `CREATE INDEX IF NOT EXISTS "idx_parked_sales_created_at" ON "parked_sales" ("created_at")`,
+                `CREATE TABLE IF NOT EXISTS "parked_sale_items" (
+                    "parked_sale_item_id" TEXT PRIMARY KEY NOT NULL,
+                    "parked_sale_id" TEXT NOT NULL,
+                    "product_id" TEXT NOT NULL,
+                    "category_id" TEXT,
+                    "name" TEXT NOT NULL,
+                    "barcode" TEXT,
+                    "sku" TEXT,
+                    "unit" TEXT,
+                    "quantity" INTEGER NOT NULL DEFAULT 1,
+                    "unit_price" REAL NOT NULL DEFAULT 0,
+                    "sell_price" REAL NOT NULL DEFAULT 0,
+                    "purchase_price" REAL NOT NULL DEFAULT 0,
+                    "discount" REAL NOT NULL DEFAULT 0,
+                    "tax_amount" REAL NOT NULL DEFAULT 0,
+                    "subtotal" REAL NOT NULL DEFAULT 0,
+                    "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY ("parked_sale_id") REFERENCES "parked_sales"("parked_sale_id") ON DELETE CASCADE
+                )`,
+                `CREATE INDEX IF NOT EXISTS "idx_parked_sale_items_parked_sale_id" ON "parked_sale_items" ("parked_sale_id")`,
+                `CREATE INDEX IF NOT EXISTS "idx_parked_sale_items_product_id" ON "parked_sale_items" ("product_id")`,
+                `CREATE INDEX IF NOT EXISTS "idx_parked_sale_items_category_id" ON "parked_sale_items" ("category_id")`,
+            ],
+            mysql: [
+                `CREATE TABLE IF NOT EXISTS parked_sales (
+                    parked_sale_id VARCHAR(255) PRIMARY KEY NOT NULL,
+                    tenant_id VARCHAR(255) NOT NULL,
+                    branch_id VARCHAR(255) NOT NULL,
+                    user_id VARCHAR(255) NOT NULL,
+                    terminal_id VARCHAR(255),
+                    customer_id VARCHAR(255),
+                    reference VARCHAR(255) NOT NULL UNIQUE,
+                    subtotal DOUBLE NOT NULL DEFAULT 0,
+                    tax_amount DOUBLE NOT NULL DEFAULT 0,
+                    discount_amount DOUBLE NOT NULL DEFAULT 0,
+                    total_amount DOUBLE NOT NULL DEFAULT 0,
+                    total_items INT NOT NULL DEFAULT 0,
+                    status VARCHAR(50) NOT NULL DEFAULT 'PARKED',
+                    notes TEXT,
+                    parked_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    expires_at DATETIME,
+                    resumed_at DATETIME,
+                    synced TINYINT NOT NULL DEFAULT 0,
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    INDEX idx_tenant_id (tenant_id),
+                    INDEX idx_branch_id (branch_id),
+                    INDEX idx_user_id (user_id),
+                    INDEX idx_terminal_id (terminal_id),
+                    INDEX idx_reference (reference),
+                    INDEX idx_status (status),
+                    INDEX idx_parked_at (parked_at),
+                    INDEX idx_created_at (created_at)
+                )`,
+                `CREATE TABLE IF NOT EXISTS parked_sale_items (
+                    parked_sale_item_id VARCHAR(255) PRIMARY KEY NOT NULL,
+                    parked_sale_id VARCHAR(255) NOT NULL,
+                    product_id VARCHAR(255) NOT NULL,
+                    category_id VARCHAR(255),
+                    name VARCHAR(255) NOT NULL,
+                    barcode VARCHAR(255),
+                    sku VARCHAR(255),
+                    unit VARCHAR(50),
+                    quantity INT NOT NULL DEFAULT 1,
+                    unit_price DOUBLE NOT NULL DEFAULT 0,
+                    sell_price DOUBLE NOT NULL DEFAULT 0,
+                    purchase_price DOUBLE NOT NULL DEFAULT 0,
+                    discount DOUBLE NOT NULL DEFAULT 0,
+                    tax_amount DOUBLE NOT NULL DEFAULT 0,
+                    subtotal DOUBLE NOT NULL DEFAULT 0,
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (parked_sale_id) REFERENCES parked_sales(parked_sale_id) ON DELETE CASCADE,
+                    INDEX idx_parked_sale_id (parked_sale_id),
+                    INDEX idx_product_id (product_id),
+                    INDEX idx_category_id (category_id)
+                )`,
+            ],
+        },
+    down: {
+            sqlite: [
+                `DROP TABLE IF EXISTS "parked_sale_items"`,
+                `DROP TABLE IF EXISTS "parked_sales"`,
+            ],
+            mysql: [
+                `DROP TABLE IF EXISTS parked_sale_items`,
+                `DROP TABLE IF EXISTS parked_sales`,
+            ],
+        },
+};
