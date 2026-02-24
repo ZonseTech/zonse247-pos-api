@@ -18,6 +18,7 @@ import path from 'path';
 
 // Configuration
 const MIGRATIONS_DIR = path.join(__dirname, '../src/databases/prisma/migrations-app');
+const REGISTRY_FILE = path.join(MIGRATIONS_DIR, 'index.ts');
 
 /**
  * Generate a migration version in format YYYYMMDD_NN
@@ -108,6 +109,42 @@ export const migration: Migration = {
 }
 
 /**
+ * Update the migration registry (index.ts) to include the new migration
+ */
+function updateRegistry(version: string, snakeName: string): void {
+    const importName = `m${version.replace('_', '')}`;
+    const moduleName = `${version}_${snakeName}`;
+
+    let content = fs.readFileSync(REGISTRY_FILE, 'utf-8');
+
+    // Find the last import line and add new import after it
+    const importRegex = /^import \{ migration as m\d+\} from '.\/[^']+';$/gm;
+    let lastImportMatch: RegExpExecArray | null = null;
+    let match: RegExpExecArray | null;
+    while ((match = importRegex.exec(content)) !== null) {
+        lastImportMatch = match;
+    }
+
+    if (lastImportMatch) {
+        const insertPos = lastImportMatch.index + lastImportMatch[0].length;
+        const newImport = `\nimport { migration as ${importName} } from './${moduleName}';`;
+        content = content.slice(0, insertPos) + newImport + content.slice(insertPos);
+    }
+
+    // Find the registeredMigrations array and add new migration before the closing bracket
+    const arrayCloseRegex = /(\s*)(m\d+),(\s*)\]\.sort/;
+    const arrayMatch = content.match(arrayCloseRegex);
+    if (arrayMatch) {
+        content = content.replace(
+            arrayCloseRegex,
+            `$1$2,$1${importName},$3].sort`
+        );
+    }
+
+    fs.writeFileSync(REGISTRY_FILE, content);
+}
+
+/**
  * Main execution
  */
 function main(): void {
@@ -140,6 +177,9 @@ function main(): void {
     const content = generateMigrationContent(version, migrationName);
     fs.writeFileSync(filePath, content);
 
+    // Update the migration registry
+    updateRegistry(version, snakeName);
+
     console.log('\n✨ Migration created successfully!\n');
     console.log(`📄 File: ${path.relative(process.cwd(), filePath)}`);
     console.log(`🔖 Version: ${version}`);
@@ -147,7 +187,8 @@ function main(): void {
     console.log('Next steps:');
     console.log(`  1. Edit the migration file to add your SQL statements`);
     console.log(`  2. Test on both SQLite and MySQL`);
-    console.log(`  3. The migration will run automatically on app startup\n`);
+    console.log(`  3. Update CURRENT_DB_VERSION in migrations.ts to '${version}'`);
+    console.log(`  4. The migration will run automatically on app startup\n`);
 }
 
 main();
