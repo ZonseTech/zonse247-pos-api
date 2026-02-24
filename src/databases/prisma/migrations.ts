@@ -6,12 +6,11 @@
  * 2. User's DB has version tracked in db_meta table
  * 3. On startup: compare versions → backup → migrate → verify
  * 
- * This system supports both:
- * - Legacy inline migrations (defined in INLINE_MIGRATIONS array)
- * - File-based migrations (loaded from migrations-app/ directory)
+ * Migrations are statically imported via the registry (migrations-app/index.ts)
+ * to ensure they are bundled correctly when the code is compiled/bundled
+ * (e.g., by Vite for Electron apps).
  */
 
-import fs from 'fs';
 import fsp from 'fs/promises';
 import path from 'path';
 import { getDatabaseConfig } from '../../config/db';
@@ -22,8 +21,8 @@ import {
     IntegrityCheckResult,
     DatabaseType,
     getSqlStatements,
-    parseVersionFromFilename,
 } from './migration.types';
+import { getAllRegisteredMigrations } from './migrations-app';
 
 // Re-export types for backward compatibility
 export { Migration, DatabaseType, getSqlStatements };
@@ -48,53 +47,10 @@ export const getDatabaseType = (): DatabaseType => {
 };
 
 /**
- * Path to file-based migrations directory
- */
-const MIGRATIONS_APP_DIR = path.join(__dirname, 'migrations-app');
-
-/**
- * Load migrations synchronously from migrations-app/ directory
- */
-function loadFileMigrationsSync(): Migration[] {
-    const migrations: Migration[] = [];
-
-    try {
-        if (!fs.existsSync(MIGRATIONS_APP_DIR)) {
-            return migrations;
-        }
-
-        const files = fs.readdirSync(MIGRATIONS_APP_DIR)
-            .filter(f => f.endsWith('.ts') && !f.endsWith('.d.ts'))
-            .sort();
-
-        for (const file of files) {
-            const version = parseVersionFromFilename(file);
-            if (!version) continue;
-
-            try {
-                const filePath = path.join(MIGRATIONS_APP_DIR, file);
-                // eslint-disable-next-line @typescript-eslint/no-var-requires
-                const migrationModule = require(filePath);
-
-                if (migrationModule.migration && typeof migrationModule.migration === 'object') {
-                    migrations.push(migrationModule.migration);
-                }
-            } catch (err) {
-                console.error(`Failed to load migration ${file}:`, err);
-            }
-        }
-    } catch (err) {
-        console.error('Failed to load file migrations:', err);
-    }
-
-    return migrations;
-}
-
-/**
- * Get all migrations from migrations-app/ directory, sorted by version
+ * Get all migrations from the static registry, sorted by version
  */
 export function getAllMigrations(): Migration[] {
-    return loadFileMigrationsSync().sort((a, b) => a.version.localeCompare(b.version));
+    return getAllRegisteredMigrations();
 }
 
 /**
@@ -345,8 +301,9 @@ export class MigrationManager {
 
     /**
      * Verify database integrity after migration
+     * @param checkVersion - Whether to check if version matches CURRENT_DB_VERSION (skip after fresh migration)
      */
-    async verifyIntegrity(): Promise<IntegrityCheckResult> {
+    async verifyIntegrity(checkVersion = true): Promise<IntegrityCheckResult> {
         const issues: string[] = [];
 
         try {
@@ -372,10 +329,12 @@ export class MigrationManager {
                 }
             }
 
-            // Verify version is current
-            const version = await this.getCurrentVersion();
-            if (version !== CURRENT_DB_VERSION) {
-                issues.push(`Version mismatch: expected ${CURRENT_DB_VERSION}, got ${version}`);
+            // Verify version is current (only if requested)
+            if (checkVersion) {
+                const version = await this.getCurrentVersion();
+                if (version !== CURRENT_DB_VERSION) {
+                    issues.push(`Version mismatch: expected ${CURRENT_DB_VERSION}, got ${version}`);
+                }
             }
         } catch (error) {
             issues.push(`Verification error: ${(error as Error).message}`);

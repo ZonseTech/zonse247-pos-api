@@ -1,0 +1,69 @@
+/**
+ * Migration Registry
+ * 
+ * This file statically imports all migrations so they can be bundled
+ * with the application code. This is necessary because dynamic require()
+ * doesn't work reliably when the code is bundled (e.g., by Vite for Electron).
+ * 
+ * IMPORTANT: When adding a new migration, add an import and register it here.
+ * The make:migration task will automatically update this file.
+ */
+
+import { Migration } from '../migration.types';
+
+// Import all migrations
+import { migration as m20250101_01 } from './20250101_01_initial_schema_baseline_version';
+import { migration as m20260108_01 } from './20260108_01_add_db_meta_table_for_version_tracking';
+import { migration as m20260110_01 } from './20260110_01_add_tenant_registration_details_table_for_storing_temporary_registration_info';
+import { migration as m20260120_01 } from './20260120_01_add_salepayment_table_for_multiple_payment_method_support';
+import { migration as m20260120_02 } from './20260120_02_add_parkedsale_and_parkedsaleitem_tables_for_parked_held_sales';
+import { migration as m20260121_01 } from './20260121_01_change_salenumber_from_global_unique_to_per_tenant_branch_unique_for_offline_support';
+import { migration as m20260208_01 } from './20260208_01_make_product_sku_nullable_and_remove_unique_constraint';
+import { migration as m20260208_02 } from './20260208_02_add_productvariant_model_and_migrate_existing_products_to_variants_non_destructive';
+import { migration as m20260208_03 } from './20260208_03_fix_inventory_constraints_for_variant_support_remove_unique_on_product_id_add_unique_on_variant_id';
+import { migration as m20260210_01 } from './20260210_01_add_expiry_date_alert_column_to_product_variants_table_for_expiration_alerts';
+import { migration as m20260210_02 } from './20260210_02_add_productid_field_to_saleitem_prisma_schema_column_already_exists_in_database';
+import { migration as m20260210_03 } from './20260210_03_fix_sale_items_unique_constraint_from_sale_id_product_id_to_sale_id_variant_id';
+import { migration as m20260211_01 } from './20260211_01_add_staff_table_for_employee_staff_management_with_attendance_tracking';
+import { migration as m20260212_01 } from './20260212_01_add_other_charges_column_to_sales_and_parked_sales_tables';
+import { migration as m20260215_01 } from './20260215_01_add_districts_table_with_all_malawi_districts_and_districtid_to_branches';
+import { migration as m20260215_02 } from './20260215_02_add_businesstype_and_location_columns_to_branches_table_rename_district_to_location';
+import { migration as m20260216_01 } from './20260216_01_simplify_terminal_settings_table_to_use_4_json_settings_groups';
+import { migration as m20260219_01 } from './20260219_01_add_missing_columns_to_products_table_default_unit_custom_attribute_schema_image_url';
+import { migration as m20260219_02 } from './20260219_02_restructure_sqlite_products_table_to_remove_old_variant_columns_sku_unit_selling_price_etc';
+import { migration as m20260219_03 } from './20260219_03_ensure_numeric_columns_default_to_0_and_handle_empty_strings';
+import { migration as m20260223_01 } from './20260223_01_restructure_sqlite_products_table_recreate_with_clean_schema';
+
+/**
+ * All registered migrations, sorted by version
+ */
+export const registeredMigrations: Migration[] = [
+    m20250101_01,
+    m20260108_01,
+    m20260110_01,
+    m20260120_01,
+    m20260120_02,
+    m20260121_01,
+    m20260208_01,
+    m20260208_02,
+    m20260208_03,
+    m20260210_01,
+    m20260210_02,
+    m20260210_03,
+    m20260211_01,
+    m20260212_01,
+    m20260215_01,
+    m20260215_02,
+    m20260216_01,
+    m20260219_01,
+    m20260219_02,
+    m20260219_03,
+    m20260223_01,
+].sort((a, b) => a.version.localeCompare(b.version));
+
+/**
+ * Get all registered migrations
+ */
+export function getAllRegisteredMigrations(): Migration[] {
+    return registeredMigrations;
+}
