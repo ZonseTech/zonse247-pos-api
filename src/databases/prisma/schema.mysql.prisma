@@ -1522,12 +1522,6 @@ enum ParkedSaleStatus {
   EXPIRED
 }
 
-enum TerminalStatus {
-  active
-  inactive
-  suspended
-}
-
 enum MRA_API_CONFIG_TABLE_environment {
   SANDBOX
   PRODUCTION
