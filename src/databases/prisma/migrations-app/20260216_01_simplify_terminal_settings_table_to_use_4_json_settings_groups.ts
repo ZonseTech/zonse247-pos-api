@@ -107,7 +107,7 @@ export const migration: Migration = {
                 `DROP PROCEDURE IF EXISTS add_terminal_settings_cols`,
                 `UPDATE terminal_settings SET 
                     general_settings = JSON_OBJECT(
-                        'dateFormat', COALESCE(date_format, 'DD/MM/YYYY'),
+                        'dateFormat', 'DD/MM/YYYY',
                         'showProductImages', true,
                         'productDisplayMode', 'GRID',
                         'barcodeScanMode', 'AUTO',
@@ -119,12 +119,12 @@ export const migration: Migration = {
                         'virtualKeyboardHaptic', false
                     ),
                     receipt_settings = JSON_OBJECT(
-                        'storeName', COALESCE(store_name, 'My Store'),
-                        'storePhone', COALESCE(store_phone, ''),
-                        'storeAddress', COALESCE(store_address, ''),
+                        'storeName', 'My Store',
+                        'storePhone', '',
+                        'storeAddress', '',
                         'storeWebsite', '',
                         'taxTitle', 'VAT',
-                        'businessTaxId', COALESCE(business_tax_id, ''),
+                        'businessTaxId', '',
                         'logoUrl', '',
                         'receiptHeader', '',
                         'showPhoneOnReceipt', true,
@@ -152,7 +152,7 @@ export const migration: Migration = {
                         'receiptNumberPrefix', 'RCP',
                         'autoApplyTax', true,
                         'taxInclusivePricing', false,
-                        'taxRate', COALESCE(tax_rate, 16.5),
+                        'taxRate', 16.5,
                         'enableDiscounts', true,
                         'requirePinForDiscount', true,
                         'maxDiscountPercentage', 20,
@@ -165,7 +165,7 @@ export const migration: Migration = {
                         'requirePinForVoid', true,
                         'requirePinForReturn', true,
                         'enableNotifications', true,
-                        'apiBaseUrl', COALESCE(server_url, 'http://127.0.0.1:3001/api/v1')
+                        'apiBaseUrl', 'http://127.0.0.1:3001/api/v1'
                     ),
                     settings_version = '3.0.0'
                 WHERE general_settings IS NULL`,
