@@ -10,8 +10,6 @@
  */
 
 import { Migration } from '../migration.types';
-
-// Import all migrations
 import { migration as m20250101_01 } from './20250101_01_initial_schema_baseline_version';
 import { migration as m20260108_01 } from './20260108_01_add_db_meta_table_for_version_tracking';
 import { migration as m20260110_01 } from './20260110_01_add_tenant_registration_details_table_for_storing_temporary_registration_info';
@@ -33,6 +31,15 @@ import { migration as m20260219_01 } from './20260219_01_add_missing_columns_to_
 import { migration as m20260219_02 } from './20260219_02_restructure_sqlite_products_table_to_remove_old_variant_columns_sku_unit_selling_price_etc';
 import { migration as m20260219_03 } from './20260219_03_ensure_numeric_columns_default_to_0_and_handle_empty_strings';
 import { migration as m20260223_01 } from './20260223_01_restructure_sqlite_products_table_recreate_with_clean_schema';
+import { migration as m20260302_01 } from './20260302_01_add_soft_delete_deleted_at_to_all_syncable_tables';
+import { migration as m20260302_02 } from './20260302_02_add_optimistic_locking_version_to_all_syncable_tables';
+import { migration as m20260302_03 } from './20260302_03_add_origin_tracking_terminal_id_to_syncable_tables';
+import { migration as m20260302_04 } from './20260302_04_fix_global_unique_constraints_to_tenant_scoped';
+import { migration as m20260302_05 } from './20260302_05_add_sync_indexes_for_delta_queries';
+import { migration as m20260302_06 } from './20260302_06_add_terminal_sync_tracking_fields';
+import { migration as m20260302_07 } from './20260302_07_add_mra_fields_to_sale';
+import { migration as m20260302_08 } from './20260302_08_create_mra_submission_table';
+import { migration as m20260302_09 } from './20260302_09_add_last_synced_at_to_syncable_tables';
 
 /**
  * All registered migrations, sorted by version
@@ -59,6 +66,15 @@ export const registeredMigrations: Migration[] = [
     m20260219_02,
     m20260219_03,
     m20260223_01,
+    m20260302_01,
+    m20260302_02,
+    m20260302_03,
+    m20260302_04,
+    m20260302_05,
+    m20260302_06,
+    m20260302_07,
+    m20260302_08,
+    m20260302_09,
 ].sort((a, b) => a.version.localeCompare(b.version));
 
 /**
