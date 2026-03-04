@@ -9,11 +9,7 @@ import { TenantService } from "../services/tenant.service";
  * @desc    Handles all tenant-related HTTP requests
  * @extends BaseController
  */
-export class TenantController extends BaseController {
-    constructor() {
-        super()
-    }
-
+export class TenantController {
     /**
      * @method  list
      * @desc    Retrieve a paginated list of all tenants

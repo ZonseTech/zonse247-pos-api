@@ -10,7 +10,7 @@ import { TerminalService } from "../services/terminal.service";
  * @desc    Handles all terminal-related HTTP requests
  * @extends BaseController
  */
-export class TerminalController extends BaseController {
+export class TerminalController {
     /**
      * @method  getAllTerminals
      * @desc    Retrieve all terminals for the authenticated tenant/branch

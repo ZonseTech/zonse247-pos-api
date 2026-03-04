@@ -10,7 +10,7 @@ import { BranchService } from "../services/branch.service";
  * @desc    Handles all branch-related HTTP requests
  * @extends BaseController
  */
-export class BranchController extends BaseController {
+export class BranchController {
 
     /**
      * @method  list
