@@ -679,18 +679,18 @@ model Branch {
   isVirtualWarehouse Boolean?                 @default(false) @map("is_virtual_warehouse")
   isActive           Boolean?                 @default(true) @map("is_active")
   synced             Int?                     @default(0) @map("synced")
-  mraApprovalStatus  BranchMRAApprovalStatus? @default(PENDING) @map("mra_approval_status")
-  mraApprovalDate    DateTime?                @map("mra_approval_date")
-  subscriptionPlanId String?                  @map("subscription_plan_id")
-  status             BranchStatus?            @default(active) @map("status")
-  createdAt          DateTime?                @default(now()) @map("created_at")
-  updatedAt          DateTime?                @default(now()) @map("updated_at")
+  mraApprovalStatus      BranchMRAApprovalStatus? @default(PENDING) @map("mra_approval_status")
+  mraApprovalDate        DateTime?                @map("mra_approval_date")
+  branchSubscriptionId   String?                  @unique @map("branch_subscription_id")
+  status                 BranchStatus?            @default(active) @map("status")
+  createdAt              DateTime?                @default(now()) @map("created_at")
+  updatedAt              DateTime?                @default(now()) @map("updated_at")
 
   auditLogs          AuditLog[]
   branchSetting      BranchSetting?
   tenant             Tenant            @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade)
   districtRef        District?         @relation(fields: [districtId], references: [districtId])
-  subscriptionPlan   SubscriptionPlan? @relation(fields: [subscriptionPlanId], references: [subscriptionPlanId])
+  branchSubscription BranchSubscription? @relation(fields: [branchSubscriptionId], references: [branchSubscriptionId])
   categories         Category[]
   customers          Customer[]
   serviceProviders   ServiceProvider[]
@@ -714,7 +714,6 @@ model Branch {
 
   // ADDED: Relation to old inventory for backward compatibility
   inventoryOld InventoryOld[]
-  tenantSubscriptions TenantSubscription[]
 
   @@unique([tenantId, branchCode], name: "unique_tenant_branch_code")
   @@index([branchCode])
@@ -1017,39 +1016,32 @@ model SubscriptionPlan {
   features            Json                 @map("features")
   limits              Json                 @map("limits")
   notes               String?              @map("notes")
-  synced              Int?                 @default(0) @map("synced")
-  createdAt           DateTime?            @default(now()) @map("created_at")
-  updatedAt           DateTime?            @default(now()) @map("updated_at")
-  tenantSubscriptions TenantSubscription[]
-  branches            Branch[]
+  synced               Int?                 @default(0) @map("synced")
+  createdAt            DateTime?            @default(now()) @map("created_at")
+  updatedAt            DateTime?            @default(now()) @map("updated_at")
+  branchSubscriptions  BranchSubscription[]
 
   @@map("subscription_plans")
 }
 
-model TenantSubscription {
-  tenantSubscriptionId String                    @id @default(cuid()) @map("tenant_subscription_id")
-  tenantId             String                    @map("tenant_id")
-  branchId             String?                   @map("branch_id")
+model BranchSubscription {
+  branchSubscriptionId String                    @id @default(cuid()) @map("branch_subscription_id")
   subscriptionPlanId   String                    @map("subscription_plan_id")
-  status               TenantSubscriptionStatus? @default(active) @map("status")
+  status               BranchSubscriptionStatus? @default(active) @map("status")
   startsAt             DateTime                  @map("starts_at")
   endsAt               DateTime?                 @map("ends_at")
   autoRenew            Boolean?                  @default(true) @map("auto_renew")
   paymentMethod        String?                   @map("payment_method")
-  maxBranches          Int?                      @default(1) @map("max_branches")
   synced               Int?                      @default(0) @map("synced")
   lastPaymentDate      DateTime?                 @map("last_payment_date")
   nextPaymentDate      DateTime?                 @map("next_payment_date")
   createdAt            DateTime?                 @default(now()) @map("created_at")
   updatedAt            DateTime?                 @default(now()) @map("updated_at")
-  tenant               Tenant                    @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade)
-  branch               Branch?                   @relation(fields: [branchId], references: [branchId], onDelete: Cascade)
+  branch               Branch?
   subscriptionPlan     SubscriptionPlan          @relation(fields: [subscriptionPlanId], references: [subscriptionPlanId])
 
   @@index([subscriptionPlanId])
-  @@index([tenantId])
-  @@index([branchId])
-  @@map("tenant_subscriptions")
+  @@map("branch_subscriptions")
 }
 
 model Tenant {
@@ -1080,7 +1072,6 @@ model Tenant {
   mraApiConfigTable   MRA_API_CONFIG_TABLE[]
   auditLogs           AuditLog[]
   branches            Branch[]
-  tenantSubscriptions TenantSubscription[]
   terminals           Terminal[]
   users               User[]
 
@@ -1667,7 +1658,7 @@ enum MRA_API_CONFIG_TABLE_environment {
   PRODUCTION
 }
 
-enum TenantSubscriptionStatus {
+enum BranchSubscriptionStatus {
   active
   cancelled
   expired
@@ -1955,4 +1946,82 @@ model Staff {
   @@index([updatedAt])
   @@index([deletedAt])
   @@map("staff")
+}
+
+// Enum for onboarding step types
+enum OnboardingStepType {
+  TERMINAL_ACTIVATION
+  TERMINAL_DETAILS_SAVE
+  MRA_SETUP
+  CUSTOMERS_SYNC
+  CATEGORIES_SYNC
+  SUBSCRIPTION_PLANS_SYNC
+  PAYMENT_METHODS_SYNC
+  PAYMENT_PROVIDERS_SYNC
+  PRODUCTS_SYNC
+  INVENTORY_SYNC
+  USERS_SYNC
+  SETTINGS_SYNC
+}
+
+// Enum for onboarding step status
+enum OnboardingStepStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+  SKIPPED
+}
+
+// Enum for overall onboarding status
+enum OnboardingOverallStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+}
+
+// Model to track onboarding progress
+model OnboardingProgress {
+  id                Int                     @id @default(autoincrement())
+  progressId        String                  @unique @default(cuid()) @map("progress_id")
+  terminalId        String                  @unique @map("terminal_id")
+  tenantId          String?                 @map("tenant_id")
+  branchId          String?                 @map("branch_id")
+  currentStep       OnboardingStepType      @default(TERMINAL_ACTIVATION) @map("current_step")
+  overallStatus     OnboardingOverallStatus @default(NOT_STARTED) @map("overall_status")
+  completedSteps    Int                     @default(0) @map("completed_steps")
+  totalSteps        Int                     @default(8) @map("total_steps")
+  lastUpdatedAt     DateTime                @default(now()) @updatedAt @map("last_updated_at")
+  createdAt         DateTime                @default(now()) @map("created_at")
+
+  steps             OnboardingStep[]
+
+  @@index([terminalId])
+  @@index([overallStatus])
+  @@map("onboarding_progress")
+}
+
+// Model to track individual onboarding steps
+model OnboardingStep {
+  id                Int                   @id @default(autoincrement())
+  stepId            String                @unique @default(cuid()) @map("step_id")
+  progressId        String                @map("progress_id")
+  stepType          OnboardingStepType    @map("step_type")
+  status            OnboardingStepStatus  @default(NOT_STARTED) @map("status")
+  stepOrder         Int                   @map("step_order")
+  startedAt         DateTime?             @map("started_at")
+  completedAt       DateTime?             @map("completed_at")
+  errorMessage      String?               @map("error_message")
+  retryCount        Int                   @default(0) @map("retry_count")
+  metadata          String?               @map("metadata")
+  createdAt         DateTime              @default(now()) @map("created_at")
+  updatedAt         DateTime              @updatedAt @map("updated_at")
+
+  progress          OnboardingProgress    @relation(fields: [progressId], references: [progressId], onDelete: Cascade)
+
+  @@unique([progressId, stepType], name: "unique_progress_step")
+  @@index([progressId])
+  @@index([status])
+  @@map("onboarding_steps")
 }
