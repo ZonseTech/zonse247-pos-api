@@ -6,7 +6,7 @@ import { RolePermissionModel } from "../models/role-permission.model";
 import { SubscriptionPlanModel } from "../models/subscription-plan.model";
 import { PaymentServiceProviderModel } from "../models/payment-service-provider.model";
 import { PaymentMethodModel } from '../models/payment-methods.model';
-import { SubscriptionModel } from '../models/subscription.model';
+import { BranchSubscriptionModel } from '../models/branch-subscription.model';
 import { UserModel } from '../models/user.model';
 import { CustomerModel } from '../models/customer.model';
 import { CategoryModel } from '../models/category.model';
@@ -501,26 +501,26 @@ export class MetadataService {
 
             for (const subscriptionData of tenantSubscriptions) {
                 try {
-                    const subscriptionId = subscriptionData.tenantSubscriptionId || subscriptionData.subscriptionId;
+                    const subscriptionId = subscriptionData.tenantSubscriptionId || subscriptionData.branchSubscriptionId || subscriptionData.subscriptionId;
 
                     if (!subscriptionId) {
-                        result.errors.push(`Tenant subscription missing ID field`);
+                        result.errors.push(`Branch subscription missing ID field`);
                         continue;
                     }
 
-                    const existingSubscription = await SubscriptionModel.findById(subscriptionId);
+                    const existingSubscription = await BranchSubscriptionModel.findById(subscriptionId);
 
                     if (existingSubscription) {
-                        await SubscriptionModel.update(subscriptionId, {
+                        await BranchSubscriptionModel.update(subscriptionId, {
                             ...subscriptionData,
-                            tenantSubscriptionId: subscriptionId,
+                            branchSubscriptionId: subscriptionId,
                             updatedAt: new Date()
                         });
                         result.recordsUpdated++;
                     } else {
-                        await SubscriptionModel.create({
+                        await BranchSubscriptionModel.create({
                             ...subscriptionData,
-                            tenantSubscriptionId: subscriptionId,
+                            branchSubscriptionId: subscriptionId,
                             createdAt: new Date(),
                             updatedAt: new Date()
                         });
@@ -702,7 +702,7 @@ export class MetadataService {
             const rolesCount = await RoleModel.count();
             const permissionsCount = await PermissionModel.count();
             // const subscriptionPlansCount = await SubscriptionPlanModel.count();
-            const tenantSubscriptionsCount = await SubscriptionModel.count();
+            const branchSubscriptionsCount = await BranchSubscriptionModel.count();
             const paymentMethodsCount = await PaymentMethodModel.count();
             const paymentProvidersCount = await PaymentServiceProviderModel.count();
 
@@ -710,7 +710,7 @@ export class MetadataService {
                 roles: rolesCount,
                 permissions: permissionsCount,
                 // subscriptionPlans: subscriptionPlansCount,
-                tenantSubscriptions: tenantSubscriptionsCount,
+                branchSubscriptions: branchSubscriptionsCount,
                 paymentMethods: paymentMethodsCount,
                 paymentServiceProviders: paymentProvidersCount,
                 lastSyncedAt: new Date(),

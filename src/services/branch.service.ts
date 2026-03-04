@@ -1,7 +1,6 @@
-import { v4 as uuidv4 } from 'uuid';
 import { BranchModel } from "../models/branch.model";
 import { TenantModel } from "../models/tenant.model";
-import { SubscriptionModel } from "../models/subscription.model";
+import { BranchSubscriptionModel } from "../models/branch-subscription.model";
 import { Branch, CreateBranchRequest } from "branch";
 import { BranchCreateInput } from "../databases/prisma/generated/prisma/models";
 
@@ -106,26 +105,21 @@ export class BranchService {
 		const branchNumber = existingBranches.length + 1;
 		data.branchCode = `BR${String(branchNumber).padStart(3, '0')}`;
 
-		const branchData = BranchModel.buildBranchData({ ...data, tenantId: effectiveTenantId });
-		const branch = await BranchModel.create(branchData as unknown as BranchCreateInput);
-
-		const subscriptionMonths = data.subscriptionMonths ?? 1;
-		const subscriptionStartsAt = new Date();
-		const subscriptionEndsAt = new Date();
-		subscriptionEndsAt.setMonth(subscriptionEndsAt.getMonth() + subscriptionMonths);
-
-		await SubscriptionModel.create({
-			tenantSubscriptionId: uuidv4(),
-			tenantId: tenant.tenantId,
-			branchId: branch.branchId,
+		// Create branch subscription first
+		const subscriptionData = BranchSubscriptionModel.buildSubscriptionData({
 			subscriptionPlanId: data.subscriptionPlanId,
-			status: 'active',
-			startsAt: subscriptionStartsAt,
-			endsAt: subscriptionEndsAt,
-			autoRenew: false,
-			maxBranches: 1,
-			synced: 0,
+			subscriptionMonths: data.subscriptionMonths ?? 1,
+			autoRenew: false
 		});
+		const branchSubscription = await BranchSubscriptionModel.create(subscriptionData);
+
+		// Create branch with branchSubscriptionId
+		const branchData = BranchModel.buildBranchData({
+			...data,
+			tenantId: effectiveTenantId,
+			branchSubscriptionId: branchSubscription.branchSubscriptionId
+		});
+		const branch = await BranchModel.create(branchData as unknown as BranchCreateInput);
 
 		return branch;
 	}

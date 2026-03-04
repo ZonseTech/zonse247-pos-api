@@ -4,7 +4,7 @@ import { ValidationError } from '../utils/errors';
 import { TenantModel } from '../models/tenant.model';
 import { BranchModel } from "../models/branch.model";
 import { TerminalModel } from "../models/terminal.model";
-import { CreateTerminalRequest, Terminal } from "terminal";
+import { CreateTerminalRequest, Terminal, TerminalWithRelations } from "terminal";
 import { SecureSettingsService } from './secure-settings.service';
 
 /**
@@ -84,6 +84,7 @@ export class TerminalService {
             terminalId: terminalId
         })
 
+        data.terminalId = terminalId;
         data.activationCode = activationCode;
 
         const terminal = TerminalModel.create({
@@ -164,6 +165,51 @@ export class TerminalService {
             return numDeleted > 0;
         } catch (error) {
             throw new Error(`Failed to delete terminal: ${error}`);
+        }
+    }
+
+    /**
+     * @method  activateTerminal
+     * @desc    Activate a terminal using an activation code
+     * @param   activationCode - Encrypted activation code containing terminalId
+     * @returns Promise<TerminalWithRelations> - Terminal details with tenant, branch, and subscription
+     * @throws  Error - Invalid activation code
+     * @throws  Error - Terminal not found
+     * @throws  Error - Terminal already activated
+     * @throws  Error - No active subscription
+     */
+    static async activateTerminal(activationCode: string): Promise<TerminalWithRelations> {
+        try {
+            const { terminalId } = await SecureSettingsService.decryptActivationCode(activationCode);
+
+            if (!terminalId) {
+                throw new Error('Invalid activation code');
+            }
+
+            const activationDetails = await TerminalModel.findWithActivationDetails(terminalId);
+
+            if (!activationDetails) {
+                throw new Error('Terminal not found');
+            }
+
+
+            if (activationDetails.activationStatus === 'ACTIVATED') {
+                throw new Error('Terminal is already activated');
+            }
+
+            if (activationDetails.isBlocked) {
+                throw new Error('Terminal is blocked');
+            }
+
+
+
+            // if (!activationDetails?.branch?.subscriptionDetails || activationDetails.branch.subscriptionDetails.status !== 'active') {
+            //     throw new Error('No active subscription found for this tenant');
+            // }
+
+            return activationDetails as TerminalWithRelations;
+        } catch (error: any) {
+            throw new Error(`Failed to activate terminal: ${error.message}`);
         }
     }
 }

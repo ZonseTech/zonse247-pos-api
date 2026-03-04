@@ -3,7 +3,6 @@ import { AuthRequest } from '../lib/express.type';
 import { BranchModel } from '../models/branch.model';
 import { Request, Response, NextFunction } from 'express';
 import { BaseController } from '../controllers/base.controller';
-import { SubscriptionModel } from '../models/subscription.model';
 
 /**
  * Branch Middleware
@@ -174,7 +173,7 @@ export class BranchMiddleware {
 
     /**
      * Validates branch subscription status
-     * Checks if branch has a valid subscription plan linked to an active tenant subscription
+     * Checks if branch has a valid subscription plan linked to an active branch subscription
      */
     validateBranchSubscription = async (
         req: Request & AuthRequest,
@@ -183,9 +182,12 @@ export class BranchMiddleware {
     ): Promise<void> => {
         try {
             const user = req.auth;
-            const branch = user?.activeBranch || await BranchModel.findById(user?.currentBranchId || user?.branchId || '');
+            const branchId = user?.currentBranchId || user?.branchId || '';
+            
+            // Get branch with subscription details
+            const branchWithRelations = await BranchModel.findByIdWithRelations(branchId);
 
-            if (!branch) {
+            if (!branchWithRelations) {
                 BaseController.sendForbiddenWithSubscription(
                     res,
                     'No branch found for subscription check.',
@@ -194,36 +196,36 @@ export class BranchMiddleware {
                 return;
             }
 
-            if (!branch.subscriptionPlanId) {
+            const { branch, branchSubscription } = branchWithRelations;
+
+            if (!branch.branchSubscriptionId || !branchSubscription) {
                 BaseController.sendForbiddenWithSubscription(
                     res,
-                    'No subscription plan assigned to this branch. Please contact support.',
+                    'No subscription assigned to this branch. Please contact support.',
                     'inactive'
                 );
                 return;
             }
 
-            const activeSubscription = await SubscriptionModel.findActiveByTenantId(branch.tenantId);
-
-            if (!activeSubscription) {
+            if (branchSubscription.status !== 'active') {
                 BaseController.sendForbiddenWithSubscription(
                     res,
-                    'No active subscription found. Please subscribe to continue using the service.',
-                    'inactive'
+                    'Your branch subscription is not active. Please subscribe to continue using the service.',
+                    branchSubscription.status || 'inactive'
                 );
                 return;
             }
 
-            if (activeSubscription.endsAt) {
+            if (branchSubscription.endsAt) {
                 const now = new Date();
-                const endsAt = new Date(activeSubscription.endsAt);
+                const endsAt = new Date(branchSubscription.endsAt);
 
                 if (endsAt < now) {
                     BaseController.sendForbiddenWithSubscription(
                         res,
                         'Your subscription has expired. Please renew to continue using the service.',
                         'expired',
-                        { subscriptionEndsAt: activeSubscription.endsAt }
+                        { subscriptionEndsAt: branchSubscription.endsAt }
                     );
                     return;
                 }

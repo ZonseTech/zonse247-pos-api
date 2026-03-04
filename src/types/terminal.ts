@@ -1,3 +1,6 @@
+import { Tenant } from "tenant";
+import { Branch } from "branch";
+import { BranchSubscription } from "subscription";
 import { TerminalActivationStatus } from "../databases/prisma/generated/prisma/enums";
 
 export interface Terminal {
@@ -34,6 +37,15 @@ export interface Terminal {
     registeredAt?: Date;
     createdAt?: Date;
     updatedAt?: Date;
+}
+
+export interface BranchWithSubscription extends Branch {
+    branchSubscription?: BranchSubscription | null;
+}
+
+export interface TerminalWithRelations extends Terminal {
+    tenant: Tenant;
+    branch: BranchWithSubscription;
 }
 
 export interface CreateTerminalRequest {

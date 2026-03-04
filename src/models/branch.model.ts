@@ -1,8 +1,10 @@
 import { v4 as uuidv4 } from 'uuid';
 import prisma from '../databases/prisma/client';
 import { Branch, BranchStatus, CreateBranchRequest } from 'branch';
-import { BranchCreateInput } from 'src/databases/prisma/generated/prisma/models';
+import { BranchCreateInput, BranchUncheckedCreateInput } from 'src/databases/prisma/generated/prisma/models';
 import { BranchMRAApprovalStatus } from '../databases/prisma/generated/prisma/enums';
+import { Tenant } from 'tenant';
+import { BranchSubscription } from 'subscription';
 
 /**
  * @class   BranchModel
@@ -49,12 +51,46 @@ export class BranchModel {
     }
 
     /**
+     * @method  findByIdWithRelations
+     * @desc    Find a single branch by ID with tenant and subscription details
+     * @param   branchId - Unique branch identifier
+     * @returns Promise<object | null> - Branch with relations or null if not found
+     */
+    static async findByIdWithRelations(branchId: string): Promise<{
+        branch: Branch;
+        tenant: Tenant;
+        branchSubscription: BranchSubscription;
+    } | null> {
+        const branch = await prisma.branch.findUnique({
+            where: { branchId },
+            include: {
+                tenant: true,
+                branchSubscription: {
+                    include: {
+                        subscriptionPlan: true
+                    }
+                }
+            }
+        });
+
+        if (!branch) {
+            return null;
+        }
+
+        return {
+            branch: branch as unknown as Branch,
+            tenant: branch.tenant,
+            branchSubscription: branch.branchSubscription || null
+        };
+    }
+
+    /**
      * @method  create
      * @desc    Create a new branch record with auto-generated branchId and timestamps
      * @param   branchData - Branch creation data
      * @returns Promise<Branch> - Created branch
      */
-    static async create(branchData: BranchCreateInput) {
+    static async create(branchData: BranchCreateInput | BranchUncheckedCreateInput) {
         return await prisma.branch.create({
             data: {
                 ...branchData,
@@ -131,6 +167,7 @@ export class BranchModel {
             isActive: data.isActive !== undefined ? data.isActive : true,
             status: (data.status as BranchStatus) || 'active',
             mraApprovalStatus: data.mraApprovalStatus || BranchMRAApprovalStatus.PENDING,
+            branchSubscriptionId: data.branchSubscriptionId || null,
             synced: data.synced || 0,
             createdAt: now,
             updatedAt: now,

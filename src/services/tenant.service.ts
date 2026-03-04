@@ -2,7 +2,6 @@ import { Tenant, TenantFormValues } from "tenant";
 import { BranchModel } from "../models/branch.model";
 import { TenantModel } from "../models/tenant.model";
 import { TerminalModel } from "../models/terminal.model";
-import { SubscriptionModel } from "../models/subscription.model";
 import { TenantCreateInput } from "../databases/prisma/generated/prisma/models";
 import { ValidationError } from '../utils/errors';
 
@@ -139,12 +138,11 @@ export class TenantService {
             throw new Error('Tenant not found');
         }
 
-        const subscriptions = await SubscriptionModel.findByTenantId(tenantId);
         const branches = await BranchModel.findByTenantId(tenantId);
         const terminals = await TerminalModel.findByTenantId(tenantId);
 
-        if (subscriptions.length > 0 || branches.length > 0 || terminals.length > 0) {
-            throw new Error('Cannot delete tenant with existing subscriptions, branches, or terminals');
+        if (branches.length > 0 || terminals.length > 0) {
+            throw new Error('Cannot delete tenant with existing branches or terminals');
         }
 
         const isDeleted = await TenantModel.delete(tenantId);

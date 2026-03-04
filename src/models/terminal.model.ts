@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import prisma from '../databases/prisma/client';
-import type { CreateTerminalRequest, Terminal, TerminalQueryParams } from 'terminal';
+import type { CreateTerminalRequest, Terminal, TerminalQueryParams, TerminalWithRelations } from 'terminal';
 
 /**
  * @class   TerminalModel
@@ -102,6 +102,41 @@ export class TerminalModel {
             }) as unknown as Terminal[];
         } catch (error) {
             throw new Error(`Error finding terminals by branch ID: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+    }
+
+    /**
+     * @method  findWithActivationDetails
+     * @desc    Find a terminal by ID with tenant, branch, and subscription details for activation
+     * @param   terminalId - Unique terminal identifier
+     * @returns Promise<object | null> - Terminal with relations or null if not found
+     * @throws  Error - Error finding terminal with activation details
+     */
+    static async findWithActivationDetails(terminalId: string): Promise<TerminalWithRelations | null> {
+        try {
+            const terminal = await prisma.terminal.findUnique({
+                where: { terminalId },
+                include: {
+                    tenant: true,
+                    branch: {
+                        include: {
+                            branchSubscription: {
+                                include: {
+                                    subscriptionPlan: true
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+
+            if (!terminal) {
+                return null;
+            }
+
+            return terminal as unknown as TerminalWithRelations;
+        } catch (error) {
+            throw new Error(`Error finding terminal with activation details: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
     }
 

@@ -337,7 +337,33 @@ export class SecureSettingsService {
             await this.initialize();
         }
 
-        return this.encryptTenantId(terminalId);
+        const { encrypted, iv } = this.encrypt(terminalId);
+
+        const encryptedString = `${encrypted}:${iv}`;
+
+        return encryptedString;
+    }
+
+    /**
+     * Decrypt an activation code to retrieve the terminal ID
+     * @param activationCode - The encrypted activation code
+     * @returns Object containing the decrypted terminalId
+     * @throws Error - Invalid activation code format
+     */
+    static async decryptActivationCode(activationCode: string): Promise<{ terminalId: string }> {
+        if (!this.initialized) {
+            await this.initialize();
+        }
+
+        const [encrypted, iv] = activationCode.split(':');
+
+        if (!encrypted || !iv) {
+            throw new Error('Invalid activation code format');
+        }
+
+        const terminalId = this.decrypt(encrypted, iv);
+
+        return { terminalId };
     }
 
     /**
