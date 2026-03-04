@@ -1,4 +1,7 @@
+import { Response } from 'express';
 import { BaseError } from './base.error';
+import { BaseController } from '../../controllers/base.controller';
+import { ConflictError, NotFoundError, DatabaseError, BusinessLogicError } from '../db-error-handler.util';
 
 /**
  * Custom error class for validation errors
@@ -57,5 +60,39 @@ export class ValidationError extends BaseError {
             }
         }
         return null;
+    }
+
+    static handleError(res: Response, error: unknown): void {
+        if (error instanceof ValidationError) {
+            const errorDetails = JSON.stringify(error.errors);
+            BaseController.sendResponse(res, 400, false, error.message, undefined, errorDetails);
+            return;
+        }
+
+        if (error instanceof ConflictError) {
+            BaseController.sendResponse(res, 409, false, error.message, undefined, error.field);
+            return;
+        }
+
+        if (error instanceof NotFoundError) {
+            BaseController.sendResponse(res, 404, false, error.message);
+            return;
+        }
+
+        if (error instanceof BusinessLogicError) {
+            BaseController.sendResponse(res, 400, false, error.message);
+            return;
+        }
+
+        if (error instanceof DatabaseError) {
+            console.error('Database error:', error);
+            BaseController.sendResponse(res, 500, false, error.message);
+            return;
+        }
+
+        // Handle unknown errors
+        const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred';
+        console.error('Unexpected error in UserController:', error);
+        BaseController.sendResponse(res, 500, false, errorMessage);
     }
 }
