@@ -43,6 +43,7 @@ export interface CreateTerminalRequest {
     terminalCode: string;
     terminalLabel: string;
     terminalPosition?: number;
+    activationCode: string;
     deviceId?: string;
     osName?: string;
     osVersion?: string;

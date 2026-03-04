@@ -3,7 +3,7 @@ import type { Role } from 'role-permission';
 import { ValidationParams } from 'on-boarding';
 import prisma from '../databases/prisma/client';
 import { TenantSubscription } from 'subscription';
-import { TenantSubscriptionCreateInput } from '../databases/prisma/generated/prisma/models';
+import { TenantSubscriptionUncheckedCreateInput } from '../databases/prisma/generated/prisma/models';
 import { EnumTenantSubscriptionStatusNullableFilter } from '../databases/prisma/generated/prisma/commonInputTypes';
 
 export class SubscriptionModel {
@@ -94,7 +94,7 @@ export class SubscriptionModel {
 		}
 	}
 
-	static async create(subscriptionData: TenantSubscriptionCreateInput): Promise<TenantSubscription> {
+	static async create(subscriptionData: TenantSubscriptionUncheckedCreateInput): Promise<TenantSubscription> {
 		try {
 			return await prisma.tenantSubscription.create({
 				data: subscriptionData

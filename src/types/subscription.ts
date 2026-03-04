@@ -51,6 +51,7 @@ export interface CreateSubscriptionRequest {
 
 export interface SubscriptionPlan {
 	planId: string;
+	subscriptionPlanId?: string;
 	name: string;
 	displayName: string;
 	description: string;
@@ -67,7 +68,13 @@ export interface SubscriptionPlan {
 	updatedAt?: string;
 }
 
-export type TenantInfo = Pick<Tenant, 'tenantId' | 'businessName' | 'email' | 'phoneNumber' | 'address' | 'subscriptionPlan'>
+export type TenantInfo = Pick<Tenant, 'tenantId' | 'businessName' | 'email' | 'phoneNumber' | 'address'>
+
+export interface BranchSubscriptionInfo {
+	branchId: string;
+	branchName: string;
+	subscriptionPlanId?: string | null;
+}
 
 export interface PaymentInfo {
 	referenceNumber: string;

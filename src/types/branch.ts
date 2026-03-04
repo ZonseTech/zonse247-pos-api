@@ -34,6 +34,7 @@ export interface Branch {
     synced: number;
     mraApprovalStatus?: BranchMRAApprovalStatus;
     mraApprovalDate?: Date | null;
+    subscriptionPlanId?: string | null;
     status?: BranchStatus;
     createdAt?: Date;
     updatedAt?: Date;
@@ -68,6 +69,8 @@ export interface CreateBranchRequest {
     logoUrl?: string;
     isVirtualWarehouse?: boolean;
     isActive?: boolean;
+    subscriptionPlanId: string;
+    subscriptionMonths?: number;
     status?: string;
     mraApprovalStatus?: string;
     synced?: number;
