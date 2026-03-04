@@ -718,6 +718,7 @@ model Branch {
   synced             Int?                     @default(0) @map("synced")
   mraApprovalStatus  BranchMRAApprovalStatus? @default(PENDING) @map("mra_approval_status")
   mraApprovalDate    DateTime?                @map("mra_approval_date")
+  subscriptionPlanId String?                  @map("subscription_plan_id")
   status             BranchStatus?            @default(active) @map("status")
   createdAt          DateTime?                @default(now()) @map("created_at")
   updatedAt          DateTime?                @default(now()) @map("updated_at")
@@ -726,6 +727,7 @@ model Branch {
   branchSetting      BranchSetting?
   tenant             Tenant                   @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade, onUpdate: NoAction)
   districtRef        District?                @relation(fields: [districtId], references: [districtId], onUpdate: NoAction)
+  subscriptionPlan   SubscriptionPlan?        @relation(fields: [subscriptionPlanId], references: [subscriptionPlanId], onUpdate: NoAction)
   categories         Category[]
   customers          Customer[]
   serviceProviders   ServiceProvider[]
@@ -750,11 +752,13 @@ model Branch {
   
   // ADDED: Relation to old inventory for backward compatibility
   inventoryOld       InventoryOld[]
+  tenantSubscriptions TenantSubscription[]
 
   @@unique([tenantId, branchCode], name: "unique_tenant_branch_code")
   @@index([branchCode])
   @@index([tenantId, isActive])
   @@index([tenantId])
+  @@index([subscriptionPlanId])
   @@map("branches")
 }
 
@@ -1056,6 +1060,7 @@ model SubscriptionPlan {
   createdAt           DateTime?            @default(now()) @map("created_at")
   updatedAt           DateTime?            @default(now()) @map("updated_at")
   tenantSubscriptions TenantSubscription[]
+  branches            Branch[]
 
   @@map("subscription_plans")
 }
@@ -1063,6 +1068,7 @@ model SubscriptionPlan {
 model TenantSubscription {
   tenantSubscriptionId String                    @id @default(uuid()) @map("tenant_subscription_id")
   tenantId             String                    @map("tenant_id")
+  branchId             String?                   @map("branch_id")
   subscriptionPlanId   String                    @map("subscription_plan_id")
   status               TenantSubscriptionStatus? @default(active) @map("status")
   startsAt             DateTime                  @map("starts_at")
@@ -1076,10 +1082,12 @@ model TenantSubscription {
   createdAt            DateTime?                 @default(now()) @map("created_at")
   updatedAt            DateTime?                 @default(now()) @map("updated_at")
   tenant               Tenant                    @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade, onUpdate: NoAction)
+  branch               Branch?                   @relation(fields: [branchId], references: [branchId], onDelete: Cascade, onUpdate: NoAction)
   subscriptionPlan     SubscriptionPlan          @relation(fields: [subscriptionPlanId], references: [subscriptionPlanId], onUpdate: NoAction)
 
   @@index([subscriptionPlanId])
   @@index([tenantId])
+  @@index([branchId])
   @@map("tenant_subscriptions")
 }
 
@@ -1097,13 +1105,10 @@ model Tenant {
   isVatRegistered     Boolean?                      @default(false) @map("is_vat_registered")
   taxOfficeCode       String?                       @map("tax_office_code")
   msonkhoOnlineStatus TenantMsonkhoOnlineStatus?    @default(PENDING) @map("msonkho_online_status")
-  subscriptionPlan    String?                       @map("subscription_plan")
-  subscriptionStatus  TenantSubscriptionPlanStatus? @default(TRIAL) @map("subscription_status")
   verificationToken   String                        @map("verification_token")
   ownerName           String                        @map("owner_name")
   address             String?                       @map("address")
   country             String?                       @map("country")
-  trialEndsAt         DateTime?                     @map("trial_ends_at")
   status              TenantStatus?                 @default(pending) @map("status")
   registeredAt        DateTime?                     @default(now()) @map("registered_at")
   activatedAt         DateTime?                     @map("activated_at")
@@ -1132,7 +1137,6 @@ model Tenant {
   mraSubmissions     MraSubmission[] // Central server only
 
   @@index([email])
-  @@index([subscriptionStatus])
   @@index([tenantCode])
   @@index([tin])
   @@map("tenants")

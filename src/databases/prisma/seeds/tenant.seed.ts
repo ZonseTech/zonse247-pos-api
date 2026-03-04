@@ -27,9 +27,7 @@ export async function seedTenant(prisma: PrismaClient) {
             address: '123 Business Street',
             country: 'MW',
             status: 'active',
-            subscriptionStatus: 'TRIAL',
             verificationToken: 'invalid',
-            trialEndsAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
         },
     });
 
