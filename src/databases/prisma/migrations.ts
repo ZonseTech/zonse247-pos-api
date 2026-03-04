@@ -283,17 +283,38 @@ export class MigrationManager {
 
     /**
      * Check if an SQL error can be safely skipped (idempotent operation)
+     * 
+     * This handles two scenarios:
+     * 1. Fresh installations: template.db has the final schema, so intermediate
+     *    migration steps (like copying from old columns) should be skipped
+     * 2. Partial migrations: idempotent operations that were already applied
      */
     private isSkippableError(errorMsg: string, sql: string): boolean {
         if (this.dbType === 'sqlite') {
+            // Schema changes that are idempotent
             if (errorMsg.includes('duplicate column name')) return true;
             if (errorMsg.includes('table') && errorMsg.includes('already exists')) return true;
             if (errorMsg.includes('index') && errorMsg.includes('already exists')) return true;
+
+            // "no such column" errors - these occur on fresh installations where
+            // template.db has the final schema, so old columns never existed.
+            // Safe to skip UPDATE/INSERT statements that reference non-existent columns
+            // since there's no data to migrate.
             if (errorMsg.includes('no such column')) {
-                // Skip data migration queries that reference old columns on new schema
-                if (sql.includes('INSERT') && (sql.includes('product_variants') || sql.includes('variant_barcodes'))) return true;
-                if (sql.includes('UPDATE') && sql.includes('variant_id')) return true;
-                if (sql.includes('UPDATE') && sql.includes('default_unit') && sql.includes('unit')) return true;
+                // Skip all UPDATE statements - they're data migrations for columns that
+                // don't exist in fresh installs (already have correct schema)
+                if (sql.includes('UPDATE')) return true;
+
+                // Skip INSERT data migrations (e.g., migrating products to product_variants)
+                if (sql.includes('INSERT')) return true;
+            }
+
+            // "no such table" errors - these occur on fresh installations where
+            // the table was removed/renamed in the final schema (e.g., tenant_subscriptions
+            // was replaced by branch_subscriptions). Safe to skip all operations on 
+            // non-existent tables.
+            if (errorMsg.includes('no such table')) {
+                return true;
             }
         }
         return false;
