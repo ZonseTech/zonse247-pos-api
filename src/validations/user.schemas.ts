@@ -46,7 +46,6 @@ export const userValidationSchemas = {
 			'date.min': 'Please provide a valid date of birth',
 		}),
 
-		// Tenant and branch IDs
 		tenantId: Joi.string().optional().allow('-1', '').messages({
 			'string.base': 'Tenant ID must be a string',
 		}),
@@ -54,12 +53,10 @@ export const userValidationSchemas = {
 			'string.base': 'Branch ID must be a string',
 		}),
 
-		// Role - optional when allowAppAccess is false (will default to 'viewer')
 		roleId: Joi.string().optional().messages({
 			'string.base': 'Role ID must be a string',
 		}),
 
-		// Staff-related fields
 		trackAttendance: Joi.boolean().optional().messages({
 			'boolean.base': 'Track attendance must be a boolean',
 		}),
@@ -168,8 +165,7 @@ export const userValidationSchemas = {
 	}),
 
 	updateUser: Joi.object({
-		username: Joi.string().alphanum().min(3).max(30).optional().messages({
-			'string.alphanum': 'Username must only contain alphanumeric characters',
+		username: Joi.string().min(3).max(30).optional().messages({
 			'string.min': 'Username must be at least 3 characters long',
 			'string.max': 'Username must not exceed 30 characters',
 		}),
@@ -191,13 +187,10 @@ export const userValidationSchemas = {
 		fullname: Joi.string()
 			.min(2)
 			.max(50)
-			.pattern(/^[a-zA-Z\s]+$/)
 			.optional()
 			.messages({
 				'string.min': 'First name must be at least 2 characters long',
 				'string.max': 'First name must not exceed 50 characters',
-				'string.pattern.base':
-					'First name must only contain letters and spaces',
 			}),
 
 		phone: Joi.string()
@@ -265,12 +258,5 @@ export const userValidationSchemas = {
 			'any.required': 'Role ID is required'
 		})
 	}),
-
-	branchUuid: Joi.object({
-		branchUuid: Joi.string().required().messages({
-			'string.empty': 'Branch ID is required',
-			'any.required': 'Branch ID is required'
-		})
-	})
 
 };
