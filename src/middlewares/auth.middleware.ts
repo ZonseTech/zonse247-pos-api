@@ -92,44 +92,6 @@ export class AuthMiddleware {
 		});
 	};
 
-	verifyPasswordStrength = (
-		req: Request,
-		res: Response,
-		next: NextFunction
-	): void => {
-		const { password } = req.body;
-		if (!password) {
-			next();
-			return;
-		}
-		const minLength = 8;
-		const hasUpperCase = /[A-Z]/.test(password);
-		const hasLowerCase = /[a-z]/.test(password);
-		const hasNumbers = /\d/.test(password);
-		const errors: string[] = [];
-		if (password.length < minLength) {
-			errors.push(`Password must be at least ${minLength} characters long`);
-		}
-		if (!hasUpperCase) {
-			errors.push('Password must contain at least one uppercase letter');
-		}
-		if (!hasLowerCase) {
-			errors.push('Password must contain at least one lowercase letter');
-		}
-		if (!hasNumbers) {
-			errors.push('Password must contain at least one number');
-		}
-		if (errors.length > 0) {
-			res.status(400).json({
-				error: 'Password Validation Error',
-				message: 'Password does not meet security requirements',
-				details: errors,
-			});
-			return;
-		}
-		next();
-	};
-
 	extractUserFromToken = (req: Request): any | null => {
 		const token =
 			req.headers.authorization?.replace('Bearer ', '') ||

@@ -231,7 +231,7 @@ export class AuthService {
                 ignoreExpiration: true,
             }) as any;
 
-            const user = await UserModel.findByUuid(decoded.userId);
+            const user = await UserModel.findById(decoded.userId);
             if (!user || user.status !== 'active') {
                 throw new Error('User not found or inactive');
             }
