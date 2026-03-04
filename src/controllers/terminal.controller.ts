@@ -1,15 +1,52 @@
-import { Request, Response } from "express";
-import { BaseController } from "./base.controller";
-import { TerminalService } from "../services/terminal.service";
 import { ApiResponse } from "network";
-import { CreateTerminalRequest, Terminal } from "terminal";
+import { Request, Response } from "express";
 import { AuthRequest } from "../lib/express.type";
+import { BaseController } from "./base.controller";
+import { CreateTerminalRequest, Terminal } from "terminal";
+import { TerminalService } from "../services/terminal.service";
 
+/**
+ * @class   TerminalController
+ * @desc    Handles all terminal-related HTTP requests
+ * @extends BaseController
+ */
 export class TerminalController extends BaseController {
+    /**
+     * @method  getAllTerminals
+     * @desc    Retrieve all terminals for the authenticated tenant/branch
+     * @param   req - Express request object with auth context and query parameters
+     * @param   res - Express response object
+     * @returns Promise<void> - JSON response with terminals array
+     * @throws  500 - Internal server error
+     */
+    static async getAllTerminals(req: Request & AuthRequest, res: Response): Promise<void> {
+        try {
+            const terminals = await TerminalService.getAllTerminals(req.query, {
+                tenantId: req.auth.tenantId,
+                branchId: req.auth.branchId,
+            });
+            BaseController.sendResponse(res, 200, true, 'Terminals retrieved successfully', terminals);
+        } catch (error: any) {
+            console.error('Error retrieving terminals:', error);
+            BaseController.sendResponse(res, 500, false, error.message, undefined, error.message);
+        }
+    }
 
+    /**
+     * @method  createTerminal
+     * @desc    Create a new terminal with auto-generated activation code
+     * @param   req - Express request with CreateTerminalRequest body
+     * @param   res - Express response object
+     * @returns Promise<void> - JSON response with created terminal
+     * @throws  400 - Missing required field (terminalLabel, terminalCode)
+     * @throws  403 - Tenant does not own the branch
+     * @throws  404 - Tenant or Branch not found
+     * @throws  409 - Terminal already exists
+     * @throws  500 - Internal server error
+     */
     static async createTerminal(req: Request<ApiResponse<Terminal>, CreateTerminalRequest> & AuthRequest, res: Response): Promise<void> {
         try {
-            const newTerminal = await TerminalService.createTerminal(req.body, req.auth.tenantId, req.auth.branchId, req.auth.userId);
+            const newTerminal = await TerminalService.createTerminal(req.body);
             BaseController.sendResponse(res, 201, true, 'Terminal created successfully', newTerminal);
         } catch (error: any) {
             console.error('Error creating terminal:', error);
@@ -27,19 +64,18 @@ export class TerminalController extends BaseController {
         }
     }
 
-    static async getAllTerminals(req: Request & AuthRequest, res: Response): Promise<void> {
+    /**
+     * @method  getTerminal
+     * @desc    Retrieve a single terminal by ID
+     * @param   req - Express request with terminalId param
+     * @param   res - Express response object
+     * @returns Promise<void> - JSON response with terminal data
+     * @throws  404 - Terminal not found
+     * @throws  500 - Internal server error
+     */
+    static async getTerminal(req: Request<{ terminalId: string }> & AuthRequest, res: Response): Promise<void> {
         try {
-            const terminals = await TerminalService.getAllTerminals(req.query, req.auth.tenantId, req.auth.branchId);
-            BaseController.sendResponse(res, 200, true, 'Terminals retrieved successfully', terminals);
-        } catch (error: any) {
-            console.error('Error retrieving terminals:', error);
-            BaseController.sendResponse(res, 500, false, error.message, undefined, error.message);
-        }
-    }
-
-    static async getTerminal(req: Request<{ id: string }> & AuthRequest, res: Response): Promise<void> {
-        try {
-            const terminal = await TerminalService.getTerminalById(req.params.id, req.auth.tenantId, req.auth.branchId);
+            const terminal = await TerminalService.getTerminalById(req.params.terminalId);
             if (!terminal) {
                 BaseController.sendResponse(res, 404, false, 'Terminal not found');
                 return;
@@ -51,9 +87,20 @@ export class TerminalController extends BaseController {
         }
     }
 
-    static async updateTerminal(req: Request<{ id: string }, ApiResponse<Terminal>, Partial<Terminal>> & AuthRequest, res: Response): Promise<void> {
+    /**
+     * @method  updateTerminal
+     * @desc    Update an existing terminal by ID
+     * @param   req - Express request with terminalId param and partial Terminal body
+     * @param   res - Express response object
+     * @returns Promise<void> - JSON response with updated terminal data
+     * @throws  403 - Tenant does not own the terminal
+     * @throws  404 - Terminal not found
+     * @throws  409 - Terminal code already exists
+     * @throws  500 - Internal server error
+     */
+    static async updateTerminal(req: Request<{ terminalId: string }, ApiResponse<Terminal>, Partial<Terminal>> & AuthRequest, res: Response): Promise<void> {
         try {
-            const updatedTerminal = await TerminalService.updateTerminal(req.params.id, req.body, req.auth.tenantId, req.auth.branchId);
+            const updatedTerminal = await TerminalService.updateTerminal(req.params.terminalId, req.body);
             if (!updatedTerminal) {
                 BaseController.sendResponse(res, 404, false, 'Terminal not found');
                 return;
@@ -73,6 +120,15 @@ export class TerminalController extends BaseController {
         }
     }
 
+    /**
+     * @method  deleteTerminal
+     * @desc    Delete a terminal by ID
+     * @param   req - Express request with terminalId param and auth context
+     * @param   res - Express response object
+     * @returns Promise<void> - JSON response with deletion status
+     * @throws  404 - Terminal not found
+     * @throws  500 - Internal server error
+     */
     static async deleteTerminal(req: Request<{ id: string }> & AuthRequest, res: Response): Promise<void> {
         try {
             const deleted = await TerminalService.deleteTerminal(req.params.id, req.auth.tenantId, req.auth.branchId);
@@ -83,44 +139,6 @@ export class TerminalController extends BaseController {
             BaseController.sendResponse(res, 200, true, 'Terminal deleted successfully', { status: true });
         } catch (error: any) {
             console.error('Error deleting terminal:', error);
-            BaseController.sendResponse(res, 500, false, error.message, undefined, error.message);
-        }
-    }
-
-    static async updateTerminalStatus(req: Request<{ id: string }, ApiResponse<Terminal>, { status: 'PENDING' | 'ACTIVATED' | 'DEACTIVATED' | 'SUSPENDED' | 'BLOCKED' }> & AuthRequest, res: Response): Promise<void> {
-        try {
-            const updatedTerminal = await TerminalService.updateTerminalStatus(req.params.id, req.body.status, req.auth.tenantId, req.auth.branchId);
-            if (!updatedTerminal) {
-                BaseController.sendResponse(res, 404, false, 'Terminal not found');
-                return;
-            }
-            BaseController.sendResponse(res, 200, true, 'Terminal status updated successfully', updatedTerminal);
-        } catch (error: any) {
-            console.error('Error updating terminal status:', error);
-            BaseController.sendResponse(res, 500, false, error.message, undefined, error.message);
-        }
-    }
-
-    static async syncTerminal(req: Request<{ id: string }> & AuthRequest, res: Response): Promise<void> {
-        try {
-            const syncResult = await TerminalService.syncTerminal(req.params.id, req.auth.tenantId, req.auth.branchId);
-            BaseController.sendResponse(res, 200, true, 'Terminal synced successfully', syncResult);
-        } catch (error: any) {
-            console.error('Error syncing terminal:', error);
-            let statusCode = 500;
-            if (error.message.includes('not found')) {
-                statusCode = 404;
-            }
-            BaseController.sendResponse(res, statusCode, false, error.message, undefined, error.message);
-        }
-    }
-
-    static async getTerminalsByBranch(req: Request<{ branchId: string }> & AuthRequest, res: Response): Promise<void> {
-        try {
-            const terminals = await TerminalService.getTerminalsByBranchId(req.params.branchId);
-            BaseController.sendResponse(res, 200, true, 'Terminals retrieved successfully', terminals);
-        } catch (error: any) {
-            console.error('Error retrieving terminals:', error);
             BaseController.sendResponse(res, 500, false, error.message, undefined, error.message);
         }
     }

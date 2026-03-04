@@ -1,20 +1,31 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
-import { TenantService } from "./tenant.service";
+import { v4 as uuidv4 } from 'uuid';
 import { BranchModel } from "../models/branch.model";
 import { TenantModel } from "../models/tenant.model";
 import { SubscriptionModel } from "../models/subscription.model";
-import { Branch, BranchStatus, CreateBranchRequest } from "branch";
-import { BaseService } from "./base.service";
+import { Branch, CreateBranchRequest } from "branch";
 import { BranchCreateInput } from "../databases/prisma/generated/prisma/models";
 
+/**
+ * @class   BranchService
+ * @desc    Business logic layer for branch management operations
+ */
 export class BranchService {
 
+	/**
+	 * @method  getAllBranches
+	 * @desc    Retrieve all branches with optional query filters
+	 * @param   query - Optional query parameters (status, branchCode, city, state, district, branchName, isActive, isVirtualWarehouse, isAdminMode)
+	 * @param   tenantId - Tenant ID for scope filtering (bypassed if isAdminMode is true)
+	 * @returns Promise<Branch[]> - Array of branches
+	 * @throws  Error - Failed to retrieve branches
+	 */
 	static async getAllBranches(query: any = {}, tenantId: string): Promise<Branch[]> {
 		try {
 			const conditions: any = {};
 
-			// Always filter by tenant
-			conditions.tenantId = tenantId;
+			if (!query.isAdminMode) {
+				conditions.tenantId = tenantId;
+			}
 
 			if (query.status) {
 				conditions.status = query.status;
@@ -54,52 +65,15 @@ export class BranchService {
 		}
 	}
 
-	static async getBranchesByTenantId(tenantId: string): Promise<Branch[]> {
-		if (!tenantId) {
-			throw new Error('Tenant ID is required');
-		}
-
-		try {
-			const response = await BaseService.get<Array<Branch>>(`/on-boarding/live/tenant/${tenantId}/branches`);
-
-			if (!response.success) {
-				throw new Error(response.message || 'Failed to fetch branches. External application down');
-			}
-
-			const branches = response.data;
-
-			if (branches && branches.length > 0) {
-				for (const branch of branches) {
-					const branchExists = await BranchModel.exists(branch.branchId, tenantId);
-					if (!branchExists) {
-						await BranchModel.insert(branch);
-					}
-				}
-			}
-
-			return branches;
-		} catch (error: any) {
-			console.error('External API error fetching branches:', error.message);
-			
-			if (error.message?.includes('timeout') || 
-				error.message?.includes('ECONNREFUSED') || 
-				error.message?.includes('No response')) {
-				throw new Error('Unable to connect to live server. Please check your internet connection or try again later.');
-			}
-			
-			throw error;
-		}
-	}
-
-	static async getAccountBranchesByTenantId(tenantId: string): Promise<Branch[]> {
-		if (!tenantId) {
-			throw new Error('Tenant ID is required');
-		}
-
-		return await BranchModel.findByTenantId(tenantId);
-	}
-
-	static async getBranchById(branchId: string, tenantId?: string): Promise<Branch> {
+	/**
+	 * @method  getBranchById
+	 * @desc    Retrieve a single branch by ID
+	 * @param   branchId - Unique branch identifier
+	 * @returns Promise<Branch> - Branch data
+	 * @throws  Error - Branch ID is required
+	 * @throws  Error - Branch not found
+	 */
+	static async getBranchById(branchId: string): Promise<Branch> {
 		if (!branchId) {
 			throw new Error('Branch ID is required');
 		}
@@ -112,51 +86,62 @@ export class BranchService {
 		return branch;
 	}
 
-	static async createBranch(data: CreateBranchRequest, tenantId: string, _userId: string): Promise<Branch> {
-		const validationError = TenantService.validateRequired(data, ['branchName']);
-		if (validationError) {
-			throw new Error(validationError);
-		}
-
-		// Use tenantId from auth context
-		const effectiveTenantId = tenantId;
+	/**
+	 * @method  createBranch
+	 * @desc    Create a new branch with auto-generated branch code and associated subscription
+	 * @param   data - Branch creation data (tenantId, branchName, subscriptionPlanId required)
+	 * @param   _userId - User ID performing the action (for audit)
+	 * @returns Promise<Branch> - The created branch
+	 * @throws  Error - Tenant not found
+	 */
+	static async createBranch(data: CreateBranchRequest, _userId: string): Promise<Branch> {
+		const effectiveTenantId = data.tenantId;
 
 		const tenant = await TenantModel.findById(effectiveTenantId);
 		if (!tenant) {
 			throw new Error('Tenant not found');
 		}
 
-		// Auto-generate branch code if not provided
-		if (!data.branchCode) {
-			const existingBranches = await BranchModel.findByTenantId(effectiveTenantId);
-			const branchNumber = existingBranches.length + 1;
-			data.branchCode = `BR${String(branchNumber).padStart(3, '0')}`;
-		}
-
-		// Check if branch code already exists
-		const existingBranches = await BranchModel.findByTenantIdAndBranchCode(effectiveTenantId, data.branchCode);
-		if (existingBranches.length > 0) {
-			throw new Error('Branch code already exists for this tenant');
-		}
-
-		// Check subscription limits
-		const subscription = await SubscriptionModel.findActiveByTenantId(effectiveTenantId);
-		if (subscription) {
-			const plan = await SubscriptionModel.findById(subscription.subscriptionPlanId);
-
-			if (plan) {
-				const existingBranchesCount = await BranchModel.findByTenantId(effectiveTenantId);
-				if (existingBranchesCount.length >= plan.maxBranches) {
-					throw new Error(`Maximum number of branches (${plan.maxBranches}) reached for current subscription plan`);
-				}
-			}
-		}
+		const existingBranches = await BranchModel.findByTenantId(effectiveTenantId);
+		const branchNumber = existingBranches.length + 1;
+		data.branchCode = `BR${String(branchNumber).padStart(3, '0')}`;
 
 		const branchData = BranchModel.buildBranchData({ ...data, tenantId: effectiveTenantId });
-		return BranchModel.create(branchData as unknown as BranchCreateInput);
+		const branch = await BranchModel.create(branchData as unknown as BranchCreateInput);
+
+		const subscriptionMonths = data.subscriptionMonths ?? 1;
+		const subscriptionStartsAt = new Date();
+		const subscriptionEndsAt = new Date();
+		subscriptionEndsAt.setMonth(subscriptionEndsAt.getMonth() + subscriptionMonths);
+
+		await SubscriptionModel.create({
+			tenantSubscriptionId: uuidv4(),
+			tenantId: tenant.tenantId,
+			branchId: branch.branchId,
+			subscriptionPlanId: data.subscriptionPlanId,
+			status: 'active',
+			startsAt: subscriptionStartsAt,
+			endsAt: subscriptionEndsAt,
+			autoRenew: false,
+			maxBranches: 1,
+			synced: 0,
+		});
+
+		return branch;
 	}
 
-	static async updateBranch(branchId: string, data: Partial<Branch>, tenantId: string): Promise<Branch> {
+	/**
+	 * @method  updateBranch
+	 * @desc    Update an existing branch's data (branchId, tenantId, createdAt are protected)
+	 * @param   branchId - Unique branch identifier
+	 * @param   data - Partial branch data to update
+	 * @returns Promise<Branch> - Updated branch data
+	 * @throws  Error - Branch ID is required
+	 * @throws  Error - Branch not found
+	 * @throws  Error - Branch code already exists for this tenant
+	 * @throws  Error - Failed to update branch
+	 */
+	static async updateBranch(branchId: string, data: Partial<Branch>): Promise<Branch> {
 		if (!branchId) {
 			throw new Error('Branch ID is required');
 		}
@@ -166,7 +151,7 @@ export class BranchService {
 			throw new Error('Branch not found');
 		}
 
-		const protectedFields = ['branchId', 'tenantId', 'createdAt', 'id'];
+		const protectedFields = ['branchId', 'tenantId', 'createdAt'];
 		const updateData = { ...data };
 
 		protectedFields.forEach(field => {
@@ -174,13 +159,6 @@ export class BranchService {
 				delete updateData[field as keyof typeof updateData];
 			}
 		});
-
-		if (updateData.branchCode && updateData.branchCode !== existingBranch.branchCode) {
-			const existingBranches = await BranchModel.findByTenantIdAndBranchCode(existingBranch.tenantId, updateData.branchCode);
-			if (existingBranches.length > 0) {
-				throw new Error('Branch code already exists for this tenant');
-			}
-		}
 
 		try {
 			const updatedBranch = await BranchModel.update(branchId, updateData);
@@ -190,7 +168,16 @@ export class BranchService {
 		}
 	}
 
-	static async deleteBranch(branchId: string, tenantId: string): Promise<{ status: boolean }> {
+	/**
+	 * @method  deleteBranch
+	 * @desc    Delete a branch by ID
+	 * @param   branchId - Unique branch identifier
+	 * @returns Promise<{ status: boolean }> - Deletion status
+	 * @throws  Error - Branch ID is required
+	 * @throws  Error - Branch not found
+	 * @throws  Error - Failed to delete branch
+	 */
+	static async deleteBranch(branchId: string): Promise<{ status: boolean }> {
 		if (!branchId) {
 			throw new Error('Branch ID is required');
 		}
@@ -201,100 +188,10 @@ export class BranchService {
 		}
 
 		const isDeleted = await BranchModel.delete(branchId);
-		if (isDeleted) {
+		if (!isDeleted) {
 			throw new Error('Failed to delete branch');
 		}
 
 		return { status: true };
-	}
-
-	static async getBranchesByTenant(tenantId: string): Promise<Branch[]> {
-		if (!tenantId) {
-			throw new Error('Tenant ID is required');
-		}
-
-		return await BranchModel.findByTenantId(tenantId);
-	}
-
-	static async getBranchByCode(tenantId: string, branchCode: string): Promise<Branch | null> {
-		if (!tenantId || !branchCode) {
-			throw new Error('Tenant ID and Branch Code are required');
-		}
-
-		const branches = await BranchModel.findByTenantIdAndBranchCode(tenantId, branchCode);
-		return branches.length > 0 ? branches[0] : null;
-	}
-
-	static async updateBranchStatus(branchId: string, status: BranchStatus, tenantId?: string): Promise<Branch> {
-		if (!branchId || !status) {
-			throw new Error('Branch ID and status are required');
-		}
-
-		const validStatuses: BranchStatus[] = ['active', 'inactive', 'suspended'];
-		if (!validStatuses.includes(status)) {
-			throw new Error('Invalid status. Must be one of: active, inactive, suspended');
-		}
-
-		// Get branch first to retrieve tenantId if not provided
-		if (!tenantId) {
-			const branch = await BranchModel.findById(branchId);
-			if (!branch) {
-				throw new Error('Branch not found');
-			}
-			tenantId = branch.tenantId;
-		}
-
-		return await this.updateBranch(branchId, { status }, tenantId);
-	}
-
-	static async toggleBranchActive(branchId: string, isActive: boolean, tenantId?: string): Promise<Branch> {
-		if (!branchId) {
-			throw new Error('Branch ID is required');
-		}
-
-		// Get branch first to retrieve tenantId if not provided
-		if (!tenantId) {
-			const branch = await BranchModel.findById(branchId);
-			if (!branch) {
-				throw new Error('Branch not found');
-			}
-			tenantId = branch.tenantId;
-		}
-
-		return await this.updateBranch(branchId, { isActive }, tenantId);
-	}
-
-	static async createDefault(params: {
-		tenantId: string;
-		branchId: string;
-	} | null): Promise<Branch> {
-		const now = new Date();
-
-		const lastId = await BranchModel.getLastId();
-		const branchCode = `BR${lastId + 1}`;
-
-		const data = {
-			branchName: 'Default Branch',
-			branchCode,
-			addressLine1: '123 Main Street',
-			city: 'Lilongwe',
-			district: 'Lilongwe Urban',
-			phoneNumber: '+265999000111',
-			email: 'branch@example.com',
-			currencySymbol: 'K',
-			currencyCode: 'MKW',
-			taxRate: 0.0,
-			chargeTax: false,
-			status: 'active',
-			isActive: true,
-			isVirtualWarehouse: false,
-			synced: 0,
-			mraApprovalStatus: 'PENDING',
-			createdAt: now,
-			updatedAt: now,
-		};
-
-		const branchData = BranchModel.buildBranchData({ ...data, ...params });
-		return BranchModel.create(branchData as unknown as BranchCreateInput);
 	}
 }

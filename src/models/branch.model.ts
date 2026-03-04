@@ -1,34 +1,45 @@
 import { v4 as uuidv4 } from 'uuid';
 import prisma from '../databases/prisma/client';
-import { Branch, BranchStatus, CreateBranchRequest, MraApprovalStatus } from 'branch';
-import { BranchMRAApprovalStatus } from '../databases/prisma/generated/prisma/enums';
+import { Branch, BranchStatus, CreateBranchRequest } from 'branch';
 import { BranchCreateInput } from 'src/databases/prisma/generated/prisma/models';
+import { BranchMRAApprovalStatus } from '../databases/prisma/generated/prisma/enums';
 
+/**
+ * @class   BranchModel
+ * @desc    Data access layer for branch database operations
+ */
 export class BranchModel {
+    /**
+     * @method  findAll
+     * @desc    Retrieve all branches with optional conditions
+     * @param   conditions - Query conditions for filtering
+     * @returns Promise<Branch[]> - Array of branches
+     */
     static async findAll(conditions = {}): Promise<Branch[]> {
         return await prisma.branch.findMany({
             where: conditions
         });
     }
 
-    static async findByTenantId(tenantId: string): Promise<Branch[]> {
+    /**
+     * @method  findByTenantId
+     * @desc    Find all branches belonging to a tenant
+     * @param   tenantId - Unique tenant identifier
+     * @param   params - Optional additional query parameters (e.g., { isActive: true })
+     * @returns Promise<Branch[]> - Array of branches for the tenant
+     */
+    static async findByTenantId(tenantId: string, params: Record<string, unknown> = {}): Promise<Branch[]> {
         return await prisma.branch.findMany({
-            where: { tenantId }
+            where: { tenantId, ...params }
         });
     }
 
-    static async findByBranchCode(branchCode: string): Promise<Branch | null> {
-        return await prisma.branch.findFirst({
-            where: { branchCode }
-        });
-    }
-
-    static async findByTenantIdAndBranchCode(tenantId: string, branchCode: string): Promise<Branch[]> {
-        return await prisma.branch.findMany({
-            where: { tenantId, branchCode }
-        });
-    }
-
+    /**
+     * @method  findById
+     * @desc    Find a single branch by ID
+     * @param   branchId - Unique branch identifier
+     * @returns Promise<Branch | null> - Branch data or null if not found
+     */
     static async findById(branchId: string): Promise<Branch | null> {
         const branch = await prisma.branch.findUnique({
             where: { branchId }
@@ -37,13 +48,12 @@ export class BranchModel {
         return branch;
     }
 
-    static async exists(branchId: string, tenantId: string): Promise<boolean> {
-        const branch = await prisma.branch.findFirst({
-            where: { branchId, tenantId }
-        });
-        return !!branch;
-    }
-
+    /**
+     * @method  create
+     * @desc    Create a new branch record with auto-generated branchId and timestamps
+     * @param   branchData - Branch creation data
+     * @returns Promise<Branch> - Created branch
+     */
     static async create(branchData: BranchCreateInput) {
         return await prisma.branch.create({
             data: {
@@ -55,20 +65,13 @@ export class BranchModel {
         }) as unknown as Branch;
     }
 
-    // Insert branch (alias for create)
-    static async insert(data: Branch): Promise<Branch> {
-        return await prisma.branch.create({
-            data: {
-                ...data,
-                taxRate: data.taxRate !== null && data.taxRate !== undefined
-                    ? parseFloat(String(data.taxRate))
-                    : null,
-                createdAt: new Date(),
-                updatedAt: new Date()
-            }
-        }) as unknown as Branch;
-    }
-
+    /**
+     * @method  update
+     * @desc    Update an existing branch record
+     * @param   branchId - Unique branch identifier
+     * @param   data - Partial branch data to update
+     * @returns Promise<Branch> - Updated branch
+     */
     static async update(branchId: string, data: Partial<Branch>): Promise<Branch> {
         const updateData = this.buildUpdateData(data);
 
@@ -78,184 +81,24 @@ export class BranchModel {
         }) as unknown as Branch;
     }
 
+    /**
+     * @method  delete
+     * @desc    Delete a branch record
+     * @param   branchId - Unique branch identifier
+     * @returns Promise<Branch> - Deleted branch
+     */
     static async delete(branchId: string): Promise<Branch> {
         return await prisma.branch.delete({
             where: { branchId }
         }) as unknown as Branch;
     }
 
-    static async getLastId(): Promise<number> {
-        const lastBranch = await prisma.branch.findFirst({
-            orderBy: { id: 'desc' },
-            select: { id: true }
-        });
-        return lastBranch?.id || 0;
-    }
-
-    static async count(conditions = {}): Promise<number> {
-        return await prisma.branch.count({
-            where: conditions
-        });
-    }
-
-    static async findByStatus(status: BranchStatus): Promise<Branch[]> {
-        return await prisma.branch.findMany({
-            where: { status }
-        });
-    }
-
-    // Find branches by city
-    static async findByCity(city: string): Promise<Branch[]> {
-        return await prisma.branch.findMany({
-            where: { city }
-        });
-    }
-
-    // Find branches by state
-    static async findByState(state: string): Promise<Branch[]> {
-        return await prisma.branch.findMany({
-            where: { state }
-        });
-    }
-
-    // Find branches by district ID
-    static async findByDistrictId(districtId: string): Promise<Branch[]> {
-        return await prisma.branch.findMany({
-            where: { districtId }
-        });
-    }
-
-    // Find branches by location
-    static async findByLocation(location: string): Promise<Branch[]> {
-        return await prisma.branch.findMany({
-            where: { location }
-        });
-    }
-
-    // Find active branches
-    static async findActiveBranches(): Promise<Branch[]> {
-        return await prisma.branch.findMany({
-            where: { isActive: true }
-        });
-    }
-
-    // Find active branches by tenant ID
-    static async findActiveBranchesByTenantId(tenantId: string): Promise<Branch[]> {
-        return await prisma.branch.findMany({
-            where: { tenantId, isActive: true }
-        });
-    }
-
-    // Find branches by status
-    static async findBranchesByStatus(status: BranchStatus): Promise<Branch[]> {
-        return await prisma.branch.findMany({
-            where: { status }
-        });
-    }
-
-    // Find virtual warehouses
-    static async findVirtualWarehouses(tenantId?: string): Promise<Branch[]> {
-        const where: { tenantId?: string; isVirtualWarehouse: boolean } = { isVirtualWarehouse: true };
-
-        if (tenantId) {
-            where.tenantId = tenantId;
-        }
-        return await prisma.branch.findMany({ where });
-    }
-
-    // Find branches by MRA approval status
-    static async findByMraApprovalStatus(status: MraApprovalStatus): Promise<Branch[]> {
-        return await prisma.branch.findMany({
-            where: { mraApprovalStatus: status }
-        });
-    }
-
-    // Get branches by email domain
-    static async getBranchesByEmailDomain(domain: string): Promise<Branch[]> {
-        const branches = await prisma.branch.findMany();
-        return branches.filter((branch: any) =>
-            branch.email && branch.email.toLowerCase().endsWith(`@${domain.toLowerCase()}`)
-        );
-    }
-
-    // Get unsynced branches
-    static async getUnsyncedBranches(): Promise<Branch[]> {
-        return await prisma.branch.findMany({
-            where: { synced: 0 }
-        });
-    }
-
-    // Mark branch as synced
-    static async markAsSynced(branchId: string): Promise<Branch> {
-        return await prisma.branch.update({
-            where: { branchId },
-            data: { synced: 1, updatedAt: new Date() }
-        }) as unknown as Branch;
-    }
-
-    // Clear all branches
-    static async clearAllBranches(): Promise<{ count: number }> {
-        return await prisma.branch.deleteMany({});
-    }
-
-    // Find by email
-    static async findByEmail(email: string): Promise<Branch[]> {
-        return await prisma.branch.findMany({
-            where: { email }
-        });
-    }
-
-    // Find by phone number
-    static async findByPhone(phoneNumber: string): Promise<Branch[]> {
-        return await prisma.branch.findMany({
-            where: { phoneNumber }
-        });
-    }
-
-    // Find by site ID
-    static async findBySiteId(siteId: string): Promise<Branch[]> {
-        return await prisma.branch.findMany({
-            where: { siteId }
-        });
-    }
-
-    // Find branches with pagination
-    static async findBranchesWithPagination(
-        conditions = {},
-        page = 1,
-        limit = 10
-    ): Promise<{ branches: Branch[], total: number, page: number, limit: number }> {
-        const skip = (page - 1) * limit;
-
-        const [branches, total] = await Promise.all([
-            prisma.branch.findMany({
-                where: conditions,
-                skip,
-                take: limit
-            }),
-            prisma.branch.count({ where: conditions })
-        ]);
-
-        return {
-            branches,
-            total,
-            page,
-            limit
-        };
-    }
-
-    // Find branches with sorting
-    static async findBranchesWithSorting(
-        conditions = {},
-        sortBy = 'branchName',
-        sortOrder: 'asc' | 'desc' = 'asc'
-    ): Promise<Branch[]> {
-        return await prisma.branch.findMany({
-            where: conditions,
-            orderBy: { [sortBy]: sortOrder }
-        });
-    }
-
+    /**
+     * @method  buildBranchData
+     * @desc    Build complete branch data object with defaults
+     * @param   data - Input branch creation request
+     * @returns Object - Complete branch data ready for insertion
+     */
     static buildBranchData(data: CreateBranchRequest) {
         const now = new Date();
 
@@ -295,46 +138,16 @@ export class BranchModel {
         };
     }
 
-    // Build update data (excluding non-updateable fields)
+    /**
+     * @method  buildUpdateData
+     * @desc    Build update data object with updatedAt timestamp
+     * @param   data - Partial branch data to update
+     * @returns Partial<Branch> - Update data with timestamp
+     */
     static buildUpdateData(data: Partial<Branch>): Partial<Branch> {
         return {
             ...data,
             updatedAt: new Date()
         };
-    }
-
-    // Validate branch data
-    validateBranchData(data: Partial<Branch>): string | null {
-        if (data.email && !this.isValidEmail(data.email)) {
-            return 'Invalid email format';
-        }
-
-        if (data.taxRate !== undefined && (data.taxRate < 0 || data.taxRate > 100)) {
-            return 'Tax rate must be between 0 and 100';
-        }
-
-        if (data.status && !['active', 'inactive', 'suspended'].includes(data.status)) {
-            return 'Invalid status. Must be active, inactive, or suspended';
-        }
-
-        if (data.phoneNumber && data.phoneNumber.length > 20) {
-            return 'Phone number too long';
-        }
-
-        if (data.branchCode && !/^[A-Za-z0-9_-]+$/.test(data.branchCode)) {
-            return 'Branch code can only contain letters, numbers, hyphens, and underscores';
-        }
-
-        if (data.mraApprovalStatus && !['PENDING', 'APPROVED', 'REJECTED'].includes(data.mraApprovalStatus)) {
-            return 'Invalid MRA approval status. Must be PENDING, APPROVED, or REJECTED';
-        }
-
-        return null;
-    }
-
-    // Email validation helper
-    private isValidEmail(email: string): boolean {
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        return emailRegex.test(email);
     }
 }
