@@ -64,7 +64,7 @@ router.use((req, res, next) => {
 
 router.use(apiMiddleware.verifyClientType)
 
-router.use('/on-boarding', OnboardingRoutes);
+router.use('/onboarding', OnboardingRoutes);
 router.use('/account-seeds', AccountSeedsRoutes)
 router.use('/metadata', MetadataMiddleware.validateKeys, MetadataRoutes);
 
