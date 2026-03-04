@@ -1,7 +1,7 @@
 import { Tenant } from "tenant";
 
 export interface SubscriptionResponse {
-	data: Array<TenantSubscription>;
+	data: Array<BranchSubscription>;
 	message: string;
 	success: boolean;
 }
@@ -15,38 +15,33 @@ export interface PlanFeatureCategory {
 	updatedAt?: Date;
 }
 
-export interface TenantSubscription {
+export interface BranchSubscription {
+	branchSubscriptionId: string;
 	subscriptionPlanId: string;
-	tenantSubscriptionId: string;
-	tenantId: string;
-	tenantDetails?: {
-		tenantCode: string;
-		companyName: string;
-		ownerName: string;
-	};
-	planName: string;
-	billingCycle: string;
-	referenceNumber: string;
 	status: 'active' | 'cancelled' | 'expired' | 'past_due';
-	startsAt: string;
-	endsAt?: string;
+	startsAt: string | Date;
+	endsAt?: string | Date | null;
 	autoRenew?: boolean;
-	maxBranches: number;
-	paymentMethod?: string;
-	lastPaymentDate?: string;
-	nextPaymentDate?: string;
-	createdAt?: string;
-	updatedAt?: string;
-	synced?: 0 | 1;
+	paymentMethod?: string | null;
+	synced?: number;
+	lastPaymentDate?: string | Date | null;
+	nextPaymentDate?: string | Date | null;
+	createdAt?: string | Date;
+	updatedAt?: string | Date;
+	subscriptionPlan?: SubscriptionPlan | null;
 }
 
-export interface CreateSubscriptionRequest {
-	tenantId: string;
+export interface CreateBranchSubscriptionRequest {
 	subscriptionPlanId: string;
-	planName: string;
-	referenceNumber: string;
 	autoRenew?: boolean;
-	billingCycle: 'monthly' | 'yearly'
+}
+
+// Alias for backward compatibility
+export interface CreateSubscriptionRequest {
+	subscriptionPlanId: string;
+	subscriptionMonths?: number;
+	autoRenew?: boolean;
+	paymentMethod?: string;
 }
 
 export interface SubscriptionPlan {
@@ -73,7 +68,7 @@ export type TenantInfo = Pick<Tenant, 'tenantId' | 'businessName' | 'email' | 'p
 export interface BranchSubscriptionInfo {
 	branchId: string;
 	branchName: string;
-	subscriptionPlanId?: string | null;
+	branchSubscriptionId?: string | null;
 }
 
 export interface PaymentInfo {
@@ -90,8 +85,8 @@ export interface CreateSubscriptionPlanRequest {
 	isActive?: boolean;
 }
 
-export interface UpdateSubscriptionRequest {
-	status?: TenantSubscription['status'];
+export interface UpdateBranchSubscriptionRequest {
+	status?: BranchSubscription['status'];
 	endsAt?: string;
 	autoRenew?: boolean;
 	paymentMethod?: string;
@@ -100,10 +95,7 @@ export interface UpdateSubscriptionRequest {
 
 export interface BulkUpdateRequest {
 	ids: string[];
-	data: Partial<TenantSubscription>;
-}
-
-export interface ProcessPaymentRequest {
+	data: Partial<BranchSubscription>;
 	amount: number;
 	paymentMethod: string;
 }
