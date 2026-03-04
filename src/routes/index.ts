@@ -40,16 +40,19 @@ import PaymentServiceProviderRoutes from './payment-service-provider.routes'
 import MetadataRoutes from './metadata.routes'
 import AccountSeedsRoutes from './account-seeds.routes'
 import ReportsRoutes from './reports.routes'
+import MraRoutes from './mra.routes'
 import { MetadataMiddleware } from '../middlewares/metadata.middleware'
 import { validateBody } from '../middlewares/validation.middleware'
 import { userValidationSchemas } from '../validations/user.schemas'
 import { asyncHandler } from '../middlewares/error.middleware'
 import { AuthController } from '../controllers/auth.controller'
 import { TenantMiddleware } from '../middlewares/tenant.middleware'
+import { BranchMiddleware } from '../middlewares/branch.middleware'
 
 const router = Router();
 const authMiddleware = new AuthMiddleware();
 const tenantMiddleware = new TenantMiddleware();
+const branchMiddleware = new BranchMiddleware();
 
 router.use(sanitizeInput);
 router.use(preventSQLInjection);
@@ -75,9 +78,11 @@ router.use('/plan-features', PlanFeaturesRoutes);
 
 router.use('/auth', authLimiter, AuthRoutes);
 
-router.use(tenantMiddleware.verifyRequestHeaders)
-router.use(tenantMiddleware.subscriptionStatus)
 router.use(authMiddleware.verifyToken)
+
+router.use(apiMiddleware.verifyRequestHeaders)
+router.use(tenantMiddleware.tenantStatus)
+router.use(branchMiddleware.validateBranchSubscription)
 
 router.use('/terminal-settings', TerminalSettingsRoutes);
 router.use('/tenants', TenantsRoutes);
@@ -112,5 +117,6 @@ router.use('/stock-movements', StockMovementsRoutes);
 router.use('/printers', PrinterRoutes);
 router.use('/reports', ReportsRoutes);
 router.use('/tenant-registration-details', TenantRegistrationDetailRoutes);
+router.use('/mra', MraRoutes);
 
 export default router

@@ -1,6 +1,6 @@
 import { RoleModel } from "../models/role.model";
 import { RolePermissionModel } from "../models/role-permission.model";
-import { TenantService } from "./tenant.service";
+import { ValidationError } from '../utils/errors';
 import { PermissionModel } from "../models/permission.model";
 import { CreateRoleRequest, Permission, Role } from "role-permission";
 
@@ -49,7 +49,7 @@ export class RoleService {
     }
 
     static async createRole(data: CreateRoleRequest): Promise<Role> {
-        const validationError = TenantService.validateRequired(data, ['name', 'displayName']);
+        const validationError = ValidationError.validateRequired(data, ['name', 'displayName']);
         if (validationError) {
             throw new Error(validationError);
         }

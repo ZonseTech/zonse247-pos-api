@@ -1,12 +1,13 @@
-import { TenantService } from './tenant.service';
 import { TenantModel } from '../models/tenant.model';
+import { BranchModel } from '../models/branch.model';
 import { SubscriptionModel } from '../models/subscription.model';
 import { SubscriptionPlanService } from './subscription-plan.service';
 import { BaseService } from './base.service';
 import type { Role } from 'role-permission';
 import type { CreateSubscriptionRequest, TenantSubscription } from 'subscription';
 import { EnumTenantSubscriptionStatusNullableFilter } from '../databases/prisma/generated/prisma/commonInputTypes';
-import { TenantSubscriptionCreateInput } from '../databases/prisma/generated/prisma/models';
+import { TenantSubscriptionUncheckedCreateInput } from '../databases/prisma/generated/prisma/models';
+import { ValidationError } from '../utils/errors';
 
 export class SubscriptionService {
 
@@ -42,26 +43,30 @@ export class SubscriptionService {
 	static async create(
 		data: CreateSubscriptionRequest & { tenantSubscriptionId?: string }
 	): Promise<TenantSubscription> {
-		const validationError = TenantService.validateRequired(data, [
+
+		const validationError = ValidationError.validateRequired(data, [
 			'tenantId',
 			'subscriptionPlanId',
 		]);
 		if (validationError) {
-			throw new Error(validationError);
+			throw new ValidationError(validationError);
 		}
 
 		const tenant = await TenantModel.findById(data.tenantId);
 		if (!tenant) {
-			throw new Error('Tenant not found');
+			throw new ValidationError('Tenant not found');
 		}
 
 		const plan = await SubscriptionPlanService.getById(data.subscriptionPlanId);
 		if (!plan || !plan.isActive) {
-			throw new Error('Subscription plan not found or inactive');
+			throw new ValidationError('Subscription plan not found or inactive');
 		}
 
-		if (tenant.subscriptionPlan === data.planName) {
-			throw new Error('Tenant already subscribe to this plan.');
+		const branches = await BranchModel.findByTenantId(data.tenantId);
+		const hasExistingPlan = branches.some(b => b.subscriptionPlanId === data.subscriptionPlanId);
+
+		if (hasExistingPlan) {
+			throw new ValidationError('A branch already subscribes to this plan.');
 		}
 
 		const existingSubscription = await SubscriptionModel.findById(data?.tenantSubscriptionId);
@@ -72,13 +77,17 @@ export class SubscriptionService {
 			})
 		}
 
-		const subscriptionData = SubscriptionModel.buildSubscriptionData(data) as unknown as TenantSubscriptionCreateInput;
+		const subscriptionData = SubscriptionModel.buildSubscriptionData(data) as unknown as TenantSubscriptionUncheckedCreateInput;
 		const newSubscription = await SubscriptionModel.create(subscriptionData);
 
 		const now = new Date();
+		for (const branch of branches) {
+			await BranchModel.update(branch.branchId, {
+				subscriptionPlanId: data.subscriptionPlanId,
+			});
+		}
+
 		await TenantModel.update(data.tenantId, {
-			subscriptionPlan: plan.name,
-			subscriptionStatus: 'ACTIVE',
 			status: 'active',
 			activatedAt: now,
 		});
@@ -132,7 +141,7 @@ export class SubscriptionService {
 		if (response.success) {
 			const newSubscription = response.data
 
-			await SubscriptionModel.create(newSubscription as unknown as TenantSubscriptionCreateInput)
+			await SubscriptionModel.create(newSubscription as unknown as TenantSubscriptionUncheckedCreateInput)
 
 			return response.data;
 		}
@@ -165,9 +174,13 @@ export class SubscriptionService {
 
 		await SubscriptionModel.update(id, cancelData as any);
 
-		await TenantModel.update(subscription.tenantId, {
-			subscriptionStatus: 'CANCELLED',
-		});
+		// Update all tenant branches subscription status
+		const branches = await BranchModel.findByTenantId(subscription.tenantId);
+		for (const branch of branches) {
+			await BranchModel.update(branch.branchId, {
+				subscriptionPlanId: null,
+			});
+		}
 
 		return SubscriptionModel.findById(id);
 	}
@@ -206,8 +219,14 @@ export class SubscriptionService {
 
 		await SubscriptionModel.update(id, reactivateData as any);
 
+		const branches = await BranchModel.findByTenantId(subscription.tenantId);
+		for (const branch of branches) {
+			await BranchModel.update(branch.branchId, {
+				subscriptionPlanId: subscription.subscriptionPlanId,
+			});
+		}
+
 		await TenantModel.update(subscription.tenantId, {
-			subscriptionStatus: 'ACTIVE',
 			status: 'active',
 		});
 

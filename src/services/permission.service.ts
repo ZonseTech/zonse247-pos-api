@@ -1,4 +1,4 @@
-import { TenantService } from "./tenant.service";
+import { ValidationError } from '../utils/errors';
 import { RolePermissionModel } from "../models/role-permission.model";
 import { PermissionModel } from "../models/permission.model";
 import { CreatePermissionRequest, Permission } from "role-permission";
@@ -50,7 +50,7 @@ export class PermissionService {
     }
 
     static async createPermission(data: CreatePermissionRequest): Promise<Permission> {
-        const validationError = TenantService.validateRequired(data, ['name', 'displayName', 'category']);
+        const validationError = ValidationError.validateRequired(data, ['name', 'displayName', 'category']);
         if (validationError) {
             throw new Error(validationError);
         }

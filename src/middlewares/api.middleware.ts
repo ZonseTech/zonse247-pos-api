@@ -1,6 +1,7 @@
+import jwt from 'jsonwebtoken';
 import { Request, Response, NextFunction } from 'express';
-import { BaseController } from '../controllers/base.controller';
 import { ClientType, ClientTypeValue } from '../utils/enums';
+import { BaseController } from '../controllers/base.controller';
 
 const VALID_CLIENT_TYPES: ClientTypeValue[] = Object.values(ClientType);
 
@@ -49,6 +50,57 @@ export class ApiMiddleware {
                 'unknown',
                 null
             );
+        }
+    };
+
+    verifyRequestHeaders = (
+        req: Request,
+        res: Response,
+        next: NextFunction
+    ): void => {
+        try {
+            const tenantId = req.headers['x-tenant-id'] as string | undefined;
+            const clientType = req.headers['x-client-type'] as string | undefined;
+            const tenantSignature = req.headers['x-tenant-signature'] as string | undefined;
+
+            const isEmpty = (value: string | undefined): boolean => {
+                return !value || value.trim() === '';
+            };
+
+            const sendError = (message: string): void => {
+                BaseController.sendResponseWithSubscription(
+                    res,
+                    400,
+                    false,
+                    message,
+                    'unknown',
+                    null
+                );
+            };
+
+            if (isEmpty(clientType)) {
+                return sendError('Application not verified. Please provide X-Client-Type header.');
+            }
+
+            if (isEmpty(tenantSignature) && isEmpty(tenantId)) {
+                return sendError('Application not verified. Please provide X-Tenant-Signature or X-Tenant-Id header.');
+            }
+
+            next();
+        } catch (error) {
+            let message = 'Authentication failed. Please check your token and try again.';
+
+            if (error instanceof jwt.TokenExpiredError) {
+                message = 'Authentication failed: token has expired.';
+            } else if (error instanceof jwt.JsonWebTokenError) {
+                message = 'Authentication failed: invalid token format.';
+            }
+
+            res.status(401).json({
+                success: false,
+                error: 'Authentication Error',
+                message,
+            });
         }
     };
 }

@@ -1,7 +1,7 @@
 import { PrinterModel } from '../models/printer.model';
 import { BranchModel } from '../models/branch.model';
 import { TerminalModel } from '../models/terminal.model';
-import { TenantService } from './tenant.service';
+import { ValidationError } from '../utils/errors';
 import { PrintJobService } from './print-job.service';
 import { PrinterDiscoveryService } from './printer-discovery.service';
 import {
@@ -36,7 +36,7 @@ export class PrinterService {
         tenantId: string,
         branchId: string
     ): Promise<Printer> {
-        const validationError = TenantService.validateRequired(data, ['printerName', 'printerType', 'connectionType']);
+        const validationError = ValidationError.validateRequired(data, ['printerName', 'printerType', 'connectionType']);
         if (validationError) {
             throw new Error(validationError);
         }

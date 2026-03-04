@@ -1,5 +1,5 @@
 import { RoleModel } from "../models/role.model";
-import { TenantService } from "./tenant.service";
+import { ValidationError } from '../utils/errors';
 import { PermissionModel } from "../models/permission.model";
 import { RolePermissionModel } from "../models/role-permission.model";
 import { BulkRolePermissionRequest, CreateRolePermissionRequest, Permission, Role, RolePermission } from "role-permission";
@@ -29,7 +29,7 @@ export class RolePermissionService {
     }
 
     static async createRolePermission(data: CreateRolePermissionRequest): Promise<RolePermission> {
-        const validationError = TenantService.validateRequired(data, ['roleId', 'permissionId']);
+        const validationError = ValidationError.validateRequired(data, ['roleId', 'permissionId']);
         if (validationError) {
             throw new Error(validationError);
         }
@@ -71,7 +71,7 @@ export class RolePermissionService {
     }
 
     static async bulkAssignPermissions(data: BulkRolePermissionRequest): Promise<{ assigned: number, skipped: number }> {
-        const validationError = TenantService.validateRequired(data, ['roleId', 'permissionIds']);
+        const validationError = ValidationError.validateRequired(data, ['roleId', 'permissionIds']);
         if (validationError) {
             throw new Error(validationError);
         }
@@ -111,7 +111,7 @@ export class RolePermissionService {
     }
 
     static async bulkRemovePermissions(data: BulkRolePermissionRequest): Promise<{ removed: number, notFound: number }> {
-        const validationError = TenantService.validateRequired(data, ['roleUuid', 'permissionUuids']);
+        const validationError = ValidationError.validateRequired(data, ['roleUuid', 'permissionUuids']);
         if (validationError) {
             throw new Error(validationError);
         }

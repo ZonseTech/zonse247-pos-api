@@ -41,4 +41,21 @@ export class ValidationError extends BaseError {
     getFieldError(fieldName: string): string | undefined {
         return this.errors[fieldName];
     }
+
+    /**
+     * @method  validateRequired
+     * @desc    Check if all required fields are present
+     * @param   fields - Object containing field values
+     * @param   requiredFields - Array of required field names
+     * @returns string | null - Error message if validation fails, null if valid
+     * @private
+     */
+    static validateRequired(fields: Record<string, any>, requiredFields: string[]): string | null {
+        for (const field of requiredFields) {
+            if (!fields[field]) {
+                return `Missing required field: ${field}`;
+            }
+        }
+        return null;
+    }
 }

@@ -330,6 +330,16 @@ export class SecureSettingsService {
         }
     }
 
+    static async createActivationCode(params: { tenantId: string; branchId: string; terminalId: string }): Promise<string> {
+        const { terminalId } = params;
+
+        if (!this.initialized) {
+            await this.initialize();
+        }
+
+        return this.encryptTenantId(terminalId);
+    }
+
     /**
      * Encrypt a tenantId and return the encrypted string
      * @param tenantId - The plain tenant ID to encrypt (e.g., 'tenant-456')
