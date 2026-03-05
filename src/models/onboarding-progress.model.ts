@@ -131,7 +131,6 @@ export class OnboardingProgressModel {
         metadata?: Record<string, any>
     ): Promise<OnboardingProgress> {
         try {
-            // Update the step
             const updateData: any = {
                 status,
                 retryCount: status === 'FAILED' ? { increment: 1 } : undefined,
@@ -155,7 +154,6 @@ export class OnboardingProgressModel {
                 data: updateData
             });
 
-            // Recalculate progress
             const steps = await prisma.onboardingStep.findMany({
                 where: { progressId },
                 orderBy: { stepOrder: 'asc' }
@@ -169,7 +167,6 @@ export class OnboardingProgressModel {
             const allCompleted = completedSteps === steps.length;
             const hasInProgress = steps.some(s => s.status === 'IN_PROGRESS');
 
-            // Determine current step and overall status
             let currentStep = stepType;
             let overallStatus: 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED' = 'IN_PROGRESS';
 
@@ -179,14 +176,12 @@ export class OnboardingProgressModel {
                 overallStatus = 'FAILED';
             } else if (hasInProgress || completedSteps > 0) {
                 overallStatus = 'IN_PROGRESS';
-                // Find next not-started step
                 const nextStep = steps.find(s => s.status === 'NOT_STARTED');
                 if (nextStep) {
                     currentStep = nextStep.stepType as OnboardingStepType;
                 }
             }
 
-            // Update progress record
             await prisma.onboardingProgress.update({
                 where: { progressId },
                 data: {
@@ -197,7 +192,6 @@ export class OnboardingProgressModel {
                 }
             });
 
-            // Return updated progress
             return await this.findByProgressId(progressId) as OnboardingProgress;
         } catch (error) {
             throw new Error(

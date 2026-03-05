@@ -201,15 +201,40 @@ export class TerminalService {
                 throw new Error('Terminal is blocked');
             }
 
-
-
-            // if (!activationDetails?.branch?.subscriptionDetails || activationDetails.branch.subscriptionDetails.status !== 'active') {
-            //     throw new Error('No active subscription found for this tenant');
-            // }
+            if (!activationDetails?.branch?.branchSubscription || activationDetails.branch.branchSubscription.status !== 'active') {
+                throw new Error('No active subscription found for this tenant');
+            }
 
             return activationDetails as TerminalWithRelations;
         } catch (error: any) {
             throw new Error(`Failed to activate terminal: ${error.message}`);
+        }
+    }
+
+    /**
+     * @method  setActivated
+     * @desc    Set a terminal's activation status to ACTIVATED
+     * @param   terminalId - The terminal ID to activate
+     * @returns Promise<Terminal> - Updated terminal record
+     * @throws  Error - Terminal not found
+     * @throws  Error - Failed to update terminal
+     */
+    static async setActivated(terminalId: string): Promise<Terminal> {
+        try {
+            const terminal = await TerminalModel.findById(terminalId);
+
+            if (!terminal) {
+                throw new Error('Terminal not found');
+            }
+
+            await TerminalModel.update(terminalId, {
+                activationStatus: 'ACTIVATED'
+            });
+
+            const updatedTerminal = await TerminalModel.findById(terminalId);
+            return updatedTerminal as Terminal;
+        } catch (error: any) {
+            throw new Error(`Failed to set terminal as activated: ${error.message}`);
         }
     }
 }
