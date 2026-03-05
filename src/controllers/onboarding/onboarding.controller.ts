@@ -1,8 +1,8 @@
 import { Request, Response } from "express";
-import { BaseController } from "./base.controller";
-import { TerminalService } from "../services/terminal.service";
-import { OnboardingService } from "../services/onboarding.service";
-import { OnboardingProgressService } from "../services/onboarding-progress.service";
+import { BaseController } from "../base.controller";
+import { TerminalService } from "../../services/terminal.service";
+import { OnboardingService } from "../../services/onboarding/onboarding.service";
+import { OnboardingProgressService } from "../../services/onboarding-progress.service";
 import type { OnboardingStepType, OnboardingStepStatus } from 'on-boarding';
 
 /**
@@ -60,6 +60,39 @@ export class OnboardingController {
     }
 
     /**
+     * @method  setTerminalActivated
+     * @desc    Set terminal activation status to ACTIVATED
+     * @param   req - Express request with terminalId in body
+     * @param   res - Express response object
+     * @returns Promise<void> - JSON response with updated terminal
+     */
+    static async setTerminalActivated(req: Request, res: Response): Promise<void> {
+        try {
+            const { terminalId } = req.body;
+
+            if (!terminalId) {
+                BaseController.sendResponse(res, 400, false, 'terminalId is required');
+                return;
+            }
+
+            const terminal = await TerminalService.setActivated(terminalId);
+
+            BaseController.sendResponse(res, 200, true, 'Terminal activated successfully', terminal);
+        } catch (error: any) {
+            console.error('Error setting terminal as activated:', error);
+
+            let statusCode = 500;
+            const message = error.message || 'Internal server error';
+
+            if (message.includes('not found')) {
+                statusCode = 404;
+            }
+
+            BaseController.sendResponse(res, statusCode, false, message);
+        }
+    }
+
+    /**
      * @method  saveTerminalDetails
      * @desc    Save terminal details after user verification
      *          Saves tenant, branch, subscription plan, branch subscription, and terminal
@@ -75,7 +108,6 @@ export class OnboardingController {
         try {
             const terminalData = req.body;
 
-            // Validate required fields
             if (!terminalData) {
                 BaseController.sendResponse(res, 400, false, 'Terminal data is required');
                 return;
@@ -108,7 +140,6 @@ export class OnboardingController {
 
             const saveResult = await OnboardingService.saveTerminalDetails(terminalData);
 
-            // Build summary message
             const savedEntities: string[] = [];
             const skippedEntities: string[] = [];
 
@@ -461,3 +492,6 @@ export class OnboardingController {
         }
     }
 }
+
+// Re-export the data controller for convenience
+export { OnboardingDataController } from './onboarding-data.controller';
