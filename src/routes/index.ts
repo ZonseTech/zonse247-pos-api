@@ -37,11 +37,8 @@ import { apiMiddleware } from '../middlewares/api.middleware'
 import { preventSQLInjection, preventXSS, sanitizeInput } from '../middlewares/security.middleware'
 import { authLimiter } from '../middlewares/rate-limit.middleware'
 import PaymentServiceProviderRoutes from './payment-service-provider.routes'
-import MetadataRoutes from './metadata.routes'
-import AccountSeedsRoutes from './account-seeds.routes'
 import ReportsRoutes from './reports.routes'
 import MraRoutes from './mra.routes'
-import { MetadataMiddleware } from '../middlewares/metadata.middleware'
 import { validateBody } from '../middlewares/validation.middleware'
 import { userValidationSchemas } from '../validations/user.schemas'
 import { asyncHandler } from '../middlewares/error.middleware'
@@ -65,8 +62,6 @@ router.use((req, res, next) => {
 router.use(apiMiddleware.verifyClientType)
 
 router.use('/onboarding', OnboardingRoutes);
-router.use('/account-seeds', AccountSeedsRoutes)
-router.use('/metadata', MetadataMiddleware.validateKeys, MetadataRoutes);
 
 router.post(
     '/auth/live/login',
