@@ -39,10 +39,6 @@ import { authLimiter } from '../middlewares/rate-limit.middleware'
 import PaymentServiceProviderRoutes from './payment-service-provider.routes'
 import ReportsRoutes from './reports.routes'
 import MraRoutes from './mra.routes'
-import { validateBody } from '../middlewares/validation.middleware'
-import { userValidationSchemas } from '../validations/user.schemas'
-import { asyncHandler } from '../middlewares/error.middleware'
-import { AuthController } from '../controllers/auth.controller'
 import { TenantMiddleware } from '../middlewares/tenant.middleware'
 import { BranchMiddleware } from '../middlewares/branch.middleware'
 
@@ -62,12 +58,6 @@ router.use((req, res, next) => {
 router.use(apiMiddleware.verifyClientType)
 
 router.use('/onboarding', OnboardingRoutes);
-
-router.post(
-    '/auth/live/login',
-    validateBody(userValidationSchemas.loginUser),
-    asyncHandler(AuthController.initiateLoginAccount)
-);
 
 router.use('/plan-features', PlanFeaturesRoutes);
 
