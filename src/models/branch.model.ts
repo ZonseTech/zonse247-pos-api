@@ -65,11 +65,7 @@ export class BranchModel {
             where: { branchId },
             include: {
                 tenant: true,
-                branchSubscription: {
-                    include: {
-                        subscriptionPlan: true
-                    }
-                }
+                branchSubscription: true,
             }
         });
 
@@ -157,7 +153,7 @@ export class BranchModel {
             postalCode: data.postalCode || null,
             phoneNumber: data.phoneNumber || null,
             email: data.email || null,
-            taxRate: data.taxRate || 0.00,
+            taxRate: data.taxRate !== undefined && data.taxRate !== null ? parseFloat(String(data.taxRate)) : 0.00,
             chargeTax: data.chargeTax || false,
             receiptFooter: data.receiptFooter || null,
             logoUrl: data.logoUrl || null,
@@ -166,7 +162,7 @@ export class BranchModel {
             isVirtualWarehouse: data.isVirtualWarehouse || false,
             isActive: data.isActive !== undefined ? data.isActive : true,
             status: (data.status as BranchStatus) || 'active',
-            mraApprovalStatus: data.mraApprovalStatus || BranchMRAApprovalStatus.PENDING,
+            mraApprovalStatus: (data.mraApprovalStatus as BranchMRAApprovalStatus) || BranchMRAApprovalStatus.PENDING,
             branchSubscriptionId: data.branchSubscriptionId || null,
             synced: data.synced || 0,
             createdAt: now,
@@ -182,9 +178,40 @@ export class BranchModel {
      * @returns Partial<Branch> - Update data with timestamp
      */
     static buildUpdateData(data: Partial<Branch>): Partial<Branch> {
-        return {
+        const updateData: any = {
             ...data,
             updatedAt: new Date()
         };
+
+        // Ensure taxRate is a number
+        if (updateData.taxRate !== undefined && updateData.taxRate !== null) {
+            updateData.taxRate = parseFloat(String(updateData.taxRate));
+        }
+
+        // Remove nested objects that shouldn't be in the update
+        delete updateData.branchSubscription;
+        delete updateData.tenant;
+        delete updateData.id;
+        delete updateData.createdAt;
+
+        return updateData;
+    }
+
+    /**
+     * @method  createOrUpdate
+     * @desc    Create branch if not exists, update if exists (for offline sync)
+     * @param   branchData - Branch data to save
+     * @returns Promise<{ branch: Branch; created: boolean }>
+     */
+    static async createOrUpdate(branchData: any): Promise<{ branch: Branch; created: boolean }> {
+        const existingBranch = await this.findById(branchData.branchId);
+
+        if (existingBranch) {
+            const updated = await this.update(branchData.branchId, branchData);
+            return { branch: updated, created: false };
+        }
+
+        const branch = await this.create(this.buildBranchData(branchData));
+        return { branch, created: true };
     }
 }

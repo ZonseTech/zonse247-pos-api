@@ -250,4 +250,46 @@ export class BranchSubscriptionModel {
             );
         }
     }
+
+    /**
+     * Create or update subscription (for offline sync)
+     * SubscriptionPlan must already exist (synced separately)
+     */
+    static async createOrUpdate(subscriptionData: any): Promise<{ subscription: BranchSubscription; created: boolean }> {
+        try {
+            const existingSubscription = await this.findById(subscriptionData.branchSubscriptionId);
+
+            if (existingSubscription) {
+                const updated = await this.update(subscriptionData.branchSubscriptionId, {
+                    status: subscriptionData.status || existingSubscription.status,
+                    startsAt: subscriptionData.startsAt ? new Date(subscriptionData.startsAt) : existingSubscription.startsAt,
+                    endsAt: subscriptionData.endsAt ? new Date(subscriptionData.endsAt) : existingSubscription.endsAt,
+                    autoRenew: subscriptionData.autoRenew ?? existingSubscription.autoRenew,
+                    paymentMethod: subscriptionData.paymentMethod,
+                    lastPaymentDate: subscriptionData.lastPaymentDate ? new Date(subscriptionData.lastPaymentDate) : null,
+                    nextPaymentDate: subscriptionData.nextPaymentDate ? new Date(subscriptionData.nextPaymentDate) : null
+                });
+                return { subscription: updated, created: false };
+            }
+
+            const subscription = await this.create({
+                branchSubscriptionId: subscriptionData.branchSubscriptionId,
+                subscriptionPlanId: subscriptionData.subscriptionPlanId,
+                status: subscriptionData.status || 'active',
+                startsAt: subscriptionData.startsAt ? new Date(subscriptionData.startsAt) : new Date(),
+                endsAt: subscriptionData.endsAt ? new Date(subscriptionData.endsAt) : null,
+                autoRenew: subscriptionData.autoRenew ?? true,
+                paymentMethod: subscriptionData.paymentMethod || null,
+                lastPaymentDate: subscriptionData.lastPaymentDate ? new Date(subscriptionData.lastPaymentDate) : null,
+                nextPaymentDate: subscriptionData.nextPaymentDate ? new Date(subscriptionData.nextPaymentDate) : null,
+                createdAt: new Date(),
+                updatedAt: new Date()
+            });
+            return { subscription, created: true };
+        } catch (error) {
+            throw new Error(
+                `Error in createOrUpdate subscription: ${error instanceof Error ? error.message : 'Unknown error'}`
+            );
+        }
+    }
 }

@@ -25,18 +25,18 @@ export class AuthController extends BaseController {
      * @returns Promise<void>
      */
     static async login(
-        req: Request<ApiResponse<{ user: PublicUser; token: string }>, { username: string; password: string }>,
+        req: Request<ApiResponse<{ user: PublicUser; token: string }>, { username: string; password: string; offlineMode?: boolean }>,
         res: Response
     ): Promise<void> {
         try {
-            const { username, password } = req.body;
+            const { username, password, offlineMode } = req.body;
 
             if (!username || !password) {
                 BaseController.sendResponse(res, 400, false, 'Username and password are required');
                 return;
             }
 
-            const result = await AuthService.loginUser(username, password);
+            const result = await AuthService.loginUser(username, password, offlineMode);
 
             if (result.message) {
                 BaseController.sendResponse(res, 401, false, result.message);
@@ -53,38 +53,182 @@ export class AuthController extends BaseController {
     }
 
     /**
-     * User Login
-     * Authenticates user credentials and returns JWT token
+     * Save User Offline
+     * Saves user data to local database for offline authentication
      * @static
-     * @param req - Express request with username and password in body
+     * @param req - Express request with user data in body
      * @param res - Express response
      * @returns Promise<void>
      */
-    static async initiateLoginAccount(
-        req: Request<ApiResponse<{ user: PublicUser; token: string }>, { username: string; password: string }>,
+    static async saveUserOffline(
+        req: Request<ApiResponse<{ user: PublicUser }>, any>,
         res: Response
     ): Promise<void> {
         try {
-            const { username, password } = req.body;
+            const userData = req.body;
 
-            if (!username || !password) {
-                BaseController.sendResponse(res, 400, false, 'Username and password are required');
+            if (!userData || !userData.username) {
+                BaseController.sendResponse(res, 400, false, 'User data with username is required');
                 return;
             }
 
-            const result = await AuthService.initiateLoginAccount(username, password);
+            const result = await AuthService.saveUserOffline(userData);
 
             if (result.message) {
-                BaseController.sendResponse(res, 401, false, result.message);
+                BaseController.sendResponse(res, 400, false, result.message);
             } else {
-                BaseController.sendResponse(res, 200, true, 'Login successful', {
+                const message = result.created ? 'User created offline successfully' : 'User updated offline successfully';
+                BaseController.sendResponse(res, 200, true, message, {
                     user: result.user,
-                    token: result.token
+                    created: result.created
                 });
             }
         } catch (error: any) {
-            console.error('Error during login:', error);
-            BaseController.sendResponse(res, 500, false, 'Incorrect user credentials.', undefined, error.message);
+            console.error('Error saving user offline:', error);
+            BaseController.sendResponse(res, 500, false, 'Failed to save user offline.', undefined, error.message);
+        }
+    }
+
+    /**
+     * Verify User Role
+     * Fetches the specific user role by roleId
+     * @static
+     * @param req - Express request with roleId in query/params
+     * @param res - Express response
+     * @returns Promise<void>
+     */
+    static async verifyingRoles(
+        req: Request & { auth?: any },
+        res: Response
+    ): Promise<void> {
+        try {
+            const roleId = req.query.roleId as string || req.auth?.roleId;
+
+            if (!roleId) {
+                BaseController.sendResponse(res, 400, false, 'Role ID is required');
+                return;
+            }
+
+            const result = await AuthService.verifyUserRole(roleId);
+
+            if (result.message) {
+                BaseController.sendResponse(res, 404, false, result.message);
+            } else {
+                BaseController.sendResponse(res, 200, true, 'Role fetched successfully', {
+                    role: result.role
+                });
+            }
+        } catch (error: any) {
+            console.error('Error fetching role:', error);
+            BaseController.sendResponse(res, 500, false, 'Failed to fetch role.', undefined, error.message);
+        }
+    }
+
+    /**
+     * Save Role Offline
+     * Saves role data to local database for offline use
+     * @static
+     * @param req - Express request with role data in body
+     * @param res - Express response
+     * @returns Promise<void>
+     */
+    static async saveRoleOffline(
+        req: Request,
+        res: Response
+    ): Promise<void> {
+        try {
+            const roleData = req.body;
+
+            if (!roleData || !roleData.roleId) {
+                BaseController.sendResponse(res, 400, false, 'Role data with roleId is required');
+                return;
+            }
+
+            const result = await AuthService.saveRoleOffline(roleData);
+
+            if (result.message) {
+                BaseController.sendResponse(res, 400, false, result.message);
+            } else {
+                const message = result.created ? 'Role created offline successfully' : 'Role updated offline successfully';
+                BaseController.sendResponse(res, 200, true, message, {
+                    role: result.role,
+                    created: result.created,
+                    synced: result.synced
+                });
+            }
+        } catch (error: any) {
+            BaseController.sendResponse(res, 500, false, 'Failed to save role offline.', undefined, error.message);
+        }
+    }
+
+    /**
+     * Verify User Privileges
+     * Fetches all permissions for a specific role - optimized for 100+ permissions
+     * @static
+     * @param req - Express request with roleId in query/params
+     * @param res - Express response
+     * @returns Promise<void>
+     */
+    static async verifyingPrivileges(
+        req: Request & { auth?: any },
+        res: Response
+    ): Promise<void> {
+        try {
+            const roleId = req.query.roleId as string || req.auth?.roleId;
+
+            if (!roleId) {
+                BaseController.sendResponse(res, 400, false, 'Role ID is required');
+                return;
+            }
+
+            const result = await AuthService.verifyUserPrivileges(roleId);
+
+            if (result.message) {
+                BaseController.sendResponse(res, 404, false, result.message);
+            } else {
+                BaseController.sendResponse(res, 200, true, 'Permissions fetched successfully', {
+                    permissions: result.permissions,
+                    total: result.total
+                });
+            }
+        } catch (error: any) {
+            console.error('Error fetching permissions:', error);
+            BaseController.sendResponse(res, 500, false, 'Failed to fetch permissions.', undefined, error.message);
+        }
+    }
+
+    /**
+     * Save Permissions Offline
+     * Bulk saves permissions to local database - handles 100+ permissions efficiently
+     * @static
+     * @param req - Express request with permissions array and optional roleId in body
+     * @param res - Express response
+     * @returns Promise<void>
+     */
+    static async savePermissionsOffline(
+        req: Request,
+        res: Response
+    ): Promise<void> {
+        try {
+            const { permissions, roleId } = req.body;
+
+            if (!permissions || !Array.isArray(permissions) || permissions.length === 0) {
+                BaseController.sendResponse(res, 400, false, 'Permissions array is required');
+                return;
+            }
+
+            const result = await AuthService.savePermissionsOffline(permissions, roleId);
+
+            if (result.message) {
+                BaseController.sendResponse(res, 400, false, result.message);
+            } else {
+                BaseController.sendResponse(res, 200, true, 'Permissions saved offline successfully', {
+                    synced: result.synced
+                });
+            }
+        } catch (error: any) {
+            console.error('Error saving permissions offline:', error);
+            BaseController.sendResponse(res, 500, false, 'Failed to save permissions offline.', undefined, error.message);
         }
     }
 

@@ -162,6 +162,10 @@ export const userValidationSchemas = {
 		password: Joi.string().required().messages({
 			'any.required': 'Password is required',
 		}),
+
+		offlineMode: Joi.boolean().optional().default(false).messages({
+			'boolean.base': 'Offline mode must be a boolean',
+		}),
 	}),
 
 	updateUser: Joi.object({
@@ -257,6 +261,161 @@ export const userValidationSchemas = {
 			'string.empty': 'Role ID is required',
 			'any.required': 'Role ID is required'
 		})
+	}),
+
+	saveUserOffline: Joi.object({
+		id: Joi.any().optional().strip(),
+		userId: Joi.string().optional().messages({
+			'string.base': 'User ID must be a string',
+		}),
+		username: Joi.string().min(3).max(100).required().messages({
+			'string.min': 'Username must be at least 3 characters long',
+			'string.max': 'Username must not exceed 100 characters',
+			'any.required': 'Username is required',
+		}),
+		email: Joi.string().email().optional().allow(null, '').messages({
+			'string.email': 'Please provide a valid email address',
+		}),
+		password: Joi.string().min(4).max(128).optional().messages({
+			'string.min': 'Password must be at least 4 characters long',
+			'string.max': 'Password must not exceed 128 characters',
+		}),
+		fullname: Joi.string().min(2).max(100).required().messages({
+			'string.min': 'Full name must be at least 2 characters long',
+			'string.max': 'Full name must not exceed 100 characters',
+			'any.required': 'Full name is required',
+		}),
+		phone: Joi.string().optional().allow(null, '').messages({
+			'string.base': 'Phone must be a string',
+		}),
+		tenantId: Joi.string().required().messages({
+			'string.base': 'Tenant ID must be a string',
+			'any.required': 'Tenant ID is required',
+		}),
+		branchId: Joi.string().required().messages({
+			'string.base': 'Branch ID must be a string',
+			'any.required': 'Branch ID is required',
+		}),
+		roleId: Joi.string().required().messages({
+			'string.base': 'Role ID must be a string',
+			'any.required': 'Role ID is required',
+		}),
+		status: Joi.string().valid('active', 'inactive', 'suspended').optional().default('active').messages({
+			'any.only': 'Status must be one of: active, inactive, suspended',
+		}),
+		accessibleBranches: Joi.array().items(Joi.string()).optional().messages({
+			'array.base': 'Accessible branches must be an array',
+		}),
+		allowedTerminals: Joi.array().items(Joi.string()).optional().allow(null).messages({
+			'array.base': 'Allowed terminals must be an array',
+		}),
+		maxDiscountPercent: Joi.alternatives().try(
+			Joi.number().min(0).max(100),
+			Joi.string().pattern(/^\d+(\.\d+)?$/)
+		).optional().default(0).messages({
+			'number.min': 'Max discount percent cannot be negative',
+			'number.max': 'Max discount percent cannot exceed 100',
+		}),
+		canOverridePrices: Joi.boolean().optional().default(false).messages({
+			'boolean.base': 'Can override prices must be a boolean',
+		}),
+		pinCode: Joi.string().optional().allow(null, '').messages({
+			'string.base': 'Pin code must be a string',
+		}),
+		currentBranchId: Joi.string().optional().allow(null, '').messages({
+			'string.base': 'Current branch ID must be a string',
+		}),
+		branch: Joi.object({
+			branchId: Joi.string().required(),
+			tenantId: Joi.string().required(),
+			branchName: Joi.string().optional(),
+			name: Joi.string().optional(),
+			branchCode: Joi.string().optional(),
+			siteId: Joi.string().optional().allow(null, ''),
+			siteName: Joi.string().optional().allow(null, ''),
+			description: Joi.string().optional().allow(null, ''),
+			addressLine1: Joi.string().optional().allow(null, ''),
+			addressLine2: Joi.string().optional().allow(null, ''),
+			addressLine3: Joi.string().optional().allow(null, ''),
+			address: Joi.string().optional().allow(null, ''),
+			districtId: Joi.string().optional().allow(null, ''),
+			location: Joi.string().optional().allow(null, ''),
+			businessType: Joi.string().optional(),
+			city: Joi.string().optional().allow(null, ''),
+			phoneNumber: Joi.string().optional().allow(null, ''),
+			phone: Joi.string().optional().allow(null, ''),
+			email: Joi.string().optional().allow(null, ''),
+			currencyCode: Joi.string().optional(),
+			currencySymbol: Joi.string().optional(),
+			taxRate: Joi.number().optional(),
+			chargeTax: Joi.boolean().optional(),
+			receiptFooter: Joi.string().optional().allow(null, ''),
+			logoUrl: Joi.string().optional().allow(null, ''),
+			branchSubscriptionId: Joi.string().optional().allow(null, ''),
+			status: Joi.string().optional(),
+			branchSubscription: Joi.object({
+				branchSubscriptionId: Joi.string().required(),
+				subscriptionPlanId: Joi.string().required(),
+				status: Joi.string().optional(),
+				startsAt: Joi.date().optional(),
+				endsAt: Joi.date().optional().allow(null),
+				autoRenew: Joi.boolean().optional(),
+				paymentMethod: Joi.string().optional().allow(null, ''),
+				lastPaymentDate: Joi.date().optional().allow(null),
+				nextPaymentDate: Joi.date().optional().allow(null),
+			}).optional().allow(null),
+		}).optional().allow(null),
+	}),
+
+	saveRoleOffline: Joi.object({
+		roleId: Joi.string().required().messages({
+			'string.base': 'Role ID must be a string',
+			'any.required': 'Role ID is required',
+		}),
+		name: Joi.string().optional().messages({
+			'string.base': 'Name must be a string',
+		}),
+		displayName: Joi.string().optional().allow(null, '').messages({
+			'string.base': 'Display name must be a string',
+		}),
+		description: Joi.string().optional().allow(null, '').messages({
+			'string.base': 'Description must be a string',
+		}),
+		isSystemRole: Joi.boolean().optional().default(false).messages({
+			'boolean.base': 'Is system role must be a boolean',
+		}),
+		isActive: Joi.boolean().optional().default(true).messages({
+			'boolean.base': 'Is active must be a boolean',
+		}),
+	}),
+
+	savePermissionsOffline: Joi.object({
+		permissions: Joi.array().items(
+			Joi.alternatives().try(
+				Joi.string(),
+				Joi.object({
+					permissionId: Joi.string().optional(),
+					name: Joi.string().required(),
+					displayName: Joi.string().optional(),
+					description: Joi.string().optional().allow(null, ''),
+					category: Joi.string().optional(),
+					scope: Joi.string().optional(),
+					isSystemPermission: Joi.boolean().optional(),
+				})
+			)
+		).required().messages({
+			'array.base': 'Permissions must be an array',
+			'any.required': 'Permissions array is required',
+		}),
+		roleId: Joi.string().optional().messages({
+			'string.base': 'Role ID must be a string',
+		}),
+	}),
+
+	verifyRoleQuery: Joi.object({
+		roleId: Joi.string().optional().messages({
+			'string.base': 'Role ID must be a string',
+		}),
 	}),
 
 };
