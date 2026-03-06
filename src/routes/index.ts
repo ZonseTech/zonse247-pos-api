@@ -7,7 +7,6 @@ import InventoryRoutes from './inventory.routes'
 import MigrationRoutes from './migration.routes'
 import PaymentMethodRoutes from './payment-method.routes'
 import TerminalSettingsRoutes from './terminal-settings.routes'
-import TransactionsRoutes from './transaction.routes'
 import ReturnsRoutes from './return.routes'
 import UsersRoutes from './users.routes'
 import TenantsRoutes from './tenant.routes'
@@ -84,7 +83,6 @@ router.use('/customers', CustomersRoutes);
 router.use('/categories', CategoriesRoutes);
 router.use('/payment-methods', PaymentMethodRoutes);
 router.use('/migration', MigrationRoutes);
-router.use('/transactions', TransactionsRoutes);
 router.use('/returns', ReturnsRoutes);
 router.use('/subscriptions', SubscriptionsRoutes);
 router.use('/subscription-plans', SubscriptionPlanRoutes);
