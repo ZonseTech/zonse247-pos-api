@@ -335,7 +335,7 @@ export class ProductRepository {
             where: { name: { contains: name }, ...scope, isActive: true },
             include: {
                 category: true,
-                variants: { where: { isActive: true }, orderBy: { isDefault: 'desc' }, take: 1, include: { inventory: true, barcodes: { where: { isActive: true } } } },
+                variants: { where: { isActive: true }, orderBy: { isDefault: 'desc' }, take: 1, include: { inventories: true, barcodes: { where: { isActive: true } } } },
             },
         });
     }
