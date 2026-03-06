@@ -1,10 +1,63 @@
 import { AuthenticatedUser } from 'auth';
 import { InventoryModel } from '../models/inventory.model';
 import { CategoryService } from './category.service';
+import { StockMovementService } from './stock-movement.service';
 import { Category } from 'categoty';
 import { CartItem } from 'order';
 import { InventoryItem } from 'inventory-item';
+import prisma from '../databases/prisma/client';
 
+/**
+ * InventoryService - Facade for all inventory-related operations
+ * 
+ * ARCHITECTURE:
+ * =============
+ * 
+ * This service follows the recommended code structure:
+ * 
+ * 1. SERVICE LAYER PATTERN
+ *    - InventoryService: High-level inventory operations (this file)
+ *    - StockMovementService: Core movement recording (immutable ledger)
+ *    - SaleService: Sale creation and voiding
+ *    - ReturnService: Return processing
+ * 
+ * 2. GOLDEN RULE
+ *    Never update inventory quantities directly.
+ *    Always use StockMovementService which:
+ *    - Records an immutable movement entry
+ *    - Updates the inventory cache atomically
+ *    - Maintains version for optimistic locking
+ * 
+ * 3. IMMUTABILITY ENFORCEMENT
+ *    StockMovement records are NEVER updated or deleted.
+ *    Corrections use compensating movements (see StockMovementService).
+ * 
+ * 4. ATOMIC TRANSACTIONS
+ *    - Prisma handles transactions via prisma.$transaction()
+ *    - SQLite may not support nested transactions - use single-batch writes
+ *    - In offline mode, all changes are written together in one transaction
+ * 
+ * USAGE:
+ * ======
+ * 
+ * // Add stock (via stock movement)
+ * await StockMovementService.recordPurchaseReceipt({ ... });
+ * 
+ * // Process a sale (via SaleService which calls StockMovementService)
+ * await SaleService.createSale({ ... });
+ * 
+ * // Void a sale (creates compensating movements)
+ * await SaleService.voidSale(saleId, { voidReason: '...', voidedBy: '...' });
+ * 
+ * // Manual stock adjustment
+ * await StockMovementService.recordAdjustment({ ... });
+ * 
+ * // Stock count reconciliation
+ * await StockMovementService.recordStockCount({ actualQuantity: 50, ... });
+ * 
+ * // Recalculate inventory from movements (sync verification)
+ * await StockMovementService.recalculateInventory(inventoryId);
+ */
 export class InventoryService {
     static async getInventorySummary(auth: AuthenticatedUser): Promise<{
         totalStock: number;
@@ -207,8 +260,42 @@ export class InventoryService {
         return await InventoryModel.findBySku(sku, auth);
     }
 
+    /**
+     * Decrement inventory for sales
+     * GOLDEN RULE: Uses StockMovementService to record movements
+     * 
+     * @deprecated Use StockMovementService.recordSale directly for better control
+     */
     static async decrementInventory(products: CartItem[], auth: AuthenticatedUser): Promise<void> {
-        return await InventoryModel.decrementInventory(products, auth);
+        for (const item of products) {
+            // Find inventory by variant/product ID
+            const inventory = await prisma.inventory.findFirst({
+                where: {
+                    OR: [
+                        { variantId: item.productId },
+                        { productId: item.productId }
+                    ],
+                    branchId: auth.branchId,
+                    tenantId: auth.tenantId,
+                },
+            });
+
+            if (!inventory) {
+                throw new Error(`Inventory not found for product ${item.productId}`);
+            }
+
+            // GOLDEN RULE: Record stock movement (inventory cache is updated atomically)
+            await StockMovementService.recordSale({
+                tenantId: auth.tenantId,
+                branchId: auth.branchId,
+                inventoryId: inventory.id,
+                quantity: item.quantity,
+                unitCost: item.purchasePrice || 0,
+                referenceId: `sale-${Date.now()}`, // Generate reference if not provided
+                notes: `Sale of ${item.name || item.productId}`,
+                movedBy: auth.userId,
+            });
+        }
     }
 
     static async getInventoryItemCounts(auth: AuthenticatedUser): Promise<{
@@ -225,13 +312,51 @@ export class InventoryService {
         return await InventoryModel.exists(productUuid, auth);
     }
 
-    static async updateInventoryItemQuantity(productUuid: string, quantity: number, auth: AuthenticatedUser): Promise<number> {
+    /**
+     * Update inventory item quantity via stock adjustment
+     * GOLDEN RULE: Uses StockMovementService to record the adjustment
+     */
+    static async updateInventoryItemQuantity(productUuid: string, newQuantity: number, auth: AuthenticatedUser): Promise<number> {
         const exists = await InventoryModel.exists(productUuid, auth);
         if (!exists) {
             throw new Error('Inventory item not found or access denied');
         }
 
-        return await InventoryModel.updateQuantity(productUuid, quantity, auth);
+        // Find inventory by variant/product ID
+        const inventory = await prisma.inventory.findFirst({
+            where: {
+                OR: [
+                    { variantId: productUuid },
+                    { productId: productUuid }
+                ],
+                branchId: auth.branchId,
+                tenantId: auth.tenantId,
+            },
+        });
+
+        if (!inventory) {
+            throw new Error(`Inventory not found for ${productUuid}`);
+        }
+
+        const currentQuantity = inventory.availableQuantity;
+        const adjustment = newQuantity - currentQuantity;
+
+        if (adjustment === 0) {
+            return 1; // No change needed
+        }
+
+        // GOLDEN RULE: Record stock movement for the adjustment
+        await StockMovementService.recordAdjustment({
+            tenantId: auth.tenantId,
+            branchId: auth.branchId,
+            inventoryId: inventory.id,
+            quantity: adjustment,
+            unitCost: Number(inventory.averageCost || 0),
+            notes: `Manual quantity adjustment from ${currentQuantity} to ${newQuantity}`,
+            movedBy: auth.userId,
+        });
+
+        return 1;
     }
 
     static async getInventoryItemsByCategory(categoryId: string, auth: AuthenticatedUser): Promise<InventoryItem[]> {
@@ -300,20 +425,55 @@ export class InventoryService {
         );
     }
 
+    /**
+     * Adjust inventory by a delta amount
+     * GOLDEN RULE: Uses StockMovementService to record the adjustment
+     */
     static async adjustInventory(productUuid: string, adjustment: number, auth: AuthenticatedUser): Promise<number> {
         const inventoryItem = await InventoryModel.findById(productUuid, auth);
         if (!inventoryItem) {
             throw new Error('Inventory item not found or access denied');
         }
 
-        const currentQuantity = parseInt(inventoryItem.quantity?.toString() || '0');
+        // Find inventory by variant/product ID
+        const inventory = await prisma.inventory.findFirst({
+            where: {
+                OR: [
+                    { variantId: productUuid },
+                    { productId: productUuid }
+                ],
+                branchId: auth.branchId,
+                tenantId: auth.tenantId,
+            },
+        });
+
+        if (!inventory) {
+            throw new Error(`Inventory not found for ${productUuid}`);
+        }
+
+        const currentQuantity = inventory.availableQuantity;
         const newQuantity = currentQuantity + adjustment;
 
-        if (newQuantity < 0) {
+        if (newQuantity < 0 && !inventory.allowNegativeStock) {
             throw new Error('Adjustment would result in negative inventory');
         }
 
-        return await InventoryModel.updateQuantity(productUuid, newQuantity, auth);
+        if (adjustment === 0) {
+            return 1; // No change needed
+        }
+
+        // GOLDEN RULE: Record stock movement for the adjustment
+        await StockMovementService.recordAdjustment({
+            tenantId: auth.tenantId,
+            branchId: auth.branchId,
+            inventoryId: inventory.id,
+            quantity: adjustment,
+            unitCost: Number(inventory.averageCost || 0),
+            notes: `Inventory adjustment: ${adjustment > 0 ? '+' : ''}${adjustment}`,
+            movedBy: auth.userId,
+        });
+
+        return 1;
     }
 
     static async syncAllCategoryItemCounts(auth: AuthenticatedUser): Promise<void> {
@@ -358,5 +518,52 @@ export class InventoryService {
         } catch (error) {
             console.warn('Failed to sync category item counts after moving inventory items:', error);
         }
+    }
+
+    /**
+     * Recalculate inventory quantity from stock movements
+     * Use this when syncing offline data or for data integrity checks
+     * GOLDEN RULE: Inventory is derived from stock movements
+     */
+    static async recalculateInventory(
+        inventoryId: string,
+        _auth: AuthenticatedUser
+    ): Promise<{ calculatedQuantity: number; previousCachedQuantity: number; wasCorrected: boolean }> {
+        return await StockMovementService.recalculateInventory(inventoryId);
+    }
+
+    /**
+     * Recalculate all inventory for a branch
+     * Useful for data integrity checks or after syncing offline data
+     * GOLDEN RULE: Inventory is derived from stock movements
+     */
+    static async recalculateBranchInventory(
+        auth: AuthenticatedUser
+    ): Promise<{ total: number; corrected: number; errors: string[] }> {
+        return await StockMovementService.recalculateBranchInventory(auth.tenantId, auth.branchId);
+    }
+
+    /**
+     * Record a stock movement (pass-through to StockMovementService)
+     * This is the proper way to change inventory quantities
+     */
+    static async recordStockMovement(
+        data: {
+            inventoryId: string;
+            movementType: 'PURCHASE_RECEIPT' | 'SALE' | 'RETURN' | 'ADJUSTMENT' | 'TRANSFER_IN' | 'TRANSFER_OUT' | 'DAMAGE' | 'EXPIRY';
+            quantity: number;
+            referenceType?: 'PURCHASE_ORDER' | 'SALE' | 'RETURN' | 'ADJUSTMENT' | 'TRANSFER';
+            referenceId?: string;
+            unitCost: number;
+            notes?: string;
+        },
+        auth: AuthenticatedUser
+    ): Promise<{ movementId: string; previousQuantity: number; newQuantity: number }> {
+        return await StockMovementService.recordMovement({
+            tenantId: auth.tenantId,
+            branchId: auth.branchId,
+            ...data,
+            movedBy: auth.userId,
+        });
     }
 }
