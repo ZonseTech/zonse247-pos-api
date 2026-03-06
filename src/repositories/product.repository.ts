@@ -280,6 +280,7 @@ export class ProductRepository {
                         ...(inv.reorderLevel !== undefined && { reorderPoint: inv.reorderLevel }),
                         ...(inv.minStock !== undefined && { reorderPoint: inv.minStock }),
                         ...(inv.maxStock !== undefined && { maxStock: inv.maxStock }),
+                        version: { increment: 1 }, // Always increment version on update
                     },
                 });
             }

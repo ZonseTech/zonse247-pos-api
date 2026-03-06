@@ -14,7 +14,6 @@ import {
     SALE_NUMBER,
     PAGINATION,
     ERROR_MESSAGES,
-    MOVEMENT_TYPES,
     roundCurrency,
 } from '../constants/sale.constants';
 import {
@@ -96,7 +95,7 @@ export class SaleService {
                 });
 
                 // Step 7: Update inventory and record movements
-                await this.updateInventoryForSale(tx, processedItems, sale.id, saleNumber, data.userId, tenantId, branchId);
+                await this.updateInventoryForSale(tx, processedItems, sale.id, saleNumber, data.userId, tenantId, branchId, data.terminalId);
 
                 return mapSaleToResponse(sale);
             });
@@ -419,6 +418,7 @@ export class SaleService {
 
     /**
      * Update inventory quantities and record stock movements
+     * Following the golden rule: only record movements, inventory cache is updated atomically
      */
     private static async updateInventoryForSale(
         tx: any,
@@ -427,27 +427,21 @@ export class SaleService {
         saleNumber: string,
         userId: string,
         tenantId: string,
-        branchId: string
+        branchId: string,
+        terminalId?: string
     ): Promise<void> {
         for (const item of items) {
-            await tx.inventory.update({
-                where: { id: item.inventoryId },
-                data: {
-                    availableQuantity: { decrement: item.quantity },
-                    lastSoldAt: new Date(),
-                },
-            });
-
-            await StockMovementService.recordMovement(
+            // GOLDEN RULE: Only record the stock movement
+            // The inventory cache is updated atomically by StockMovementService
+            await StockMovementService.recordSale(
                 {
                     tenantId,
                     branchId,
+                    terminalId,
                     inventoryId: item.inventoryId,
-                    movementType: MOVEMENT_TYPES.SALE,
                     quantity: item.quantity,
-                    referenceType: 'SALE',
-                    referenceId: saleId,
                     unitCost: item.unitCost,
+                    referenceId: saleId,
                     notes: `Sale ${saleNumber}`,
                     movedBy: userId,
                 },
@@ -458,6 +452,7 @@ export class SaleService {
 
     /**
      * Restore inventory when voiding a sale
+     * Following the golden rule: only record movements, inventory cache is updated atomically
      */
     private static async restoreInventoryForVoid(
         tx: any,
@@ -467,26 +462,24 @@ export class SaleService {
         branchId: string
     ): Promise<void> {
         for (const item of sale.items) {
-            const inventory = item.variant?.inventory;
+            // Find inventory for this branch (inventories is an array from the include)
+            const inventory = item.variant?.inventories?.find(
+                (inv: any) => inv.branchId === branchId
+            ) || item.variant?.inventory;
             if (!inventory) continue;
 
-            await tx.inventory.update({
-                where: { id: inventory.id },
-                data: {
-                    availableQuantity: { increment: item.quantity },
-                },
-            });
-
-            await StockMovementService.recordMovement(
+            // GOLDEN RULE: Only record the stock movement
+            // The inventory cache is updated atomically by StockMovementService
+            await StockMovementService.recordReturn(
                 {
                     tenantId,
                     branchId,
+                    terminalId: sale.terminalId, // Use original sale's terminalId
                     inventoryId: inventory.id,
-                    movementType: MOVEMENT_TYPES.RETURN,
                     quantity: item.quantity,
-                    referenceType: 'SALE',
-                    referenceId: sale.id,
                     unitCost: Number(item.unitCost),
+                    referenceType: 'SALE', // Reference the voided sale
+                    referenceId: sale.id,
                     notes: `Void sale ${sale.saleNumber}: ${data.voidReason}`,
                     movedBy: data.voidedBy,
                 },

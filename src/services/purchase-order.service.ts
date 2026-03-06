@@ -105,6 +105,7 @@ export class PurchaseOrderService {
                     },
                 });
 
+                // Find or create inventory record (creates with 0 quantity - not a direct update)
                 let inventory = await tx.inventory.findFirst({
                     where: {
                         tenantId,
@@ -114,6 +115,8 @@ export class PurchaseOrderService {
                 });
 
                 if (!inventory) {
+                    // Create inventory shell with 0 quantity
+                    // Stock will be added via StockMovementService
                     inventory = await tx.inventory.create({
                         data: {
                             id: uuidv4(),
@@ -133,36 +136,16 @@ export class PurchaseOrderService {
                 const receivedQty = receivedItem.receivedQuantity;
                 const damagedQty = receivedItem.damagedQuantity;
 
+                // GOLDEN RULE: Record stock movements - inventory cache is updated atomically
                 if (receivedQty > 0) {
-                    const currentAvailable = inventory.availableQuantity;
-                    const currentAvgCost = Number(inventory.averageCost);
-
-                    const newAvgCost =
-                        currentAvailable > 0
-                            ? (currentAvailable * currentAvgCost + receivedQty * unitCost) /
-                            (currentAvailable + receivedQty)
-                            : unitCost;
-
-                    await tx.inventory.update({
-                        where: { id: inventory.id },
-                        data: {
-                            availableQuantity: { increment: receivedQty },
-                            averageCost: newAvgCost,
-                            lastPurchaseCost: unitCost,
-                            lastRestockedAt: new Date(),
-                        },
-                    });
-
-                    await StockMovementService.recordMovement(
+                    await StockMovementService.recordPurchaseReceipt(
                         {
                             tenantId,
                             branchId,
                             inventoryId: inventory.id,
-                            movementType: 'PURCHASE_RECEIPT',
                             quantity: receivedQty,
-                            referenceType: 'PURCHASE_ORDER',
-                            referenceId: purchaseOrderId,
                             unitCost,
+                            referenceId: purchaseOrderId,
                             notes: `Received from PO ${po.poNumber}`,
                             movedBy: data.receivedBy,
                         },
@@ -171,23 +154,14 @@ export class PurchaseOrderService {
                 }
 
                 if (damagedQty > 0) {
-                    await tx.inventory.update({
-                        where: { id: inventory.id },
-                        data: {
-                            damagedQuantity: { increment: damagedQty },
-                        },
-                    });
-
-                    await StockMovementService.recordMovement(
+                    await StockMovementService.recordDamage(
                         {
                             tenantId,
                             branchId,
                             inventoryId: inventory.id,
-                            movementType: 'DAMAGE',
                             quantity: damagedQty,
-                            referenceType: 'PURCHASE_ORDER',
-                            referenceId: purchaseOrderId,
                             unitCost,
+                            referenceId: purchaseOrderId,
                             notes: `Damaged items from PO ${po.poNumber}`,
                             movedBy: data.receivedBy,
                         },
