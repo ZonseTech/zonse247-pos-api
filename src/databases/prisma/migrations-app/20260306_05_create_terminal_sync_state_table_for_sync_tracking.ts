@@ -37,9 +37,7 @@ const mysqlStatements = [
 ];
 
 // SQLite: No-op - this table is server-only
-const sqliteStatements: string[] = [
-    `-- terminal_sync_state is a server-only table, not created on local SQLite databases`,
-];
+const sqliteStatements: string[] = [];
 
 export const migration: Migration = {
     version: '20260306_05',
@@ -49,9 +47,7 @@ export const migration: Migration = {
         mysql: mysqlStatements,
     },
     down: {
-        sqlite: [
-            `-- No-op: table doesn't exist on SQLite`,
-        ],
+        sqlite: [],
         mysql: [
             `ALTER TABLE \`terminal_sync_state\` DROP FOREIGN KEY \`terminal_sync_state_terminal_id_fkey\``,
             `ALTER TABLE \`terminal_sync_state\` DROP FOREIGN KEY \`terminal_sync_state_tenant_id_fkey\``,
