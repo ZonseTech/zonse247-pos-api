@@ -780,9 +780,6 @@ model Branch {
   mraSubmissions     MraSubmission[] // Central server only
   terminalSyncStates TerminalSyncState[] // Server-only: sync state tracking
   changeLogs         ChangeLog[] // Server-only: change log for delta sync
-  
-  // ADDED: Relation to old inventory for backward compatibility
-  inventoryOld       InventoryOld[]
 
   @@unique([tenantId, branchCode], name: "unique_tenant_branch_code")
   @@index([branchCode])
@@ -814,7 +811,6 @@ model Category {
   updatedAt   DateTime?   @default(now()) @map("updated_at")
   branch      Branch      @relation(fields: [branchId], references: [branchId], onDelete: Cascade, onUpdate: NoAction)
   terminal    Terminal?   @relation(fields: [terminalId], references: [terminalId], onDelete: Cascade, onUpdate: NoAction)
-  inventoryOld InventoryOld[]
   products    Product[]
 
   @@unique([branchId, name], name: "unique_branch_category")
@@ -854,66 +850,6 @@ model Customer {
   @@index([updatedAt])
   @@index([deletedAt])
   @@map("customers")
-}
-
-// RENAMED: Original Inventory model renamed to InventoryOld for backward compatibility
-model InventoryOld {
-  id                 Int              @id @default(autoincrement())
-  productId          String           @unique @map("product_id")
-  branchId           String           @map("branch_id")
-  tenantId           String           @map("tenant_id")
-  userId             String           @map("user_id")
-  categoryId         String?          @map("category_id")
-  barcode            String           @map("barcode")
-  sku                String?          @map("sku")
-  name               String           @map("name")
-  description        String?          @map("description")
-  brand              String?          @map("brand")
-  unit               String?          @default("piece") @map("unit")
-  costPrice          Decimal          @default(0.00) @map("cost_price")
-  sellPrice          Decimal          @default(0.00) @map("sell_price")
-  promoPrice         Decimal?         @map("promo_price")
-  promoStart         DateTime?        @map("promo_start")
-  promoEnd           DateTime?        @map("promo_end")
-  quantity           String?          @default("0") @map("quantity")
-  reservedQuantity   Int?             @default(0) @map("reserved_quantity")
-  minStock           Int?             @default(0) @map("min_stock")
-  originalQuantity   String?          @default("0") @map("original_quantity")
-  maxStock           Int?             @map("max_stock")
-  stock              Int?             @map("stock")
-  reorderLevel       Int?             @map("reorder_level")
-  weight             Decimal?         @map("weight")
-  dimensions         String?          @map("dimensions")
-  color              String?          @map("color")
-  size               String?          @map("size")
-  properties         Json?            @map("properties")
-  status             InventoryStatus? @default(active) @map("status")
-  trackInventory     Boolean?         @default(true) @map("track_inventory")
-  allowNegativeStock Boolean?         @default(false) @map("allow_negative_stock")
-  isTaxable          Boolean?         @default(true) @map("is_taxable")
-  expirationDate     DateTime?        @map("expiration_date")
-  manufactureDate    DateTime?        @map("manufacture_date")
-  imageUrls          Json?            @map("image_urls")
-  supplierName       String?          @map("supplier_name")
-  supplierCode       String?          @map("supplier_code")
-  createdBy          String?          @map("created_by")
-  lastUpdatedBy      String?          @map("last_updated_by")
-  createdAt          DateTime?        @default(now()) @map("created_at")
-  updatedAt          DateTime?        @default(now()) @map("updated_at")
-  
-  branch             Branch           @relation(fields: [branchId], references: [branchId], onDelete: Cascade, onUpdate: NoAction)
-  category           Category?        @relation(fields: [categoryId], references: [categoryId], onUpdate: NoAction)
-  createdByUser      User?            @relation("inventory_created_byTousers", fields: [createdBy], references: [userId], onUpdate: NoAction)
-  lastUpdatedByUser  User?            @relation("inventory_last_updated_byTousers", fields: [lastUpdatedBy], references: [userId], onUpdate: NoAction)
-
-  @@index([createdBy])
-  @@index([barcode])
-  @@index([branchId])
-  @@index([categoryId])
-  @@index([name])
-  @@index([status])
-  @@index([lastUpdatedBy])
-  @@map("inventory_old")
 }
 
 model Order {
@@ -1368,8 +1304,6 @@ model User {
   updatedAt                DateTime?        @default(now()) @map("updated_at")
   
   auditLogs                AuditLog[]
-  inventoryCreatedBy       InventoryOld[]   @relation("inventory_created_byTousers")
-  inventoryLastUpdatedBy   InventoryOld[]   @relation("inventory_last_updated_byTousers")
   userPermissionsUser      UserPermission[] @relation("user_permissions_user_idTousers")
   userPermissionsCreatedBy UserPermission[] @relation("user_permissions_created_byTousers")
   userSessions             UserSession[]

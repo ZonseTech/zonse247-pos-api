@@ -1,6 +1,7 @@
 import { PrismaClient } from "../generated/mysql/client";
 
-const PAYMENT_METHODS = [
+// Payment method templates (without tenant/branch IDs)
+const PAYMENT_METHOD_TEMPLATES = [
     { methodId: 'cash', name: 'Cash', icon: '💵', sortOrder: 1, isActive: true },
     { methodId: 'bank-transfer', name: 'Bank Transfer', icon: '🏦', sortOrder: 2, isActive: true },
     { methodId: 'mobile-money', name: 'Mobile Money', icon: '📱', sortOrder: 3, isActive: true },
@@ -12,11 +13,19 @@ const PAYMENT_METHODS = [
 export async function seedPaymentMethods(prisma: PrismaClient) {
     console.log('📝 Seeding payment methods...');
 
-    for (const method of PAYMENT_METHODS) {
+    // Use the default tenant and branch that were seeded earlier
+    const tenantId = '-1';
+    const branchId = '-1';
+
+    for (const template of PAYMENT_METHOD_TEMPLATES) {
         await prisma.paymentMethod.upsert({
-            where: { methodId: method.methodId },
+            where: { methodId: template.methodId },
             update: {},
-            create: method,
+            create: {
+                ...template,
+                tenantId,
+                branchId,
+            },
         });
     }
 

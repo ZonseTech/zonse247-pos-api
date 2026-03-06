@@ -52,6 +52,7 @@ import { migration as m20260306_04 } from './20260306_04_add_tenant_branch_ids_t
 import { migration as m20260306_05 } from './20260306_05_create_terminal_sync_state_table_for_sync_tracking';
 import { migration as m20260306_06 } from './20260306_06_create_change_log_table_for_delta_sync';
 import { migration as m20260306_07 } from './20260306_07_add_version_deleted_at_to_tenant_branch_role_permission_tables';
+import { migration as m20260307_01 } from './20260307_01_add_triggers_to_enforce_stockmovement_immutability';
 
 /**
  * All registered migrations, sorted by version
@@ -99,6 +100,7 @@ export const registeredMigrations: Migration[] = [
     m20260306_05,
     m20260306_06,
     m20260306_07,
+    m20260307_01,
 ].sort((a, b) => a.version.localeCompare(b.version));
 
 /**
