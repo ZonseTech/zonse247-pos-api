@@ -38,6 +38,7 @@ import { authLimiter } from '../middlewares/rate-limit.middleware'
 import PaymentServiceProviderRoutes from './payment-service-provider.routes'
 import ReportsRoutes from './reports.routes'
 import MraRoutes from './mra.routes'
+import SyncRoutes from './sync.routes'
 import { TenantMiddleware } from '../middlewares/tenant.middleware'
 import { BranchMiddleware } from '../middlewares/branch.middleware'
 
@@ -101,5 +102,6 @@ router.use('/printers', PrinterRoutes);
 router.use('/reports', ReportsRoutes);
 router.use('/tenant-registration-details', TenantRegistrationDetailRoutes);
 router.use('/mra', MraRoutes);
+router.use('/sync', SyncRoutes);
 
 export default router
