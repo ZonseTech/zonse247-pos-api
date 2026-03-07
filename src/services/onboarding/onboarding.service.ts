@@ -134,7 +134,6 @@ export class OnboardingService {
             features: planData.features || [],
             limits: planData.limits || {},
             notes: planData.notes || null,
-            synced: planData.synced || 0
         });
 
         return { saved: true, exists: false, data: plan };

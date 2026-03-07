@@ -222,7 +222,6 @@ export class BranchSubscriptionModel {
             endsAt: endDate,
             lastPaymentDate: now,
             nextPaymentDate: nextPaymentDate,
-            synced: 0,
         };
     }
 

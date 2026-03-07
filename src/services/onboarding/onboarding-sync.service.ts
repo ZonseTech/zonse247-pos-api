@@ -63,7 +63,6 @@ export class OnboardingSyncService {
                         features: (plan.features || []) as any,
                         limits: (plan.limits || {}) as any,
                         notes: (plan as any).notes || null,
-                        synced: 1
                     });
                     result.saved.push(savedPlan);
                     result.summary.saved++;
@@ -108,7 +107,6 @@ export class OnboardingSyncService {
                         icon: method.icon || null,
                         sortOrder: method.sortOrder || 0,
                         isActive: method.isActive !== undefined ? method.isActive : true,
-                        synced: 1
                     } as PaymentMethodCreateInput);
                     result.saved.push(savedMethod);
                     result.summary.saved++;
