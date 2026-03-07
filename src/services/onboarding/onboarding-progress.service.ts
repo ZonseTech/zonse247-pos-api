@@ -1,4 +1,4 @@
-import { OnboardingProgressModel } from '../models/onboarding-progress.model';
+import { OnboardingProgressModel } from '../../models/onboarding-progress.model';
 import type {
     OnboardingProgress,
     OnboardingStepType,
