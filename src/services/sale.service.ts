@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import { prisma } from '../databases/prisma/client';
-import { StockMovementService } from './stock-movement.service';
+import { StockMovementService } from './inventory/stock-movement.service';
 import {
     CreateSaleInput,
     SaleWithItems,

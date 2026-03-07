@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import { ReturnItemModel, ReturnItem } from '../models/return-item.model';
-import { StockMovementService } from './stock-movement.service';
+import { StockMovementService } from './inventory/stock-movement.service';
 import { AuthenticatedUser } from 'auth';
 import { Decimal } from '../databases/prisma/generated/prisma/internal/prismaNamespace';
 import { SaleService } from './sale.service';

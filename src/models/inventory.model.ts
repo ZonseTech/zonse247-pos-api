@@ -4,8 +4,8 @@ import { CartItem } from 'order';
 import { AuthenticatedUser } from 'auth';
 import { InventoryItem } from 'inventory-item';
 import prisma from '../databases/prisma/client';
-import { ProductService } from '../services/product.service';
-import { StockMovementService } from '../services/stock-movement.service';
+import { ProductService } from '../services/inventory/product.service';
+import { StockMovementService } from '../services/inventory/stock-movement.service';
 import {
     DbErrorHandler,
     ValidationError,
@@ -1228,12 +1228,13 @@ export class InventoryModel {
                         { expirationDate: null },
                         // Missing cost price (0 or null)
                         { costPrice: { equals: 0 } },
-                        // Missing stock quantity (no inventory record or availableQuantity is 0/null)
-                        { inventory: null },
-                        { inventory: { availableQuantity: { equals: 0 } } },
-                        // Missing low stock alert (reorderPoint is 0 or null)
-                        { inventory: { reorderPoint: null } },
-                        { inventory: { reorderPoint: { equals: 0 } } }
+                        // No inventory records
+                        { inventories: { none: {} } },
+                        // Has inventory but availableQuantity is 0
+                        { inventories: { some: { availableQuantity: { equals: 0 } } } },
+                        // Has inventory but reorderPoint is null or 0
+                        { inventories: { some: { reorderPoint: null } } },
+                        { inventories: { some: { reorderPoint: { equals: 0 } } } }
                     ]
                 }
             }),
@@ -1241,8 +1242,10 @@ export class InventoryModel {
             prisma.productVariant.count({
                 where: {
                     ...baseWhereClause,
-                    inventory: {
-                        availableQuantity: { gt: 0 }
+                    inventories: {
+                        some: {
+                            availableQuantity: { gt: 0 }
+                        }
                     }
                 }
             }),
@@ -1250,15 +1253,13 @@ export class InventoryModel {
             prisma.productVariant.count({
                 where: {
                     ...baseWhereClause,
-                    inventory: {
-                        AND: [
-                            { availableQuantity: { gt: 0 } },
-                            { reorderPoint: { gt: 0 } },
-                            {
-                                // This raw check is needed because Prisma doesn't support field-to-field comparison
-                                // We'll handle this with a raw query or by filtering in memory
-                            }
-                        ]
+                    inventories: {
+                        some: {
+                            AND: [
+                                { availableQuantity: { gt: 0 } },
+                                { reorderPoint: { gt: 0 } }
+                            ]
+                        }
                     }
                 }
             }).catch(() => 0), // Fallback if the above fails
@@ -1278,14 +1279,16 @@ export class InventoryModel {
         const lowStockVariants = await prisma.productVariant.findMany({
             where: {
                 ...baseWhereClause,
-                inventory: {
-                    availableQuantity: { gt: 0 },
-                    reorderPoint: { gt: 0 }
+                inventories: {
+                    some: {
+                        availableQuantity: { gt: 0 },
+                        reorderPoint: { gt: 0 }
+                    }
                 }
             },
             select: {
                 id: true,
-                inventory: {
+                inventories: {
                     select: {
                         availableQuantity: true,
                         reorderPoint: true
@@ -1295,7 +1298,7 @@ export class InventoryModel {
         });
 
         const accurateLowStockCount = lowStockVariants.filter(
-            v => v.inventory && v.inventory.availableQuantity <= (v.inventory.reorderPoint || 0)
+            v => v.inventories?.[0] && v.inventories[0].availableQuantity <= (v.inventories[0].reorderPoint || 0)
         ).length;
 
         return {
