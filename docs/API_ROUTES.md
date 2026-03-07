@@ -217,51 +217,78 @@ All endpoints are prefixed with the API base URL (e.g., `http://localhost:3000/a
 
 **Base Path:** `/sync`
 
-### Standard Sync Operations
+### Bidirectional Sync (Implemented)
 
-| Method | Endpoint                     | Description               | Auth Required |
-| ------ | ---------------------------- | ------------------------- | ------------- |
-| GET    | `/sync/tables`               | Get sync tables           | Yes           |
-| POST   | `/sync/pull`                 | Pull data from server     | Yes           |
-| POST   | `/sync/push`                 | Push data to server       | Yes           |
-| GET    | `/sync/status/:tableName`    | Get sync status for table | Yes           |
-| POST   | `/sync/bulk`                 | Bulk sync operation       | Yes           |
-| POST   | `/sync/bidirectional`        | Bidirectional sync        | Yes           |
-| PUT    | `/sync/configure/:tableName` | Configure table sync      | Yes           |
-| GET    | `/sync/stats/:tableName`     | Get table statistics      | Yes           |
-| GET    | `/sync/records/:tableName`   | Get all records for table | Yes           |
-| POST   | `/sync/auto-sync/start`      | Start auto-sync           | Yes           |
-| POST   | `/sync/auto-sync/stop`       | Stop auto-sync            | Yes           |
-| GET    | `/sync/auto-sync/status`     | Get auto-sync status      | Yes           |
+The sync system supports bidirectional synchronization between offline terminals and the server.
 
-### Incoming Sync (Remote Server - receives data from local terminals)
+**Data Flow:**
 
-| Method | Endpoint                                | Description                      | Auth Required |
-| ------ | --------------------------------------- | -------------------------------- | ------------- |
-| POST   | `/sync/incoming/sales`                  | Receive batch of sales           | Yes           |
-| POST   | `/sync/incoming/sales/single`           | Receive single sale              | Yes           |
-| POST   | `/sync/incoming/sale-items`             | Receive batch of sale items      | Yes           |
-| POST   | `/sync/incoming/sale-items/single`      | Receive single sale item         | Yes           |
-| POST   | `/sync/incoming/transactions`           | Receive batch of transactions    | Yes           |
-| POST   | `/sync/incoming/transactions/single`    | Receive single transaction       | Yes           |
-| POST   | `/sync/incoming/customers`              | Receive batch of customers       | Yes           |
-| POST   | `/sync/incoming/customers/single`       | Receive single customer          | Yes           |
-| POST   | `/sync/incoming/inventory`              | Receive batch of inventory       | Yes           |
-| POST   | `/sync/incoming/inventory/single`       | Receive single inventory         | Yes           |
-| POST   | `/sync/incoming/stock-movements`        | Receive batch of stock movements | Yes           |
-| POST   | `/sync/incoming/stock-movements/single` | Receive single stock movement    | Yes           |
-| POST   | `/sync/incoming/audit-logs`             | Receive batch of audit logs      | Yes           |
-| POST   | `/sync/incoming/audit-logs/single`      | Receive single audit log         | Yes           |
-| GET    | `/sync/incoming/stats`                  | Get incoming sync statistics     | Yes           |
+- **PUSH (Terminal → Server):** Sales, SaleItems, SalePayments, Returns, ReturnItems, StockMovements, Customers, Orders
+- **PULL (Server → Terminal):** Products, ProductVariants, Categories, Inventory, PaymentMethods, StockMovements (from other terminals), Customers
 
-### Outbound Sync (Local Terminal - pushes data to remote server)
+### Push Endpoints (Receive data from terminals)
 
-| Method | Endpoint                 | Description                    | Auth Required |
-| ------ | ------------------------ | ------------------------------ | ------------- |
-| POST   | `/sync/outbound/start`   | Start outbound auto-sync       | Yes           |
-| POST   | `/sync/outbound/stop`    | Stop outbound auto-sync        | Yes           |
-| GET    | `/sync/outbound/status`  | Get outbound sync status       | Yes           |
-| POST   | `/sync/outbound/trigger` | Manually trigger outbound sync | Yes           |
+| Method | Endpoint                | Description                         | Auth Required |
+| ------ | ----------------------- | ----------------------------------- | ------------- |
+| POST   | `/sync/batch`           | Bulk push all tables in one request | Terminal      |
+| POST   | `/sync/sales`           | Push sales from terminal            | Terminal      |
+| POST   | `/sync/sale-items`      | Push sale items from terminal       | Terminal      |
+| POST   | `/sync/sale-payments`   | Push sale payments from terminal    | Terminal      |
+| POST   | `/sync/returns`         | Push returns from terminal          | Terminal      |
+| POST   | `/sync/return-items`    | Push return items from terminal     | Terminal      |
+| POST   | `/sync/stock-movements` | Push stock movements from terminal  | Terminal      |
+| POST   | `/sync/customers`       | Push customers from terminal        | Terminal      |
+| POST   | `/sync/orders`          | Push orders from terminal           | Terminal      |
+
+### Pull Endpoints (Send data to terminals)
+
+| Method | Endpoint                | Description                       | Auth Required |
+| ------ | ----------------------- | --------------------------------- | ------------- |
+| POST   | `/sync/pull`            | Pull all changed data from server | Terminal      |
+| POST   | `/sync/pull/:tableName` | Pull specific table data          | Terminal      |
+
+**Pull Request Body:**
+
+```json
+{
+  "tenantId": "tenant-001",
+  "branchId": "branch-001",
+  "terminalId": "term-001",
+  "since": "2026-03-07T00:00:00Z", // Optional: get changes since timestamp
+  "tables": ["products", "inventory"], // Optional: specific tables to pull
+  "limit": 500 // Optional: max records per table
+}
+```
+
+### Combined Sync
+
+| Method | Endpoint              | Description                   | Auth Required |
+| ------ | --------------------- | ----------------------------- | ------------- |
+| POST   | `/sync/bidirectional` | Push then pull in one request | Terminal      |
+
+**Bidirectional Request Body:**
+
+```json
+{
+  "tenantId": "tenant-001",
+  "branchId": "branch-001",
+  "terminalId": "term-001",
+  "push": {
+    "sales": [...],
+    "saleItems": [...],
+    "stockMovements": [...]
+  },
+  "pullSince": "2026-03-07T00:00:00Z",
+  "pullTables": ["products", "inventory"],
+  "pullLimit": 500
+}
+```
+
+### Status Endpoint
+
+| Method | Endpoint       | Description                  | Auth Required |
+| ------ | -------------- | ---------------------------- | ------------- |
+| GET    | `/sync/status` | Get sync status for terminal | Terminal      |
 
 ---
 
