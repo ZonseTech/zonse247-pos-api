@@ -15,8 +15,7 @@ export class CategoryService {
             const categories = await CategoryModel.findByTenantIdAndBranchId(filters.tenantId, filters.branchId);
             return await this.enrichCategoriesWithItemCount(categories, { tenantId: filters.tenantId, branchId: filters.branchId });
         } catch (error) {
-            console.error('Error fetching categories:', error);
-            throw new Error('Failed to fetch categories');
+            throw new Error(error instanceof Error ? error.message : 'Failed to fetch categories');
         }
     }
 
@@ -29,38 +28,28 @@ export class CategoryService {
         },
         user: AuthenticatedUser
     ): Promise<Category> {
-        try {
-            const createRequest = {
-                name: categoryData.name,
-                description: categoryData.description,
-                color: categoryData.color,
-                isDefault: categoryData.isDefault,
-                tenantId: user.tenantId,
-                branchId: user.branchId,
-                userId: user.userId,
-            };
+        const createRequest = {
+            name: categoryData.name,
+            description: categoryData.description,
+            color: categoryData.color,
+            isDefault: categoryData.isDefault,
+            tenantId: user.tenantId,
+            branchId: user.branchId,
+            userId: user.userId,
+        };
 
-            const validationErrors = CategoryModel.validateCreateRequest(createRequest);
-            if (validationErrors.length > 0) {
-                throw new Error(`Validation failed: ${validationErrors.join(', ')}`);
-            }
+        const existingCategories = await CategoryModel.findByTenantIdAndName(
+            user.tenantId,
+            categoryData.name.trim()
+        );
 
-            const existingCategories = await CategoryModel.findByTenantIdAndName(
-                user.tenantId,
-                categoryData.name.trim()
-            );
-
-            const duplicateInBranch = existingCategories.find(cat => cat.branchId === user.branchId);
-            if (duplicateInBranch) {
-                throw new Error('Category with this name already exists in the branch');
-            }
-
-            const newCategory = CategoryModel.buildCategoryData(createRequest as CategoryUncheckedCreateInput);
-            return await CategoryModel.create(newCategory);
-        } catch (error) {
-            console.error('Error creating category:', error);
-            throw error;
+        const duplicateInBranch = existingCategories.find(cat => cat.branchId === user.branchId);
+        if (duplicateInBranch) {
+            throw new Error('Category with this name already exists in the branch');
         }
+
+        const newCategory = CategoryModel.buildCategoryData(createRequest as CategoryUncheckedCreateInput);
+        return await CategoryModel.create(newCategory);
     }
 
     static async updateCategory(
@@ -69,11 +58,6 @@ export class CategoryService {
         user: AuthenticatedUser
     ): Promise<void> {
         try {
-            const validationErrors = CategoryModel.validateUpdateRequest(updateData);
-            if (validationErrors.length > 0) {
-                throw new Error(`Validation failed: ${validationErrors.join(', ')}`);
-            }
-
             const existingCategory = await this.getCategoryById(categoryId, {
                 tenantId: user.tenantId,
                 branchId: user.branchId
@@ -102,8 +86,7 @@ export class CategoryService {
                 throw new Error('Failed to update category - no rows affected');
             }
         } catch (error) {
-            console.error('Error updating category:', error);
-            throw error;
+            throw new Error(error instanceof Error ? error.message : 'Failed to update category');
         }
     }
 
@@ -132,8 +115,7 @@ export class CategoryService {
                 throw new Error('Failed to delete category - no rows affected');
             }
         } catch (error) {
-            console.error('Error deleting category:', error);
-            throw error;
+            throw new Error(error instanceof Error ? error.message : 'Failed to delete category');
         }
     }
 
@@ -153,208 +135,7 @@ export class CategoryService {
             const enrichedCategories = await this.enrichCategoriesWithItemCount([category], filters);
             return enrichedCategories[0] || null;
         } catch (error) {
-            console.error('Error fetching category by ID:', error);
-            throw new Error('Failed to fetch category');
-        }
-    }
-
-    static async getCategoriesByTenant(tenantId: string): Promise<Category[]> {
-        try {
-            const categories = await CategoryModel.findByTenantId(tenantId);
-            return await this.enrichCategoriesWithItemCount(categories, { tenantId });
-        } catch (error) {
-            console.error('Error fetching categories by tenant:', error);
-            throw new Error('Failed to fetch categories by tenant');
-        }
-    }
-
-    static async getCategoriesByBranch(branchId: string): Promise<Category[]> {
-        try {
-            const categories = await CategoryModel.findByBranchId(branchId);
-            return await this.enrichCategoriesWithItemCount(categories, { branchId });
-        } catch (error) {
-            console.error('Error fetching categories by branch:', error);
-            throw new Error('Failed to fetch categories by branch');
-        }
-    }
-
-    static async searchCategoriesByName(
-        name: string,
-        filters: CategoryFilters
-    ): Promise<Category[]> {
-        try {
-            const allCategories = await CategoryModel.findByTenantIdAndBranchId(
-                filters.tenantId,
-                filters.branchId
-            );
-
-            const filteredCategories = allCategories.filter(category =>
-                category.name.toLowerCase().includes(name.toLowerCase())
-            );
-
-            return await this.enrichCategoriesWithItemCount(filteredCategories, filters);
-        } catch (error) {
-            console.error('Error searching categories by name:', error);
-            throw new Error('Failed to search categories');
-        }
-    }
-
-    static async searchCategoriesByDescription(
-        description: string,
-        filters: CategoryFilters
-    ): Promise<Category[]> {
-        try {
-            const allCategories = await CategoryModel.findByTenantIdAndBranchId(
-                filters.tenantId,
-                filters.branchId
-            );
-
-            const filteredCategories = allCategories.filter(category =>
-                category.description &&
-                category.description.toLowerCase().includes(description.toLowerCase())
-            );
-
-            return await this.enrichCategoriesWithItemCount(filteredCategories, filters);
-        } catch (error) {
-            console.error('Error searching categories by description:', error);
-            throw new Error('Failed to search categories by description');
-        }
-    }
-
-    static async getCategoriesByColor(
-        color: string,
-        filters: CategoryFilters
-    ): Promise<Category[]> {
-        try {
-            const allCategories = await CategoryModel.findByTenantIdAndBranchId(
-                filters.tenantId,
-                filters.branchId
-            );
-
-            const filteredCategories = allCategories.filter(category => category.color === color);
-            return await this.enrichCategoriesWithItemCount(filteredCategories, filters);
-        } catch (error) {
-            console.error('Error fetching categories by color:', error);
-            throw new Error('Failed to fetch categories by color');
-        }
-    }
-
-    static async getUnsyncedCategories(tenantId: string): Promise<Category[]> {
-        try {
-            const categories = await CategoryModel.findUnsyncedByTenant(tenantId);
-            return await this.enrichCategoriesWithItemCount(categories, { tenantId });
-        } catch (error) {
-            console.error('Error fetching unsynced categories:', error);
-            throw new Error('Failed to fetch unsynced categories');
-        }
-    }
-
-    static async markCategoryAsSynced(categoryId: string, user: AuthenticatedUser): Promise<void> {
-        try {
-            const category = await this.getCategoryById(categoryId, {
-                tenantId: user.tenantId,
-                branchId: user.branchId
-            });
-
-            if (!category) {
-                throw new Error('Category not found or access denied');
-            }
-
-            const updatedCount = await CategoryModel.markAsSynced(categoryId);
-            if (updatedCount === 0) {
-                throw new Error('Failed to mark category as synced');
-            }
-        } catch (error) {
-            console.error('Error marking category as synced:', error);
-            throw error;
-        }
-    }
-
-    static async markCategoryAsUnsynced(categoryId: string, user: AuthenticatedUser): Promise<void> {
-        try {
-            const category = await this.getCategoryById(categoryId, {
-                tenantId: user.tenantId,
-                branchId: user.branchId
-            });
-
-            if (!category) {
-                throw new Error('Category not found or access denied');
-            }
-
-            const updatedCount = await CategoryModel.markAsUnsynced(categoryId);
-            if (updatedCount === 0) {
-                throw new Error('Failed to mark category as unsynced');
-            }
-        } catch (error) {
-            console.error('Error marking category as unsynced:', error);
-            throw error;
-        }
-    }
-
-    static async getCategoryCount(filters?: Partial<CategoryFilters>): Promise<number> {
-        try {
-            const conditions = filters ? { ...filters } : {};
-            return await CategoryModel.count(conditions);
-        } catch (error) {
-            console.error('Error getting category count:', error);
-            throw new Error('Failed to get category count');
-        }
-    }
-
-    static async bulkMarkAsSynced(categoryIds: string[], user: AuthenticatedUser): Promise<void> {
-        try {
-            const results = await Promise.allSettled(
-                categoryIds.map(id => this.markCategoryAsSynced(id, user))
-            );
-
-            const failures = results.filter(result => result.status === 'rejected');
-            if (failures.length > 0) {
-                console.warn(`Failed to sync ${failures.length} out of ${categoryIds.length} categories`);
-            }
-        } catch (error) {
-            console.error('Error in bulk sync operation:', error);
-            throw new Error('Failed to complete bulk sync operation');
-        }
-    }
-
-    static async validateCategoryAccess(
-        categoryId: string,
-        user: AuthenticatedUser
-    ): Promise<boolean> {
-        try {
-            const category = await this.getCategoryById(categoryId, {
-                tenantId: user.tenantId,
-                branchId: user.branchId
-            });
-            return category !== null;
-        } catch (error) {
-            console.error('Error validating category access:', error);
-            return false;
-        }
-    }
-
-    static async updateCategoryItemCount(
-        categoryId: string,
-        itemCount: number,
-        user: AuthenticatedUser
-    ): Promise<void> {
-        try {
-            const category = await this.getCategoryById(categoryId, {
-                tenantId: user.tenantId,
-                branchId: user.branchId
-            });
-
-            if (!category) {
-                throw new Error('Category not found or access denied');
-            }
-
-            const updatedCount = await CategoryModel.update(categoryId, { itemCount });
-            if (updatedCount === 0) {
-                throw new Error('Failed to update category item count');
-            }
-        } catch (error) {
-            console.error('Error updating category item count:', error);
-            throw error;
+            throw new Error(error instanceof Error ? error.message : 'Failed to fetch category');
         }
     }
 
@@ -384,7 +165,6 @@ export class CategoryService {
                 itemCount: categoryItemCounts.get(category.categoryId) || 0
             }));
         } catch (error) {
-            console.error('Error enriching categories with item count:', error);
             return categories.map(category => ({
                 ...category,
                 itemCount: 0
@@ -414,8 +194,7 @@ export class CategoryService {
 
             await Promise.all(updatePromises);
         } catch (error) {
-            console.error('Error syncing category item counts:', error);
-            throw new Error('Failed to sync category item counts');
+            throw new Error(error instanceof Error ? error.message : 'Failed to sync category item counts');
         }
     }
 }
