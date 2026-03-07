@@ -1,14 +1,14 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 import jwt from 'jsonwebtoken';
 import validator from 'validator';
-import { UserService } from './user.service';
-import { UserModel } from '../models/user.model';
-import { RoleModel } from '../models/role.model';
-import { PermissionModel } from '../models/permission.model';
-import { RolePermissionModel } from '../models/role-permission.model';
-import { UserStatus } from '../databases/prisma/generated/prisma/enums';
-import { getConfig } from '../config/app.config';
-import { BranchModel } from '../models/branch.model';
+import { UserService } from '../user.service';
+import { UserModel } from '../../models/user.model';
+import { RoleModel } from '../../models/role.model';
+import { PermissionModel } from '../../models/permission.model';
+import { RolePermissionModel } from '../../models/role-permission.model';
+import { UserStatus } from '../../databases/prisma/generated/prisma/enums';
+import { getConfig } from '../../config/app.config';
+import { BranchModel } from '../../models/branch.model';
 
 /**
  * Service layer for authentication and authorization operations
@@ -463,8 +463,8 @@ export class AuthService {
         }
 
         // Import here to avoid circular dependency
-        const { BranchModel } = await import('../models/branch.model');
-        const { BranchMiddleware } = await import('../middlewares/branch.middleware');
+        const { BranchModel } = await import('../../models/branch.model');
+        const { BranchMiddleware } = await import('../../middlewares/branch.middleware');
 
         const user = await UserModel.findById(userId);
         if (!user) {
@@ -524,7 +524,7 @@ export class AuthService {
         userId: string,
         tenantId: string
     ): Promise<any[]> {
-        const { BranchModel } = await import('../models/branch.model');
+        const { BranchModel } = await import('../../models/branch.model');
 
         const user = await UserModel.findById(userId);
         if (!user) {
