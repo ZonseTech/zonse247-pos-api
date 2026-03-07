@@ -1,8 +1,8 @@
 import { EventEmitter } from 'events';
 import { PrintQueueService, getPrintQueue, PrintQueueConfig } from './print-queue.service';
 import { PrinterDiscoveryService } from './printer-discovery.service';
-import { PrinterModel } from '../models/printer.model';
-import { PrintJob, Printer, DiscoveredPrinter, PrinterType } from '../types/printer';
+import { PrinterModel } from '../../models/printer.model';
+import { PrintJob, Printer, DiscoveredPrinter, PrinterType } from '../../types/printer';
 
 export interface PrintAgentConfig extends Partial<PrintQueueConfig> {
     autoDiscoverPrinters: boolean;

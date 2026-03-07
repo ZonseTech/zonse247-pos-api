@@ -1,10 +1,10 @@
 import { EventEmitter } from 'events';
-import { PrinterModel, PrintJobModel } from '../models/printer.model';
+import { PrinterModel, PrintJobModel } from '../../models/printer.model';
 import {
     PrintJob,
     PrintJobStatus,
     Printer
-} from '../types/printer';
+} from '../../types/printer';
 import * as net from 'net';
 import { SerialPort } from 'serialport';
 import * as fs from 'fs';

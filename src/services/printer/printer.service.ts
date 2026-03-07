@@ -1,7 +1,7 @@
-import { PrinterModel } from '../models/printer.model';
-import { BranchModel } from '../models/branch.model';
-import { TerminalModel } from '../models/terminal.model';
-import { ValidationError } from '../utils/errors';
+import { PrinterModel } from '../../models/printer.model';
+import { BranchModel } from '../../models/branch.model';
+import { TerminalModel } from '../../models/terminal.model';
+import { ValidationError } from '../../utils/errors';
 import { PrintJobService } from './print-job.service';
 import { PrinterDiscoveryService } from './printer-discovery.service';
 import {
@@ -18,7 +18,7 @@ import {
     DiscoveredPrinter,
     PrinterTestResult,
     PrinterConnectionType
-} from '../types/printer';
+} from '../../types/printer';
 
 /**
  * PrinterService - Main service for printer CRUD operations

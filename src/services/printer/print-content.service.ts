@@ -1,10 +1,9 @@
-import { Printer } from '../types/printer';
-import { OrderModel } from '../models/order.model';
-import { BranchModel } from '../models/branch.model';
-import { ProductService } from './product.service';
-import { SaleService } from './sale.service';
+import { Printer } from '../../types/printer';
+import { OrderModel } from '../../models/order.model';
+import { BranchModel } from '../../models/branch.model';
+import { ProductService } from '../inventory/product.service';
+import { SaleService } from '../sale.service';
 
-// ESC/POS Commands
 const ESC_POS = {
     // Initialization
     INIT: '\x1B\x40',

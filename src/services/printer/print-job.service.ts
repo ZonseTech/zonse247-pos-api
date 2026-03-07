@@ -1,6 +1,6 @@
 /* eslint-disable no-control-regex */
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
-import { PrinterModel, PrintJobModel } from '../models/printer.model';
+import { PrinterModel, PrintJobModel } from '../../models/printer.model';
 import {
 	Printer,
 	PrintJob,
@@ -9,7 +9,7 @@ import {
 	PrintJobType,
 	PrintReceiptRequest,
 	PrintLabelRequest,
-} from '../types/printer';
+} from '../../types/printer';
 import { PrintContentService } from './print-content.service';
 import { getPrintQueue } from './print-queue.service';
 import * as net from 'net';

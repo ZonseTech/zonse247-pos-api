@@ -1,4 +1,4 @@
-import { PrinterModel } from '../models/printer.model';
+import { PrinterModel } from '../../models/printer.model';
 import {
     Printer,
     PrinterStatus,
@@ -6,7 +6,7 @@ import {
     DiscoveredPrinter,
     PrinterConnectionType,
     PrinterType
-} from '../types/printer';
+} from '../../types/printer';
 import { SerialPort } from 'serialport';
 import * as net from 'net';
 import * as os from 'os';
