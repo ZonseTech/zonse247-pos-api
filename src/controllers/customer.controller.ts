@@ -11,7 +11,6 @@ export class CustomerController extends BaseController {
             const customers = await CustomerService.selectAll(params);
             BaseController.sendResponse(res, 200, true, 'Customers retrieved successfully', customers);
         } catch (error: any) {
-            console.error('Error fetching roles:', error);
             BaseController.sendResponse(res, 500, false, error.message, undefined, error.message);
         }
     }
@@ -32,7 +31,6 @@ export class CustomerController extends BaseController {
 
             BaseController.sendSuccess(res, 'Customer retrieved successfully', customer);
         } catch (error) {
-            console.error('BaseController.getById error:', error);
             const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred';
             BaseController.sendServerError(res, 'Failed to retrieve customer', errorMessage);
         }
@@ -43,7 +41,6 @@ export class CustomerController extends BaseController {
             const customers = await CustomerService.getAllCustomers();
             BaseController.sendSuccess(res, 'Customers retrieved successfully', customers);
         } catch (error) {
-            console.error('BaseController.list error:', error);
             const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred';
             BaseController.sendServerError(res, 'Failed to retrieve customers', errorMessage);
         }
@@ -66,7 +63,6 @@ export class CustomerController extends BaseController {
 
             BaseController.sendCreated(res, 'Customer created successfully', newCustomer);
         } catch (error) {
-            console.error('BaseController.create error:', error);
             const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred';
 
             if (errorMessage.includes('email') || errorMessage.includes('required')) {
@@ -94,7 +90,6 @@ export class CustomerController extends BaseController {
 
             BaseController.sendSuccess(res, 'Customer updated successfully');
         } catch (error) {
-            console.error('BaseController.update error:', error);
             const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred';
 
             if (errorMessage.includes('email') || errorMessage.includes('required') || errorMessage.includes('empty')) {
@@ -121,7 +116,6 @@ export class CustomerController extends BaseController {
 
             BaseController.sendSuccess(res, 'Customer deleted successfully');
         } catch (error) {
-            console.error('BaseController.delete error:', error);
             const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred';
             BaseController.sendServerError(res, 'Failed to delete customer', errorMessage);
         }
@@ -132,7 +126,6 @@ export class CustomerController extends BaseController {
             const count = await CustomerService.getCustomersCount();
             BaseController.sendSuccess(res, 'Customer count retrieved successfully', { count });
         } catch (error) {
-            console.error('BaseController.count error:', error);
             const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred';
             BaseController.sendServerError(res, 'Failed to get customer count', errorMessage);
         }
@@ -144,42 +137,8 @@ export class CustomerController extends BaseController {
             const customers = await CustomerService.searchCustomers(conditions);
             BaseController.sendSuccess(res, 'Customer search completed successfully', customers);
         } catch (error) {
-            console.error('BaseController.search error:', error);
             const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred';
             BaseController.sendServerError(res, 'Failed to search customers', errorMessage);
-        }
-    }
-
-    static async getUnsynced(req: Request, res: Response): Promise<void> {
-        try {
-            const unsyncedCustomers = await CustomerService.getUnsyncedCustomers();
-            BaseController.sendSuccess(res, 'Unsynced customers retrieved successfully', unsyncedCustomers);
-        } catch (error) {
-            console.error('BaseController.getUnsynced error:', error);
-            const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred';
-            BaseController.sendServerError(res, 'Failed to retrieve unsynced customers', errorMessage);
-        }
-    }
-
-    static async markSynced(req: Request, res: Response): Promise<void> {
-        try {
-            const { customerId } = req.params;
-
-            if (!customerId) {
-                return BaseController.sendBadRequest(res, 'Customer ID is required');
-            }
-
-            const success = await CustomerService.markCustomerAsSynced(customerId as string);
-
-            if (!success) {
-                return BaseController.sendNotFound(res, 'Customer not found');
-            }
-
-            BaseController.sendSuccess(res, 'Customer marked as synced successfully');
-        } catch (error) {
-            console.error('BaseController.markSynced error:', error);
-            const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred';
-            BaseController.sendServerError(res, 'Failed to mark customer as synced', errorMessage);
         }
     }
 }
