@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import { BaseController } from "../base.controller";
 import { TerminalService } from "../../services/terminal.service";
 import { OnboardingService } from "../../services/onboarding/onboarding.service";
-import { OnboardingProgressService } from "../../services/onboarding-progress.service";
+import { OnboardingProgressService } from "../../services/onboarding/onboarding-progress.service";
 import type { OnboardingStepType, OnboardingStepStatus } from 'on-boarding';
 
 /**

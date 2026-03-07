@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { BaseController } from './base.controller';
-import { StockMovementService } from '../services/stock-movement.service';
+import { StockMovementService } from '../services/inventory/stock-movement.service';
 import { AuthRequest } from '../lib/express.type';
 
 /**

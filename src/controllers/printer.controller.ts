@@ -1,10 +1,10 @@
 import { Request, Response } from "express";
 import { BaseController } from "./base.controller";
-import { PrinterService } from "../services/printer.service";
-import { PrinterDiscoveryService } from "../services/printer-discovery.service";
-import { getPrintAgent } from "../services/print-agent.service";
-import { getPrintQueue } from "../services/print-queue.service";
-import { PrintJobService } from "../services/print-job.service";
+import { PrinterService } from "../services/printer/printer.service";
+import { PrinterDiscoveryService } from "../services/printer/printer-discovery.service";
+import { getPrintAgent } from "../services/printer/print-agent.service";
+import { getPrintQueue } from "../services/printer/print-queue.service";
+import { PrintJobService } from "../services/printer/print-job.service";
 import { AuthRequest } from "../lib/express.type";
 import {
     CreatePrinterRequest,

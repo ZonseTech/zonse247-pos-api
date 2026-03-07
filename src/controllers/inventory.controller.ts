@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { BaseController } from './base.controller';
-import { InventoryService } from '../services/inventory.service';
+import { InventoryService } from '../services/inventory/inventory.service';
 import { AuthRequest } from '../lib/express.type';
 import {
     ValidationError,

@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { BaseController } from './base.controller';
-import { AuthService } from '../services/auth.service';
+import { AuthService } from '../services/auth/auth.service';
 import { PublicUser } from 'users';
 import { ApiResponse } from 'network';
 import { AuthRequest } from '../lib/express.type';
