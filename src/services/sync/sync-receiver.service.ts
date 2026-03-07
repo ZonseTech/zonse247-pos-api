@@ -6,10 +6,19 @@
  * 
  * RESPONSIBILITIES:
  * -----------------
- * 1. Receive batches of records from terminals
- * 2. Upsert records (insert if not exists, skip if exists)
- * 3. Recalculate inventories from stock movements
- * 4. Return acceptance/rejection status
+ * 1. Receive batches of records from terminals (PUSH)
+ * 2. Provide data for terminals to pull (PULL)
+ * 3. Upsert records (insert if not exists, skip if exists)
+ * 4. Recalculate inventories from stock movements
+ * 5. Return acceptance/rejection status
+ * 
+ * BIDIRECTIONAL SYNC:
+ * -------------------
+ * Terminal (SQLite) ──push──> Server (MySQL)
+ *                   <──pull──
+ * 
+ * PUSH: Sales, SaleItems, Returns, StockMovements (Terminal → Server)
+ * PULL: Products, Categories, Inventory, PaymentMethods (Server → Terminal)
  * 
  * IDEMPOTENCY:
  * ------------
@@ -19,8 +28,32 @@
  */
 
 import { prisma } from '../../databases/prisma/client';
-import { StockMovementService } from '../stock-movement.service';
+import { StockMovementService } from '../inventory/stock-movement.service';
 import type { SyncMovementInput } from '../../models/stock-movement.model';
+
+/**
+ * Tables that flow from Server → Terminal (PULL)
+ * These contain master data and recalculated values
+ */
+const PULL_TABLES = [
+    'products',
+    'productVariants',
+    'categories',
+    'inventory',
+    'paymentMethods',
+    'stockMovements', // From other terminals
+    'customers',      // Updates from server
+] as const;
+
+type PullTableName = typeof PULL_TABLES[number];
+
+interface PullDataResult {
+    success: boolean;
+    data: Record<PullTableName, any[]>;
+    counts: Record<PullTableName, number>;
+    serverTime: Date;
+    errors: string[];
+}
 
 interface SyncRecordBase {
     id: string;
@@ -42,9 +75,9 @@ interface SyncResult {
  * Server-side handler for incoming sync data
  */
 export class SyncReceiverService {
-    
+
     // ==================== SALES ====================
-    
+
     /**
      * Receive and upsert sales from terminal
      */
@@ -93,7 +126,7 @@ export class SyncReceiverService {
     }
 
     // ==================== SALE ITEMS ====================
-    
+
     /**
      * Receive and upsert sale items from terminal
      */
@@ -152,7 +185,7 @@ export class SyncReceiverService {
     }
 
     // ==================== SALE PAYMENTS ====================
-    
+
     /**
      * Receive and upsert sale payments from terminal
      */
@@ -207,7 +240,7 @@ export class SyncReceiverService {
     }
 
     // ==================== RETURNS ====================
-    
+
     /**
      * Receive and upsert returns from terminal
      */
@@ -255,7 +288,7 @@ export class SyncReceiverService {
     }
 
     // ==================== RETURN ITEMS ====================
-    
+
     /**
      * Receive and upsert return items from terminal
      */
@@ -310,7 +343,7 @@ export class SyncReceiverService {
     }
 
     // ==================== STOCK MOVEMENTS ====================
-    
+
     /**
      * Receive and process stock movements from terminal
      * This is the core of inventory sync - uses StockMovementService
@@ -338,7 +371,7 @@ export class SyncReceiverService {
     }
 
     // ==================== CUSTOMERS ====================
-    
+
     /**
      * Receive and upsert customers from terminal
      */
@@ -392,7 +425,7 @@ export class SyncReceiverService {
     }
 
     // ==================== ORDERS ====================
-    
+
     /**
      * Receive and upsert orders from terminal
      */
@@ -490,6 +523,311 @@ export class SyncReceiverService {
             success: summary.rejected === 0,
             results,
             summary,
+        };
+    }
+
+    // ==================== PULL OPERATIONS ====================
+    // These methods provide data for terminals to pull from the server
+
+    /**
+     * Get all data that has changed since a given timestamp for a terminal to pull
+     * This is the main entry point for the PULL phase of bidirectional sync
+     */
+    static async getPullData(
+        tenantId: string,
+        branchId: string,
+        terminalId: string,
+        since?: Date | null,
+        options?: {
+            tables?: PullTableName[];
+            limit?: number;
+        }
+    ): Promise<PullDataResult> {
+        const result: PullDataResult = {
+            success: true,
+            data: {
+                products: [],
+                productVariants: [],
+                categories: [],
+                inventory: [],
+                paymentMethods: [],
+                stockMovements: [],
+                customers: [],
+            },
+            counts: {
+                products: 0,
+                productVariants: 0,
+                categories: 0,
+                inventory: 0,
+                paymentMethods: 0,
+                stockMovements: 0,
+                customers: 0,
+            },
+            serverTime: new Date(),
+            errors: [],
+        };
+
+        const tables = options?.tables || PULL_TABLES;
+        const limit = options?.limit || 500;
+        const whereBase = { tenantId, branchId };
+        const sinceFilter = since ? { updatedAt: { gt: since } } : {};
+
+        try {
+            // Fetch each table in parallel for efficiency
+            const [
+                products,
+                productVariants,
+                categories,
+                inventory,
+                paymentMethods,
+                stockMovements,
+                customers,
+            ] = await Promise.all([
+                tables.includes('products')
+                    ? this.getPullProducts(whereBase, sinceFilter, limit)
+                    : [],
+                tables.includes('productVariants')
+                    ? this.getPullProductVariants(whereBase, sinceFilter, limit)
+                    : [],
+                tables.includes('categories')
+                    ? this.getPullCategories(whereBase, sinceFilter, limit)
+                    : [],
+                tables.includes('inventory')
+                    ? this.getPullInventory(whereBase, sinceFilter, terminalId, limit)
+                    : [],
+                tables.includes('paymentMethods')
+                    ? this.getPullPaymentMethods(whereBase, sinceFilter, limit)
+                    : [],
+                tables.includes('stockMovements')
+                    ? this.getPullStockMovements(whereBase, sinceFilter, terminalId, limit)
+                    : [],
+                tables.includes('customers')
+                    ? this.getPullCustomers(whereBase, sinceFilter, limit)
+                    : [],
+            ]);
+
+            result.data = {
+                products,
+                productVariants,
+                categories,
+                inventory,
+                paymentMethods,
+                stockMovements,
+                customers,
+            };
+
+            result.counts = {
+                products: products.length,
+                productVariants: productVariants.length,
+                categories: categories.length,
+                inventory: inventory.length,
+                paymentMethods: paymentMethods.length,
+                stockMovements: stockMovements.length,
+                customers: customers.length,
+            };
+
+        } catch (error: any) {
+            result.success = false;
+            result.errors.push(error.message);
+            console.error('[SyncReceiver] Pull data error:', error);
+        }
+
+        return result;
+    }
+
+    /**
+     * Get products updated since timestamp
+     */
+    private static async getPullProducts(
+        whereBase: { tenantId: string; branchId: string },
+        sinceFilter: { updatedAt?: { gt: Date } },
+        limit: number
+    ): Promise<any[]> {
+        return prisma.product.findMany({
+            where: {
+                ...whereBase,
+                ...sinceFilter,
+                deletedAt: null,
+            },
+            orderBy: { updatedAt: 'asc' },
+            take: limit,
+        });
+    }
+
+    /**
+     * Get product variants updated since timestamp
+     */
+    private static async getPullProductVariants(
+        whereBase: { tenantId: string; branchId: string },
+        sinceFilter: { updatedAt?: { gt: Date } },
+        limit: number
+    ): Promise<any[]> {
+        return prisma.productVariant.findMany({
+            where: {
+                ...whereBase,
+                ...sinceFilter,
+                deletedAt: null,
+            },
+            orderBy: { updatedAt: 'asc' },
+            take: limit,
+        });
+    }
+
+    /**
+     * Get categories updated since timestamp
+     */
+    private static async getPullCategories(
+        whereBase: { tenantId: string; branchId: string },
+        sinceFilter: { updatedAt?: { gt: Date } },
+        limit: number
+    ): Promise<any[]> {
+        return prisma.category.findMany({
+            where: {
+                ...whereBase,
+                ...sinceFilter,
+                deletedAt: null,
+            },
+            orderBy: { updatedAt: 'asc' },
+            take: limit,
+        });
+    }
+
+    /**
+     * Get inventory records updated since timestamp
+     * This includes recalculated quantities from all terminals
+     */
+    private static async getPullInventory(
+        whereBase: { tenantId: string; branchId: string },
+        sinceFilter: { updatedAt?: { gt: Date } },
+        terminalId: string,
+        limit: number
+    ): Promise<any[]> {
+        return prisma.inventory.findMany({
+            where: {
+                ...whereBase,
+                ...sinceFilter,
+                deletedAt: null,
+            },
+            orderBy: { updatedAt: 'asc' },
+            take: limit,
+        });
+    }
+
+    /**
+     * Get payment methods updated since timestamp
+     */
+    private static async getPullPaymentMethods(
+        whereBase: { tenantId: string; branchId: string },
+        sinceFilter: { updatedAt?: { gt: Date } },
+        limit: number
+    ): Promise<any[]> {
+        return prisma.paymentMethod.findMany({
+            where: {
+                ...whereBase,
+                ...sinceFilter,
+                deletedAt: null,
+            },
+            orderBy: { updatedAt: 'asc' },
+            take: limit,
+        });
+    }
+
+    /**
+     * Get stock movements from OTHER terminals since timestamp
+     * This allows terminals to see movements made by other terminals
+     * and recalculate their local inventory accordingly
+     */
+    private static async getPullStockMovements(
+        whereBase: { tenantId: string; branchId: string },
+        sinceFilter: { updatedAt?: { gt: Date } },
+        terminalId: string,
+        limit: number
+    ): Promise<any[]> {
+        // Get movements NOT from this terminal (other terminals' movements)
+        return prisma.stockMovement.findMany({
+            where: {
+                ...whereBase,
+                createdAt: sinceFilter.updatedAt ? { gt: sinceFilter.updatedAt.gt } : undefined,
+                // Include movements from other terminals or server
+                OR: [
+                    { terminalId: { not: terminalId } },
+                    { terminalId: null },
+                ],
+            },
+            orderBy: { createdAt: 'asc' },
+            take: limit,
+        });
+    }
+
+    /**
+     * Get customers updated since timestamp
+     */
+    private static async getPullCustomers(
+        whereBase: { tenantId: string; branchId: string },
+        sinceFilter: { updatedAt?: { gt: Date } },
+        limit: number
+    ): Promise<any[]> {
+        return prisma.customer.findMany({
+            where: {
+                ...whereBase,
+                ...sinceFilter,
+                deletedAt: null,
+            },
+            orderBy: { updatedAt: 'asc' },
+            take: limit,
+        });
+    }
+
+    /**
+     * Get delta changes for a specific table
+     * Useful for incremental sync of individual tables
+     */
+    static async getTableDelta(
+        tableName: PullTableName,
+        tenantId: string,
+        branchId: string,
+        terminalId: string,
+        since?: Date | null,
+        limit = 500
+    ): Promise<{ records: any[]; count: number; hasMore: boolean }> {
+        const whereBase = { tenantId, branchId };
+        const sinceFilter = since ? { updatedAt: { gt: since } } : {};
+
+        let records: any[] = [];
+
+        switch (tableName) {
+            case 'products':
+                records = await this.getPullProducts(whereBase, sinceFilter, limit + 1);
+                break;
+            case 'productVariants':
+                records = await this.getPullProductVariants(whereBase, sinceFilter, limit + 1);
+                break;
+            case 'categories':
+                records = await this.getPullCategories(whereBase, sinceFilter, limit + 1);
+                break;
+            case 'inventory':
+                records = await this.getPullInventory(whereBase, sinceFilter, terminalId, limit + 1);
+                break;
+            case 'paymentMethods':
+                records = await this.getPullPaymentMethods(whereBase, sinceFilter, limit + 1);
+                break;
+            case 'stockMovements':
+                records = await this.getPullStockMovements(whereBase, sinceFilter, terminalId, limit + 1);
+                break;
+            case 'customers':
+                records = await this.getPullCustomers(whereBase, sinceFilter, limit + 1);
+                break;
+        }
+
+        const hasMore = records.length > limit;
+        if (hasMore) {
+            records = records.slice(0, limit);
+        }
+
+        return {
+            records,
+            count: records.length,
+            hasMore,
         };
     }
 }

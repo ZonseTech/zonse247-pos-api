@@ -1,9 +1,9 @@
 /**
  * Sync Routes
  * 
- * Endpoints for receiving sync data from offline terminals.
+ * Endpoints for bidirectional sync with offline terminals.
  * 
- * PUBLIC ENDPOINTS (no auth required for testing - should be secured in production):
+ * PUSH ENDPOINTS (Terminal → Server):
  * - POST /batch              - Bulk sync all tables
  * - POST /sales              - Sync sales
  * - POST /sale-items         - Sync sale items
@@ -13,6 +13,15 @@
  * - POST /stock-movements    - Sync stock movements
  * - POST /customers          - Sync customers
  * - POST /orders             - Sync orders
+ * 
+ * PULL ENDPOINTS (Server → Terminal):
+ * - POST /pull               - Pull all changed data from server
+ * - POST /pull/:tableName    - Pull specific table data
+ * 
+ * BIDIRECTIONAL:
+ * - POST /bidirectional      - Push then pull in one request
+ * 
+ * STATUS:
  * - GET  /status             - Get terminal sync status
  * 
  * SECURITY NOTE:
@@ -25,6 +34,9 @@ import { SyncController } from '../controllers/sync.controller';
 // import { authRequired } from '../middlewares/auth.middleware';
 
 const router = Router();
+
+// ==================== PUSH ENDPOINTS ====================
+// Terminal → Server (receive data from offline terminals)
 
 /**
  * @route   POST /api/v1/sync/batch
@@ -95,5 +107,34 @@ router.post('/orders', SyncController.syncOrders);
  * @access  Terminal
  */
 router.get('/status', SyncController.getSyncStatus);
+
+// ==================== PULL ENDPOINTS ====================
+// Server → Terminal (send data to offline terminals)
+
+/**
+ * @route   POST /api/v1/sync/pull
+ * @desc    Pull all changed data from server since timestamp
+ * @access  Terminal
+ * @body    { since?: Date, tables?: string[], limit?: number }
+ */
+router.post('/pull', SyncController.pullData);
+
+/**
+ * @route   POST /api/v1/sync/pull/:tableName
+ * @desc    Pull data for a specific table
+ * @access  Terminal
+ * @body    { since?: Date, limit?: number }
+ */
+router.post('/pull/:tableName', SyncController.pullTableData);
+
+// ==================== BIDIRECTIONAL ====================
+
+/**
+ * @route   POST /api/v1/sync/bidirectional
+ * @desc    Push then pull in one request
+ * @access  Terminal
+ * @body    { push: {...}, pullSince?: Date, pullTables?: string[], pullLimit?: number }
+ */
+router.post('/bidirectional', SyncController.bidirectionalSync);
 
 export default router;

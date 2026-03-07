@@ -14,12 +14,14 @@
  * │         │            │ - SaleItems       │                 │
  * │         ▼            │ - StockMovements  │                 │
  * │  ┌──────────────┐    │ - Customers       │                 │
- * │  │ HTTP Client  │    └───────────────────┘                 │
- * │  └──────────────┘                                          │
+ * │  │ HTTP Client  │    │ - Products        │                 │
+ * │  └──────────────┘    │ - Inventory       │                 │
+ * │         │            └───────────────────┘                 │
  * │         │                                                  │
  * └─────────│──────────────────────────────────────────────────┘
  *           │
  *           │ PUSH (POST /api/v1/sync/*)
+ *           │ Sales, SaleItems, Returns, StockMovements
  *           ▼
  * ┌─────────────────────────────────────────────────────────────┐
  * │                    SERVER (ONLINE)                          │
@@ -31,10 +33,25 @@
  * │         │            │ - SaleItems       │                 │
  * │         ▼            │ - StockMovements  │                 │
  * │  ┌──────────────────┐│ - Customers       │                 │
- * │  │ StockMovement    ││                   │                 │
- * │  │ Service          │└───────────────────┘                 │
- * │  │ (recalculate)    │                                      │
+ * │  │ StockMovement    ││ - Products        │                 │
+ * │  │ Service          ││ - Inventory       │                 │
+ * │  │ (recalculate)    │└───────────────────┘                 │
  * │  └──────────────────┘                                      │
+ * └─────────────────────────────────────────────────────────────┘
+ *           │
+ *           │ PULL (POST /api/v1/sync/pull)
+ *           │ Products, Categories, Inventory, PaymentMethods
+ *           ▼
+ * ┌─────────────────────────────────────────────────────────────┐
+ * │                    TERMINAL (OFFLINE)                       │
+ * │                                                             │
+ * │  Receives and saves pulled data locally (upsert)            │
+ * │  - Products, ProductVariants, Categories                    │
+ * │  - Inventory (recalculated quantities from server)          │
+ * │  - PaymentMethods                                           │
+ * │  - StockMovements from other terminals                      │
+ * │  - Customers                                                │
+ * │                                                             │
  * └─────────────────────────────────────────────────────────────┘
  * 
  * 
@@ -45,23 +62,33 @@
  * 
  *    import { initSyncJob } from './services/sync';
  *    
- *    // Start sync job when terminal is authenticated
+ *    // Start bidirectional sync job when terminal is authenticated
  *    initSyncJob({
  *      serverUrl: 'https://api.example.com/api/v1',
  *      apiKey: 'terminal-jwt-token',
  *      terminalId: 'term-001',
  *      tenantId: 'tenant-001',
  *      branchId: 'branch-001',
- *      intervalMs: 30000, // 30 seconds (default)
+ *      intervalMs: 30000,   // 30 seconds (default)
+ *      enablePull: true,    // Enable pull phase (default: true)
  *    });
  * 
  * 2. ON SERVER:
  * 
- *    Server exposes endpoints to receive sync data:
+ *    Server exposes endpoints for bidirectional sync:
+ *    
+ *    PUSH (receive from terminal):
  *    - POST /api/v1/sync/sales
  *    - POST /api/v1/sync/sale-items
  *    - POST /api/v1/sync/stock-movements
- *    - etc.
+ *    - POST /api/v1/sync/batch (bulk push)
+ *    
+ *    PULL (send to terminal):
+ *    - POST /api/v1/sync/pull
+ *    - POST /api/v1/sync/pull/:tableName
+ *    
+ *    COMBINED:
+ *    - POST /api/v1/sync/bidirectional (push + pull in one request)
  * 
  * 3. MANUAL SYNC TRIGGER:
  * 
@@ -69,17 +96,17 @@
  *    
  *    const job = getSyncJob();
  *    if (job) {
- *      await job.runSyncCycle();
+ *      await job.runSyncCycle(); // Runs push then pull
  *    }
  */
 
-export { 
-    SyncJobService, 
-    initSyncJob, 
-    getSyncJob, 
-    stopSyncJob 
+export {
+    SyncJobService,
+    initSyncJob,
+    getSyncJob,
+    stopSyncJob
 } from './sync-job.service';
 
-export { 
-    SyncReceiverService 
+export {
+    SyncReceiverService
 } from './sync-receiver.service';

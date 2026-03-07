@@ -1,15 +1,17 @@
 /**
  * Offline Sync Job Service
  * 
- * Handles automatic push synchronization of offline data to the server.
- * This service runs on OFFLINE TERMINALS to push local changes to the central server.
+ * Handles automatic BIDIRECTIONAL synchronization with the server.
+ * This service runs on OFFLINE TERMINALS.
  * 
  * ARCHITECTURE:
  * -------------
  * Terminal (SQLite) ──push──> Server (MySQL)
  *                   <──pull──
  * 
- * This service handles the PUSH phase: Terminal → Server
+ * This service handles BOTH phases:
+ * - PUSH: Terminal → Server (sales, returns, stock movements)
+ * - PULL: Server → Terminal (products, categories, inventory, etc.)
  * 
  * SYNC INTERVAL:
  * --------------
@@ -20,10 +22,19 @@
  * 
  * SYNC ORDER (Foreign Key Dependencies):
  * --------------------------------------
+ * PUSH ORDER:
  * 1. Sales → SaleItems → SalePayments → StockMovements
  * 2. Returns → ReturnItems → StockMovements
  * 3. Customers (independent)
  * 4. Orders (independent)
+ * 
+ * PULL ORDER:
+ * 1. Categories (parent of products)
+ * 2. Products → ProductVariants
+ * 3. Inventory (depends on variants)
+ * 4. PaymentMethods
+ * 5. StockMovements (from other terminals)
+ * 6. Customers
  * 
  * RETRY STRATEGY:
  * ---------------
@@ -39,7 +50,7 @@
  * - Inventory is recalculated from movements
  */
 
-import axios, { AxiosInstance, AxiosError } from 'axios';
+import axios, { AxiosInstance } from 'axios';
 import prisma from '../../databases/prisma/client';
 
 // Configuration from environment
@@ -54,9 +65,11 @@ interface SyncConfig {
     terminalId: string;
     tenantId: string;
     branchId: string;
+    clientType?: 'web' | 'mobile' | 'desktop';
     intervalMs?: number;
     batchSize?: number;
     maxRetries?: number;
+    enablePull?: boolean; // Enable pull phase (default: true)
 }
 
 interface SyncStats {
@@ -66,6 +79,7 @@ interface SyncStats {
     lastError: string | null;
     totalSynced: number;
     totalFailed: number;
+    totalPulled: number;
     isRunning: boolean;
     isSyncing: boolean;
 }
@@ -79,20 +93,36 @@ interface SyncBatchResult {
     errors: string[];
 }
 
+interface PullBatchResult {
+    success: boolean;
+    table: string;
+    received: number;
+    inserted: number;
+    updated: number;
+    skipped: number;
+    errors: string[];
+}
+
 interface SyncCycleResult {
     success: boolean;
     startedAt: Date;
     completedAt: Date;
-    tables: SyncBatchResult[];
+    // Push phase results
+    pushTables: SyncBatchResult[];
     totalSent: number;
     totalAccepted: number;
     totalRejected: number;
+    // Pull phase results
+    pullTables: PullBatchResult[];
+    totalPulled: number;
+    totalInserted: number;
+    totalUpdated: number;
 }
 
 /**
- * Tables to sync in dependency order
+ * Tables to PUSH in dependency order (Terminal → Server)
  */
-const SYNC_TABLES = [
+const PUSH_TABLES = [
     // Parent tables first
     { name: 'sales', endpoint: '/sync/sales', orderField: 'updatedAt' },
     { name: 'saleItems', endpoint: '/sync/sale-items', orderField: 'updatedAt', parentTable: 'sales' },
@@ -107,11 +137,28 @@ const SYNC_TABLES = [
     { name: 'orders', endpoint: '/sync/orders', orderField: 'updatedAt' },
 ] as const;
 
-type SyncTableName = typeof SYNC_TABLES[number]['name'];
+/**
+ * Tables to PULL in dependency order (Server → Terminal)
+ */
+const PULL_TABLES = [
+    'categories',
+    'products',
+    'productVariants',
+    'inventory',
+    'paymentMethods',
+    'stockMovements',
+    'customers',
+] as const;
+
+// Keep SYNC_TABLES for backward compatibility
+const SYNC_TABLES = PUSH_TABLES;
+
+type SyncTableName = typeof PUSH_TABLES[number]['name'];
+type PullTableName = typeof PULL_TABLES[number];
 
 /**
  * Offline Sync Job Service
- * Runs on terminals to push local changes to the server
+ * Runs on terminals for bidirectional sync with the server
  */
 export class SyncJobService {
     private config: SyncConfig;
@@ -124,6 +171,7 @@ export class SyncJobService {
         lastError: null,
         totalSynced: 0,
         totalFailed: 0,
+        totalPulled: 0,
         isRunning: false,
         isSyncing: false,
     };
@@ -133,6 +181,8 @@ export class SyncJobService {
             intervalMs: DEFAULT_SYNC_INTERVAL,
             batchSize: DEFAULT_BATCH_SIZE,
             maxRetries: DEFAULT_MAX_RETRIES,
+            enablePull: true, // Enable pull by default
+            clientType: 'desktop', // Default client type
             ...config,
         };
 
@@ -144,6 +194,7 @@ export class SyncJobService {
                 'X-Terminal-Id': this.config.terminalId,
                 'X-Tenant-Id': this.config.tenantId,
                 'X-Branch-Id': this.config.branchId,
+                'X-Client-Type': this.config.clientType || 'desktop',
                 ...(this.config.apiKey && { 'Authorization': `Bearer ${this.config.apiKey}` }),
             },
         });
@@ -196,7 +247,7 @@ export class SyncJobService {
     }
 
     /**
-     * Run a single sync cycle (push all pending changes)
+     * Run a single sync cycle (push then pull)
      */
     async runSyncCycle(): Promise<SyncCycleResult> {
         if (this.stats.isSyncing) {
@@ -205,10 +256,14 @@ export class SyncJobService {
                 success: false,
                 startedAt: new Date(),
                 completedAt: new Date(),
-                tables: [],
+                pushTables: [],
                 totalSent: 0,
                 totalAccepted: 0,
                 totalRejected: 0,
+                pullTables: [],
+                totalPulled: 0,
+                totalInserted: 0,
+                totalUpdated: 0,
             };
         }
 
@@ -219,10 +274,14 @@ export class SyncJobService {
             success: true,
             startedAt: new Date(),
             completedAt: new Date(),
-            tables: [],
+            pushTables: [],
             totalSent: 0,
             totalAccepted: 0,
             totalRejected: 0,
+            pullTables: [],
+            totalPulled: 0,
+            totalInserted: 0,
+            totalUpdated: 0,
         };
 
         try {
@@ -230,11 +289,15 @@ export class SyncJobService {
 
             // Get last sync timestamp
             const lastSync = await this.getLastSyncTimestamp();
+            const lastPull = await this.getLastPullTimestamp();
 
-            // Sync each table in order
-            for (const table of SYNC_TABLES) {
+            // ==================== PHASE 1: PUSH ====================
+            // Push local changes to server
+            console.log('[SyncJob] Phase 1: PUSH - Sending local changes to server...');
+
+            for (const table of PUSH_TABLES) {
                 const tableResult = await this.syncTable(table, lastSync);
-                result.tables.push(tableResult);
+                result.pushTables.push(tableResult);
                 result.totalSent += tableResult.sent;
                 result.totalAccepted += tableResult.accepted;
                 result.totalRejected += tableResult.rejected;
@@ -244,17 +307,39 @@ export class SyncJobService {
                 }
             }
 
-            // Update last sync timestamp
-            if (result.success && result.totalSent > 0) {
+            // Update last push timestamp
+            if (result.totalSent > 0) {
                 await this.updateLastSyncTimestamp(new Date());
+            }
+
+            // ==================== PHASE 2: PULL ====================
+            // Pull changes from server (if enabled)
+            if (this.config.enablePull !== false) {
+                console.log('[SyncJob] Phase 2: PULL - Fetching updates from server...');
+
+                const pullResult = await this.pullFromServer(lastPull);
+                result.pullTables = pullResult.tables;
+                result.totalPulled = pullResult.totalReceived;
+                result.totalInserted = pullResult.totalInserted;
+                result.totalUpdated = pullResult.totalUpdated;
+
+                if (!pullResult.success) {
+                    result.success = false;
+                }
+
+                // Update last pull timestamp
+                if (pullResult.totalReceived > 0) {
+                    await this.updateLastPullTimestamp(new Date());
+                }
             }
 
             result.completedAt = new Date();
             this.stats.lastSuccessAt = new Date();
             this.stats.totalSynced += result.totalAccepted;
             this.stats.totalFailed += result.totalRejected;
+            this.stats.totalPulled += result.totalPulled;
 
-            console.log(`[SyncJob] Sync cycle complete: ${result.totalAccepted} accepted, ${result.totalRejected} rejected`);
+            console.log(`[SyncJob] Sync cycle complete: ${result.totalAccepted} pushed, ${result.totalPulled} pulled`);
 
         } catch (error: any) {
             result.success = false;
@@ -267,6 +352,277 @@ export class SyncJobService {
 
         return result;
     }
+
+    // ==================== PULL METHODS ====================
+
+    /**
+     * Pull data from server and save locally
+     */
+    private async pullFromServer(since: Date | null): Promise<{
+        success: boolean;
+        tables: PullBatchResult[];
+        totalReceived: number;
+        totalInserted: number;
+        totalUpdated: number;
+    }> {
+        const result = {
+            success: true,
+            tables: [] as PullBatchResult[],
+            totalReceived: 0,
+            totalInserted: 0,
+            totalUpdated: 0,
+        };
+
+        try {
+            // Call the server's pull endpoint
+            const response = await this.httpClient.post('/sync/pull', {
+                tenantId: this.config.tenantId,
+                branchId: this.config.branchId,
+                terminalId: this.config.terminalId,
+                since: since?.toISOString(),
+                tables: PULL_TABLES,
+            });
+
+            if (!response.data.success) {
+                throw new Error(response.data.errors?.join(', ') || 'Pull failed');
+            }
+
+            const { data, counts: _counts } = response.data;
+
+            // Process each pulled table
+            for (const tableName of PULL_TABLES) {
+                const records = data[tableName] || [];
+                if (records.length === 0) continue;
+
+                const tableResult = await this.savePulledRecords(tableName, records);
+                result.tables.push(tableResult);
+                result.totalReceived += tableResult.received;
+                result.totalInserted += tableResult.inserted;
+                result.totalUpdated += tableResult.updated;
+
+                if (!tableResult.success) {
+                    result.success = false;
+                }
+            }
+
+            console.log(`[SyncJob] Pull complete: ${result.totalReceived} received, ${result.totalInserted} inserted, ${result.totalUpdated} updated`);
+
+        } catch (error: any) {
+            result.success = false;
+            console.error('[SyncJob] Pull failed:', error.message);
+        }
+
+        return result;
+    }
+
+    /**
+     * Save pulled records to local database (upsert)
+     */
+    private async savePulledRecords(
+        tableName: PullTableName,
+        records: any[]
+    ): Promise<PullBatchResult> {
+        const result: PullBatchResult = {
+            success: true,
+            table: tableName,
+            received: records.length,
+            inserted: 0,
+            updated: 0,
+            skipped: 0,
+            errors: [],
+        };
+
+        for (const record of records) {
+            try {
+                const saved = await this.upsertPulledRecord(tableName, record);
+                if (saved === 'inserted') {
+                    result.inserted++;
+                } else if (saved === 'updated') {
+                    result.updated++;
+                } else {
+                    result.skipped++;
+                }
+            } catch (error: any) {
+                result.errors.push(`${record.id}: ${error.message}`);
+            }
+        }
+
+        result.success = result.errors.length === 0;
+        return result;
+    }
+
+    /**
+     * Upsert a single pulled record
+     */
+    private async upsertPulledRecord(
+        tableName: PullTableName,
+        record: any
+    ): Promise<'inserted' | 'updated' | 'skipped'> {
+        switch (tableName) {
+            case 'products':
+                return this.upsertProduct(record);
+            case 'productVariants':
+                return this.upsertProductVariant(record);
+            case 'categories':
+                return this.upsertCategory(record);
+            case 'inventory':
+                return this.upsertInventory(record);
+            case 'paymentMethods':
+                return this.upsertPaymentMethod(record);
+            case 'stockMovements':
+                return this.upsertStockMovement(record);
+            case 'customers':
+                return this.upsertCustomer(record);
+            default:
+                return 'skipped';
+        }
+    }
+
+    private async upsertProduct(record: any): Promise<'inserted' | 'updated' | 'skipped'> {
+        const existing = await prisma.product.findUnique({ where: { id: record.id } });
+        if (existing) {
+            // Only update if server version is newer
+            if (new Date(record.updatedAt) > (existing.updatedAt || new Date(0))) {
+                await prisma.product.update({ where: { id: record.id }, data: record });
+                return 'updated';
+            }
+            return 'skipped';
+        }
+        await prisma.product.create({ data: record });
+        return 'inserted';
+    }
+
+    private async upsertProductVariant(record: any): Promise<'inserted' | 'updated' | 'skipped'> {
+        const existing = await prisma.productVariant.findUnique({ where: { id: record.id } });
+        if (existing) {
+            if (new Date(record.updatedAt) > (existing.updatedAt || new Date(0))) {
+                await prisma.productVariant.update({ where: { id: record.id }, data: record });
+                return 'updated';
+            }
+            return 'skipped';
+        }
+        await prisma.productVariant.create({ data: record });
+        return 'inserted';
+    }
+
+    private async upsertCategory(record: any): Promise<'inserted' | 'updated' | 'skipped'> {
+        const categoryData = {
+            categoryId: record.categoryId,
+            branchId: record.branchId,
+            tenantId: record.tenantId,
+            userId: record.userId,
+            terminalId: record.terminalId || null,
+            name: record.name,
+            description: record.description || null,
+            color: record.color || null,
+            isActive: record.isActive ?? true,
+            isDefault: record.isDefault ?? false,
+            sortOrder: record.sortOrder ?? 0,
+            itemCount: record.itemCount || null,
+            lastSyncedAt: record.lastSyncedAt ? new Date(record.lastSyncedAt) : null,
+            version: record.version ?? 1,
+            deletedAt: record.deletedAt ? new Date(record.deletedAt) : null,
+            createdAt: record.createdAt ? new Date(record.createdAt) : undefined,
+            updatedAt: record.updatedAt ? new Date(record.updatedAt) : undefined,
+        };
+
+        const existing = await prisma.category.findUnique({ where: { categoryId: record.categoryId } });
+        if (existing) {
+            if (new Date(record.updatedAt) > (existing.updatedAt || new Date(0))) {
+                await prisma.category.update({ where: { categoryId: record.categoryId }, data: categoryData });
+                return 'updated';
+            }
+            return 'skipped';
+        }
+        await prisma.category.create({ data: categoryData });
+        return 'inserted';
+    }
+
+    private async upsertInventory(record: any): Promise<'inserted' | 'updated' | 'skipped'> {
+        const existing = await prisma.inventory.findUnique({ where: { id: record.id } });
+        if (existing) {
+            if (new Date(record.updatedAt) > (existing.updatedAt || new Date(0))) {
+                await prisma.inventory.update({ where: { id: record.id }, data: record });
+                return 'updated';
+            }
+            return 'skipped';
+        }
+        await prisma.inventory.create({ data: record });
+        return 'inserted';
+    }
+
+    private async upsertPaymentMethod(record: any): Promise<'inserted' | 'updated' | 'skipped'> {
+        const existing = await prisma.paymentMethod.findUnique({ where: { methodId: record.methodId } });
+        if (existing) {
+            if (new Date(record.updatedAt) > (existing.updatedAt || new Date(0))) {
+                await prisma.paymentMethod.update({ where: { methodId: record.methodId }, data: record });
+                return 'updated';
+            }
+            return 'skipped';
+        }
+        await prisma.paymentMethod.create({ data: record });
+        return 'inserted';
+    }
+
+    private async upsertStockMovement(record: any): Promise<'inserted' | 'updated' | 'skipped'> {
+        // Stock movements are immutable - only insert if not exists
+        const existing = await prisma.stockMovement.findUnique({ where: { id: record.id } });
+        if (existing) {
+            return 'skipped';
+        }
+        await prisma.stockMovement.create({ data: record });
+        return 'inserted';
+    }
+
+    private async upsertCustomer(record: any): Promise<'inserted' | 'updated' | 'skipped'> {
+        const existing = await prisma.customer.findUnique({ where: { customerId: record.customerId } });
+        if (existing) {
+            if (new Date(record.updatedAt) > (existing.updatedAt || new Date(0))) {
+                await prisma.customer.update({ where: { customerId: record.customerId }, data: record });
+                return 'updated';
+            }
+            return 'skipped';
+        }
+        await prisma.customer.create({ data: record });
+        return 'inserted';
+    }
+
+    /**
+     * Get last pull timestamp from local storage
+     * Falls back to lastSyncAt if lastPullAt is not available
+     */
+    private async getLastPullTimestamp(): Promise<Date | null> {
+        try {
+            const terminal = await prisma.terminal.findUnique({
+                where: { terminalId: this.config.terminalId },
+                select: {
+                    lastSyncAt: true,
+                    lastSeenAt: true,
+                },
+            });
+            // Use lastSyncAt as fallback since pull happens right after push
+            return terminal?.lastSyncAt ?? terminal?.lastSeenAt ?? null;
+        } catch {
+            return null;
+        }
+    }
+
+    /**
+     * Update last pull timestamp in local storage
+     * Uses lastSeenAt field to store pull timestamp to avoid schema changes
+     */
+    private async updateLastPullTimestamp(timestamp: Date): Promise<void> {
+        try {
+            await prisma.terminal.update({
+                where: { terminalId: this.config.terminalId },
+                data: { lastSeenAt: timestamp },
+            });
+        } catch (error) {
+            console.error('[SyncJob] Failed to update pull timestamp:', error);
+        }
+    }
+
+    // ==================== PUSH METHODS ====================
 
     /**
      * Sync a single table
@@ -295,7 +651,7 @@ export class SyncJobService {
             result.sent = records.length;
 
             // Send to server in batches
-            const batchSize = this.config.batchSize!;
+            const batchSize = this.config.batchSize ?? DEFAULT_BATCH_SIZE;
             for (let i = 0; i < records.length; i += batchSize) {
                 const batch = records.slice(i, i + batchSize);
                 const batchResult = await this.sendBatchWithRetry(table.endpoint, batch);
@@ -328,6 +684,7 @@ export class SyncJobService {
         const { tenantId, branchId, terminalId } = this.config;
         const whereBase = { tenantId, branchId };
         const whereWithTerminal = { ...whereBase, terminalId };
+        const batchSize = this.config.batchSize ?? DEFAULT_BATCH_SIZE;
 
         switch (tableName) {
             case 'sales':
@@ -337,7 +694,7 @@ export class SyncJobService {
                         ...(since && { updatedAt: { gt: since } }),
                     },
                     orderBy: { updatedAt: 'asc' },
-                    take: this.config.batchSize! * 5, // Get more since we batch
+                    take: batchSize * 5, // Get more since we batch
                 });
 
             case 'saleItems':
@@ -348,7 +705,7 @@ export class SyncJobService {
                         ...(since && { updatedAt: { gt: since } }),
                     },
                     orderBy: { updatedAt: 'asc' },
-                    take: this.config.batchSize! * 10,
+                    take: batchSize * 10,
                 });
 
             case 'salePayments':
@@ -358,7 +715,7 @@ export class SyncJobService {
                         ...(since && { updatedAt: { gt: since } }),
                     },
                     orderBy: { updatedAt: 'asc' },
-                    take: this.config.batchSize! * 5,
+                    take: batchSize * 5,
                 });
 
             case 'returns':
@@ -368,17 +725,16 @@ export class SyncJobService {
                         ...(since && { updatedAt: { gt: since } }),
                     },
                     orderBy: { updatedAt: 'asc' },
-                    take: this.config.batchSize! * 2,
+                    take: batchSize * 2,
                 });
 
             case 'returnItems':
                 return prisma.returnItem.findMany({
                     where: {
-                        ...whereBase,
                         ...(since && { updatedAt: { gt: since } }),
                     },
                     orderBy: { updatedAt: 'asc' },
-                    take: this.config.batchSize! * 5,
+                    take: batchSize * 5,
                 });
 
             case 'stockMovements':
@@ -389,7 +745,7 @@ export class SyncJobService {
                         ...(since && { createdAt: { gt: since } }),
                     },
                     orderBy: { createdAt: 'asc' },
-                    take: this.config.batchSize! * 10,
+                    take: batchSize * 10,
                 });
 
             case 'customers':
@@ -399,17 +755,16 @@ export class SyncJobService {
                         ...(since && { updatedAt: { gt: since } }),
                     },
                     orderBy: { updatedAt: 'asc' },
-                    take: this.config.batchSize! * 2,
+                    take: batchSize * 2,
                 });
 
             case 'orders':
                 return prisma.order.findMany({
                     where: {
-                        ...whereBase,
                         ...(since && { updatedAt: { gt: since } }),
                     },
                     orderBy: { updatedAt: 'asc' },
-                    take: this.config.batchSize! * 2,
+                    take: batchSize * 2,
                 });
 
             default:
@@ -425,8 +780,9 @@ export class SyncJobService {
         records: any[],
     ): Promise<{ accepted: number; rejected: number; errors: string[] }> {
         let lastError: Error | null = null;
+        const maxRetries = this.config.maxRetries ?? DEFAULT_MAX_RETRIES;
 
-        for (let attempt = 1; attempt <= this.config.maxRetries!; attempt++) {
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
             try {
                 const response = await this.httpClient.post(endpoint, {
                     records,
@@ -450,9 +806,9 @@ export class SyncJobService {
                 }
 
                 // Exponential backoff
-                if (attempt < this.config.maxRetries!) {
+                if (attempt < maxRetries) {
                     const delay = DEFAULT_RETRY_DELAY * Math.pow(2, attempt - 1);
-                    console.log(`[SyncJob] Retry ${attempt}/${this.config.maxRetries} in ${delay}ms`);
+                    console.log(`[SyncJob] Retry ${attempt}/${maxRetries} in ${delay}ms`);
                     await this.sleep(delay);
                 }
             }
