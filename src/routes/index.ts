@@ -1,10 +1,7 @@
 import { Router } from 'express'
 import CategoriesRoutes from './categories.routes'
 import CustomersRoutes from './customers.routes'
-import AnalyticsRoutes from './dashboard.routes'
-import DatabaseExportRoutes from './database-export.routes'
 import InventoryRoutes from './inventory.routes'
-import MigrationRoutes from './migration.routes'
 import PaymentMethodRoutes from './payment-method.routes'
 import TerminalSettingsRoutes from './terminal-settings.routes'
 import ReturnsRoutes from './return.routes'
@@ -12,11 +9,9 @@ import UsersRoutes from './users.routes'
 import TenantsRoutes from './tenant.routes'
 import SubscriptionsRoutes from './subscription.routes'
 import SubscriptionPlanRoutes from './subscription-plan.routes'
-import PlanFeaturesRoutes from './plan-features.routes'
 import BranchesRoutes from './branch.routes'
 import TerminalRoutes from './terminal.routes'
 import RoleRoutes from './role.routes'
-import MailingRoutes from './email.routes'
 import OnboardingRoutes from './onboarding.routes'
 import AuthRoutes from './auth.routes'
 import PermissionRoutes from './permission.routes'
@@ -29,7 +24,6 @@ import ParkedSalesRoutes from './parked-sales.routes'
 import StockMovementsRoutes from './stock-movements.routes'
 import PrinterRoutes from './printer.routes'
 import TenantRegistrationDetailRoutes from './tenant-registration-detail.routes'
-import TransactionMigrationRoutes from './transaction-migration.routes'
 import DistrictRoutes from './district.routes'
 import { AuthMiddleware } from '../middlewares/auth.middleware'
 import { apiMiddleware } from '../middlewares/api.middleware'
@@ -58,9 +52,6 @@ router.use((req, res, next) => {
 router.use(apiMiddleware.verifyClientType)
 
 router.use('/onboarding', OnboardingRoutes);
-
-router.use('/plan-features', PlanFeaturesRoutes);
-
 router.use('/auth', authLimiter, AuthRoutes);
 
 router.use(authMiddleware.verifyToken)
@@ -74,16 +65,12 @@ router.use('/tenants', TenantsRoutes);
 router.use('/branches', BranchesRoutes);
 router.use('/districts', DistrictRoutes);
 
-router.use('/mailing', MailingRoutes);
-router.use('/export', DatabaseExportRoutes);
 router.use('/payment-service-providers', PaymentServiceProviderRoutes);
 router.use('/users', UsersRoutes);
-router.use('/analytics', AnalyticsRoutes);
 router.use('/inventory', InventoryRoutes);
 router.use('/customers', CustomersRoutes);
 router.use('/categories', CategoriesRoutes);
 router.use('/payment-methods', PaymentMethodRoutes);
-router.use('/migration', MigrationRoutes);
 router.use('/returns', ReturnsRoutes);
 router.use('/subscriptions', SubscriptionsRoutes);
 router.use('/subscription-plans', SubscriptionPlanRoutes);
@@ -96,7 +83,6 @@ router.use('/suppliers', SuppliersRoutes);
 router.use('/purchase-orders', PurchaseOrdersRoutes);
 router.use('/sales', SalesRoutes);
 router.use('/parked-sales', ParkedSalesRoutes);
-router.use('/sales/migration', TransactionMigrationRoutes);
 router.use('/stock-movements', StockMovementsRoutes);
 router.use('/printers', PrinterRoutes);
 router.use('/reports', ReportsRoutes);
