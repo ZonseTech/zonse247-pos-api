@@ -4,7 +4,7 @@ import {
     ConflictError,
     NotFoundError,
     BusinessLogicError,
-} from '../utils/db-error-handler.util';
+} from '../../utils/db-error-handler.util';
 import {
     CreateProductInput,
     CreateVariantInput,
@@ -15,21 +15,21 @@ import {
     SearchProductResult,
     DuplicateBarcodeResult,
     PaginatedProductsResponse,
-} from '../types/product.types';
+} from '../../types/product.types';
 import {
     PAGINATION,
     ERROR_MESSAGES,
     normalizeBarcode,
     stringifyCustomAttributes,
-} from '../constants/product.constants';
+} from '../../constants/product.constants';
 import {
     mapVariantToProductWithInventory,
     mapProductWithVariants,
     filterByStockStatus,
     filterByStockFilter,
     extractVariantData,
-} from '../utils/product.utils';
-import { ProductRepository, TenantBranchScope } from '../repositories/product.repository';
+} from '../../utils/product.utils';
+import { ProductRepository, TenantBranchScope } from '../../repositories/product.repository';
 
 /**
  * Product Service - handles all product-related business logic

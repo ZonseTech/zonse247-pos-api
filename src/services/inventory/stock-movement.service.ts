@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
-import { StockMovementType } from '../databases/prisma/generated/prisma/client';
-import { prisma } from '../databases/prisma/client';
+import { StockMovementType } from '../../databases/prisma/generated/prisma/client';
+import { prisma } from '../../databases/prisma/client';
 import {
     CreateStockMovementInput,
     StockMovementWithProduct,
@@ -8,7 +8,7 @@ import {
     SyncMovementInput,
     BulkSyncResult,
     RecordMovementAPIInput
-} from '../models/stock-movement.model';
+} from '../../models/stock-movement.model';
 
 /**
  * GOLDEN RULE: Never update inventory quantities directly.

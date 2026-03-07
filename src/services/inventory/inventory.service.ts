@@ -1,11 +1,11 @@
 import { AuthenticatedUser } from 'auth';
-import { InventoryModel } from '../models/inventory.model';
-import { CategoryService } from './category.service';
+import { InventoryModel } from '../../models/inventory.model';
+import { CategoryService } from '../category.service';
 import { StockMovementService } from './stock-movement.service';
 import { Category } from 'categoty';
 import { CartItem } from 'order';
 import { InventoryItem } from 'inventory-item';
-import prisma from '../databases/prisma/client';
+import prisma from '../../databases/prisma/client';
 
 /**
  * InventoryService - Facade for all inventory-related operations

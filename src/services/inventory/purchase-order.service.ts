@@ -1,12 +1,12 @@
 import { v4 as uuidv4 } from 'uuid';
-import { PurchaseOrderStatus } from '../databases/prisma/generated/prisma/client';
-import { prisma } from '../databases/prisma/client';
+import { PurchaseOrderStatus } from '../../databases/prisma/generated/prisma/client';
+import { prisma } from '../../databases/prisma/client';
 import {
     CreatePurchaseOrderInput,
     ReceivePurchaseOrderInput,
     PurchaseOrderWithItems,
-} from '../models/purchase-order.model';
-import { StockMovementService } from './stock-movement.service';
+} from '../../models/purchase-order.model';
+import { StockMovementService } from '../inventory/stock-movement.service';
 
 export class PurchaseOrderService {
     /**
