@@ -73,8 +73,9 @@ export interface SyncMovementInput {
     tenantId: string;
     branchId: string;
     terminalId: string;
-    variantId: string;
-    productId?: string;
+    inventoryId?: string; // Original inventory ID from terminal
+    variantId?: string; // Optional - for inventory lookup/creation
+    productId?: string; // Optional - for inventory creation
     movementType: StockMovementType;
     quantity: number;
     previousQuantity: number;

@@ -19,130 +19,7 @@ import {
  * 
  * The Inventory table serves as a cache for fast reads and is updated
  * atomically along with the StockMovement record.
- * 
- * IMMUTABLE LEDGER PRINCIPLE:
- * ---------------------------
- * StockMovement records are NEVER updated or deleted.
- * They form an immutable audit trail (ledger) of all inventory changes.
- * 
- * If a mistake is made:
- * - DO NOT modify or delete the original movement
- * - CREATE a compensating movement to reverse the effect
- * - Use recordCompensatingMovement() for corrections
- * 
- * This ensures:
- * - Complete audit trail for compliance and reconciliation
- * - Reliable offline sync (movements can be replayed)
- * - Data integrity across server and terminal systems
- * 
- * VERSIONING (Optimistic Locking):
- * -------------------------------
- * Every Inventory update MUST increment its version field.
- * This helps resolve sync conflicts:
- * - Last write wins if versions differ
- * - Since we use movements, conflicts are rare
- * - Server can recalculate inventory from movements if needed
- * 
- * Pattern: { version: { increment: 1 } }
- * 
- * CONFLICT RESOLUTION STRATEGY:
- * -----------------------------
- * Because inventory is derived from movements, conflicts are naturally avoided.
- * 
- * Scenario: Two terminals sell the same item while offline
- * - Terminal A sells 3 units, creates local StockMovement (SALE, qty: 3)
- * - Terminal B sells 2 units, creates local StockMovement (SALE, qty: 2)
- * - When both sync, server inserts ALL movements
- * - Server recalculates inventory: sum of all movements
- * - Final result is correct (total sold = 5 units)
- * 
- * Race Condition Edge Case:
- * - If two terminals adjust the same inventory simultaneously while offline,
- *   the server will apply all movements and final inventory = sum of all.
- * - This is acceptable if negative stock is allowed (configurable per inventory).
- * - If negative stock is NOT allowed, the terminal MUST check locally before
- *   allowing a sale to prevent overselling.
- * 
- * The recalculateInventory() method can be used to verify/fix inventory cache
- * after sync if needed.
- * 
- * NEGATIVE STOCK HANDLING:
- * ------------------------
- * The Inventory.allowNegativeStock field controls whether stock can go below zero.
- * 
- * If allowNegativeStock = true:
- * - Terminal can process sales even if local quantity is insufficient
- * - Server will reconcile after sync (may result in negative inventory)
- * - Useful for backorder scenarios or high-trust environments
- * 
- * If allowNegativeStock = false (default):
- * - Terminal MUST refuse sales when local quantity would go below zero
- * - Prevents overselling in offline scenarios
- * - recordMovement() will throw an error if sale would exceed available stock
- * 
- * Business Decision: Set per-inventory based on product type and business rules.
- * Example: Allow negative for made-to-order items, disallow for physical goods.
- * 
- * SYNC ORDER (Foreign Key Dependencies):
- * --------------------------------------
- * When pushing data to the server, records MUST be sent in dependency order
- * to satisfy foreign key constraints:
- * 
- * 1. Sale records first (parent)
- * 2. SaleItem records second (references Sale)
- * 3. StockMovement records last (references Sale via referenceId)
- * 
- * The server should process records in the same order.
- * 
- * Example sync payload order:
- * {
- *   sales: [...],           // Process first
- *   saleItems: [...],       // Process second
- *   stockMovements: [...],  // Process last
- * }
- * 
- * Similarly for returns:
- * 1. Return records first
- * 2. ReturnItem records second
- * 3. StockMovement records last (with referenceType: 'RETURN')
- * 
- * COMPLETE SALE FLOW WITH SYNC:
- * -----------------------------
- * 
- * 1. OFFLINE TERMINAL CREATES A SALE:
- *    - Insert Sale, SaleItem, SalePayment locally (all in one transaction)
- *    - For each item, update local Inventory and create StockMovement
- *    - All records get version = 1 (default) and terminalId set
- *    - Sale status = COMPLETED
- * 
- * 2. SYNC JOB RUNS (every ~30 seconds):
- *    
- *    PUSH PHASE:
- *    - Push all new/updated records where updatedAt > lastSyncedAt to server
- *    - Order: Sales → SaleItems → SalePayments → StockMovements
- *    
- *    SERVER PROCESSING:
- *    - Insert Sale, SaleItem, SalePayment (if not exist, skip duplicates by ID)
- *    - Insert StockMovement (if not exist) and recalculate server Inventory
- *    - syncMovementsFromOffline() handles this logic
- *    
- *    PULL PHASE:
- *    - Terminal pulls updates from server (changes since lastPullAt)
- *    - Includes stock movements from other terminals
- *    - Terminal recalculates its local Inventory from pulled movements
- * 
- * 3. CONFLICT EXAMPLE:
- *    - Terminal A sells 5 units of product X (local stock: 10 → 5)
- *    - Terminal B sells 4 units of product X (local stock: 10 → 6, hasn't seen A's sale)
- *    - Both push their movements to server:
- *      * A's movement: SALE, qty: -5
- *      * B's movement: SALE, qty: -4
- *    - Server inserts BOTH movements
- *    - Server recalculates: 10 - 5 - 4 = 1 (correct!)
- *    - Both terminals pull the other's movement
- *    - Both terminals recalculate local inventory to 1 (synchronized!)
- * 
- * KEY INSIGHT: Because inventory is derived from movements (not stored directly),
+ * Because inventory is derived from movements (not stored directly),
  * conflicts naturally resolve themselves. The final quantity is always the sum
  * of all movements, which is mathematically correct.
  */
@@ -1328,31 +1205,34 @@ export class StockMovementService {
                         continue;
                     }
 
-                    // Find or create inventory
-                    let inventory = await tx.inventory.findFirst({
-                        where: {
-                            tenantId: movement.tenantId,
-                            branchId: movement.branchId,
-                            variantId: movement.variantId,
-                        },
-                    });
+                    // Find inventory - try by ID first, then by variantId
+                    // NOTE: We do NOT create inventory during sync - products/inventory 
+                    // are pulled from server, so they should already exist
+                    let inventory = movement.inventoryId
+                        ? await tx.inventory.findUnique({
+                            where: { id: movement.inventoryId },
+                        })
+                        : null;
 
-                    if (!inventory) {
-                        // Create inventory shell
-                        inventory = await tx.inventory.create({
-                            data: {
-                                id: uuidv4(),
+                    // Fallback: find by variantId
+                    if (!inventory && movement.variantId) {
+                        inventory = await tx.inventory.findFirst({
+                            where: {
                                 tenantId: movement.tenantId,
                                 branchId: movement.branchId,
-                                productId: movement.productId,
                                 variantId: movement.variantId,
-                                availableQuantity: 0, // Will be recalculated
-                                reservedQuantity: 0,
-                                damagedQuantity: 0,
-                                averageCost: movement.unitCost || 0,
-                                lastPurchaseCost: movement.unitCost || 0,
                             },
                         });
+                    }
+
+                    // If no inventory found, skip this movement
+                    // (inventory/products should be pulled from server first)
+                    if (!inventory) {
+                        result.errors.push({
+                            movementId: movement.id,
+                            error: `Inventory not found on server (inventoryId: ${movement.inventoryId}, variantId: ${movement.variantId}). Ensure products are synced first.`,
+                        });
+                        continue;
                     }
 
                     // Insert the movement (preserving offline timestamps)
