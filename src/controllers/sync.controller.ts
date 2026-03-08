@@ -11,18 +11,6 @@
  * - Matching tenant/branch IDs in headers
  * - Terminal must be registered and active
  * 
- * ENDPOINTS:
- * ----------
- * POST /api/v1/sync/batch           - Bulk sync all tables in one request
- * POST /api/v1/sync/sales           - Sync sales
- * POST /api/v1/sync/sale-items      - Sync sale items
- * POST /api/v1/sync/sale-payments   - Sync sale payments
- * POST /api/v1/sync/returns         - Sync returns
- * POST /api/v1/sync/return-items    - Sync return items
- * POST /api/v1/sync/stock-movements - Sync stock movements
- * POST /api/v1/sync/customers       - Sync customers
- * POST /api/v1/sync/orders          - Sync orders
- * GET  /api/v1/sync/status          - Get sync status for a terminal
  */
 
 import { Request, Response } from 'express';

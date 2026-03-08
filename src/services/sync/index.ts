@@ -104,7 +104,8 @@ export {
     SyncJobService,
     initSyncJob,
     getSyncJob,
-    stopSyncJob
+    stopSyncJob,
+    resetSyncTimestamps
 } from './sync-job.service';
 
 export {

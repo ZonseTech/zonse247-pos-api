@@ -121,9 +121,12 @@ interface SyncCycleResult {
 
 /**
  * Tables to PUSH in dependency order (Terminal → Server)
+ * NOTE: Customers must sync BEFORE Sales (FK constraint)
  */
 const PUSH_TABLES = [
-    // Parent tables first
+    // Customers first (sales reference customers)
+    { name: 'customers', endpoint: '/sync/customers', orderField: 'updatedAt' },
+    // Sales (depend on customers)
     { name: 'sales', endpoint: '/sync/sales', orderField: 'updatedAt' },
     { name: 'saleItems', endpoint: '/sync/sale-items', orderField: 'updatedAt', parentTable: 'sales' },
     { name: 'salePayments', endpoint: '/sync/sale-payments', orderField: 'updatedAt', parentTable: 'sales' },
@@ -133,7 +136,6 @@ const PUSH_TABLES = [
     // Stock movements (depends on sales/returns)
     { name: 'stockMovements', endpoint: '/sync/stock-movements', orderField: 'createdAt' },
     // Independent tables
-    { name: 'customers', endpoint: '/sync/customers', orderField: 'updatedAt' },
     { name: 'orders', endpoint: '/sync/orders', orderField: 'updatedAt' },
 ] as const;
 
@@ -176,6 +178,11 @@ export class SyncJobService {
         isSyncing: false,
     };
 
+    /** Get the terminal ID this sync job is configured for */
+    get terminalId(): string {
+        return this.config.terminalId;
+    }
+
     constructor(config: SyncConfig) {
         this.config = {
             intervalMs: DEFAULT_SYNC_INTERVAL,
@@ -206,11 +213,9 @@ export class SyncJobService {
      */
     start(): void {
         if (this.stats.isRunning) {
-            console.log('[SyncJob] Already running');
             return;
         }
 
-        console.log(`[SyncJob] Starting sync job (interval: ${this.config.intervalMs}ms)`);
         this.stats.isRunning = true;
 
         // Run immediately
@@ -227,11 +232,9 @@ export class SyncJobService {
      */
     stop(): void {
         if (!this.stats.isRunning) {
-            console.log('[SyncJob] Not running');
             return;
         }
 
-        console.log('[SyncJob] Stopping sync job');
         if (this.intervalId) {
             clearInterval(this.intervalId);
             this.intervalId = null;
@@ -251,7 +254,6 @@ export class SyncJobService {
      */
     async runSyncCycle(): Promise<SyncCycleResult> {
         if (this.stats.isSyncing) {
-            console.log('[SyncJob] Sync already in progress, skipping');
             return {
                 success: false,
                 startedAt: new Date(),
@@ -285,15 +287,12 @@ export class SyncJobService {
         };
 
         try {
-            console.log('[SyncJob] Starting sync cycle...');
-
             // Get last sync timestamp
             const lastSync = await this.getLastSyncTimestamp();
             const lastPull = await this.getLastPullTimestamp();
 
             // ==================== PHASE 1: PUSH ====================
             // Push local changes to server
-            console.log('[SyncJob] Phase 1: PUSH - Sending local changes to server...');
 
             for (const table of PUSH_TABLES) {
                 const tableResult = await this.syncTable(table, lastSync);
@@ -307,15 +306,15 @@ export class SyncJobService {
                 }
             }
 
-            // Update last push timestamp
-            if (result.totalSent > 0) {
+            // Update last push timestamp ONLY if ALL records succeeded
+            // This ensures failed records will be retried on next sync
+            if (result.totalSent > 0 && result.totalRejected === 0) {
                 await this.updateLastSyncTimestamp(new Date());
             }
 
             // ==================== PHASE 2: PULL ====================
             // Pull changes from server (if enabled)
             if (this.config.enablePull !== false) {
-                console.log('[SyncJob] Phase 2: PULL - Fetching updates from server...');
 
                 const pullResult = await this.pullFromServer(lastPull);
                 result.pullTables = pullResult.tables;
@@ -338,8 +337,6 @@ export class SyncJobService {
             this.stats.totalSynced += result.totalAccepted;
             this.stats.totalFailed += result.totalRejected;
             this.stats.totalPulled += result.totalPulled;
-
-            console.log(`[SyncJob] Sync cycle complete: ${result.totalAccepted} pushed, ${result.totalPulled} pulled`);
 
         } catch (error: any) {
             result.success = false;
@@ -375,19 +372,21 @@ export class SyncJobService {
 
         try {
             // Call the server's pull endpoint
-            const response = await this.httpClient.post('/sync/pull', {
+            const pullRequest = {
                 tenantId: this.config.tenantId,
                 branchId: this.config.branchId,
                 terminalId: this.config.terminalId,
                 since: since?.toISOString(),
                 tables: PULL_TABLES,
-            });
+            };
+
+            const response = await this.httpClient.post('/sync/pull', pullRequest);
 
             if (!response.data.success) {
                 throw new Error(response.data.errors?.join(', ') || 'Pull failed');
             }
 
-            const { data, counts: _counts } = response.data;
+            const { data } = response.data;
 
             // Process each pulled table
             for (const tableName of PULL_TABLES) {
@@ -404,8 +403,6 @@ export class SyncJobService {
                     result.success = false;
                 }
             }
-
-            console.log(`[SyncJob] Pull complete: ${result.totalReceived} received, ${result.totalInserted} inserted, ${result.totalUpdated} updated`);
 
         } catch (error: any) {
             result.success = false;
@@ -493,15 +490,24 @@ export class SyncJobService {
     }
 
     private async upsertProductVariant(record: any): Promise<'inserted' | 'updated' | 'skipped'> {
+        const variantData = {
+            ...record,
+            sellingPrice: this.toNumber(record.sellingPrice),
+            costPrice: this.toNumber(record.costPrice),
+            weight: record.weight != null ? this.toNumber(record.weight) : null,
+            volume: record.volume != null ? this.toNumber(record.volume) : null,
+            promoPrice: record.promoPrice != null ? this.toNumber(record.promoPrice) : null,
+        };
+
         const existing = await prisma.productVariant.findUnique({ where: { id: record.id } });
         if (existing) {
             if (new Date(record.updatedAt) > (existing.updatedAt || new Date(0))) {
-                await prisma.productVariant.update({ where: { id: record.id }, data: record });
+                await prisma.productVariant.update({ where: { id: record.id }, data: variantData });
                 return 'updated';
             }
             return 'skipped';
         }
-        await prisma.productVariant.create({ data: record });
+        await prisma.productVariant.create({ data: variantData });
         return 'inserted';
     }
 
@@ -539,15 +545,22 @@ export class SyncJobService {
     }
 
     private async upsertInventory(record: any): Promise<'inserted' | 'updated' | 'skipped'> {
+        // Convert Decimal fields from MySQL to Float for SQLite
+        const inventoryData = {
+            ...record,
+            averageCost: this.toNumber(record.averageCost),
+            lastPurchaseCost: this.toNumber(record.lastPurchaseCost),
+        };
+
         const existing = await prisma.inventory.findUnique({ where: { id: record.id } });
         if (existing) {
             if (new Date(record.updatedAt) > (existing.updatedAt || new Date(0))) {
-                await prisma.inventory.update({ where: { id: record.id }, data: record });
+                await prisma.inventory.update({ where: { id: record.id }, data: inventoryData });
                 return 'updated';
             }
             return 'skipped';
         }
-        await prisma.inventory.create({ data: record });
+        await prisma.inventory.create({ data: inventoryData });
         return 'inserted';
     }
 
@@ -565,12 +578,17 @@ export class SyncJobService {
     }
 
     private async upsertStockMovement(record: any): Promise<'inserted' | 'updated' | 'skipped'> {
-        // Stock movements are immutable - only insert if not exists
         const existing = await prisma.stockMovement.findUnique({ where: { id: record.id } });
         if (existing) {
             return 'skipped';
         }
-        await prisma.stockMovement.create({ data: record });
+        // Convert Decimal fields from MySQL to Float for SQLite
+        const movementData = {
+            ...record,
+            unitCost: this.toNumber(record.unitCost),
+            totalCost: this.toNumber(record.totalCost),
+        };
+        await prisma.stockMovement.create({ data: movementData });
         return 'inserted';
     }
 
@@ -652,6 +670,7 @@ export class SyncJobService {
 
             // Send to server in batches
             const batchSize = this.config.batchSize ?? DEFAULT_BATCH_SIZE;
+
             for (let i = 0; i < records.length; i += batchSize) {
                 const batch = records.slice(i, i + batchSize);
                 const batchResult = await this.sendBatchWithRetry(table.endpoint, batch);
@@ -737,16 +756,33 @@ export class SyncJobService {
                     take: batchSize * 5,
                 });
 
-            case 'stockMovements':
-                return prisma.stockMovement.findMany({
+            case 'stockMovements': {
+                // Include inventory relation to get variantId and productId
+                const movements = await prisma.stockMovement.findMany({
                     where: {
                         ...whereBase,
                         terminalId,
                         ...(since && { createdAt: { gt: since } }),
                     },
+                    include: {
+                        inventory: {
+                            select: {
+                                variantId: true,
+                                productId: true,
+                            },
+                        },
+                    },
                     orderBy: { createdAt: 'asc' },
                     take: batchSize * 10,
                 });
+                // Flatten inventory data into movement for sync
+                return movements.map(m => ({
+                    ...m,
+                    variantId: m.inventory?.variantId,
+                    productId: m.inventory?.productId,
+                    inventory: undefined, // Remove nested object
+                }));
+            }
 
             case 'customers':
                 return prisma.customer.findMany({
@@ -808,7 +844,6 @@ export class SyncJobService {
                 // Exponential backoff
                 if (attempt < maxRetries) {
                     const delay = DEFAULT_RETRY_DELAY * Math.pow(2, attempt - 1);
-                    console.log(`[SyncJob] Retry ${attempt}/${maxRetries} in ${delay}ms`);
                     await this.sleep(delay);
                 }
             }
@@ -905,6 +940,36 @@ export class SyncJobService {
     }
 
     /**
+     * Reset sync timestamps to force full re-sync
+     * Use this when you need to re-sync all data (e.g., after fixing sync issues)
+     */
+    async resetSyncTimestamps(): Promise<void> {
+        try {
+            await prisma.terminal.update({
+                where: { terminalId: this.config.terminalId },
+                data: {
+                    lastSyncAt: null,
+                    lastSeenAt: null,
+                },
+            });
+        } catch (error) {
+            console.error('[SyncJob] Failed to reset sync timestamps:', error);
+        }
+    }
+
+    /**
+     * Convert Prisma Decimal to number for SQLite compatibility
+     * Handles Decimal objects from MySQL and converts to plain numbers
+     */
+    private toNumber(value: any): number {
+        if (value == null) return 0;
+        if (typeof value === 'number') return value;
+        if (typeof value.toNumber === 'function') return value.toNumber();
+
+        return parseFloat(String(value)) || 0;
+    }
+
+    /**
      * Sleep utility
      */
     private sleep(ms: number): Promise<void> {
@@ -943,6 +1008,32 @@ export function stopSyncJob(): void {
     if (syncJobInstance) {
         syncJobInstance.stop();
         syncJobInstance = null;
+    }
+}
+
+/**
+ * Reset sync timestamps to force full re-sync
+ * Can be called with or without a sync job instance
+ * @param terminalId - Optional terminal ID (uses sync job's terminalId if not provided)
+ */
+export async function resetSyncTimestamps(terminalId?: string): Promise<void> {
+    const targetTerminalId = terminalId || syncJobInstance?.terminalId;
+
+    if (!targetTerminalId) {
+        console.warn('[SyncJob] No terminalId provided and no sync job instance - cannot reset timestamps');
+        return;
+    }
+
+    try {
+        await prisma.terminal.update({
+            where: { terminalId: targetTerminalId },
+            data: {
+                lastSyncAt: null,
+                lastSeenAt: null,
+            },
+        });
+    } catch (error) {
+        console.error('[SyncJob] Failed to reset sync timestamps:', error);
     }
 }
 

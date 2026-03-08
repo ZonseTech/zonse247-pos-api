@@ -80,6 +80,7 @@ export class SyncReceiverService {
 
     /**
      * Receive and upsert sales from terminal
+     * Note: Preserves original userId (record creator) and terminalId (original terminal)
      */
     static async receiveSales(
         sales: (SyncRecordBase & Record<string, unknown>)[],
@@ -106,11 +107,11 @@ export class SyncReceiverService {
                     continue;
                 }
 
-                // Insert new sale
+                // Insert new sale - preserve original terminalId if present, otherwise use sync source
                 await prisma.sale.create({
                     data: {
                         ...(sale as any),
-                        terminalId,
+                        terminalId: sale.terminalId || terminalId,
                     },
                 });
 
@@ -129,6 +130,7 @@ export class SyncReceiverService {
 
     /**
      * Receive and upsert sale items from terminal
+     * Note: Preserves original terminalId if present
      */
     static async receiveSaleItems(
         items: (SyncRecordBase & Record<string, unknown>)[],
@@ -165,11 +167,11 @@ export class SyncReceiverService {
                     continue;
                 }
 
-                // Insert new sale item
+                // Insert new sale item - preserve original terminalId if present
                 await prisma.saleItem.create({
                     data: {
                         ...(item as any),
-                        terminalId,
+                        terminalId: item.terminalId || terminalId,
                     },
                 });
 
@@ -243,6 +245,7 @@ export class SyncReceiverService {
 
     /**
      * Receive and upsert returns from terminal
+     * Note: Preserves original userId (record creator) and terminalId
      */
     static async receiveReturns(
         returns: (SyncRecordBase & Record<string, unknown>)[],
@@ -268,11 +271,11 @@ export class SyncReceiverService {
                     continue;
                 }
 
-                // Insert new return
+                // Insert new return - preserve original terminalId if present
                 await prisma.return.create({
                     data: {
                         ...(ret as any),
-                        terminalId,
+                        terminalId: ret.terminalId || terminalId,
                     },
                 });
 
@@ -388,18 +391,42 @@ export class SyncReceiverService {
 
         for (const customer of customers) {
             try {
+                // Customer uses customerId as identifier, not id
+                const customerId = (customer.customerId || customer.id) as string;
+                if (!customerId) {
+                    result.rejected++;
+                    result.errors.push({ id: 'unknown', error: 'Missing customerId' });
+                    continue;
+                }
+
+                // Extract required IDs
+                const branchId = customer.branchId as string;
+                const tenantId = customer.tenantId as string;
+
+                if (!branchId) {
+                    result.rejected++;
+                    result.errors.push({ id: customerId, error: 'Missing branchId' });
+                    continue;
+                }
+
                 // Check if exists
                 const existing = await prisma.customer.findUnique({
-                    where: { customerId: customer.id },
+                    where: { customerId },
                 });
+
+                // Build data without auto-increment id and with proper relations
+                const { id: _id, branchId: _branchId, ...customerData } = customer;
 
                 if (existing) {
                     // Update if local is newer (based on updatedAt)
                     const localUpdatedAt = customer.updatedAt as Date | string;
                     if (localUpdatedAt && new Date(localUpdatedAt) > existing.updatedAt) {
                         await prisma.customer.update({
-                            where: { customerId: customer.id },
-                            data: customer as any,
+                            where: { customerId },
+                            data: {
+                                ...customerData,
+                                customerId, // Ensure customerId is set
+                            } as any,
                         });
                         result.accepted++;
                     } else {
@@ -408,9 +435,14 @@ export class SyncReceiverService {
                     continue;
                 }
 
-                // Insert new customer
+                // Insert new customer with relation connect syntax
                 await prisma.customer.create({
-                    data: customer as any,
+                    data: {
+                        ...customerData,
+                        customerId,
+                        tenantId, // Keep scalar - no Tenant relation on Customer
+                        branch: { connect: { branchId } },
+                    } as any,
                 });
 
                 result.accepted++;
