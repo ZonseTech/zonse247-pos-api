@@ -31,6 +31,8 @@ export const migration: Migration = {
                 "updated_at" DATETIME DEFAULT CURRENT_TIMESTAMP,
                 CONSTRAINT "branch_subscriptions_subscription_plan_id_fkey" FOREIGN KEY ("subscription_plan_id") REFERENCES "subscription_plans" ("subscription_plan_id") ON DELETE RESTRICT ON UPDATE CASCADE
             )`,
+            // Add synced column if it doesn't exist (for tables created by older migration version)
+            `ALTER TABLE "branch_subscriptions" ADD COLUMN "synced" INTEGER DEFAULT 0`,
             // Create index on subscription_plan_id
             `CREATE INDEX IF NOT EXISTS "idx_branch_subscriptions_subscription_plan_id" ON "branch_subscriptions" ("subscription_plan_id")`,
             // Add branch_subscription_id column to branches (SQLite doesn't allow UNIQUE in ALTER TABLE)
