@@ -36,8 +36,7 @@ export class CustomerService {
             name: validator.escape(customerData.name.trim()),
             tenantId: customerData.tenantId,
             branchId: customerData.branchId,
-            userId: customerData.userId,
-            synced: 0,
+            userId: customerData.userId || undefined,
         };
 
         if (customerData.email && customerData.email.trim()) {

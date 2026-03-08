@@ -40,15 +40,10 @@ export class SaleService {
     /**
      * Create a new sale with support for multiple payment methods
      * 
-     * Features:
-     * - Validates product variants and stock availability
-     * - Supports both single and multiple payment methods
-     * - Includes retry logic for sale number generation race conditions
-     * - Updates inventory and creates stock movements
-     * 
      * @param data - Sale input data
      * @param tenantId - Tenant identifier
      * @param branchId - Branch identifier
+     * @param userId - User identifier (from auth context)
      * @param retryAttempt - Current retry attempt (internal use)
      * @returns Created sale with items and payments
      * @throws Error if validation fails or insufficient stock/payment
@@ -57,11 +52,11 @@ export class SaleService {
         data: CreateSaleInput,
         tenantId: string,
         branchId: string,
+        userId: string,
         retryAttempt = 0
     ): Promise<SaleWithItems> {
         try {
             return await prisma.$transaction(async (tx) => {
-                // Step 1: Process and validate all items
                 const { items: processedItems, subtotal } = await this.processItems(
                     data.items,
                     tenantId,
@@ -69,23 +64,19 @@ export class SaleService {
                     tx
                 );
 
-                // Step 2: Calculate sale totals
                 const totals = this.calculateSaleTotals(data, subtotal);
 
-                // Step 3: Validate payment
                 const totalPaid = this.getTotalPaid(data);
                 validatePaymentAmount(totals.totalAmount, totalPaid);
 
-                // Step 4: Generate unique sale number
                 const saleNumber = await this.generateSaleNumber(tenantId, branchId, tx, retryAttempt);
 
-                // Step 5: Prepare payment data
                 const payments = this.preparePayments(data, totalPaid);
 
-                // Step 6: Create the sale record
                 const sale = await this.createSaleRecord(tx, {
                     tenantId,
                     branchId,
+                    userId,
                     saleNumber,
                     data,
                     totals,
@@ -94,16 +85,14 @@ export class SaleService {
                     payments,
                 });
 
-                // Step 7: Update inventory and record movements
-                await this.updateInventoryForSale(tx, processedItems, sale.id, saleNumber, data.userId, tenantId, branchId, data.terminalId);
+                await this.updateInventoryForSale(tx, processedItems, sale.id, saleNumber, userId, tenantId, branchId, data.terminalId);
 
                 return mapSaleToResponse(sale);
             });
         } catch (error: any) {
-            // Handle unique constraint errors with retry
             if (this.isUniqueConstraintError(error) && retryAttempt < SALE_NUMBER.MAX_RETRIES) {
                 await this.delay(SALE_NUMBER.RETRY_DELAY_MS * (retryAttempt + 1));
-                return this.createSale(data, tenantId, branchId, retryAttempt + 1);
+                return this.createSale(data, tenantId, branchId, userId, retryAttempt + 1);
             }
             throw error;
         }
@@ -372,6 +361,7 @@ export class SaleService {
         params: {
             tenantId: string;
             branchId: string;
+            userId: string;
             saleNumber: string;
             data: CreateSaleInput;
             totals: { taxAmount: number; discountAmount: number; otherCharges: number; totalAmount: number };
@@ -380,18 +370,13 @@ export class SaleService {
             payments: any[];
         }
     ): Promise<any> {
-        const { tenantId, branchId, saleNumber, data, totals, totalPaid, processedItems, payments } = params;
+        const { tenantId, branchId, userId, saleNumber, data, totals, totalPaid, processedItems, payments } = params;
         const changeAmount = totalPaid - totals.totalAmount;
 
         return tx.sale.create({
             data: {
                 id: uuidv4(),
-                tenantId,
-                branchId,
                 saleNumber,
-                customerId: data.customerId,
-                terminalId: data.terminalId,
-                userId: data.userId,
                 subtotal: processedItems.reduce((sum, item) => sum + item.subtotal, 0),
                 taxAmount: totals.taxAmount,
                 discountAmount: totals.discountAmount,
@@ -399,17 +384,41 @@ export class SaleService {
                 totalAmount: totals.totalAmount,
                 amountPaid: totalPaid,
                 changeAmount,
-                paymentMethodId: data.payments?.[0]?.paymentMethodId || data.paymentMethodId,
                 status: 'COMPLETED',
                 notes: data.notes,
+                tenant: { connect: { tenantId } },
+                branch: { connect: { branchId } },
+                user: { connect: { userId } },
+                ...(data.customerId && { customer: { connect: { customerId: data.customerId } } }),
+                ...(data.terminalId && { terminal: { connect: { terminalId: data.terminalId } } }),
+                ...(data.payments?.[0]?.paymentMethodId || data.paymentMethodId) && {
+                    paymentMethod: { connect: { methodId: data.payments?.[0]?.paymentMethodId || data.paymentMethodId } }
+                },
                 items: {
-                    create: processedItems.map(({ inventoryId: _inventoryId, ...item }) => ({
+                    create: processedItems.map(({ inventoryId: _inventoryId, productId, variantId, ...item }) => ({
                         id: uuidv4(),
-                        ...item,
+                        productId,
+                        quantity: item.quantity,
+                        unitPrice: item.unitPrice,
+                        unitCost: item.unitCost,
+                        subtotal: item.subtotal,
+                        taxAmount: item.taxAmount,
+                        discountAmount: item.discountAmount,
+                        totalAmount: item.totalAmount,
+                        tenant: { connect: { tenantId } },
+                        branch: { connect: { branchId } },
+                        variant: { connect: { id: variantId } },
                     })),
                 },
                 ...(payments.length > 0 && {
-                    payments: { create: payments },
+                    payments: {
+                        create: payments.map(({ paymentMethodId, ...payment }) => ({
+                            ...payment,
+                            tenant: { connect: { tenantId } },
+                            branch: { connect: { branchId } },
+                            paymentMethod: { connect: { methodId: paymentMethodId } },
+                        })),
+                    },
                 }),
             },
             include: buildSaleInclude(),

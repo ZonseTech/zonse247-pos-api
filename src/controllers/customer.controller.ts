@@ -48,11 +48,21 @@ export class CustomerController extends BaseController {
 
     static async create(req: Request, res: Response): Promise<void> {
         try {
+            const auth = (req as any).auth;
+            const { name, email, phone, address, isDefault } = req.body;
+
+            const tenantId = auth?.tenantId;
+            const branchId = auth?.activeBranchId || auth?.currentBranchId || auth?.branchId;
+
             const customerData: CreateCustomerData = {
-                ...req.body,
-                tenantId: (req as any).auth?.tenantId || '',
-                branchId: (req as any).auth?.activeBranchId || (req as any).auth?.branchId || '',
-                userId: (req as any).auth?.userId || '',
+                name,
+                email: email || undefined,
+                phone: phone || undefined,
+                address: address || undefined,
+                isDefault,
+                tenantId,
+                branchId,
+                userId: auth?.userId || undefined,
             };
 
             if (!customerData.name || customerData.name.trim() === '') {

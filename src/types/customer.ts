@@ -3,12 +3,11 @@ export interface Customer {
     name: string;
     tenantId: string;
     branchId: string;
-    userId: string;
+    userId?: string;
     phone?: string;
     email?: string;
     address?: string;
     isDefault?: boolean;
-    synced: number;
 }
 
 export interface CreateCustomerData {
@@ -19,7 +18,7 @@ export interface CreateCustomerData {
     isDefault?: boolean;
     tenantId: string;
     branchId: string;
-    userId: string;
+    userId?: string;
 }
 
 export interface UpdateCustomerData {
