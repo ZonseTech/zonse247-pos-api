@@ -44,30 +44,23 @@ export class OnboardingService {
         };
 
         try {
-            // 1. Save Tenant (skip if exists)
             result.tenant = await this.saveTenant(data.tenant);
-
-            // 2. Save Subscription Plan (skip if exists)
             const subscriptionPlanData = data.branch?.branchSubscription?.subscriptionPlan as unknown as SubscriptionPlanCreateInput;
+
             if (subscriptionPlanData) {
                 result.subscriptionPlan = await this.saveSubscriptionPlan(subscriptionPlanData);
             }
 
-            // 3. Save Branch Subscription (skip if exists)
             const branchSubscriptionData = data.branch?.branchSubscription as unknown as BranchSubscription;
             if (branchSubscriptionData) {
                 result.branchSubscription = await this.saveBranchSubscription(branchSubscriptionData);
             }
 
-            // 4. Save Branch (skip if exists)
             result.branch = await this.saveBranch(data.branch);
-
-            // 5. Save Terminal (skip if exists)
             result.terminal = await this.saveTerminal(data);
 
             return result;
         } catch (error) {
-            console.error('Error saving terminal details:', error);
             throw new Error(`Failed to save terminal details: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
     }
@@ -160,7 +153,6 @@ export class OnboardingService {
             endsAt: subscriptionData.endsAt ? new Date(subscriptionData.endsAt) : null,
             autoRenew: subscriptionData.autoRenew || false,
             paymentMethod: subscriptionData.paymentMethod || null,
-            synced: subscriptionData.synced || 0,
             lastPaymentDate: subscriptionData.lastPaymentDate ? new Date(subscriptionData.lastPaymentDate) : null,
             nextPaymentDate: subscriptionData.nextPaymentDate ? new Date(subscriptionData.nextPaymentDate) : null
         } as BranchSubscriptionUncheckedCreateInput);
@@ -208,7 +200,6 @@ export class OnboardingService {
             logoUrl: branchData.logoUrl || null,
             isVirtualWarehouse: branchData.isVirtualWarehouse || false,
             isActive: branchData.isActive !== undefined ? branchData.isActive : true,
-            synced: branchData.synced || 0,
             mraApprovalStatus: branchData.mraApprovalStatus || 'PENDING',
             branchSubscriptionId: branchData.branchSubscriptionId || null,
             status: branchData.status || 'active'

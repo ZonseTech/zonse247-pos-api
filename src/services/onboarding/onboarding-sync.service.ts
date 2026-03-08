@@ -4,7 +4,7 @@ import { PaymentMethodModel } from '../../models/payment-methods.model';
 import { PaymentServiceProviderModel } from '../../models/payment-service-provider.model';
 import { CategoryModel } from '../../models/category.model';
 import { CustomerModel } from '../../models/customer.model';
-import { PaymentMethodCreateInput } from '../../databases/prisma/generated/prisma/models';
+import { PaymentMethodUncheckedCreateInput } from '../../databases/prisma/generated/prisma/models';
 import type { SubscriptionPlan } from 'subscription';
 import type { PaymentMethod } from 'payment-method';
 import type { PaymentServiceProvider } from 'payment-service-provider';
@@ -83,9 +83,11 @@ export class OnboardingSyncService {
      * @method  syncPaymentMethods
      * @desc    Sync payment methods to local database using "exists skip" pattern
      * @param   paymentMethods - Array of payment methods from cloud (passed by client)
+     * @param   tenantId - Tenant ID for associating payment methods
+     * @param   branchId - Branch ID for associating payment methods
      * @returns Promise<SyncResult<PaymentMethod>> - Results of sync operation
      */
-    static async syncPaymentMethods(paymentMethods: PaymentMethod[]): Promise<SyncResult<PaymentMethod>> {
+    static async syncPaymentMethods(paymentMethods: PaymentMethod[], tenantId: string, branchId: string): Promise<SyncResult<PaymentMethod>> {
         const result: SyncResult<PaymentMethod> = {
             saved: [],
             skipped: [],
@@ -103,11 +105,13 @@ export class OnboardingSyncService {
                 } else {
                     const savedMethod = await PaymentMethodModel.create({
                         methodId: method.methodId,
+                        tenantId,
+                        branchId,
                         name: method.name,
                         icon: method.icon || null,
                         sortOrder: method.sortOrder || 0,
                         isActive: method.isActive !== undefined ? method.isActive : true,
-                    } as PaymentMethodCreateInput);
+                    } as unknown as PaymentMethodUncheckedCreateInput);
                     result.saved.push(savedMethod);
                     result.summary.saved++;
                 }
@@ -151,7 +155,6 @@ export class OnboardingSyncService {
                         type: provider.type || 'bank',
                         userId: provider.userId,
                         logoUrl: provider.logoUrl || null,
-                        synced: 1
                     } as unknown as PaymentServiceProvider);
                     result.saved.push(savedProvider);
                     result.summary.saved++;
@@ -215,7 +218,6 @@ export class OnboardingSyncService {
                         terminalId: categoryFields.terminalId || null,
                         userId: categoryFields.userId
                     });
-                    newCategory.synced = 1;
 
                     const savedCategory = await CategoryModel.create(newCategory);
                     result.saved.push(savedCategory);
@@ -279,7 +281,6 @@ export class OnboardingSyncService {
                         email: customerFields.email || null,
                         address: customerFields.address || null,
                         isDefault: customerFields.isDefault || false,
-                        synced: 1
                     });
                     result.saved.push(savedCustomer);
                     result.summary.saved++;
