@@ -164,7 +164,6 @@ export class BranchModel {
             status: (data.status as BranchStatus) || 'active',
             mraApprovalStatus: (data.mraApprovalStatus as BranchMRAApprovalStatus) || BranchMRAApprovalStatus.PENDING,
             branchSubscriptionId: data.branchSubscriptionId || null,
-            synced: data.synced || 0,
             createdAt: now,
             updatedAt: now,
             mraApprovalDate: null

@@ -22,6 +22,7 @@ export {
     initSyncJob,
     getSyncJob,
     stopSyncJob,
+    resetSyncTimestamps,
     SyncReceiverService
 } from './services/sync';
 
