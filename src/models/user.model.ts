@@ -142,7 +142,6 @@ export class UserModel {
             currentBranchId: data.currentBranchId || null,
             passwordChangedAt: now,
             forcePasswordChange: data.forcePasswordChange || false,
-            synced: 0,
             createdAt: now,
             updatedAt: now
         };
@@ -213,7 +212,6 @@ export class UserModel {
     /**
      * Saves branch data to offline database using BranchModel
      * Order: 1) BranchSubscription (if SubscriptionPlan exists), 2) Branch
-     * SubscriptionPlan must already exist (synced separately)
      */
     private static async saveBranchOffline(branchData: any): Promise<void> {
         let branchSubscriptionId = branchData.branchSubscriptionId || null;

@@ -227,7 +227,6 @@ export class TerminalModel {
             lastActivity: now,
             lastSync: null,
             lastSyncTimestamp: null,
-            synced: 0,
             registeredAt: now,
             createdAt: now,
             updatedAt: now

@@ -201,7 +201,6 @@ export class StaffModel {
             bankBranchCode: data.bankBranchCode || null,
             employmentStatus: data.employmentStatus || 'ACTIVE',
             notes: data.notes || null,
-            synced: 0,
             createdAt: now,
             updatedAt: now
         };

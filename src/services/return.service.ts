@@ -470,7 +470,6 @@ export class ReturnService {
                 notes: item.notes,
                 restockStatus: 'pending',
                 restockedQuantity: new Decimal(0) as any,
-                synced: 0,
             };
         });
 

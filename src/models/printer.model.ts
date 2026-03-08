@@ -211,7 +211,6 @@ export class PrinterModel {
                     printJobCount: 0,
                     errorCount: 0,
                     isActive: true,
-                    synced: 0,
                     createdAt: now,
                     updatedAt: now
                 }
@@ -239,9 +238,9 @@ export class PrinterModel {
                 });
 
                 if (existingPrinter) {
-                    const existingConfig = existingPrinter.configuration 
-                        ? (typeof existingPrinter.configuration === 'string' 
-                            ? JSON.parse(existingPrinter.configuration) 
+                    const existingConfig = existingPrinter.configuration
+                        ? (typeof existingPrinter.configuration === 'string'
+                            ? JSON.parse(existingPrinter.configuration)
                             : existingPrinter.configuration)
                         : {};
                     updateData.configuration = JSON.stringify({
@@ -332,9 +331,9 @@ export class PrinterModel {
 
             if (!existingPrinter) return null;
 
-            const existingConfig = existingPrinter.configuration 
-                ? (typeof existingPrinter.configuration === 'string' 
-                    ? JSON.parse(existingPrinter.configuration) 
+            const existingConfig = existingPrinter.configuration
+                ? (typeof existingPrinter.configuration === 'string'
+                    ? JSON.parse(existingPrinter.configuration)
                     : existingPrinter.configuration)
                 : {};
             const newConfig = {
