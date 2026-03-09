@@ -14,27 +14,14 @@ import { SecureSettingsService } from './secure-settings.service';
 export class TerminalService {
     /**
      * @method  getAllTerminals
-     * @desc    Retrieve all terminals with optional scope and query filters
-     * @param   query - Optional query parameters (isAdminMode, branchId)
-     * @param   scope - Auth scope with tenantId and optional branchId
+     * @desc    Retrieve all terminals with scope filters
+     * @param   scope - Auth scope params with tenantId and optional branchId
      * @returns Promise<Terminal[]> - Array of terminals
      * @throws  Error - Failed to retrieve terminals
      */
-    static async getAllTerminals(query: any = {}, scope: { tenantId: string, branchId?: string }): Promise<Terminal[]> {
+    static async getAllTerminals(scope: AuthScopeParams = {}): Promise<Terminal[]> {
         try {
-            const conditions: AuthScopeParams = {};
-
-            if (!query.isAdminMode) {
-                conditions.tenantId = scope.tenantId;
-            }
-
-            if (scope.branchId) {
-                conditions.branchId = scope.branchId;
-            } else if (query.branchId) {
-                conditions.branchId = query.branchId;
-            }
-
-            return await TerminalModel.getAll(conditions);
+            return await TerminalModel.getAll(scope);
         } catch (error) {
             throw new Error(`Failed to retrieve terminals: ${error}`);
         }

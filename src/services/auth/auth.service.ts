@@ -440,6 +440,7 @@ export class AuthService {
 
     /**
      * Switches user's active branch and generates a new token with updated branch context
+     * Records branch access by updating the branch's updatedAt timestamp
      * 
      * @param userId - The user's unique identifier
      * @param targetBranchId - The branch ID to switch to
@@ -509,6 +510,9 @@ export class AuthService {
             currentBranchId: targetBranchId,
             activeBranchId: targetBranchId
         });
+
+        // Record branch access by touching updatedAt
+        await BranchModel.update(targetBranchId, {});
 
         return { user: completeUser, token, branch };
     }
