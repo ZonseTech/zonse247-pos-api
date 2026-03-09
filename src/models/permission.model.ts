@@ -92,6 +92,36 @@ export class PermissionModel {
         };
     }
 
+    /**
+     * Create or update permission - used for offline sync
+     */
+    static async createOrUpdate(permissionData: Partial<Permission>): Promise<{ permission: Permission; created: boolean }> {
+        try {
+            let existingPermission = permissionData.permissionId
+                ? await this.findById(permissionData.permissionId)
+                : null;
+
+            if (!existingPermission && permissionData.name) {
+                existingPermission = await this.findByName(permissionData.name);
+            }
+
+            if (existingPermission) {
+                await this.update(existingPermission.permissionId, {
+                    ...permissionData,
+                    updatedAt: new Date()
+                });
+                const updatedPermission = await this.findById(existingPermission.permissionId);
+                return { permission: updatedPermission as Permission, created: false };
+            }
+
+            const newPermission = this.buildPermissionData(permissionData);
+            const createdPermission = await this.create(newPermission);
+            return { permission: createdPermission, created: true };
+        } catch (error) {
+            throw new Error(`Error in createOrUpdate permission: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+    }
+
     static async create(permissionData: Permission): Promise<Permission> {
         try {
             return await prisma.permission.create({

@@ -39,6 +39,36 @@ router.post(
 );
 
 router.post(
+    '/offline/save-user',
+    validateBody(userValidationSchemas.saveUserOffline),
+    asyncHandler(AuthController.saveUserOffline)
+);
+
+router.get(
+    '/verifying-roles',
+    authMiddleware.verifyToken,
+    asyncHandler(AuthController.verifyingRoles)
+);
+
+router.post(
+    '/offline/save-role',
+    validateBody(userValidationSchemas.saveRoleOffline),
+    asyncHandler(AuthController.saveRoleOffline)
+);
+
+router.get(
+    '/verifying-privileges',
+    authMiddleware.verifyToken,
+    asyncHandler(AuthController.verifyingPrivileges)
+);
+
+router.post(
+    '/offline/save-permissions',
+    validateBody(userValidationSchemas.savePermissionsOffline),
+    asyncHandler(AuthController.savePermissionsOffline)
+);
+
+router.post(
     '/switch-branch',
     authMiddleware.verifyToken,
     asyncHandler(AuthController.switchBranch)

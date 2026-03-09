@@ -46,7 +46,7 @@ export class InventoryModel {
                         category: true
                     }
                 },
-                inventory: true,
+                inventories: true,
                 barcodes: {
                     where: { isActive: true }
                 }
@@ -70,7 +70,7 @@ export class InventoryModel {
                     where: { isActive: true },
                     orderBy: [{ isDefault: 'desc' }, { variantName: 'asc' }],
                     include: {
-                        inventory: true,
+                        inventories: true,
                         barcodes: { where: { isActive: true } }
                     }
                 }
@@ -96,7 +96,7 @@ export class InventoryModel {
                         category: true
                     }
                 },
-                inventory: true,
+                inventories: true,
                 barcodes: {
                     where: { isActive: true }
                 }
@@ -123,7 +123,7 @@ export class InventoryModel {
                         category: true
                     }
                 },
-                inventory: true,
+                inventories: true,
                 barcodes: {
                     where: { isActive: true }
                 }
@@ -230,7 +230,7 @@ export class InventoryModel {
                         category: true
                     }
                 },
-                inventory: true,
+                inventories: true,
                 barcodes: {
                     where: { isActive: true }
                 }
@@ -342,12 +342,12 @@ export class InventoryModel {
             const results = await prisma.productVariant.findMany({
                 where: whereClause,
                 include: {
-                    inventory: true
+                    inventories: true
                 }
             });
 
             return results.filter(r => {
-                const inventory = r.inventory;
+                const inventory = r.inventories?.[0];
                 if (!inventory || !inventory.reorderPoint) return false;
                 return inventory.availableQuantity <= inventory.reorderPoint;
             }).length;
@@ -377,7 +377,7 @@ export class InventoryModel {
                         category: true
                     }
                 },
-                inventory: true,
+                inventories: true,
                 barcodes: {
                     where: { isActive: true }
                 }
@@ -401,7 +401,7 @@ export class InventoryModel {
                         category: true
                     }
                 },
-                inventory: true,
+                inventories: true,
                 barcodes: {
                     where: { isActive: true }
                 }
@@ -430,7 +430,7 @@ export class InventoryModel {
                                 category: true
                             }
                         },
-                        inventory: true,
+                        inventories: true,
                         barcodes: {
                             where: { isActive: true }
                         }
@@ -1340,14 +1340,14 @@ export class InventoryModel {
                         category: true
                     }
                 },
-                inventory: true
+                inventories: true
             }
         });
 
         // Post-process for low-stock filter
         if (filter === 'low-stock') {
             variants = variants.filter(variant => {
-                const inventory = variant.inventory;
+                const inventory = variant.inventories?.[0];
                 if (!inventory?.reorderPoint) return false;
                 return inventory.availableQuantity <= inventory.reorderPoint;
             });
@@ -1373,7 +1373,7 @@ export class InventoryModel {
         }>();
 
         for (const variant of variants) {
-            const inventory = variant.inventory;
+            const inventory = variant.inventories?.[0];
             const availableQty = inventory?.availableQuantity || 0;
             const avgCost = Number(inventory?.averageCost || 0);
             const sellingPrice = Number(variant.sellingPrice || 0);
@@ -1483,12 +1483,12 @@ export class InventoryModel {
                         category: true
                     }
                 },
-                inventory: true
+                inventories: true
             }
         });
 
         const itemValues = variants.map(variant => {
-            const inventory = variant.inventory;
+            const inventory = variant.inventories?.[0];
             const availableQty = inventory?.availableQuantity || 0;
             const avgCost = Number(inventory?.averageCost || 0);
             const sellingPrice = Number(variant.sellingPrice || 0);
@@ -1904,7 +1904,7 @@ export class InventoryModel {
                         where: variantWhere,
                         orderBy: [{ isDefault: 'desc' }, { variantName: 'asc' }],
                         include: {
-                            inventory: true,
+                            inventories: true,
                             barcodes: { where: { isActive: true } },
                         },
                     },
@@ -2005,7 +2005,7 @@ export class InventoryModel {
         if (!data) return null;
 
         const variants = (data.variants || []).map((variant: any) => {
-            const inventory = variant.inventory;
+            const inventory = variant.inventories?.[0];
             return {
                 id: variant.id,
                 sku: variant.sku,

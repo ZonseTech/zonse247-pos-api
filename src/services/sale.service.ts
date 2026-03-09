@@ -195,7 +195,7 @@ export class SaleService {
                         include: {
                             variant: {
                                 include: {
-                                    inventory: true,
+                                    inventories: true,
                                     product: { select: { id: true, name: true } },
                                 },
                             },
@@ -288,7 +288,7 @@ export class SaleService {
                 },
                 include: {
                     product: true,
-                    inventory: true,
+                    inventories: true,
                 },
             });
 
@@ -296,7 +296,7 @@ export class SaleService {
                 throw new Error(`${ERROR_MESSAGES.VARIANT_NOT_FOUND} (${variantId})`);
             }
 
-            const inventory = variant.inventory;
+            const inventory = variant.inventories?.[0];
             if (!inventory) {
                 throw new Error(`${ERROR_MESSAGES.NO_INVENTORY} for ${variant.product.name} - ${variant.variantName}`);
             }

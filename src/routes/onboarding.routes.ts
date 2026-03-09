@@ -1,54 +1,124 @@
 import { Router } from "express";
 import { asyncHandler } from "../middlewares/error.middleware";
-import { validateBody, validateParams } from "../middlewares/validation.middleware";
-import { tenantValidationSchemas } from "../validations/tenant.schemas";
-import { TenantController } from "../controllers/tenant.controller";
-import { branchValidationSchemas } from "../validations/branch.schemas";
-import { BranchController } from "../controllers/branch.controller";
-import { OnboardingController } from "../controllers/onboarding.controller";
+import { OnboardingController } from "../controllers/onboarding/onboarding.controller";
+import { OnboardingDataController } from "../controllers/onboarding/onboarding-data.controller";
 import { TerminalSettingsController } from "../controllers/terminal-settings.controller";
 
 const router = Router();
 
 router.post(
-    '/verify-tenant',
-    validateBody(tenantValidationSchemas.verifyTenant),
-    asyncHandler(TenantController.verify)
+    '/terminal/activate',
+    asyncHandler(OnboardingController.activateTerminal)
 );
 
 router.post(
-    '/live/verify-account',
-    validateBody(tenantValidationSchemas.verifyTenant),
-    asyncHandler(TenantController.verifyTenantAccount)
+    '/terminal/save',
+    asyncHandler(OnboardingController.saveTerminalDetails)
+);
+
+router.post(
+    '/terminal/set-activated',
+    asyncHandler(OnboardingController.setTerminalActivated)
+);
+
+router.post(
+    '/progress/init',
+    asyncHandler(OnboardingController.initializeProgress)
 );
 
 router.get(
-    '/tenant/:tenantId/branches',
-    validateParams(tenantValidationSchemas.tenantId),
-    asyncHandler(TenantController.getTenantBranches)
+    '/progress/:terminalId',
+    asyncHandler(OnboardingController.getProgress)
 );
 
 router.get(
-    '/live/tenant/:tenantId/branches',
-    validateParams(tenantValidationSchemas.tenantId),
-    asyncHandler(TenantController.getTenantAccountBranches)
+    '/progress/:terminalId/next-step',
+    asyncHandler(OnboardingController.getNextStep)
 );
 
-router.get(
-    '/branch/:branchId/terminals',
-    validateParams(branchValidationSchemas.branchId),
-    asyncHandler(BranchController.getBranchTerminals)
+router.put(
+    '/progress/step',
+    asyncHandler(OnboardingController.updateStepStatus)
 );
 
-router.get(
-    '/live/branch/:branchId/terminals',
-    validateParams(branchValidationSchemas.branchId),
-    asyncHandler(BranchController.getTenantBranchAccountTerminals)
+router.post(
+    '/progress/step/start',
+    asyncHandler(OnboardingController.startStep)
 );
 
-router.use(
-    '/status',
-    asyncHandler(OnboardingController.getOnboardingStatus)
+router.post(
+    '/progress/step/complete',
+    asyncHandler(OnboardingController.completeStep)
+);
+
+router.post(
+    '/progress/step/fail',
+    asyncHandler(OnboardingController.failStep)
+);
+
+router.post(
+    '/progress/step/skip',
+    asyncHandler(OnboardingController.skipStep)
+);
+
+router.post(
+    '/progress/:terminalId/reset',
+    asyncHandler(OnboardingController.resetProgress)
+);
+
+router.delete(
+    '/progress/:terminalId',
+    asyncHandler(OnboardingController.deleteProgress)
+);
+
+router.post(
+    '/fetch/subscription-plans',
+    asyncHandler(OnboardingDataController.fetchSubscriptionPlans)
+);
+
+router.post(
+    '/fetch/payment-methods',
+    asyncHandler(OnboardingDataController.fetchPaymentMethods)
+);
+
+router.post(
+    '/fetch/payment-providers',
+    asyncHandler(OnboardingDataController.fetchPaymentServiceProviders)
+);
+
+router.post(
+    '/fetch/categories',
+    asyncHandler(OnboardingDataController.fetchCategories)
+);
+
+router.post(
+    '/fetch/customers',
+    asyncHandler(OnboardingDataController.fetchCustomers)
+);
+
+router.post(
+    '/sync/subscription-plans',
+    asyncHandler(OnboardingDataController.syncSubscriptionPlans)
+);
+
+router.post(
+    '/sync/payment-methods',
+    asyncHandler(OnboardingDataController.syncPaymentMethods)
+);
+
+router.post(
+    '/sync/payment-providers',
+    asyncHandler(OnboardingDataController.syncPaymentServiceProviders)
+);
+
+router.post(
+    '/sync/categories',
+    asyncHandler(OnboardingDataController.syncCategories)
+);
+
+router.post(
+    '/sync/customers',
+    asyncHandler(OnboardingDataController.syncCustomers)
 );
 
 router.post(

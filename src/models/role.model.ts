@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-non-null-assertion */
 import { v4 as uuidv4 } from 'uuid';
 import prisma from '../databases/prisma/client';
 import type { CreateRoleRequest, Role } from 'role-permission';
@@ -53,12 +54,10 @@ export class RoleModel {
         }
     }
 
-    static buildRoleData(data: CreateRoleRequest): Role {
+    static buildRoleData(data: CreateRoleRequest): any {
         const now = new Date();
         return {
             roleId: uuidv4(),
-            tenantId: data.tenantId,
-            branchId: data.branchId || null,
             name: data.name,
             displayName: data.displayName,
             description: data.description || null,
@@ -112,6 +111,40 @@ export class RoleModel {
             });
         } catch (error) {
             throw new Error(`Error counting roles: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+    }
+
+    /**
+     * Create or update role - used for offline sync
+     */
+    static async createOrUpdate(roleData: Partial<Role>): Promise<{ role: Role; created: boolean }> {
+        try {
+            const existingRole = await this.findById(roleData.roleId!);
+
+            if (existingRole) {
+                // Update existing role
+                await this.update(roleData.roleId!, roleData);
+                const updatedRole = await this.findById(roleData.roleId!);
+                return { role: updatedRole as Role, created: false };
+            }
+
+            // Create new role
+            const now = new Date();
+            const newRole: any = {
+                roleId: roleData.roleId!,
+                name: roleData.name!,
+                displayName: roleData.displayName || roleData.name!,
+                description: roleData.description || null,
+                isSystemRole: roleData.isSystemRole ?? false,
+                isActive: roleData.isActive ?? true,
+                createdAt: roleData.createdAt || now,
+                updatedAt: now
+            };
+
+            const createdRole = await this.create(newRole);
+            return { role: createdRole, created: true };
+        } catch (error) {
+            throw new Error(`Error in createOrUpdate role: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
     }
 }

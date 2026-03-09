@@ -1,3 +1,4 @@
+import { BranchSubscription } from "subscription";
 import { BranchMRAApprovalStatus } from "../databases/prisma/generated/prisma/enums";
 
 export type MraApprovalStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
@@ -34,6 +35,8 @@ export interface Branch {
     synced: number;
     mraApprovalStatus?: BranchMRAApprovalStatus;
     mraApprovalDate?: Date | null;
+    branchSubscriptionId?: string | null;
+    branchSubscription?: BranchSubscription | null;
     status?: BranchStatus;
     createdAt?: Date;
     updatedAt?: Date;
@@ -68,6 +71,9 @@ export interface CreateBranchRequest {
     logoUrl?: string;
     isVirtualWarehouse?: boolean;
     isActive?: boolean;
+    subscriptionPlanId: string;
+    subscriptionMonths?: number;
+    branchSubscriptionId?: string;
     status?: string;
     mraApprovalStatus?: string;
     synced?: number;

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-non-null-assertion */
 import validator from 'validator';
 import { UserModel } from '../models/user.model';
 import { RoleModel } from '../models/role.model';
@@ -13,113 +12,21 @@ import {
 	ValidationError,
 	ConflictError,
 	NotFoundError,
+	UserErrors,
 } from '../utils/db-error-handler.util';
-
-/**
- * User-specific error messages
- */
-export const UserErrors = {
-	USER_NOT_FOUND: (id: string) => `User with ID "${id}" was not found.`,
-	USER_EXISTS: 'A user with this username or email already exists.',
-	USERNAME_EXISTS: (username: string) => `Username "${username}" is already taken.`,
-	EMAIL_EXISTS: (email: string) => `Email "${email}" is already in use.`,
-	ROLE_NOT_FOUND: (id: string) => `Role with ID "${id}" does not exist.`,
-	BRANCH_NOT_FOUND: (id: string) => `Branch with ID "${id}" does not exist.`,
-	INVALID_EMAIL: 'Please provide a valid email address.',
-	INVALID_STATUS: 'Status must be one of: active, inactive, suspended.',
-	PASSWORD_REQUIRED: 'Password is required.',
-	PASSWORD_TOO_SHORT: (minLength: number) => `Password must be at least ${minLength} characters long.`,
-	USERNAME_REQUIRED: 'Username is required.',
-	FULLNAME_REQUIRED: 'Full name is required.',
-	ROLE_REQUIRED: 'Role is required.',
-	CANNOT_DELETE_SELF: 'You cannot delete your own account.',
-	CANNOT_DEACTIVATE_SELF: 'You cannot deactivate your own account.',
-};
+import { AuthScopeParams } from 'auth';
 
 export class UserService {
 
-	/**
-	 * Validate user input data
-	 */
-	static validateUserInput(userData: Partial<User>, isCreate = true): void {
-		const errors: Record<string, string> = {};
-
-		if (isCreate) {
-			// Username can be generated from email, so only require one of them
-			if ((!userData.username || userData.username.trim().length === 0) &&
-				(!userData.email || userData.email.trim().length === 0)) {
-				errors.username = 'Username or email is required';
-			}
-
-			if (!userData.fullname || userData.fullname.trim().length === 0) {
-				errors.fullname = UserErrors.FULLNAME_REQUIRED;
-			}
-
-			if (!userData.roleId) {
-				errors.roleId = UserErrors.ROLE_REQUIRED;
-			}
-
-			// Password is optional for staff creation (auto-generated)
-			if (userData.password !== undefined && userData.password !== null && userData.password.length > 0 && userData.password.length < 6) {
-				errors.password = UserErrors.PASSWORD_TOO_SHORT(6);
-			}
-		}
-
-		// Validate email format if provided
-		if (userData.email && !validator.isEmail(userData.email)) {
-			errors.email = UserErrors.INVALID_EMAIL;
-		}
-
-		// Validate status if provided
-		if (userData.status && !['active', 'inactive', 'suspended'].includes(userData.status)) {
-			errors.status = UserErrors.INVALID_STATUS;
-		}
-
-		if (Object.keys(errors).length > 0) {
-			throw new ValidationError('User validation failed', errors);
-		}
-	}
-
-	static async selectAll(tenantId: string, branchId: string): Promise<Array<User>> {
-		try {
-			return await UserModel.findAll({
-				tenantId,
-				branchId,
-			});
-		} catch (error) {
-			throw DbErrorHandler.handlePrismaError(error);
-		}
-	}
-
-	static async getUserById(userId: string, tenantId: string, branchId: string): Promise<any> {
-		if (!userId) {
-			throw new ValidationError('User ID is required', { userId: 'User ID field is required.' });
-		}
-
-		try {
-			const user = await UserModel.findById(userId, tenantId, branchId);
-			if (!user) {
-				throw new NotFoundError('User', userId);
-			}
-			return user;
-		} catch (error) {
-			if (error instanceof NotFoundError || error instanceof ValidationError) {
-				throw error;
-			}
-			throw DbErrorHandler.handlePrismaError(error);
-		}
-	}
-
-	static async getAllUsers(query?: any, tenantId?: string, branchId?: string): Promise<any[]> {
+	static async getAllUsers(query?: any, scope?: AuthScopeParams): Promise<any[]> {
 		try {
 			let users: Array<User>;
 
 			if (query && Object.keys(query).length > 0) {
 				const searchCriteria: any = {};
 
-				// Add tenant/branch filtering
-				if (tenantId) searchCriteria.tenantId = tenantId;
-				if (branchId) searchCriteria.branchId = branchId;
+				if (scope?.tenantId) searchCriteria.tenantId = scope.tenantId;
+				if (scope?.branchId) searchCriteria.branchId = scope.branchId;
 
 				if (query.status) {
 					searchCriteria.status = query.status;
@@ -142,8 +49,8 @@ export class UserService {
 				users = await UserModel.findAll(searchCriteria);
 			} else {
 				const searchCriteria: any = {};
-				if (tenantId) searchCriteria.tenantId = tenantId;
-				if (branchId) searchCriteria.branchId = branchId;
+				if (scope?.tenantId) searchCriteria.tenantId = scope.tenantId;
+				if (scope?.branchId) searchCriteria.branchId = scope.branchId;
 				users = await UserModel.findAll(searchCriteria);
 			}
 
@@ -160,9 +67,62 @@ export class UserService {
 		}
 	}
 
-	static async createUser(userData: Partial<User>, auth: { tenantId: string; branchId: string; userId: string }): Promise<any> {
+	static validateUserInput(userData: Partial<User>, isCreate = true): void {
+		const errors: Record<string, string> = {};
+
+		if (isCreate) {
+			if ((!userData.username || userData.username.trim().length === 0) &&
+				(!userData.email || userData.email.trim().length === 0)) {
+				errors.username = UserErrors.USERNAME_REQUIRED;
+			}
+
+			if (!userData.fullname || userData.fullname.trim().length === 0) {
+				errors.fullname = UserErrors.FULLNAME_REQUIRED;
+			}
+
+			if (!userData.roleId) {
+				errors.roleId = UserErrors.ROLE_REQUIRED;
+			}
+
+			if (userData.password !== undefined && userData.password !== null && userData.password.length > 0 && userData.password.length < 6) {
+				errors.password = UserErrors.PASSWORD_TOO_SHORT(6);
+			}
+		}
+
+		if (userData.email && !validator.isEmail(userData.email)) {
+			errors.email = UserErrors.INVALID_EMAIL;
+		}
+
+		if (userData.status && !['active', 'inactive', 'suspended'].includes(userData.status)) {
+			errors.status = UserErrors.INVALID_STATUS;
+		}
+
+		if (Object.keys(errors).length > 0) {
+			throw new ValidationError('User validation failed', errors);
+		}
+	}
+
+	static async getUserById(userId: string): Promise<any> {
+		if (!userId) {
+			throw new ValidationError('User ID is required', { userId: UserErrors.USER_NOT_FOUND(userId) });
+		}
+
 		try {
-			// Extract staff-related fields from userData
+			const user = await UserModel.findById(userId);
+			if (!user) {
+				throw new NotFoundError('User', userId);
+			}
+			return this.getPublicUser(user, await this.getRoleWithPermissions(user.roleId) || {});
+		} catch (error) {
+			if (error instanceof NotFoundError || error instanceof ValidationError) {
+				throw error;
+			}
+			throw DbErrorHandler.handlePrismaError(error);
+		}
+	}
+
+	static async createUser(userData: Partial<User>): Promise<any> {
+		try {
 			const {
 				trackAttendance,
 				allowAppAccess,
@@ -195,8 +155,6 @@ export class UserService {
 				...userOnlyData
 			} = userData as any;
 
-			// Determine if we should create a staff record
-			// Create staff record if any staff-related field is provided or createStaffRecord is true
 			const shouldCreateStaff = createStaffRecord === true ||
 				trackAttendance !== undefined ||
 				allowAppAccess !== undefined ||
@@ -207,21 +165,26 @@ export class UserService {
 				allowSelfAttendance !== undefined ||
 				attendanceType !== undefined;
 
-			// If staff doesn't have app access, assign them the 'viewer' role
-			// The viewer role has minimal permissions - just read-only access
 			const VIEWER_ROLE_ID = 'viewer';
 			let effectiveRoleId = userOnlyData.roleId;
 
-			// If creating staff and no roleId provided, or allowAppAccess is false, use viewer role
 			if (shouldCreateStaff) {
 				if (allowAppAccess === false || !effectiveRoleId) {
 					effectiveRoleId = VIEWER_ROLE_ID;
 				}
+			} else {
+				if (!effectiveRoleId) {
+					throw new ValidationError('Role is required when creating a user', { roleId: 'roleId is required for user creation' });
+				}
+			}
+
+			const role = await RoleModel.findById(effectiveRoleId);
+			if (!role) {
+				throw new ValidationError('Invalid role', { roleId: `Role '${effectiveRoleId}' does not exist` });
 			}
 
 			userOnlyData.roleId = effectiveRoleId;
 
-			// Generate username from email if not provided (extract part before @)
 			let generatedUsername = userOnlyData.username;
 			let generatedPassword = userOnlyData.password;
 
@@ -229,20 +192,18 @@ export class UserService {
 				generatedUsername = userOnlyData.email.split('@')[0];
 			}
 
-			// Get next user ID for password generation if needed
 			if (!generatedPassword && shouldCreateStaff) {
 				const nextId = await UserModel.count({}) + 1;
 				generatedPassword = `password${nextId}`;
 			}
 
-			// Update userOnlyData with generated values
 			userOnlyData.username = generatedUsername;
 			userOnlyData.password = generatedPassword;
 
 			this.validateUserInput(userOnlyData, true);
 
 			const userExists = await UserModel.checkUserExists(
-				userOnlyData.username!,
+				userOnlyData.username,
 				userOnlyData.email || ''
 			);
 			if (userExists) {
@@ -251,19 +212,18 @@ export class UserService {
 
 			const user = await UserModel.create({
 				...userOnlyData,
-				tenantId: auth.tenantId,
-				branchId: userOnlyData.branchId || auth.branchId,
+				tenantId: userOnlyData.tenantId,
+				branchId: userOnlyData.branchId,
 				status: userOnlyData.status || 'active'
 			} as unknown as UserUncheckedCreateInput);
 
-			// Create staff record if applicable
 			let staffRecord = null;
 			if (shouldCreateStaff) {
 				try {
 					staffRecord = await StaffModel.create({
 						userId: user.userId,
-						tenantId: auth.tenantId,
-						branchId: userOnlyData.branchId || auth.branchId,
+						tenantId: userOnlyData.tenantId,
+						branchId: userOnlyData.branchId,
 						trackAttendance: trackAttendance ?? false,
 						allowAppAccess: allowAppAccess ?? false,
 						calculateAs: calculateAs?.toUpperCase() || 'DAILY',
@@ -274,7 +234,7 @@ export class UserService {
 						attendanceType: attendanceType?.toUpperCase() || 'PUNCH',
 						department: department || null,
 						designation: designation || null,
-						employeeCode: employeeCode || await StaffModel.getNextEmployeeCode(auth.tenantId),
+						employeeCode: employeeCode || await StaffModel.getNextEmployeeCode(userOnlyData.tenantId),
 						salaryFrequency: salaryFrequency?.toUpperCase() || 'MONTHLY',
 						emergencyContactName: emergencyContactName || null,
 						emergencyContactPhone: emergencyContactPhone || null,
@@ -293,9 +253,7 @@ export class UserService {
 						notes: notes || null,
 						employmentStatus: 'ACTIVE'
 					});
-				} catch (staffError) {
-					console.error('Error creating staff record:', staffError);
-					// Don't fail user creation if staff creation fails
+				} catch {
 					// Log the error but continue
 				}
 			}
@@ -314,13 +272,12 @@ export class UserService {
 		}
 	}
 
-	static async updateUser(userId: string, userData: any, tenantId: string, branchId: string): Promise<any> {
+	static async updateUser(userId: string, userData: any): Promise<any> {
 		if (!userId) {
 			throw new ValidationError('User ID is required', { userId: 'User ID field is required.' });
 		}
 
 		try {
-			// Extract staff-related fields from userData
 			const {
 				trackAttendance,
 				allowAppAccess,
@@ -353,7 +310,6 @@ export class UserService {
 				...userOnlyData
 			} = userData;
 
-			// Check if any staff-related field is provided
 			const hasStaffFields = trackAttendance !== undefined ||
 				allowAppAccess !== undefined ||
 				calculateAs !== undefined ||
@@ -366,10 +322,9 @@ export class UserService {
 				designation !== undefined ||
 				createStaffRecord === true;
 
-			// Validate input (not a create operation)
 			this.validateUserInput(userOnlyData, false);
 
-			const existingUser = await UserModel.findById(userId, tenantId, branchId);
+			const existingUser = await UserModel.findById(userId);
 			if (!existingUser) {
 				throw new NotFoundError('User', userId);
 			}
@@ -377,21 +332,26 @@ export class UserService {
 			const updatedUserData = { ...userOnlyData };
 
 			delete updatedUserData.repeatPassword;
-			delete updatedUserData.tenantId; // Don't update tenantId
-			delete updatedUserData.branchId; // Don't update branchId through this
+			delete updatedUserData.tenantId;
+			delete updatedUserData.branchId;
 
 			if (userData.password === '') {
 				delete updatedUserData.password;
 			}
 
-			// Handle roleId based on allowAppAccess
 			if (hasStaffFields && allowAppAccess === false) {
 				updatedUserData.roleId = 'viewer';
 			}
 
+			if (updatedUserData.roleId) {
+				const role = await RoleModel.findById(updatedUserData.roleId);
+				if (!role) {
+					throw new ValidationError('Invalid role', { roleId: `Role '${updatedUserData.roleId}' does not exist` });
+				}
+			}
+
 			await UserModel.update(userId, updatedUserData);
 
-			// Handle staff record update/creation
 			let staffRecord = null;
 			if (hasStaffFields) {
 				const existingStaff = await StaffModel.findByUserId(userId);
@@ -426,14 +386,12 @@ export class UserService {
 				if (notes !== undefined) staffData.notes = notes || null;
 
 				if (existingStaff) {
-					// Update existing staff record
 					await StaffModel.update(existingStaff.staffId, staffData);
 					staffRecord = await StaffModel.findByUserId(userId);
 				} else {
-					// Create new staff record
 					staffRecord = await StaffModel.create({
 						userId,
-						tenantId,
+						tenantId: existingUser.tenantId,
 						branchId: existingUser.branchId,
 						trackAttendance: trackAttendance ?? false,
 						allowAppAccess: allowAppAccess ?? false,
@@ -445,7 +403,7 @@ export class UserService {
 						attendanceType: attendanceType?.toUpperCase() || 'PUNCH',
 						department: department || null,
 						designation: designation || null,
-						employeeCode: employeeCode || await StaffModel.getNextEmployeeCode(tenantId),
+						employeeCode: employeeCode || await StaffModel.getNextEmployeeCode(existingUser.tenantId),
 						salaryFrequency: salaryFrequency?.toUpperCase() || 'MONTHLY',
 						emergencyContactName: emergencyContactName || null,
 						emergencyContactPhone: emergencyContactPhone || null,
@@ -466,12 +424,11 @@ export class UserService {
 					});
 				}
 			} else {
-				// Check if staff record exists and include it in response
 				staffRecord = await StaffModel.findByUserId(userId);
 			}
 
-			const updatedUser = await UserModel.findById(userId, tenantId, branchId);
-			const publicUser = UserModel.getPublicUser(updatedUser!);
+			const updatedUser = await UserModel.findById(userId);
+			const publicUser = UserModel.getPublicUser(updatedUser);
 
 			return {
 				...publicUser,
@@ -485,14 +442,13 @@ export class UserService {
 		}
 	}
 
-	static async deleteUser(userId: string, tenantId: string, branchId: string): Promise<void> {
+	static async deleteUser(userId: string): Promise<void> {
 		if (!userId) {
 			throw new ValidationError('User ID is required', { userId: 'User ID field is required.' });
 		}
 
 		try {
-			// Verify user belongs to tenant/branch before deletion
-			const user = await UserModel.findById(userId, tenantId, branchId);
+			const user = await UserModel.findById(userId);
 			if (!user) {
 				throw new NotFoundError('User', userId);
 			}
@@ -506,94 +462,6 @@ export class UserService {
 		}
 	}
 
-	static async getUsersByRole(roleId: string, tenantId: string, branchId: string): Promise<any[]> {
-		if (!roleId) {
-			throw new ValidationError('Role ID is required', { roleId: 'Role ID field is required.' });
-		}
-
-		try {
-			const users = await UserModel.findByRoleId(roleId, tenantId, branchId);
-
-			const publicUsers = await Promise.all(
-				users.map(async (user) => {
-					const roleData = await this.getRoleWithPermissions(user.roleId);
-					return this.getPublicUser(user, roleData || {});
-				})
-			);
-
-			return publicUsers;
-		} catch (error) {
-			if (error instanceof ValidationError) {
-				throw error;
-			}
-			throw DbErrorHandler.handlePrismaError(error);
-		}
-	}
-
-	static async getUsersByBranch(branchId: string, tenantId: string): Promise<any[]> {
-		if (!branchId) {
-			throw new ValidationError('Branch ID is required', { branchId: 'Branch ID field is required.' });
-		}
-
-		try {
-			const users = await UserModel.findByBranchId(branchId, tenantId);
-
-			const publicUsers = await Promise.all(
-				users.map(async (user) => {
-					const roleData = await this.getRoleWithPermissions(user.roleId);
-					return this.getPublicUser(user, roleData || {});
-				})
-			);
-
-			return publicUsers;
-		} catch (error) {
-			if (error instanceof ValidationError) {
-				throw error;
-			}
-			throw DbErrorHandler.handlePrismaError(error);
-		}
-	}
-
-	static async updateUserStatus(
-		userId: string,
-		status: 'active' | 'inactive' | 'suspended',
-		tenantId: string,
-		branchId: string
-	): Promise<any> {
-		if (!userId) {
-			throw new ValidationError('User ID is required', { userId: 'User ID field is required.' });
-		}
-
-		if (!status || !['active', 'inactive', 'suspended'].includes(status)) {
-			throw new ValidationError('Invalid status', { status: UserErrors.INVALID_STATUS });
-		}
-
-		try {
-			const user = await UserModel.findById(userId, tenantId, branchId);
-			if (!user) {
-				throw new NotFoundError('User', userId);
-			}
-
-			await UserModel.update(userId, { status });
-
-			const updatedUser = await UserModel.findById(userId, tenantId, branchId);
-			const roleData = await this.getRoleWithPermissions(updatedUser!.roleId);
-
-			return this.getPublicUser(updatedUser!, roleData || {});
-		} catch (error) {
-			if (error instanceof ValidationError || error instanceof NotFoundError) {
-				throw error;
-			}
-			throw DbErrorHandler.handlePrismaError(error);
-		}
-	}
-
-	static async checkUserExists(username: string, email: string): Promise<boolean> {
-		return await UserModel.checkUserExists(
-			validator.escape(username),
-			validator.escape(email)
-		);
-	}
 
 	static getPublicUser(user: User, privileges: any): PublicUser {
 		const { password: _, ...publicUser } = user;

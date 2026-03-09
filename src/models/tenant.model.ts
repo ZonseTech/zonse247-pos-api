@@ -1,28 +1,47 @@
 import crypto from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
-import type { Tenant, TenantFormValues, TenantStatus, SubscriptionStatus, MsonkhoOnlineStatus, TenantQueryParams } from 'tenant';
 import prisma from '../databases/prisma/client';
+import type { Tenant, TenantQueryParams } from 'tenant';
 import { TenantCreateInput } from '../databases/prisma/generated/prisma/models';
 
+/**
+ * @class   TenantModel
+ * @desc    Data access layer for tenant database operations
+ */
 export class TenantModel {
-    static generateTenantCode(): string {
-        return 'TNT-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).substr(2, 5).toUpperCase();
+    /**
+     * @method  generateTenantCode
+     * @desc    Generate a unique tenant code (TNT-{timestamp}-{random})
+     * @returns string - Generated tenant code
+     * @private
+     */
+    private static generateTenantCode(): string {
+        return 'TNT-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).substring(2, 7).toUpperCase();
     }
 
-    static async generateVerificationToken(tenantId: string): Promise<string> {
+    /**
+     * @method  generateVerificationToken
+     * @desc    Generate a secure verification token for tenant activation
+     * @param   tenantId - Tenant ID (for future use)
+     * @returns Promise<string> - 64-character hex token
+     * @private
+     */
+    private static async generateVerificationToken(tenantId: string): Promise<string> {
         tenantId
         return crypto.randomBytes(32).toString('hex');
     }
 
+    /**
+     * @method  findAll
+     * @desc    Retrieve all tenants with optional query filters
+     * @param   query - Query parameters (status, businessType, country, msonkhoOnlineStatus, search)
+     * @returns Promise<Tenant[]> - Array of tenants
+     */
     static async findAll(query: TenantQueryParams = {}): Promise<Tenant[]> {
         const where: any = {};
 
         if (query.status) {
             where.status = query.status;
-        }
-
-        if (query.subscriptionStatus) {
-            where.subscriptionStatus = query.subscriptionStatus;
         }
 
         if (query.businessType) {
@@ -53,57 +72,48 @@ export class TenantModel {
         }) as unknown as Tenant[];
     }
 
+    /**
+     * @method  findByEmail
+     * @desc    Find tenants by email address
+     * @param   email - Email address to search
+     * @returns Promise<Tenant[]> - Array of matching tenants
+     */
     static async findByEmail(email: string): Promise<Tenant[]> {
         return await prisma.tenant.findMany({
             where: { email }
         }) as unknown as Tenant[];
     }
 
+    /**
+     * @method  findByTin
+     * @desc    Find tenants by TIN (Tax Identification Number)
+     * @param   tin - TIN to search
+     * @returns Promise<Tenant[]> - Array of matching tenants
+     */
     static async findByTin(tin: string): Promise<Tenant[]> {
         return await prisma.tenant.findMany({
             where: { tin }
         }) as unknown as Tenant[];
     }
 
+    /**
+     * @method  findById
+     * @desc    Find a single tenant by ID
+     * @param   tenantId - Unique tenant identifier
+     * @returns Promise<Tenant | null> - Tenant data or null if not found
+     */
     static async findById(tenantId: string): Promise<Tenant | null> {
         return await prisma.tenant.findUnique({
             where: { tenantId }
         }) as unknown as Tenant | null;
     }
 
-    static async exists(tenantId: string): Promise<boolean> {
-        try {
-            const result = await prisma.tenant.findUnique({
-                where: { tenantId },
-                select: { tenantId: true }
-            });
-            return result !== null;
-        } catch (error) {
-            console.error('Error checking if tenant exists:', error);
-            return false;
-        }
-    }
-
-    static async findByTenantCode(tenantCode: string): Promise<Tenant | null> {
-        return await prisma.tenant.findUnique({
-            where: { tenantCode }
-        }) as unknown as Tenant | null;
-    }
-
-    static async findByCredentials(verificationToken: string): Promise<Tenant | null> {
-        return await prisma.tenant.findFirst({
-            where: { verificationToken }
-        }) as unknown as Tenant | null;
-    }
-
-    static async findByVerificationToken(verificationToken: string): Promise<Tenant | null> {
-        return await this.findByCredentials(verificationToken);
-    }
-
-    static async insert(data: TenantCreateInput): Promise<Tenant> {
-        return await this.create(data);
-    }
-
+    /**
+     * @method  create
+     * @desc    Create a new tenant record
+     * @param   data - Tenant creation data
+     * @returns Promise<Tenant> - Created tenant
+     */
     static async create(data: TenantCreateInput): Promise<Tenant> {
         const tenantData = await this.buildTenantData(data);
 
@@ -112,13 +122,19 @@ export class TenantModel {
         }) as unknown as Tenant;
     }
 
+    /**
+     * @method  update
+     * @desc    Update an existing tenant record (tenantId, createdAt are protected)
+     * @param   tenantId - Unique tenant identifier
+     * @param   updateData - Partial tenant data to update
+     * @returns Promise<Tenant> - Updated tenant
+     */
     static async update(tenantId: string, updateData: Partial<Tenant>): Promise<Tenant> {
         const dataToUpdate: any = {
             ...updateData,
             updatedAt: new Date()
         };
 
-        // Remove fields that shouldn't be updated directly
         delete dataToUpdate.tenantId;
         delete dataToUpdate.createdAt;
 
@@ -128,90 +144,27 @@ export class TenantModel {
         }) as unknown as Tenant;
     }
 
+    /**
+     * @method  delete
+     * @desc    Delete a tenant record
+     * @param   tenantId - Unique tenant identifier
+     * @returns Promise<Tenant> - Deleted tenant
+     */
     static async delete(tenantId: string): Promise<Tenant> {
         return await prisma.tenant.delete({
             where: { tenantId }
         }) as unknown as Tenant;
     }
 
-    static async updateStatus(tenantId: string, status: TenantStatus): Promise<Tenant> {
-        const updateData: Partial<Tenant> = { status };
-
-        if (status === 'active') {
-            updateData.activatedAt = new Date();
-        }
-
-        return await this.update(tenantId, updateData);
-    }
-
-    static async updateSubscriptionStatus(
-        tenantId: string,
-        subscriptionStatus: SubscriptionStatus
-    ): Promise<Tenant> {
-        return await this.update(tenantId, { subscriptionStatus });
-    }
-
-    static async updateMsonkhoStatus(
-        tenantId: string,
-        msonkhoOnlineStatus: MsonkhoOnlineStatus
-    ): Promise<Tenant> {
-        return await this.update(tenantId, { msonkhoOnlineStatus });
-    }
-
-    static async extendTrial(tenantId: string, days: number): Promise<Tenant> {
-        const tenant = await this.findById(tenantId);
-        if (!tenant) {
-            throw new Error('Tenant not found');
-        }
-
-        const currentTrialEnd = tenant.trialEndsAt ? new Date(tenant.trialEndsAt) : new Date();
-        const newTrialEnd = new Date(currentTrialEnd);
-        newTrialEnd.setDate(newTrialEnd.getDate() + days);
-
-        return await this.update(tenantId, { trialEndsAt: newTrialEnd });
-    }
-
-    static async markAsSynced(tenantId: string): Promise<Tenant> {
-        return await this.update(tenantId, { synced: 1 });
-    }
-
-    static async markAsUnsynced(tenantId: string): Promise<Tenant> {
-        return await this.update(tenantId, { synced: 0 });
-    }
-
-    static async findUnsynced(): Promise<Tenant[]> {
-        return await prisma.tenant.findMany({
-            where: { synced: 0 }
-        }) as unknown as Tenant[];
-    }
-
-    static async count(query: TenantQueryParams = {}): Promise<number> {
-        const where: any = {};
-
-        if (query.status) {
-            where.status = query.status;
-        }
-
-        if (query.subscriptionStatus) {
-            where.subscriptionStatus = query.subscriptionStatus;
-        }
-
-        if (query.businessType) {
-            where.businessType = query.businessType;
-        }
-
-        if (query.msonkhoOnlineStatus) {
-            where.msonkhoOnlineStatus = query.msonkhoOnlineStatus;
-        }
-
-        return await prisma.tenant.count({ where });
-    }
-
+    /**
+     * @method  buildTenantData
+     * @desc    Build complete tenant data object with defaults and generated values
+     * @param   data - Input tenant data
+     * @returns Promise<TenantCreateInput> - Complete tenant data ready for insertion
+     */
     static async buildTenantData(data: TenantCreateInput): Promise<TenantCreateInput> {
         const now = new Date();
-        const trialEndDate = new Date();
         const tenantId = data.tenantId || uuidv4();
-        trialEndDate.setDate(trialEndDate.getDate() + 30);
         const verificationToken = await this.generateVerificationToken(tenantId);
 
         return {
@@ -228,11 +181,8 @@ export class TenantModel {
             isVatRegistered: data.isVatRegistered || false,
             taxOfficeCode: data.taxOfficeCode || null,
             msonkhoOnlineStatus: data.msonkhoOnlineStatus || 'PENDING',
-            subscriptionPlan: data.subscriptionPlan || null,
-            subscriptionStatus: data.subscriptionStatus || 'TRIAL',
             address: data.address || null,
             country: data.country || null,
-            trialEndsAt: trialEndDate,
             verificationToken: data.verificationToken || verificationToken,
             status: data.status || 'pending',
             registeredAt: now,
@@ -243,103 +193,17 @@ export class TenantModel {
         };
     }
 
+    /**
+     * @method  sanitizeTenant
+     * @desc    Remove sensitive fields (verificationToken) from tenant object
+     * @param   tenant - Tenant data to sanitize
+     * @returns Omit<Tenant, 'verificationToken'> - Sanitized tenant without sensitive data
+     */
     static sanitizeTenant(tenant: Tenant): Omit<Tenant, 'verificationToken'> {
         const { ...safeTenant } = tenant;
 
         delete safeTenant.verificationToken
 
         return safeTenant as any;
-    }
-
-    static validateCreateRequest(data: TenantFormValues): string[] {
-        const errors: string[] = [];
-
-        if (!data.businessName || data.businessName.trim().length === 0) {
-            errors.push('Business name is required');
-        }
-
-        if (data.businessName && data.businessName.trim().length > 200) {
-            errors.push('Business name must be less than 200 characters');
-        }
-
-        if (!data.tin || data.tin.trim().length === 0) {
-            errors.push('TIN is required');
-        }
-
-        if (!data.businessType) {
-            errors.push('Business type is required');
-        }
-
-        if (data.businessType && !['PRODUCT_BASED', 'SERVICE_BASED'].includes(data.businessType)) {
-            errors.push('Business type must be either PRODUCT_BASED or SERVICE_BASED');
-        }
-
-        if (!data.ownerName || data.ownerName.trim().length === 0) {
-            errors.push('Owner name is required');
-        }
-
-        if (!data.phoneNumber || data.phoneNumber.trim().length === 0) {
-            errors.push('Phone number is required');
-        }
-
-        if (!data.email || data.email.trim().length === 0) {
-            errors.push('Email is required');
-        }
-
-        if (data.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) {
-            errors.push('Email must be a valid email address');
-        }
-
-        return errors;
-    }
-
-    static validateUpdateRequest(data: Partial<Tenant>): string[] {
-        const errors: string[] = [];
-
-        if (data.businessName !== undefined) {
-            if (!data.businessName || data.businessName.trim().length === 0) {
-                errors.push('Business name cannot be empty');
-            }
-
-            if (data.businessName && data.businessName.trim().length > 200) {
-                errors.push('Business name must be less than 200 characters');
-            }
-        }
-
-        if (data.email !== undefined) {
-            if (!data.email || data.email.trim().length === 0) {
-                errors.push('Email cannot be empty');
-            }
-
-            if (data.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) {
-                errors.push('Email must be a valid email address');
-            }
-        }
-
-        if (data.businessType !== undefined &&
-            !['PRODUCT_BASED', 'SERVICE_BASED'].includes(data.businessType)) {
-            errors.push('Business type must be either PRODUCT_BASED or SERVICE_BASED');
-        }
-
-        if (data.status !== undefined &&
-            !['pending', 'active', 'suspended', 'cancelled'].includes(data.status)) {
-            errors.push('Status must be one of: pending, active, suspended, cancelled');
-        }
-
-        if (data.subscriptionStatus !== undefined &&
-            !['ACTIVE', 'SUSPENDED', 'CANCELLED', 'TRIAL'].includes(data.subscriptionStatus)) {
-            errors.push('Subscription status must be one of: ACTIVE, SUSPENDED, CANCELLED, TRIAL');
-        }
-
-        if (data.msonkhoOnlineStatus !== undefined &&
-            !['VERIFIED', 'PENDING', 'FAILED'].includes(data.msonkhoOnlineStatus)) {
-            errors.push('Msonkho online status must be one of: VERIFIED, PENDING, FAILED');
-        }
-
-        if (data.synced !== undefined && ![0, 1].includes(data.synced)) {
-            errors.push('Synced status must be 0 or 1');
-        }
-
-        return errors;
     }
 }

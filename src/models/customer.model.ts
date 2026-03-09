@@ -1,17 +1,19 @@
-import { ValidationParams } from 'on-boarding';
-import { Role } from 'role-permission';
 import { Customer } from 'customer';
+import { ValidationParams } from 'on-boarding';
 import prisma from '../databases/prisma/client';
 
 export class CustomerModel {
-    static async findAllByRDBMS(__: ValidationParams): Promise<Role[]> {
+    static async findAllByRDBMS(params: ValidationParams): Promise<Customer[]> {
         try {
             return await prisma.customer.findMany({
-                where: {},
-            }) as unknown as Array<Role>;
+                where: {
+                    tenantId: params.tenantId,
+                    branchId: params.branchId,
+                },
+            }) as unknown as Array<Customer>;
         } catch (error) {
             throw new Error(
-                `Error finding roles: ${error instanceof Error ? error.message : 'Unknown error'}`
+                `Error finding customers: ${error instanceof Error ? error.message : 'Unknown error'}`
             );
         }
     }

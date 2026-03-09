@@ -2,29 +2,25 @@ import os from 'os';
 import path from 'path';
 import crypto from 'crypto';
 import fs from 'fs/promises';
-import prisma from '../databases/prisma/client';
-import { DatabaseInitializer } from '../databases/prisma/databaseInitializer';
-import type { EncryptionResult, SetupParams } from 'security';
 import type { Branch } from 'branch';
+import prisma from '../databases/prisma/client';
+import type { EncryptionResult, SetupParams } from 'security';
+import { DatabaseInitializer } from '../databases/prisma/databaseInitializer';
 
 export class SecureSettingsService {
     private static initialized = false;
-    private static readonly KEY_LENGTH = 32;
+    private static userDataPath: string;
     private static readonly IV_LENGTH = 16;
+    private static readonly KEY_LENGTH = 32;
     private static readonly AUTH_TAG_LENGTH = 16;
     private static readonly ALGORITHM = 'aes-256-gcm';
     private static encryptionKey: Buffer | null = null;
-    private static userDataPath: string;
+    private static readonly TERMINAL_META_FILENAME = '.terminal-meta';
 
     /**
      * Initialize the SecureSettingsService.
      * 
      * For Electron apps, pass `app.getPath('userData')` as storagePath.
-     * 
-     * @example
-     * // Electron main process:
-     * await SecureSettingsService.initialize(app.getPath('userData'));
-     * 
      * @param storagePath - Custom path for data storage (required for Electron production)
      */
     static async initialize(storagePath = ''): Promise<void> {
@@ -33,12 +29,10 @@ export class SecureSettingsService {
         }
 
         try {
-            // Resolve user data path
             this.userDataPath = storagePath || DatabaseInitializer.getUserDataPath();
 
             await fs.mkdir(this.userDataPath, { recursive: true });
 
-            // Ensure database is ready (copy template if needed)
             await DatabaseInitializer.ensureReady(this.userDataPath);
 
             const keyPath = path.join(this.userDataPath, '.keystore');
@@ -46,9 +40,7 @@ export class SecureSettingsService {
             try {
                 const existingKey = await fs.readFile(keyPath);
                 this.encryptionKey = existingKey;
-                console.log('Encryption key loaded from keystore');
             } catch (error) {
-                console.log('Generating new encryption key...');
                 const machineId = await this.getMachineId();
                 const appSalt = 'pos-terminal-seal-app-v1';
 
@@ -61,12 +53,10 @@ export class SecureSettingsService {
                 );
 
                 await fs.writeFile(keyPath, this.encryptionKey, { mode: 0o600 });
-                console.log('New encryption key generated and stored');
             }
 
             this.initialized = true;
         } catch (error) {
-            console.error('Error initializing encryption:', error);
             throw new Error('Failed to initialize encryption');
         }
     }
@@ -80,6 +70,44 @@ export class SecureSettingsService {
         ].join('|');
 
         return identifiers;
+    }
+
+    /**
+     * Store the terminal ID in a local metadata file.
+     * This allows us to identify the app setup record on subsequent app launches.
+     * @param terminalId - The terminal ID to store
+     */
+    private static async storeTerminalId(terminalId: string): Promise<void> {
+        const metaPath = path.join(this.userDataPath, this.TERMINAL_META_FILENAME);
+        await fs.writeFile(metaPath, terminalId, { mode: 0o600 });
+    }
+
+    /**
+     * Retrieve the stored terminal ID from the local metadata file.
+     * Used to look up the app setup record using terminalId as the setupId.
+     * @returns The stored terminal ID or null if not found
+     */
+    private static async getStoredTerminalId(): Promise<string | null> {
+        try {
+            const metaPath = path.join(this.userDataPath, this.TERMINAL_META_FILENAME);
+            const terminalId = await fs.readFile(metaPath, 'utf-8');
+            return terminalId || null;
+        } catch (error) {
+            return null;
+        }
+    }
+
+    /**
+     * Clear the stored terminal ID metadata file.
+     * Called when clearing the app setup.
+     */
+    private static async clearStoredTerminalId(): Promise<void> {
+        try {
+            const metaPath = path.join(this.userDataPath, this.TERMINAL_META_FILENAME);
+            await fs.unlink(metaPath);
+        } catch (error) {
+            // File doesn't exist, nothing to clear
+        }
     }
 
     private static encrypt(text: string): EncryptionResult {
@@ -135,49 +163,51 @@ export class SecureSettingsService {
     }
 
     static async saveAppSetup(params: SetupParams): Promise<void> {
-        try {
-            if (!this.initialized) {
-                await this.initialize();
-            }
-
-            const { encrypted, iv } = this.encrypt(params.verificationToken);
-
-            const signature = this.createDataSignature(
-                params.verificationToken,
-                params.tenantId,
-                params.branchId,
-                params.terminalId
-            );
-
-            const now = new Date();
-
-            await prisma.appSetup.upsert({
-                where: { setupId: '-1' },
-                update: {
-                    tenantId: params.tenantId,
-                    branchId: params.branchId,
-                    terminalId: params.terminalId,
-                    encryptedVerificationToken: encrypted,
-                    iv: iv,
-                    dataSignature: signature,
-                    updatedAt: now,
-                },
-                create: {
-                    setupId: '-1',
-                    tenantId: params.tenantId,
-                    branchId: params.branchId,
-                    terminalId: params.terminalId,
-                    encryptedVerificationToken: encrypted,
-                    iv: iv,
-                    dataSignature: signature,
-                    createdAt: now,
-                    updatedAt: now,
-                }
-            });
-        } catch (error) {
-            console.error('Error saving app setup:', error);
-            throw error;
+        if (!this.initialized) {
+            await this.initialize();
         }
+
+        if (!params.terminalId) {
+            throw new Error('terminalId is required for app setup');
+        }
+
+        const verificationToken = params.verificationToken || '';
+
+        const { encrypted, iv } = this.encrypt(verificationToken);
+
+        const signature = this.createDataSignature(
+            verificationToken,
+            params.tenantId || '',
+            params.branchId || '',
+            params.terminalId
+        );
+        const now = new Date();
+
+        await this.storeTerminalId(params.terminalId);
+
+        await prisma.appSetup.upsert({
+            where: { setupId: params.terminalId },
+            update: {
+                tenantId: params.tenantId,
+                branchId: params.branchId,
+                terminalId: params.terminalId,
+                encryptedVerificationToken: encrypted,
+                iv: iv,
+                dataSignature: signature,
+                updatedAt: now,
+            },
+            create: {
+                setupId: params.terminalId,
+                tenantId: params.tenantId,
+                branchId: params.branchId,
+                terminalId: params.terminalId,
+                encryptedVerificationToken: encrypted,
+                iv: iv,
+                dataSignature: signature,
+                createdAt: now,
+                updatedAt: now,
+            }
+        });
     }
 
     static async getAppSetup(): Promise<SetupParams | null> {
@@ -186,8 +216,13 @@ export class SecureSettingsService {
                 await this.initialize();
             }
 
+            const storedTerminalId = await this.getStoredTerminalId();
+            if (!storedTerminalId) {
+                return null;
+            }
+
             const encryptedSetup = await prisma.appSetup.findUnique({
-                where: { setupId: '-1' }
+                where: { setupId: storedTerminalId }
             });
 
             if (!encryptedSetup) {
@@ -221,7 +256,6 @@ export class SecureSettingsService {
                 updatedAt: encryptedSetup.updatedAt,
             };
         } catch (error) {
-            console.error('Error getting app setup:', error);
             return null;
         }
     }
@@ -234,30 +268,34 @@ export class SecureSettingsService {
 
             const isReady = await DatabaseInitializer.ensureReady(this.userDataPath);
             if (!isReady) {
-                console.warn('Database not ready, returning false');
+                return false;
+            }
+
+            const storedTerminalId = await this.getStoredTerminalId();
+            if (!storedTerminalId) {
                 return false;
             }
 
             const setup = await prisma.appSetup.findUnique({
-                where: { setupId: '-1' }
+                where: { setupId: storedTerminalId }
             });
             return setup !== null;
         } catch (error) {
-            console.error('Error checking app setup:', error);
             return false;
         }
     }
 
     static async clearAppSetup(): Promise<void> {
-        try {
-            await prisma.appSetup.delete({
-                where: { setupId: '-1' }
-            });
-            console.log('App setup cleared');
-        } catch (error) {
-            console.error('Error clearing app setup:', error);
-            throw error;
+        const storedTerminalId = await this.getStoredTerminalId();
+        if (!storedTerminalId) {
+            return;
         }
+
+        await prisma.appSetup.delete({
+            where: { setupId: storedTerminalId }
+        });
+
+        await this.clearStoredTerminalId();
     }
 
     static async updateAppSetup(updates: Partial<SetupParams>): Promise<void> {
@@ -330,17 +368,14 @@ export class SecureSettingsService {
         }
     }
 
-    /**
-     * Encrypt a tenantId and return the encrypted string
-     * @param tenantId - The plain tenant ID to encrypt (e.g., 'tenant-456')
-     * @returns The encrypted tenant ID string (e.g., '70610b28-c886-4647-acb5-d7565883545f')
-     */
-    static async encryptTenantId(tenantId: string): Promise<string> {
+    static async createActivationCode(params: { tenantId: string; branchId: string; terminalId: string }): Promise<string> {
+        const { terminalId } = params;
+
         if (!this.initialized) {
             await this.initialize();
         }
 
-        const { encrypted, iv } = this.encrypt(tenantId);
+        const { encrypted, iv } = this.encrypt(terminalId);
 
         const encryptedString = `${encrypted}:${iv}`;
 
@@ -348,27 +383,31 @@ export class SecureSettingsService {
     }
 
     /**
-     * Decrypt an encrypted tenantId string
-     * @param encryptedTenantId - The encrypted tenant ID (e.g., '70610b28-c886-4647-acb5-d7565883545f')
-     * @returns Object containing the decrypted tenantId
+     * Decrypt an activation code to retrieve the terminal ID
+     * @param activationCode - The encrypted activation code
+     * @returns Object containing the decrypted terminalId
+     * @throws Error - Invalid activation code format
      */
-    static async decryptTenantId(encryptedTenantId: string): Promise<{ tenantId: string }> {
+    static async decryptActivationCode(activationCode: string): Promise<{ terminalId: string }> {
         if (!this.initialized) {
             await this.initialize();
         }
 
-        const [encrypted, iv] = encryptedTenantId.split(':');
+        const [encrypted, iv] = activationCode.split(':');
 
         if (!encrypted || !iv) {
-            throw new Error('Invalid encrypted tenantId format');
+            throw new Error('Invalid activation code format');
         }
 
-        const tenantId = this.decrypt(encrypted, iv);
+        const terminalId = this.decrypt(encrypted, iv);
 
-        return { tenantId };
+        return { terminalId };
     }
 
-    // Cleanup method to disconnect Prisma when needed
+    /**
+     * Cleanup method to disconnect Prisma when needed
+     * @returns Promise<void>
+     */
     static async disconnect(): Promise<void> {
         if (prisma) {
             await prisma.$disconnect();
@@ -378,19 +417,6 @@ export class SecureSettingsService {
     /**
      * Get the currently active branch for the Electron app
      * Returns the branch details from the stored setup along with the branch data
-     * 
-     * @example
-     * // Electron main process (ipcMain handler):
-     * ipcMain.handle('settings:get-active-branch', async () => {
-     *     try {
-     *         const activeBranch = await SecureSettingsService.getActiveBranch();
-     *         return { success: true, data: activeBranch };
-     *     } catch (error: any) {
-     *         console.error('Failed to get active branch:', error);
-     *         return { success: false, error: error.message };
-     *     }
-     * });
-     * 
      * @returns Active branch information or null if not set up
      */
     static async getActiveBranch(): Promise<{
@@ -433,19 +459,6 @@ export class SecureSettingsService {
     /**
      * Set/switch the active branch for the Electron app
      * Updates the stored branchId in the app setup
-     * 
-     * @example
-     * // Electron main process (ipcMain handler):
-     * ipcMain.handle('settings:set-active-branch', async (_event, branchId: string) => {
-     *     try {
-     *         await SecureSettingsService.setActiveBranch(branchId);
-     *         return { success: true };
-     *     } catch (error: any) {
-     *         console.error('Failed to set active branch:', error);
-     *         return { success: false, error: error.message };
-     *     }
-     * });
-     * 
      * @param branchId - The branch ID to switch to
      * @param validateAccess - Whether to validate the branch exists and is active (default: true)
      * @returns The updated branch information
@@ -459,103 +472,77 @@ export class SecureSettingsService {
         terminalId: string;
         branch: Branch | null;
     }> {
-        try {
-            if (!this.initialized) {
-                await this.initialize();
-            }
+        if (!this.initialized) {
+            await this.initialize();
+        }
 
-            const setup = await this.getAppSetup();
+        const setup = await this.getAppSetup();
 
-            if (!setup) {
-                throw new Error('App setup not found. Please complete initial setup first.');
-            }
+        if (!setup) {
+            throw new Error('App setup not found. Please complete initial setup first.');
+        }
 
-            if (validateAccess) {
-                // Validate the branch exists and belongs to the same tenant
-                const branch = await prisma.branch.findFirst({
-                    where: {
-                        branchId: branchId,
-                        tenantId: setup.tenantId
-                    }
-                });
-
-                if (!branch) {
-                    throw new Error('Branch not found or does not belong to this tenant');
+        if (validateAccess) {
+            const branch = await prisma.branch.findFirst({
+                where: {
+                    branchId: branchId,
+                    tenantId: setup.tenantId
                 }
-
-                if (branch.status !== 'active') {
-                    throw new Error('Cannot switch to an inactive branch');
-                }
-            }
-
-            // Update the app setup with the new branch ID
-            await this.updateAppSetup({
-                branchId: branchId
             });
 
-            // Return the updated active branch info
-            return await this.getActiveBranch() as {
-                branchId: string;
-                tenantId: string;
-                terminalId: string;
-                branch: Branch | null;
-            };
-        } catch (error) {
-            console.error('Error setting active branch:', error);
-            throw error;
+            if (!branch) {
+                throw new Error('Branch not found or does not belong to this tenant');
+            }
+
+            if (branch.status !== 'active') {
+                throw new Error('Cannot switch to an inactive branch');
+            }
         }
+
+        await this.updateAppSetup({
+            branchId: branchId
+        });
+
+        return await this.getActiveBranch() as {
+            branchId: string;
+            tenantId: string;
+            terminalId: string;
+            branch: Branch | null;
+        };
     }
 
     /**
      * Get all available branches for the current tenant
      * Useful for populating branch switcher UI in Electron apps
-     * 
-     * @example
-     * // Electron main process (ipcMain handler):
-     * ipcMain.handle('settings:get-available-branches', async () => {
-     *     try {
-     *         const branches = await SecureSettingsService.getAvailableBranches();
-     *         return { success: true, data: branches };
-     *     } catch (error: any) {
-     *         console.error('Failed to get available branches:', error);
-     *         return { success: false, error: error.message };
-     *     }
-     * });
-     * 
      * @param activeOnly - Whether to return only active branches (default: true)
      * @returns Array of branches for the current tenant
      */
     static async getAvailableBranches(activeOnly = true): Promise<Branch[]> {
-        try {
-            if (!this.initialized) {
-                await this.initialize();
-            }
-
-            const setup = await this.getAppSetup();
-
-            if (!setup || !setup.tenantId) {
-                throw new Error('App setup not found. Please complete initial setup first.');
-            }
-
-            const whereClause: any = {
-                tenantId: setup.tenantId
-            };
-
-            if (activeOnly) {
-                whereClause.status = 'active';
-            }
-
-            const branches = await prisma.branch.findMany({
-                where: whereClause,
-                orderBy: {
-                    branchName: 'asc'
-                }
-            });
-
-            return branches as Branch[];
-        } catch (error) {
-            console.error('Error getting available branches:', error);
-            throw error;
+        if (!this.initialized) {
+            await this.initialize();
         }
+
+        const setup = await this.getAppSetup();
+
+        if (!setup || !setup.tenantId) {
+            throw new Error('App setup not found. Please complete initial setup first.');
+        }
+
+        const whereClause: any = {
+            tenantId: setup.tenantId
+        };
+
+        if (activeOnly) {
+            whereClause.status = 'active';
+        }
+
+        const branches = await prisma.branch.findMany({
+            where: whereClause,
+            orderBy: {
+                branchName: 'asc'
+            }
+        });
+
+        return branches as Branch[];
     }
 }

@@ -27,35 +27,48 @@ export async function seedTenant(prisma: PrismaClient) {
             address: '123 Business Street',
             country: 'MW',
             status: 'active',
-            subscriptionStatus: 'TRIAL',
             verificationToken: 'invalid',
-            trialEndsAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
         },
     });
 
-    const existingSubscription = await prisma.tenantSubscription.findFirst({
+    // Create a default branch subscription
+    const existingSubscription = await prisma.branchSubscription.findFirst({
         where: {
-            tenantId: '-1',
             subscriptionPlanId: offlinePlan.subscriptionPlanId
         }
     });
 
+    let branchSubscriptionId: string;
     if (!existingSubscription) {
-        await prisma.tenantSubscription.create({
+        const newSubscription = await prisma.branchSubscription.create({
             data: {
-                tenantId: '-1',
+                branchSubscriptionId: 'default-subscription',
                 subscriptionPlanId: offlinePlan.subscriptionPlanId,
                 status: 'active',
                 startsAt: new Date(),
                 endsAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), // 1 year from now
                 autoRenew: true,
-                maxBranches: 1,
             }
         });
-        console.log('✓ Created tenant subscription (Offline Plan)');
+        branchSubscriptionId = newSubscription.branchSubscriptionId;
+        console.log('✓ Created branch subscription (Offline Plan)');
     } else {
-        console.log('✓ Tenant subscription already exists');
+        branchSubscriptionId = existingSubscription.branchSubscriptionId;
+        console.log('✓ Branch subscription already exists');
     }
 
-    console.log('✓ Tenant seeded');
+    // Create a default branch with the subscription
+    await prisma.branch.upsert({
+        where: { branchId: '-1' },
+        update: { branchSubscriptionId },
+        create: {
+            branchId: '-1',
+            tenantId: '-1',
+            branchCode: 'DEFAULT',
+            branchName: 'Default Branch',
+            branchSubscriptionId,
+        }
+    });
+
+    console.log('✓ Tenant and default branch seeded');
 }

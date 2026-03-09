@@ -1,7 +1,8 @@
-import { Request, Response, NextFunction } from 'express';
+import { UserModel } from '../models/user.model';
 import { AuthRequest } from '../lib/express.type';
-import { BaseController } from '../controllers/base.controller';
 import { BranchModel } from '../models/branch.model';
+import { Request, Response, NextFunction } from 'express';
+import { BaseController } from '../controllers/base.controller';
 
 /**
  * Branch Middleware
@@ -81,6 +82,8 @@ export class BranchMiddleware {
                 return;
             }
 
+            await UserModel.updateCurrentBranch(user.userId, requestedBranchId);
+
             req.auth = {
                 ...user,
                 activeBranchId: requestedBranchId,
@@ -109,20 +112,17 @@ export class BranchMiddleware {
      * @returns Promise<boolean> - True if user has access, false otherwise
      */
     static async userHasBranchAccess(user: any, branchId: string): Promise<boolean> {
-        // If user has wildcard access to all branches
-        if (user.accessibleBranches &&
+        if (user?.accessibleBranches &&
             Array.isArray(user.accessibleBranches) &&
             user.accessibleBranches.includes('*')) {
             return true;
         }
 
-        // If user's default branch matches
-        if (user.branchId === branchId) {
+        if (user?.branchId === branchId) {
             return true;
         }
 
-        // Check if branch is in user's accessible branches list
-        if (user.accessibleBranches &&
+        if (user?.accessibleBranches &&
             Array.isArray(user.accessibleBranches) &&
             user.accessibleBranches.includes(branchId)) {
             return true;
@@ -147,7 +147,7 @@ export class BranchMiddleware {
             return;
         }
 
-        const activeBranchId = (user as any).activeBranchId || user.currentBranchId || user.branchId;
+        const activeBranchId = (user)?.activeBranchId || user.currentBranchId || user.branchId;
 
         if (!activeBranchId) {
             BaseController.sendResponse(
@@ -168,6 +168,82 @@ export class BranchMiddleware {
      */
     static getEffectiveBranchId(req: Request & AuthRequest): string {
         const user = req.auth;
-        return (user as any)?.activeBranchId || user?.currentBranchId || user?.branchId || '';
+        return (user)?.activeBranchId || user?.currentBranchId || user?.branchId || '';
     }
+
+    /**
+     * Validates branch subscription status
+     * Checks if branch has a valid subscription plan linked to an active branch subscription
+     */
+    validateBranchSubscription = async (
+        req: Request & AuthRequest,
+        res: Response,
+        next: NextFunction
+    ): Promise<void> => {
+        try {
+            const user = req.auth;
+            const branchId = user?.currentBranchId || user?.branchId || '';
+            
+            // Get branch with subscription details
+            const branchWithRelations = await BranchModel.findByIdWithRelations(branchId);
+
+            if (!branchWithRelations) {
+                BaseController.sendForbiddenWithSubscription(
+                    res,
+                    'No branch found for subscription check.',
+                    'inactive'
+                );
+                return;
+            }
+
+            const { branch, branchSubscription } = branchWithRelations;
+
+            if (!branch.branchSubscriptionId || !branchSubscription) {
+                BaseController.sendForbiddenWithSubscription(
+                    res,
+                    'No subscription assigned to this branch. Please contact support.',
+                    'inactive'
+                );
+                return;
+            }
+
+            if (branchSubscription.status !== 'active') {
+                BaseController.sendForbiddenWithSubscription(
+                    res,
+                    'Your branch subscription is not active. Please subscribe to continue using the service.',
+                    branchSubscription.status || 'inactive'
+                );
+                return;
+            }
+
+            if (branchSubscription.endsAt) {
+                const now = new Date();
+                const endsAt = new Date(branchSubscription.endsAt);
+
+                if (endsAt < now) {
+                    BaseController.sendForbiddenWithSubscription(
+                        res,
+                        'Your subscription has expired. Please renew to continue using the service.',
+                        'expired',
+                        { subscriptionEndsAt: branchSubscription.endsAt }
+                    );
+                    return;
+                }
+
+                const daysRemaining = Math.ceil((endsAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+                if (daysRemaining <= 7) {
+                    res.setHeader('X-Subscription-Warning', 'true');
+                    res.setHeader('X-Subscription-Days-Remaining', daysRemaining.toString());
+                }
+            }
+
+            next();
+        } catch (error) {
+            BaseController.sendServerErrorWithSubscription(
+                res,
+                'Subscription validation error:',
+                error instanceof Error ? error.message : 'Internal server error'
+            );
+        }
+    };
 }

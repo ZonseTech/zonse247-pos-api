@@ -1,5 +1,7 @@
 import { User } from "users";
 
+export type AuthScopeParams = { tenantId?: string; branchId?: string };
+
 export interface AccountActivationProps {
 	authToken: string;
 	tenantId: string;
@@ -16,7 +18,6 @@ export type AuthUser = {
 	token: string;
 };
 
-export type AuthProps = { username: string; password: string };
 
 export interface LoginResponse {
 	token: string;

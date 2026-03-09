@@ -11,6 +11,7 @@ interface AuthRequestBase {
     };
     requestStartTime: number;
     tenant: Tenant;
+    branch?: Branch;
     verifiedMetadata?: {
         tenantId: string;
         branchId: string;

@@ -8,7 +8,7 @@ export const generalLimiter = rateLimit({
 	message: {
 		error: 'Rate Limit Exceeded',
 		message: 'Too many requests from this IP, please try again later.',
-		retryAfter: '15 minutes',
+		retryAfter: '1 minute',
 	},
 	standardHeaders: true,
 	legacyHeaders: false,
@@ -16,12 +16,12 @@ export const generalLimiter = rateLimit({
 
 export const authLimiter = rateLimit({
 	windowMs: 15 * 60 * 1000,
-	max: 5,
+	max: 10,
 	message: {
 		error: 'Rate Limit Exceeded',
 		message:
 			'Too many authentication attempts from this IP, please try again later.',
-		retryAfter: '15 minutes',
+		retryAfter: '2 minutes',
 	},
 	standardHeaders: true,
 	legacyHeaders: false,

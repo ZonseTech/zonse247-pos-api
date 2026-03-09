@@ -1,12 +1,3 @@
-/**
- * Product Utilities
- * 
- * Helper functions for product data mapping, transformation, and validation.
- * Separated from the main service for better testability and reusability.
- * 
- * @module utils/product.utils
- */
-
 import { v4 as uuidv4 } from 'uuid';
 import {
     ProductWithInventory,
@@ -24,16 +15,12 @@ import {
     toNumber,
 } from '../constants/product.constants';
 
-// ===========================================
-// VARIANT TO PRODUCT MAPPING
-// ===========================================
-
 /**
  * Map raw variant data to flattened ProductWithInventory
  * This is for backward compatibility with POS operations
  */
 export function mapVariantToProductWithInventory(variant: any): ProductWithInventory {
-    const inventory = variant.inventory;
+    const inventory = variant.inventories?.[0];
     const product = variant.product;
 
     const status = determineProductStatus(
@@ -48,49 +35,30 @@ export function mapVariantToProductWithInventory(variant: any): ProductWithInven
     );
 
     return {
-        // IDs
-        id: variant.id,           // Variant ID for POS operations
+        id: variant.id,
         productId: variant.productId,
         tenantId: variant.tenantId,
         branchId: variant.branchId,
         categoryId: product?.categoryId,
-
-        // Identification
         sku: variant.sku,
         name: product?.name || '',
         variantName: variant.variantName,
         displayName,
         primaryBarcode: variant.primaryBarcode,
-
-        // Pricing
         sellingPrice: toNumber(variant.sellingPrice),
         costPrice: toNumber(variant.costPrice),
-
-        // Unit
         unit: variant.unit,
-
-        // Other fields (inherit from product if not set on variant)
         description: variant.description || product?.description,
         brand: variant.brand || product?.brand,
         imageUrl: variant.imageUrl || product?.imageUrl,
         isTaxable: variant.isTaxable ?? product?.isTaxable,
-
-        // Status
         isActive: variant.isActive && (product?.isActive ?? true),
         status,
         isDefault: variant.isDefault,
-
-        // Timestamps
         createdAt: variant.createdAt,
         updatedAt: variant.updatedAt,
-
-        // Inventory
         inventory: mapInventory(inventory),
-
-        // Category
         categoryDetails: mapCategoryDetails(product?.category),
-
-        // Barcodes
         barcodes: mapBarcodes(variant.barcodes),
     };
 }
@@ -158,14 +126,10 @@ export function mapVariantWithInventory(variant: any): VariantWithInventory {
         isActive: variant.isActive,
         createdAt: variant.createdAt,
         updatedAt: variant.updatedAt,
-        inventory: mapInventory(variant.inventory),
+        inventory: mapInventory(variant.inventories?.[0]),
         barcodes: mapBarcodes(variant.barcodes),
     };
 }
-
-// ===========================================
-// SUB-ENTITY MAPPING
-// ===========================================
 
 /**
  * Map inventory data
@@ -220,10 +184,6 @@ export function mapBarcodes(barcodes: any[] | undefined): VariantBarcode[] | und
     }));
 }
 
-// ===========================================
-// DATA CREATION HELPERS
-// ===========================================
-
 /**
  * Create barcode records for database insertion
  */
@@ -267,10 +227,6 @@ export function createInventoryData(
     };
 }
 
-// ===========================================
-// QUERY BUILDERS
-// ===========================================
-
 /**
  * Build product include for queries
  */
@@ -280,7 +236,7 @@ export function buildProductInclude(): any {
         variants: {
             where: { isActive: true },
             include: {
-                inventory: true,
+                inventories: true,
                 barcodes: {
                     where: { isActive: true },
                 },
@@ -303,7 +259,7 @@ export function buildVariantInclude(): any {
                 category: true,
             },
         },
-        inventory: true,
+        inventories: true,
         barcodes: {
             where: { isActive: true },
         },
@@ -315,7 +271,7 @@ export function buildVariantInclude(): any {
  */
 export function buildVariantWithInventoryInclude(): any {
     return {
-        inventory: true,
+        inventories: true,
         product: {
             select: {
                 id: true,
@@ -324,10 +280,6 @@ export function buildVariantWithInventoryInclude(): any {
         },
     };
 }
-
-// ===========================================
-// FILTER HELPERS
-// ===========================================
 
 /**
  * Filter products by stock status
@@ -361,7 +313,7 @@ export function filterByStockFilter(
             if (!p.inventory) return false;
             const reorderPoint = p.inventory.reorderPoint || 0;
             return p.inventory.availableQuantity > 0 &&
-                   p.inventory.availableQuantity <= reorderPoint;
+                p.inventory.availableQuantity <= reorderPoint;
         });
     }
     if (filter === 'out-of-stock') {
@@ -371,10 +323,6 @@ export function filterByStockFilter(
     }
     return products;
 }
-
-// ===========================================
-// VALIDATION HELPERS
-// ===========================================
 
 /**
  * Validate pagination parameters

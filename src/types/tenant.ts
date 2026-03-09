@@ -1,6 +1,5 @@
 export type BusinessType = 'PRODUCT_BASED' | 'SERVICE_BASED';
 export type MsonkhoOnlineStatus = 'VERIFIED' | 'PENDING' | 'FAILED';
-export type SubscriptionStatus = 'ACTIVE' | 'SUSPENDED' | 'CANCELLED' | 'TRIAL';
 export type TenantStatus = 'pending' | 'active' | 'suspended' | 'cancelled';
 
 export interface BaseTimestamps {
@@ -23,11 +22,8 @@ export interface Tenant extends BaseTimestamps {
     isVatRegistered?: boolean;
     taxOfficeCode?: string | null;
     msonkhoOnlineStatus: MsonkhoOnlineStatus;
-    subscriptionPlan?: string | null;
-    subscriptionStatus: SubscriptionStatus;
     address?: string | null;
     country?: string | null;
-    trialEndsAt?: Date | null;
     status: TenantStatus;
     registeredAt?: Date | null;
     activatedAt?: Date | null;
@@ -37,9 +33,8 @@ export interface Tenant extends BaseTimestamps {
 
 export type TenantFormValues = Omit<
     Tenant,
-    'id' | 'createdAt' | 'updatedAt' | 'activatedAt' | 'trialEndsAt' | 'registeredAt' | 'synced'
+    'id' | 'createdAt' | 'updatedAt' | 'activatedAt' | 'registeredAt' | 'synced'
 > & {
-    trialEndsAt?: string;
     registeredAt?: string;
     activatedAt?: string;
 };
@@ -50,7 +45,6 @@ export interface VerifyTenantRequest {
 
 export interface TenantQueryParams {
     status?: TenantStatus;
-    subscriptionStatus?: SubscriptionStatus;
     businessType?: BusinessType;
     country?: string;
     msonkhoOnlineStatus?: MsonkhoOnlineStatus;

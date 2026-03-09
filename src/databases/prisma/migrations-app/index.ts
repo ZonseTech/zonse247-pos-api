@@ -40,6 +40,11 @@ import { migration as m20260302_06 } from './20260302_06_add_terminal_sync_track
 import { migration as m20260302_07 } from './20260302_07_add_mra_fields_to_sale';
 import { migration as m20260302_08 } from './20260302_08_create_mra_submission_table';
 import { migration as m20260302_09 } from './20260302_09_add_last_synced_at_to_syncable_tables';
+import { migration as m20260303_01 } from './20260303_01_move_subscription_fields_from_tenants_to_branches';
+import { migration as m20260304_01 } from './20260304_01_add_branch_id_to_tenant_subscriptions';
+import { migration as m20260304_02 } from './20260304_02_refactor_tenant_subscription_to_branch_subscription';
+import { migration as m20260304_03 } from './20260304_03_migrate_tenant_subscriptions_to_branch_subscriptions';
+import { migration as m20260304_04 } from './20260304_04_create_onboarding_progress_tables';
 
 /**
  * All registered migrations, sorted by version
@@ -75,6 +80,11 @@ export const registeredMigrations: Migration[] = [
     m20260302_07,
     m20260302_08,
     m20260302_09,
+    m20260303_01,
+    m20260304_01,
+    m20260304_02,
+    m20260304_03,
+    m20260304_04,
 ].sort((a, b) => a.version.localeCompare(b.version));
 
 /**

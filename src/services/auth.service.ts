@@ -1,12 +1,14 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 import jwt from 'jsonwebtoken';
 import validator from 'validator';
-import type { User } from 'users';
 import { UserService } from './user.service';
-import { BaseService } from './base.service';
 import { UserModel } from '../models/user.model';
+import { RoleModel } from '../models/role.model';
+import { PermissionModel } from '../models/permission.model';
+import { RolePermissionModel } from '../models/role-permission.model';
 import { UserStatus } from '../databases/prisma/generated/prisma/enums';
 import { getConfig } from '../config/app.config';
+import { BranchModel } from '../models/branch.model';
 
 /**
  * Service layer for authentication and authorization operations
@@ -15,14 +17,6 @@ import { getConfig } from '../config/app.config';
  * This service handles user authentication, JWT token management, password operations,
  * and session management. It serves as the bridge between authentication controllers
  * and user data models.
- * 
- * @example
- * ```typescript
- * // User login
- * const result = await AuthService.loginUser(username, password);
- * 
- * // Token verification
- * const decoded = AuthService.verifyJWTToken(token);
  * ```
  */
 export class AuthService {
@@ -31,21 +25,13 @@ export class AuthService {
      * 
      * @param username - User's username (automatically sanitized)
      * @param password - User's plain text password
+     * @param offlineMode - If true, includes branch with branchSubscription for offline sync
      * @returns Object containing user data with token, or error message
-     * 
-     * @throws {Error} When database operations fail
-     * 
-     * @example
-     * ```typescript
-     * const result = await AuthService.loginUser('john_doe', 'password123');
-     * if (result.token) {
-     *   // Login successful
-     * }
-     * ```
      */
     static async loginUser(
         username: string,
         password: string,
+        offlineMode = false,
     ): Promise<{ user?: any; token?: string; message?: string }> {
         const escapedUsername = validator.escape(username);
 
@@ -64,84 +50,203 @@ export class AuthService {
 
             await UserModel.updateLastLogin(user.userId);
 
-            const roleData = await UserService.getRoleWithPermissions(user.roleId);
-            const completeUser = UserService.getPublicUser(user, roleData || {});
+            const completeUser: any = UserModel.getPublicUser(user);
+
+            if (offlineMode && user.branchId) {
+                const branchData = await BranchModel.findByIdWithRelations(user.branchId);
+                if (branchData) {
+                    completeUser.branch = {
+                        ...branchData.branch,
+                        branchSubscription: branchData.branchSubscription || null
+                    };
+                }
+            }
+
             const token = this.generateJWTToken(completeUser);
 
             return { user: completeUser, token };
         }
 
-        const response = await BaseService.post<{ user: User; token: string }>('/auth/live/login', {
-            username: escapedUsername,
-            password,
-        });
-
-        if (!response.success) {
-            return { message: response.message || 'Incorrect username or password.' };
-        }
-
-        const { user: remoteUser } = response.data;
-
-        if (remoteUser) {
-            remoteUser.password = password;
-            await UserModel.create(remoteUser);
-
-            const roleData = await UserService.getRoleWithPermissions(remoteUser.roleId);
-            const completeUser = UserService.getPublicUser(remoteUser, roleData || {});
-            const token = this.generateJWTToken(completeUser);
-
-            return { user: completeUser, token };
-        }
-
-        return { message: 'Incorrect username or password.' };
+        return { message: 'User not found. Please sync your account.' };
     }
 
     /**
-     * Authenticates user credentials and generates JWT token
+     * Verifies and fetches user role with details
      * 
-     * @param username - User's username (automatically sanitized)
-     * @param password - User's plain text password
-     * @returns Object containing user data with token, or error message
-     * 
-     * @throws {Error} When database operations fail
-     * 
-     * @example
-     * ```typescript
-     * const result = await AuthService.loginUser('john_doe', 'password123');
-     * if (result.token) {
-     *   // Login successful
-     * }
-     * ```
+     * @param roleId - Role ID to fetch
+     * @returns Role data or error message
      */
-    static async initiateLoginAccount(
-        username: string,
-        password: string,
-    ): Promise<{ user?: any; token?: string; message?: string }> {
-        const escapedUsername = validator.escape(username);
-
-        const user = await UserModel.findByUsername(escapedUsername);
-
-        if (user) {
-            if (user.status !== 'active') {
-                return { message: 'Account is not active. Please contact support.' };
+    static async verifyUserRole(
+        roleId: string
+    ): Promise<{ role?: any; message?: string }> {
+        try {
+            if (!roleId) {
+                return { message: 'Role ID is required.' };
             }
 
-            const isPasswordValid = await UserModel.validatePassword(password, user.password);
+            const role = await RoleModel.findById(roleId);
 
-            if (!isPasswordValid) {
-                return { message: 'Incorrect username or password.' };
+            if (!role) {
+                return { message: 'Role not found.' };
             }
 
-            await UserModel.updateLastLogin(user.userId);
-
-            const roleData = await UserService.getRoleWithPermissions(user.roleId);
-            const completeUser = UserService.getPublicUser(user, roleData || {});
-            const token = this.generateJWTToken(completeUser);
-
-            return { user: completeUser, token };
+            return { role };
+        } catch (error: any) {
+            return { message: error.message || 'Failed to fetch role.' };
         }
+    }
 
-        return { message: 'Incorrect username or password.', };
+    /**
+     * Saves role to offline database
+     * 
+     * @param roleData - Role data to save
+     * @returns Saved role with sync status or error message
+     */
+    static async saveRoleOffline(
+        roleData: any
+    ): Promise<{ role?: any; created?: boolean; synced?: boolean; message?: string }> {
+        try {
+            if (!roleData || !roleData.roleId) {
+                return { message: 'Role data with roleId is required.' };
+            }
+
+            const { role, created } = await RoleModel.createOrUpdate({
+                ...roleData,
+                name: roleData.name || roleData.roleId,
+                displayName: roleData.displayName || roleData.name || roleData.roleId,
+                description: roleData.description || null,
+                isSystemRole: roleData.isSystemRole ?? false,
+                isActive: roleData.isActive ?? true
+            });
+
+            return { role, created, synced: true };
+        } catch (error: any) {
+            return { message: error.message || 'Failed to save role offline.' };
+        }
+    }
+
+    /**
+     * Verifies and fetches user privileges/permissions
+     * Optimized for performance with single query using joins
+     * 
+     * @param roleId - Role ID to fetch permissions for
+     * @returns Array of permission names or error message
+     */
+    static async verifyUserPrivileges(
+        roleId: string
+    ): Promise<{ permissions?: string[]; total?: number; message?: string }> {
+        try {
+            if (!roleId) {
+                return { message: 'Role ID is required.' };
+            }
+
+            const permissions = await RolePermissionModel.findPermissionsByRoleId(roleId);
+
+            return {
+                permissions,
+                total: permissions.length
+            };
+        } catch (error: any) {
+            return { message: error.message || 'Failed to fetch permissions.' };
+        }
+    }
+
+    /**
+     * Bulk saves permissions to offline database
+     * Optimized for batch operations with 100+ permissions
+     * 
+     * @param permissions - Array of permission names or permission objects
+     * @param roleId - Optional role ID to create mappings
+     * @returns Sync result or error message
+     */
+    static async savePermissionsOffline(
+        permissions: (string | any)[],
+        roleId?: string
+    ): Promise<{ synced?: { permissions: number; rolePermissions: number }; message?: string }> {
+        try {
+            if (!permissions || !Array.isArray(permissions) || permissions.length === 0) {
+                return { message: 'Permissions array is required.' };
+            }
+
+            const syncResult = { permissions: 0, rolePermissions: 0 };
+            const permissionIds: string[] = [];
+
+            for (const perm of permissions) {
+                const permissionName = typeof perm === 'string' ? perm : perm.name;
+
+                if (!permissionName) continue;
+
+                try {
+                    const existingPermission = await PermissionModel.findByName(permissionName);
+
+                    if (existingPermission) {
+                        permissionIds.push(existingPermission.permissionId);
+                        syncResult.permissions++;
+                    } else {
+                        const permData = typeof perm === 'object' ? perm : {
+                            name: permissionName,
+                            displayName: permissionName.split('.').map((s: string) => s.charAt(0).toUpperCase() + s.slice(1)).join(' '),
+                            category: permissionName.split('.')[0] || 'general',
+                            isSystemPermission: true
+                        };
+
+                        const { permission } = await PermissionModel.createOrUpdate(permData);
+                        permissionIds.push(permission.permissionId);
+                        syncResult.permissions++;
+                    }
+                } catch (err) {
+                    console.warn(`Permission sync warning for ${permissionName}:`, err);
+                }
+            }
+
+            if (roleId && permissionIds.length > 0) {
+                for (const permissionId of permissionIds) {
+                    try {
+                        const exists = await RolePermissionModel.findByRoleAndPermissionId(roleId, permissionId);
+                        if (!exists) {
+                            await RolePermissionModel.create({ roleId, permissionId });
+                        }
+                        syncResult.rolePermissions++;
+                    } catch (err) {
+                        // Ignore
+                    }
+                }
+            }
+
+            return { synced: syncResult };
+        } catch (error: any) {
+            return { message: error.message || 'Failed to save permissions offline.' };
+        }
+    }
+
+    /**
+     * Saves a user to the local/offline database with all related data
+     * Syncs: Role -> Permissions -> RolePermissions -> User
+     * Uses createOrUpdate pattern for all entities
+     * 
+     * @param userData - User data from the live server including role and permissions
+     * @returns Object containing the saved user with relations or error message
+     */
+    static async saveUserOffline(
+        userData: any
+    ): Promise<{ user?: any; created?: boolean; message?: string }> {
+        try {
+            const existingUser = await UserModel.findByUsername(userData.username);
+
+            if (!existingUser && !userData.password) {
+                return { message: 'Password is required for new users. Please include the password used for login.' };
+            }
+
+            const branchData = userData.branch || null;
+
+            const { user, created } = await UserModel.createOrUpdate(userData, branchData);
+
+            const publicUser = UserService.getPublicUser(user, {});
+
+            return { user: publicUser, created };
+        } catch (error: any) {
+            return { message: error.message || 'Failed to save user offline.' };
+        }
     }
 
     /**
@@ -231,7 +336,7 @@ export class AuthService {
                 ignoreExpiration: true,
             }) as any;
 
-            const user = await UserModel.findByUuid(decoded.userId);
+            const user = await UserModel.findById(decoded.userId);
             if (!user || user.status !== 'active') {
                 throw new Error('User not found or inactive');
             }
