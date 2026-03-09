@@ -24,14 +24,11 @@ export class InventoryController extends BaseController {
      * Handle errors consistently using BaseController format
      */
     private static handleError(res: Response, error: unknown, context?: string): void {
-        // Log error for debugging
         if (context) {
             console.error(`Error in ${context}:`, error);
         }
 
-        // Handle validation errors
         if (error instanceof ValidationError) {
-            // If a specific field is provided, use sendBadRequest for cleaner format
             if (error.field) {
                 BaseController.sendBadRequest(res, error.message, error.field);
                 return;
@@ -40,32 +37,26 @@ export class InventoryController extends BaseController {
             return;
         }
 
-        // Handle conflict errors (duplicates)
         if (error instanceof ConflictError) {
             BaseController.sendBadRequest(res, error.message, error.field);
             return;
         }
 
-        // Handle not found errors
         if (error instanceof NotFoundError) {
             BaseController.sendNotFound(res, error.message);
             return;
         }
 
-        // Handle business logic errors
         if (error instanceof BusinessLogicError) {
             BaseController.sendBadRequest(res, error.message, JSON.stringify(error.details));
             return;
         }
 
-        // Handle transaction errors
         if (error instanceof TransactionError) {
             const statusCode = error.statusCode;
             if (statusCode === 409) {
-                // Conflict errors (deadlock, write conflict) - suggest retry
                 BaseController.sendResponse(res, 409, false, error.message, { retryable: error.isRetryable });
             } else if (statusCode === 504) {
-                // Timeout errors
                 BaseController.sendResponse(res, 504, false, error.message);
             } else {
                 BaseController.sendServerError(res, error.message);
@@ -73,7 +64,6 @@ export class InventoryController extends BaseController {
             return;
         }
 
-        // Handle database errors
         if (error instanceof DatabaseError) {
             const statusCode = error.statusCode;
             if (statusCode === 404) {
@@ -88,11 +78,9 @@ export class InventoryController extends BaseController {
             return;
         }
 
-        // Handle generic errors with specific message patterns
         if (error instanceof Error) {
             const message = error.message.toLowerCase();
 
-            // Check for transaction-related patterns
             if (message.includes('deadlock') || message.includes('write conflict') || message.includes('transaction')) {
                 BaseController.sendResponse(res, 409, false, 'A database conflict occurred. Please try again.');
                 return;
@@ -275,17 +263,6 @@ export class InventoryController extends BaseController {
             }
         } catch (error) {
             InventoryController.handleError(res, error, 'getInventoryItems');
-        }
-    }
-
-    static async getAllInventoryItems(req: Request & AuthRequest, res: Response): Promise<void> {
-        try {
-            const auth = InventoryController.getAuthContext(req);
-            const includeVoided = req.query.includeVoided === 'true';
-            const inventoryItems = await InventoryService.getAllInventoryItems(auth, includeVoided);
-            BaseController.sendSuccess(res, 'All inventory items retrieved successfully.', inventoryItems);
-        } catch (error) {
-            InventoryController.handleError(res, error, 'getAllInventoryItems');
         }
     }
 
