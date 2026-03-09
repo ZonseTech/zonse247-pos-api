@@ -11,20 +11,33 @@ export const migration: Migration = {
     version: '20260223_01',
     description: 'Restructure SQLite products table - recreate with clean schema',
     up: {
-            sqlite: [
-                `PRAGMA foreign_keys = OFF`,
-                `DROP INDEX IF EXISTS "products_branch_id_idx"`,
-                `DROP INDEX IF EXISTS "products_tenant_id_idx"`,
-                `DROP INDEX IF EXISTS "products_category_id_idx"`,
-                `DROP INDEX IF EXISTS "products_name_idx"`,
-                `DROP INDEX IF EXISTS "products_is_active_idx"`,
-                `DROP INDEX IF EXISTS "products_sku_key"`,
-                `DROP INDEX IF EXISTS "products_branch_id_sku_key"`,
-                `DROP INDEX IF EXISTS "products_primary_barcode_key"`,
-                `DROP INDEX IF EXISTS "sku"`,
-                `DROP INDEX IF EXISTS "unique_branch_sku"`,
-                `DROP INDEX IF EXISTS "unique_branch_product_name"`,
-                `CREATE TABLE IF NOT EXISTS "new_products" (
+        sqlite: [
+            `PRAGMA foreign_keys = OFF`,
+            `DROP INDEX IF EXISTS "products_branch_id_idx"`,
+            `DROP INDEX IF EXISTS "products_tenant_id_idx"`,
+            `DROP INDEX IF EXISTS "products_category_id_idx"`,
+            `DROP INDEX IF EXISTS "products_name_idx"`,
+            `DROP INDEX IF EXISTS "products_is_active_idx"`,
+            `DROP INDEX IF EXISTS "products_sku_key"`,
+            `DROP INDEX IF EXISTS "products_branch_id_sku_key"`,
+            `DROP INDEX IF EXISTS "products_primary_barcode_key"`,
+            `DROP INDEX IF EXISTS "sku"`,
+            `DROP INDEX IF EXISTS "unique_branch_sku"`,
+            `DROP INDEX IF EXISTS "unique_branch_product_name"`,
+            // Handle duplicates: append product_id suffix to ALL duplicate names
+            // This ensures uniqueness by using the unique product_id
+            `UPDATE products 
+                SET name = name || ' [' || substr(product_id, 1, 8) || ']'
+                WHERE product_id IN (
+                    SELECT product_id FROM products p1
+                    WHERE EXISTS (
+                        SELECT 1 FROM products p2 
+                        WHERE p2.branch_id = p1.branch_id 
+                        AND p2.name = p1.name 
+                        AND p2.product_id != p1.product_id
+                    )
+                )`,
+            `CREATE TABLE IF NOT EXISTS "new_products" (
                     "product_id" TEXT NOT NULL PRIMARY KEY,
                     "tenant_id" TEXT NOT NULL,
                     "branch_id" TEXT NOT NULL,
@@ -57,7 +70,7 @@ export const migration: Migration = {
                         ON DELETE SET NULL
                         ON UPDATE CASCADE
                 )`,
-                `INSERT INTO "new_products" (
+            `INSERT INTO "new_products" (
                     "product_id",
                     "tenant_id",
                     "branch_id",
@@ -93,28 +106,28 @@ export const migration: Migration = {
                     "created_at",
                     COALESCE("updated_at", CURRENT_TIMESTAMP)
                 FROM "products"`,
-                `DROP TABLE IF EXISTS "products"`,
-                `ALTER TABLE "new_products" RENAME TO "products"`,
-                `DROP TABLE IF EXISTS "new_products"`,
-                `CREATE INDEX IF NOT EXISTS "products_branch_id_idx" ON "products" ("branch_id")`,
-                `CREATE INDEX IF NOT EXISTS "products_tenant_id_idx" ON "products" ("tenant_id")`,
-                `CREATE INDEX IF NOT EXISTS "products_category_id_idx" ON "products" ("category_id")`,
-                `CREATE INDEX IF NOT EXISTS "products_name_idx" ON "products" ("name")`,
-                `CREATE INDEX IF NOT EXISTS "products_is_active_idx" ON "products" ("is_active")`,
-                `CREATE UNIQUE INDEX IF NOT EXISTS "unique_branch_product_name" ON "products" ("branch_id", "name")`,
-                `PRAGMA foreign_keys = ON`,
-            ],
-            mysql: [],
-        },
+            `DROP TABLE IF EXISTS "products"`,
+            `ALTER TABLE "new_products" RENAME TO "products"`,
+            `DROP TABLE IF EXISTS "new_products"`,
+            `CREATE INDEX IF NOT EXISTS "products_branch_id_idx" ON "products" ("branch_id")`,
+            `CREATE INDEX IF NOT EXISTS "products_tenant_id_idx" ON "products" ("tenant_id")`,
+            `CREATE INDEX IF NOT EXISTS "products_category_id_idx" ON "products" ("category_id")`,
+            `CREATE INDEX IF NOT EXISTS "products_name_idx" ON "products" ("name")`,
+            `CREATE INDEX IF NOT EXISTS "products_is_active_idx" ON "products" ("is_active")`,
+            `CREATE UNIQUE INDEX IF NOT EXISTS "unique_branch_product_name" ON "products" ("branch_id", "name")`,
+            `PRAGMA foreign_keys = ON`,
+        ],
+        mysql: [],
+    },
     down: {
-            sqlite: [
-                `DROP INDEX IF EXISTS "products_branch_id_idx"`,
-                `DROP INDEX IF EXISTS "products_tenant_id_idx"`,
-                `DROP INDEX IF EXISTS "products_category_id_idx"`,
-                `DROP INDEX IF EXISTS "products_name_idx"`,
-                `DROP INDEX IF EXISTS "products_is_active_idx"`,
-                `DROP INDEX IF EXISTS "unique_branch_product_name"`,
-            ],
-            mysql: [],
-        },
+        sqlite: [
+            `DROP INDEX IF EXISTS "products_branch_id_idx"`,
+            `DROP INDEX IF EXISTS "products_tenant_id_idx"`,
+            `DROP INDEX IF EXISTS "products_category_id_idx"`,
+            `DROP INDEX IF EXISTS "products_name_idx"`,
+            `DROP INDEX IF EXISTS "products_is_active_idx"`,
+            `DROP INDEX IF EXISTS "unique_branch_product_name"`,
+        ],
+        mysql: [],
+    },
 };
