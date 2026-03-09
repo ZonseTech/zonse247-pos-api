@@ -380,3 +380,40 @@ export interface PaginatedProductsResponse {
     total: number;
     totalPages: number;
 }
+
+/**
+ * Input for converting a variant to belong to a different product
+ */
+export interface ConvertToVariantInput {
+    /** The variant ID to be converted/moved */
+    variantId: string;
+    /** The target product ID that will become the new parent */
+    targetProductId: string;
+    /** Optional: New variant name (defaults to current variant name) */
+    variantName?: string;
+    /** Whether to delete the original parent product if it becomes orphaned (has no more variants) */
+    deleteOrphanedProduct?: boolean;
+}
+
+/**
+ * Result of the convert to variant operation
+ */
+export interface ConvertToVariantResult {
+    /** The updated variant */
+    variant: ProductWithInventory;
+    /** Whether the original parent product was deleted (orphaned) */
+    orphanedProductDeleted: boolean;
+    /** The ID of the original parent product if it was deleted */
+    deletedProductId?: string;
+    /** Information about historical records that still reference the old product ID */
+    affectedRecords?: {
+        /** Number of sale items that still reference the old product ID (for reporting purposes) */
+        saleItems: number;
+        /** Number of stock movements associated with this variant */
+        stockMovements: number;
+        /** Number of purchase order items associated with this variant */
+        purchaseOrderItems: number;
+    };
+    /** Warning message if there are historical records affected */
+    warning?: string;
+}

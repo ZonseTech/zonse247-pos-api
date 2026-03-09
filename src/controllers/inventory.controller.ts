@@ -535,9 +535,9 @@ export class InventoryController extends BaseController {
 
     static async moveToCategory(req: Request & AuthRequest, res: Response): Promise<void> {
         try {
-            const { productUuids, categoryId } = req.body;
-            if (!productUuids || !Array.isArray(productUuids) || productUuids.length === 0) {
-                BaseController.sendBadRequest(res, 'Product UUIDs array is required and must not be empty.');
+            const { productIds, categoryId } = req.body;
+            if (!productIds || !Array.isArray(productIds) || productIds.length === 0) {
+                BaseController.sendBadRequest(res, 'Product IDs array is required and must not be empty.');
                 return;
             }
             if (!categoryId) {
@@ -546,8 +546,8 @@ export class InventoryController extends BaseController {
             }
 
             const auth = InventoryController.getAuthContext(req);
-            await InventoryService.moveInventoryItemsToCategory(productUuids, categoryId, auth);
-            BaseController.sendSuccess(res, `${productUuids.length} items moved to category successfully.`);
+            await InventoryService.moveInventoryItemsToCategory(productIds, categoryId, auth);
+            BaseController.sendSuccess(res, `${productIds.length} items moved to category successfully.`);
         } catch (error) {
             InventoryController.handleError(res, error, 'moveToCategory');
         }
@@ -618,6 +618,51 @@ export class InventoryController extends BaseController {
             BaseController.sendSuccess(res, 'Inventory item existence checked.', { exists });
         } catch (error) {
             InventoryController.handleError(res, error, 'checkInventoryItemExists');
+        }
+    }
+
+    /**
+     * Convert a variant to become a variant of a different product.
+     * This allows moving an existing product's variant to become a variant of another product.
+     * 
+     * @body {string} targetProductId - The ID of the product to move the variant to
+     * @body {string} [variantName] - Optional new name for the variant
+     * @body {boolean} [deleteOrphanedProduct=true] - Whether to delete the original product if it becomes orphaned
+     */
+    static async convertToVariant(req: Request & AuthRequest, res: Response): Promise<void> {
+        try {
+            const variantId = req.params.variantId;
+            if (!variantId) {
+                BaseController.sendBadRequest(res, 'Variant ID is required.');
+                return;
+            }
+
+            const { targetProductId, variantName, deleteOrphanedProduct } = req.body;
+
+            if (!targetProductId) {
+                BaseController.sendBadRequest(res, 'Target product ID is required.', 'targetProductId');
+                return;
+            }
+
+            const auth = InventoryController.getAuthContext(req);
+            const result = await InventoryService.convertToVariant(
+                {
+                    variantId: variantId as string,
+                    targetProductId,
+                    variantName,
+                    deleteOrphanedProduct,
+                },
+                auth
+            );
+
+            let message = 'Variant converted successfully.';
+            if (result.orphanedProductDeleted) {
+                message += ' Original product was deleted as it had no remaining variants.';
+            }
+
+            BaseController.sendSuccess(res, message, result);
+        } catch (error) {
+            InventoryController.handleError(res, error, 'convertToVariant');
         }
     }
 }
