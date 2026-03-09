@@ -1,12 +1,3 @@
-/**
- * MRA Sales Service
- * 
- * Handles MRA sales/invoice submission:
- * - Submit sale to MRA
- * - Get sale verification data
- * - Handle sale responses
- */
-
 import { TerminalModel } from '../../models/terminal.model';
 import { MraBaseService } from './base.service';
 import { MraConfigurationService } from './configuration.service';
