@@ -165,7 +165,9 @@ export class InventoryQueryBuilder {
                 break;
             }
 
+            case 'in-stock':
             case 'low-stock':
+            case 'out-of-stock':
                 whereClause.isActive = true;
                 whereClause.product = { ...(whereClause.product || {}), isActive: true };
                 break;
@@ -297,7 +299,7 @@ export class InventoryQueryBuilder {
      * Check if filter requires post-processing
      */
     static requiresPostProcessing(filter: InventoryFilter): boolean {
-        return filter === 'low-stock';
+        return filter === 'low-stock' || filter === 'in-stock' || filter === 'out-of-stock';
     }
 
     /**
@@ -311,6 +313,49 @@ export class InventoryQueryBuilder {
             if (!inventory?.reorderPoint) return false;
             return inventory.availableQuantity <= inventory.reorderPoint;
         });
+    }
+
+    /**
+     * Post-process results for in-stock filter
+     */
+    static filterInStock<T extends { inventories?: Array<{ availableQuantity: number }> }>(
+        items: T[]
+    ): T[] {
+        return items.filter((item) => {
+            const inventory = item.inventories?.[0];
+            return inventory && inventory.availableQuantity > 0;
+        });
+    }
+
+    /**
+     * Post-process results for out-of-stock filter
+     */
+    static filterOutOfStock<T extends { inventories?: Array<{ availableQuantity: number }> }>(
+        items: T[]
+    ): T[] {
+        return items.filter((item) => {
+            const inventory = item.inventories?.[0];
+            return inventory && inventory.availableQuantity <= 0;
+        });
+    }
+
+    /**
+     * Apply stock-based filter to items
+     */
+    static applyStockFilter<T extends { inventories?: Array<{ availableQuantity: number; reorderPoint: number | null }> }>(
+        items: T[],
+        filter: InventoryFilter
+    ): T[] {
+        switch (filter) {
+            case 'low-stock':
+                return this.filterLowStock(items);
+            case 'in-stock':
+                return this.filterInStock(items);
+            case 'out-of-stock':
+                return this.filterOutOfStock(items);
+            default:
+                return items;
+        }
     }
 
     /**
@@ -329,5 +374,57 @@ export class InventoryQueryBuilder {
                 }),
             }))
             .filter((p) => p.variants.length > 0);
+    }
+
+    /**
+     * Post-process products for in-stock filter
+     */
+    static filterProductsWithInStockVariants<
+        T extends { variants: Array<{ inventories?: Array<{ availableQuantity: number }> }> }
+    >(products: T[]): T[] {
+        return products
+            .map((product) => ({
+                ...product,
+                variants: product.variants.filter((v) => {
+                    const inv = v.inventories?.[0];
+                    return inv && inv.availableQuantity > 0;
+                }),
+            }))
+            .filter((p) => p.variants.length > 0);
+    }
+
+    /**
+     * Post-process products for out-of-stock filter
+     */
+    static filterProductsWithOutOfStockVariants<
+        T extends { variants: Array<{ inventories?: Array<{ availableQuantity: number }> }> }
+    >(products: T[]): T[] {
+        return products
+            .map((product) => ({
+                ...product,
+                variants: product.variants.filter((v) => {
+                    const inv = v.inventories?.[0];
+                    return inv && inv.availableQuantity <= 0;
+                }),
+            }))
+            .filter((p) => p.variants.length > 0);
+    }
+
+    /**
+     * Apply stock-based filter to products
+     */
+    static applyProductStockFilter<
+        T extends { variants: Array<{ inventories?: Array<{ availableQuantity: number; reorderPoint: number | null }> }> }
+    >(products: T[], filter: InventoryFilter): T[] {
+        switch (filter) {
+            case 'low-stock':
+                return this.filterProductsWithLowStockVariants(products);
+            case 'in-stock':
+                return this.filterProductsWithInStockVariants(products);
+            case 'out-of-stock':
+                return this.filterProductsWithOutOfStockVariants(products);
+            default:
+                return products;
+        }
     }
 }

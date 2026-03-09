@@ -9,7 +9,9 @@ export type InventoryFilter =
     | 'inactive'
     | 'new'
     | 'new-stock'
+    | 'in-stock'
     | 'low-stock'
+    | 'out-of-stock'
     | 'expiring-soon'
     | 'expired';
 

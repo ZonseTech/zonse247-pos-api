@@ -961,17 +961,22 @@ export class StockMovementService {
         tenantId: string,
         branchId: string,
         page = 1,
-        perPage = 50
+        perPage = 50,
+        movementType?: string
     ): Promise<{ movements: StockMovementWithProduct[]; total: number; totalPages: number }> {
         const skip = (page - 1) * perPage;
 
-        const where = {
+        const where: any = {
             tenantId,
             branchId,
             inventory: {
                 variantId,
             },
         };
+
+        if (movementType) {
+            where.movementType = movementType as StockMovementType;
+        }
 
         const [movements, total] = await Promise.all([
             prisma.stockMovement.findMany({

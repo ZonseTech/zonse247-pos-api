@@ -470,16 +470,22 @@ export class InventoryController extends BaseController {
                 return;
             }
 
-            const { adjustment } = req.body;
+            const { adjustment, type } = req.body;
             if (adjustment === undefined || adjustment === null) {
                 BaseController.sendBadRequest(res, 'Adjustment value is required.');
                 return;
             }
 
-            const parsedAdjustment = parseInt(adjustment);
+            let parsedAdjustment = parseInt(adjustment);
             if (isNaN(parsedAdjustment)) {
                 BaseController.sendBadRequest(res, 'Adjustment must be a valid number.');
                 return;
+            }
+
+            if (type === 'subtract') {
+                parsedAdjustment = -Math.abs(parsedAdjustment);
+            } else if (type === 'add') {
+                parsedAdjustment = Math.abs(parsedAdjustment);
             }
 
             const auth = InventoryController.getAuthContext(req);

@@ -27,9 +27,17 @@ export const FILTER_CONFIG: Record<InventoryFilter, {
         requiresPostProcessing: false,
         description: 'Items added within the last 7 days',
     },
+    'in-stock': {
+        requiresPostProcessing: true,
+        description: 'Items with quantity greater than 0',
+    },
     'low-stock': {
         requiresPostProcessing: true,
         description: 'Items with quantity at or below reorder point',
+    },
+    'out-of-stock': {
+        requiresPostProcessing: true,
+        description: 'Items with zero quantity',
     },
     'expiring-soon': {
         requiresPostProcessing: false,
