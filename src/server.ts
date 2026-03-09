@@ -18,7 +18,6 @@ import {
 	limitRequestSize,
 } from './middlewares/security.middleware';
 import ApiRoutes from './routes';
-// import { initializeEmailService } from './config/email.config';
 import { initializeConfig, RuntimeConfig } from './config/app.config';
 
 export class Server {
@@ -149,15 +148,6 @@ export class Server {
 					console.log(
 						`🚀 Server running on port ${port}`
 					);
-
-					// if (!this.electron) {
-					// 	initializeEmailService().catch((error) => {
-					// 		console.error(
-					// 			'❌ Email service initialization failed:',
-					// 			error
-					// 		);
-					// 	});
-					// }
 				}
 			);
 		} catch (error) {

@@ -12,6 +12,7 @@ model Product {
   id         String  @id @default(cuid()) @map("product_id")
   tenantId   String  @map("tenant_id")
   branchId   String  @map("branch_id")
+  terminalId String? @map("terminal_id")
   categoryId String? @map("category_id")
   name       String  @map("name")
   description String? @map("description")
@@ -36,6 +37,8 @@ model Product {
   imageUrl   String? @map("image_url")
 
   isActive   Boolean  @default(true) @map("is_active")
+  version    Int      @default(1) @map("version")
+  deletedAt  DateTime? @map("deleted_at")
   createdAt  DateTime @default(now()) @map("created_at")
   updatedAt  DateTime @updatedAt @map("updated_at")
 
@@ -51,6 +54,9 @@ model Product {
   @@index([tenantId])
   @@index([categoryId])
   @@index([name])
+  @@index([tenantId, branchId, updatedAt])
+  @@index([updatedAt])
+  @@index([deletedAt])
   @@map("products")
 }
 
@@ -60,13 +66,14 @@ model ProductVariant {
   productId  String  @map("product_id")
   tenantId   String  @map("tenant_id")
   branchId   String  @map("branch_id")
+  terminalId String? @map("terminal_id")
 
   // Variant identification
   sku         String? @map("sku")
   variantName String  @map("variant_name")
 
   // Primary barcode for this variant
-  primaryBarcode String? @unique @map("primary_barcode")
+  primaryBarcode String? @map("primary_barcode")
 
   // Pricing
   sellingPrice Float   @default(0.00) @map("selling_price")
@@ -110,6 +117,8 @@ model ProductVariant {
   isDefault   Boolean @default(false) @map("is_default")
 
   isActive    Boolean  @default(true) @map("is_active")
+  version     Int      @default(1) @map("version")
+  deletedAt   DateTime? @map("deleted_at")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
@@ -118,18 +127,22 @@ model ProductVariant {
   tenant      Tenant  @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade)
   branch      Branch  @relation(fields: [branchId], references: [branchId], onDelete: Cascade)
 
-  inventory   Inventory?
+  inventories Inventory[]
   purchaseOrderItems PurchaseOrderItem[]
   saleItems   SaleItem[]
   barcodes    VariantBarcode[]
 
   @@unique([productId, variantName], name: "unique_product_variant")
+  @@unique([tenantId, branchId, primaryBarcode], name: "unique_tenant_branch_barcode")
   @@index([productId])
   @@index([branchId])
   @@index([tenantId])
   @@index([sku])
   @@index([primaryBarcode])
   @@index([variantName])
+  @@index([tenantId, branchId, updatedAt])
+  @@index([updatedAt])
+  @@index([deletedAt])
   @@map("product_variants")
 }
 
@@ -137,21 +150,34 @@ model ProductVariant {
 model VariantBarcode {
   id          String      @id @default(cuid()) @map("variant_barcode_id")
   variantId   String      @map("variant_id")
-  barcode     String      @unique @map("barcode")
+  tenantId    String      @map("tenant_id")
+  branchId    String      @map("branch_id")
+  terminalId  String?     @map("terminal_id")
+  barcode     String      @map("barcode")
   barcodeType BarcodeType @default(EAN13) @map("barcode_type")
 
   barcodeSource BarcodeSource @default(SUPPLIER) @map("barcode_source")
   description   String?       @map("description")
 
   isActive  Boolean  @default(true) @map("is_active")
+  version   Int      @default(1) @map("version")
+  deletedAt DateTime? @map("deleted_at")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
   variant ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  tenant  Tenant         @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade)
+  branch  Branch         @relation(fields: [branchId], references: [branchId], onDelete: Cascade)
 
+  @@unique([tenantId, branchId, barcode], name: "unique_tenant_branch_barcode")
   @@unique([variantId, barcode], name: "unique_variant_barcode")
   @@index([variantId])
+  @@index([tenantId])
+  @@index([branchId])
   @@index([barcode])
+  @@index([tenantId, branchId, updatedAt])
+  @@index([updatedAt])
+  @@index([deletedAt])
   @@map("variant_barcodes")
 }
 
@@ -202,6 +228,7 @@ model Supplier {
   id            String         @id @default(cuid()) @map("supplier_id")
   tenantId      String         @map("tenant_id")
   branchId      String         @map("branch_id")
+  terminalId    String?        @map("terminal_id")
   name          String         @map("name")
   contactPerson String?        @map("contact_person")
   email         String?        @map("email")
@@ -212,6 +239,8 @@ model Supplier {
   creditLimit   Float          @default(0) @map("credit_limit")
   status        SupplierStatus @default(ACTIVE) @map("status")
   isActive      Boolean        @default(true) @map("is_active")
+  version       Int            @default(1) @map("version")
+  deletedAt     DateTime?      @map("deleted_at")
   createdAt     DateTime       @default(now()) @map("created_at")
   updatedAt     DateTime       @updatedAt @map("updated_at")
 
@@ -221,6 +250,9 @@ model Supplier {
 
   @@index([branchId])
   @@index([tenantId])
+  @@index([tenantId, branchId, updatedAt])
+  @@index([updatedAt])
+  @@index([deletedAt])
   @@map("suppliers")
 }
 
@@ -228,8 +260,9 @@ model PurchaseOrder {
   id                   String              @id @default(cuid()) @map("purchase_order_id")
   tenantId             String              @map("tenant_id")
   branchId             String              @map("branch_id")
+  terminalId           String?             @map("terminal_id")
   supplierId           String              @map("supplier_id")
-  poNumber             String              @unique @map("po_number")
+  poNumber             String              @map("po_number")
   status               PurchaseOrderStatus @default(PENDING) @map("status")
   orderDate            DateTime            @default(now()) @map("order_date")
   expectedDeliveryDate DateTime?           @map("expected_delivery_date")
@@ -238,6 +271,8 @@ model PurchaseOrder {
   createdBy            String              @map("created_by")
   receivedBy           String?             @map("received_by")
   isLocked             Boolean             @default(false) @map("is_locked")
+  version              Int                 @default(1) @map("version")
+  deletedAt            DateTime?           @map("deleted_at")
   createdAt            DateTime            @default(now()) @map("created_at")
   updatedAt            DateTime            @updatedAt @map("updated_at")
 
@@ -249,10 +284,14 @@ model PurchaseOrder {
   receivedByUser User?               @relation("purchase_orders_received_by", fields: [receivedBy], references: [userId], onDelete: SetNull)
 
   @@index([branchId])
+  @@unique([tenantId, poNumber], name: "unique_tenant_po_number")
   @@index([tenantId])
   @@index([supplierId])
   @@index([status])
   @@index([poNumber])
+  @@index([tenantId, branchId, updatedAt])
+  @@index([updatedAt])
+  @@index([deletedAt])
   @@map("purchase_orders")
 }
 
@@ -260,12 +299,15 @@ model PurchaseOrderItem {
   id               String   @id @default(cuid()) @map("purchase_order_item_id")
   purchaseOrderId  String   @map("purchase_order_id")
   variantId        String   @map("variant_id")
+  terminalId       String?  @map("terminal_id")
   orderedQuantity  Int      @default(0) @map("ordered_quantity")
   receivedQuantity Int      @default(0) @map("received_quantity")
   damagedQuantity  Int      @default(0) @map("damaged_quantity")
   unitPrice        Float    @default(0.00) @map("unit_price")
   totalPrice       Float    @default(0.00) @map("total_price")
   notes            String?  @map("notes")
+  version          Int      @default(1) @map("version")
+  deletedAt        DateTime? @map("deleted_at")
   createdAt        DateTime @default(now()) @map("created_at")
   updatedAt        DateTime @updatedAt @map("updated_at")
 
@@ -275,6 +317,8 @@ model PurchaseOrderItem {
   @@unique([purchaseOrderId, variantId], name: "unique_po_variant")
   @@index([purchaseOrderId])
   @@index([variantId])
+  @@index([updatedAt])
+  @@index([deletedAt])
   @@map("purchase_order_items")
 }
 
@@ -282,8 +326,9 @@ model Inventory {
   id        String @id @default(cuid()) @map("inventory_id")
   tenantId  String @map("tenant_id")
   branchId  String @map("branch_id")
+  terminalId String? @map("terminal_id")
   productId String @map("product_id")
-  variantId String? @unique @map("variant_id")
+  variantId String? @map("variant_id")
 
   availableQuantity Int @default(0) @map("available_quantity")
   reservedQuantity  Int @default(0) @map("reserved_quantity")
@@ -299,6 +344,8 @@ model Inventory {
 
   lastRestockedAt DateTime? @map("last_restocked_at")
   lastSoldAt      DateTime? @map("last_sold_at")
+  version         Int       @default(1) @map("version")
+  deletedAt       DateTime? @map("deleted_at")
   createdAt       DateTime  @default(now()) @map("created_at")
   updatedAt       DateTime  @updatedAt @map("updated_at")
 
@@ -307,10 +354,14 @@ model Inventory {
   variant        ProductVariant? @relation(fields: [variantId], references: [id], onDelete: Cascade)
   stockMovements StockMovement[]
 
+  @@unique([branchId, variantId], name: "unique_branch_variant")
   @@index([branchId])
   @@index([tenantId])
   @@index([variantId])
   @@index([productId])
+  @@index([tenantId, branchId, updatedAt])
+  @@index([updatedAt])
+  @@index([deletedAt])
   @@map("inventory")
 }
 
@@ -318,6 +369,7 @@ model StockMovement {
   id          String @id @default(cuid()) @map("stock_movement_id")
   tenantId    String @map("tenant_id")
   branchId    String @map("branch_id")
+  terminalId  String? @map("terminal_id")
   inventoryId String @map("inventory_id")
 
   movementType     StockMovementType @map("movement_type")
@@ -334,6 +386,8 @@ model StockMovement {
   notes        String?  @map("notes")
   movedBy      String   @map("moved_by")
   movementDate DateTime @default(now()) @map("movement_date")
+  version      Int      @default(1) @map("version")
+  deletedAt    DateTime? @map("deleted_at")
   createdAt    DateTime @default(now()) @map("created_at")
 
   tenant      Tenant    @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade)
@@ -347,6 +401,7 @@ model StockMovement {
   @@index([movementType])
   @@index([referenceType, referenceId])
   @@index([movementDate])
+  @@index([deletedAt])
   @@map("stock_movements")
 }
 
@@ -379,6 +434,17 @@ model Sale {
   voidedBy   String?   @map("voided_by")
   voidReason String?   @map("void_reason")
 
+  // MRA (Malawi Revenue Authority) fields
+  mraSubmissionId    String?        @map("mra_submission_id")
+  mraResponseCode    String?        @map("mra_response_code")
+  mraResponseDesc    String?        @map("mra_response_desc")
+  mraQrCode          String?        @map("mra_qr_code")           // base64 or URL
+  mraVerificationUrl String?        @map("mra_verification_url")
+  mraStatus          MraSaleStatus? @default(NONE) @map("mra_status")
+  mraLastSyncAt      DateTime?      @map("mra_last_sync_at")
+
+  version   Int       @default(1) @map("version")
+  deletedAt DateTime? @map("deleted_at")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
@@ -401,6 +467,10 @@ model Sale {
   @@index([userId])
   @@index([saleDate])
   @@index([saleNumber])
+  @@index([tenantId, branchId, updatedAt])
+  @@index([updatedAt])
+  @@index([deletedAt])
+  @@index([mraStatus])
   @@map("sales")
 }
 
@@ -409,6 +479,7 @@ model SaleItem {
   saleId    String @map("sale_id")
   productId String @map("product_id")  // Legacy field - parent product ID
   variantId String @map("variant_id")
+  terminalId String? @map("terminal_id")
 
   quantity  Int   @map("quantity")
   unitPrice Float @map("unit_price")
@@ -419,6 +490,8 @@ model SaleItem {
   discountAmount Float @default(0.00) @map("discount_amount")
   totalAmount    Float @map("total_amount")
 
+  version   Int       @default(1) @map("version")
+  deletedAt DateTime? @map("deleted_at")
   createdAt DateTime @default(now()) @map("created_at")
 
   sale    Sale           @relation(fields: [saleId], references: [id], onDelete: Cascade)
@@ -428,6 +501,7 @@ model SaleItem {
   @@index([saleId])
   @@index([variantId])
   @@index([productId])
+  @@index([deletedAt])
   @@map("sale_items")
 }
 
@@ -442,6 +516,7 @@ model SalePayment {
   id              String        @id @default(uuid()) @map("sale_payment_id")
   saleId          String        @map("sale_id")
   paymentMethodId String        @map("payment_method_id")
+  terminalId      String?       @map("terminal_id")
   
   amount          Float         @map("amount")
   reference       String?       @map("reference")         // Card ref, mobile money transaction ID, etc.
@@ -455,6 +530,9 @@ model SalePayment {
   
   notes           String?       @map("notes")
   synced          Int           @default(0) @map("synced")
+  lastSyncedAt    DateTime?     @map("last_synced_at")
+  version         Int           @default(1) @map("version")
+  deletedAt       DateTime?     @map("deleted_at")
   createdAt       DateTime      @default(now()) @map("created_at")
   updatedAt       DateTime      @updatedAt @map("updated_at")
   
@@ -465,6 +543,8 @@ model SalePayment {
   @@index([paymentMethodId])
   @@index([status])
   @@index([processedAt])
+  @@index([updatedAt])
+  @@index([deletedAt])
   @@map("sale_payments")
 }
 
@@ -621,6 +701,7 @@ model Branch {
   // ADDED: New inventory flow relations
   products       Product[]
   productVariants ProductVariant[]
+  variantBarcodes VariantBarcode[]
   suppliers      Supplier[]
   purchaseOrders PurchaseOrder[]
   inventories    Inventory[]
@@ -654,6 +735,9 @@ model Category {
   sortOrder    Int?           @default(0) @map("sort_order")
   itemCount    Int?           @map("item_count")
   synced       Int?           @default(0) @map("synced")
+  lastSyncedAt DateTime?      @map("last_synced_at")
+  version      Int            @default(1) @map("version")
+  deletedAt    DateTime?      @map("deleted_at")
   createdAt    DateTime?      @default(now()) @map("created_at")
   updatedAt    DateTime?      @default(now()) @map("updated_at")
   branch       Branch         @relation(fields: [branchId], references: [branchId], onDelete: Cascade)
@@ -665,6 +749,9 @@ model Category {
   @@index([branchId])
   @@index([terminalId])
   @@index([isDefault])
+  @@index([tenantId, branchId, updatedAt])
+  @@index([updatedAt])
+  @@index([deletedAt])
   @@map("categories")
 }
 
@@ -673,6 +760,7 @@ model Customer {
   customerId   String        @unique @map("customer_id")
   tenantId     String        @map("tenant_id")
   branchId     String        @map("branch_id")
+  terminalId   String?       @map("terminal_id")
   userId       String?       @map("user_id")
   name         String        @map("name")
   phone        String?       @map("phone")
@@ -680,6 +768,9 @@ model Customer {
   address      String?       @map("address")
   isDefault    Boolean?      @default(false) @map("is_default")
   synced       Int?          @default(0) @map("synced")
+  lastSyncedAt DateTime?     @map("last_synced_at")
+  version      Int           @default(1) @map("version")
+  deletedAt    DateTime?     @map("deleted_at")
   createdAt    DateTime?     @default(now()) @map("created_at")
   updatedAt    DateTime?     @default(now()) @map("updated_at")
   branch       Branch        @relation(fields: [branchId], references: [branchId], onDelete: Cascade)
@@ -688,6 +779,9 @@ model Customer {
 
   @@index([branchId])
   @@index([isDefault])
+  @@index([tenantId, branchId, updatedAt])
+  @@index([updatedAt])
+  @@index([deletedAt])
   @@map("customers")
 }
 
@@ -797,17 +891,23 @@ model ReturnItem {
 model PaymentMethod {
   id           Int           @id @default(autoincrement())
   methodId     String        @unique @map("method_id")
+  terminalId   String?       @map("terminal_id")
   name         String        @map("name")
   isActive     Boolean?      @default(true) @map("is_active")
   icon         String?       @map("icon")
   sortOrder    Int?          @default(0) @map("sort_order")
   synced       Int?          @default(0) @map("synced")
+  lastSyncedAt DateTime?     @map("last_synced_at")
+  version      Int           @default(1) @map("version")
+  deletedAt    DateTime?     @map("deleted_at")
   createdAt    DateTime?     @default(now()) @map("created_at")
   updatedAt    DateTime?     @default(now()) @map("updated_at")
   transactions Transaction[]
   sales        Sale[]
   salePayments SalePayment[] // NEW: Support for multiple payment methods per sale
 
+  @@index([updatedAt])
+  @@index([deletedAt])
   @@map("payment_methods")
 }
 
@@ -983,6 +1083,7 @@ model Tenant {
   // ADDED: New inventory flow relations
   products       Product[]
   productVariants ProductVariant[]
+  variantBarcodes VariantBarcode[]
   suppliers      Supplier[]
   purchaseOrders PurchaseOrder[]
   inventories    Inventory[]
@@ -1004,7 +1105,7 @@ model Terminal {
   tenantId                      String                        @map("tenant_id")
   branchId                      String                        @map("branch_id")
   mraTerminalId                 String?                       @unique @map("mra_terminal_id")
-  terminalCode                  String                        @unique @map("terminal_code")
+  terminalCode                  String                        @map("terminal_code")
   terminalLabel                 String                        @map("terminal_label")
   terminalPosition              Int?                          @map("terminal_position")
   deviceId                      String?                       @map("device_id")
@@ -1029,8 +1130,13 @@ model Terminal {
   lastActivity                  DateTime?                     @map("last_activity")
   lastSync                      DateTime?                     @map("last_sync")
   lastSyncTimestamp             DateTime?                     @map("last_sync_timestamp")
+  lastSyncAt                    DateTime?                     @map("last_sync_at")    // Last successful sync
+  lastSeenAt                    DateTime?                     @map("last_seen_at")    // Last heartbeat / activity
   synced                        Int?                          @default(0) @map("synced")
+  lastSyncedAt                  DateTime?                     @map("last_synced_at")
   registeredAt                  DateTime?                     @map("registered_at")
+  version                       Int                           @default(1) @map("version")
+  deletedAt                     DateTime?                     @map("deleted_at")
   createdAt                     DateTime?                     @default(now()) @map("created_at")
   updatedAt                     DateTime?                     @default(now()) @map("updated_at")
 
@@ -1043,10 +1149,14 @@ model Terminal {
   transactions     Transaction[]
   sales            Sale[]
 
+  @@unique([tenantId, terminalCode], name: "unique_tenant_terminal_code")
   @@index([activationStatus])
   @@index([branchId])
   @@index([tenantId, branchId])
   @@index([tenantId])
+  @@index([tenantId, branchId, updatedAt])
+  @@index([updatedAt])
+  @@index([deletedAt])
   @@map("terminals")
 }
 
@@ -1176,6 +1286,9 @@ model User {
   passwordChangedAt   DateTime?   @default(now()) @map("password_changed_at")
   forcePasswordChange Boolean?    @default(false) @map("force_password_change")
   synced              Int?        @default(0) @map("synced")
+  lastSyncedAt        DateTime?   @map("last_synced_at")
+  version             Int         @default(1) @map("version")
+  deletedAt           DateTime?   @map("deleted_at")
   createdAt           DateTime?   @default(now()) @map("created_at")
   updatedAt           DateTime?   @default(now()) @map("updated_at")
 
@@ -1205,6 +1318,9 @@ model User {
   @@index([roleId])
   @@index([tenantId])
   @@index([username])
+  @@index([tenantId, branchId, updatedAt])
+  @@index([updatedAt])
+  @@index([deletedAt])
   @@map("users")
 }
 
@@ -1323,6 +1439,9 @@ model ParkedSale {
   resumedAt      DateTime?         @map("resumed_at")
   
   synced         Int               @default(0) @map("synced")
+  lastSyncedAt   DateTime?         @map("last_synced_at")
+  version        Int               @default(1) @map("version")
+  deletedAt      DateTime?         @map("deleted_at")
   createdAt      DateTime          @default(now()) @map("created_at")
   updatedAt      DateTime          @updatedAt @map("updated_at")
 
@@ -1336,6 +1455,9 @@ model ParkedSale {
   @@index([status])
   @@index([parkedAt])
   @@index([createdAt])
+  @@index([tenantId, branchId, updatedAt])
+  @@index([updatedAt])
+  @@index([deletedAt])
   @@map("parked_sales")
 }
 
@@ -1344,6 +1466,7 @@ model ParkedSaleItem {
   parkedSaleId   String      @map("parked_sale_id")
   productId      String      @map("product_id")
   categoryId     String?     @map("category_id")
+  terminalId     String?     @map("terminal_id")
   
   name           String      @map("name")
   barcode        String?     @map("barcode")
@@ -1358,6 +1481,8 @@ model ParkedSaleItem {
   taxAmount      Float       @default(0) @map("tax_amount")
   subtotal       Float       @default(0) @map("subtotal")
   
+  version        Int         @default(1) @map("version")
+  deletedAt      DateTime?   @map("deleted_at")
   createdAt      DateTime    @default(now()) @map("created_at")
 
   parkedSale     ParkedSale  @relation(fields: [parkedSaleId], references: [id], onDelete: Cascade)
@@ -1365,6 +1490,7 @@ model ParkedSaleItem {
   @@index([parkedSaleId])
   @@index([productId])
   @@index([categoryId])
+  @@index([deletedAt])
   @@map("parked_sale_items")
 }
 
@@ -1401,6 +1527,9 @@ model Printer {
   lastError         String?               @map("last_error")
   isActive          Boolean               @default(true) @map("is_active")
   synced            Int?                  @default(0) @map("synced")
+  lastSyncedAt      DateTime?             @map("last_synced_at")
+  version           Int                   @default(1) @map("version")
+  deletedAt         DateTime?             @map("deleted_at")
   createdAt         DateTime?             @default(now()) @map("created_at")
   updatedAt         DateTime?             @default(now()) @map("updated_at")
 
@@ -1413,6 +1542,9 @@ model Printer {
   @@index([terminalId])
   @@index([isDefault])
   @@index([status])
+  @@index([tenantId, branchId, updatedAt])
+  @@index([updatedAt])
+  @@index([deletedAt])
   @@map("printers")
 }
 
@@ -1436,6 +1568,8 @@ model PrintJob {
   errorMessage     String?        @map("error_message")
   printedAt        DateTime?      @map("printed_at")
   scheduledAt      DateTime?      @map("scheduled_at")
+  version          Int            @default(1) @map("version")
+  deletedAt        DateTime?      @map("deleted_at")
   createdAt        DateTime?      @default(now()) @map("created_at")
   updatedAt        DateTime?      @default(now()) @map("updated_at")
 
@@ -1448,12 +1582,23 @@ model PrintJob {
   @@index([jobType])
   @@index([priority])
   @@index([createdAt])
+  @@index([tenantId, branchId, updatedAt])
+  @@index([updatedAt])
+  @@index([deletedAt])
   @@map("print_jobs")
 }
 
 // ==========================================
 // ENUMS
 // ==========================================
+
+// MRA (Malawi Revenue Authority) sale submission status
+enum MraSaleStatus {
+  NONE
+  PENDING
+  SYNCED
+  FAILED
+}
 
 // NEW ENUMS for inventory flow
 enum PaymentTerms {
@@ -1756,6 +1901,7 @@ model Staff {
   userId                   String            @unique @map("user_id")
   tenantId                 String            @map("tenant_id")
   branchId                 String            @map("branch_id")
+  terminalId               String?           @map("terminal_id")
   employeeCode             String?           @map("employee_code")
   department               String?           @map("department")
   designation              String?           @map("designation")
@@ -1786,6 +1932,9 @@ model Staff {
   employmentStatus         EmploymentStatus  @default(ACTIVE) @map("employment_status")
   notes                    String?           @map("notes")
   synced                   Int               @default(0) @map("synced")
+  lastSyncedAt             DateTime?         @map("last_synced_at")
+  version                  Int               @default(1) @map("version")
+  deletedAt                DateTime?         @map("deleted_at")
   createdAt                DateTime          @default(now()) @map("created_at")
   updatedAt                DateTime          @updatedAt @map("updated_at")
 
@@ -1799,5 +1948,8 @@ model Staff {
   @@index([branchId], name: "idx_staff_branch_id")
   @@index([employmentStatus], name: "idx_staff_employment_status")
   @@index([joiningDate], name: "idx_staff_joining_date")
+  @@index([tenantId, branchId, updatedAt])
+  @@index([updatedAt])
+  @@index([deletedAt])
   @@map("staff")
 }
