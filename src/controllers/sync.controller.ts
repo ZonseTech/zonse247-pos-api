@@ -1,33 +1,150 @@
 /**
  * Sync Controller
  * 
- * Handles incoming sync requests from offline terminals.
- * These endpoints are called by the SyncJobService running on terminals.
+ * HTTP endpoints for bidirectional sync between terminals and server.
  * 
- * SECURITY:
- * ---------
- * All endpoints require:
- * - Valid JWT token (terminal auth)
- * - Matching tenant/branch IDs in headers
- * - Terminal must be registered and active
+ * ENDPOINTS:
+ * ----------
+ * PUSH (Terminal → Server):
+ *   POST /sync/batch          - Bulk sync all tables
+ *   POST /sync/sales          - Sync sales
+ *   POST /sync/sale-items     - Sync sale items
+ *   POST /sync/sale-payments  - Sync sale payments
+ *   POST /sync/returns        - Sync returns
+ *   POST /sync/return-items   - Sync return items
+ *   POST /sync/stock-movements - Sync stock movements
+ *   POST /sync/customers      - Sync customers
+ *   POST /sync/orders         - Sync orders
  * 
+ * PULL (Server → Terminal):
+ *   POST /sync/pull           - Pull all changed data
+ *   POST /sync/pull/:table    - Pull specific table
+ * 
+ * COMBINED:
+ *   POST /sync/bidirectional  - Push then pull in one request
+ *   GET  /sync/status         - Get terminal sync status
  */
 
 import { Request, Response } from 'express';
 import { BaseController } from './base.controller';
 import { SyncReceiverService } from '../services/sync/sync-receiver.service';
 import type { AuthRequest } from '../lib/express.type';
+import type { SyncResult, PullTableName } from '../services/sync/types/sync.types';
+import { SYNC_HEADERS, VALID_PULL_TABLES, LOG_PREFIX } from '../services/sync/constants/sync.constants';
 import prisma from '../databases/prisma/client';
 
+// ==========================================
+// Types
+// ==========================================
+
+type SyncRequest = Request & AuthRequest;
+
+interface SyncHandlerConfig {
+    requireTerminalId?: boolean;
+    handler: (records: unknown[], terminalId: string) => Promise<SyncResult>;
+}
+
+// ==========================================
+// Helper Functions
+// ==========================================
+
+/**
+ * Extract terminal ID from request headers or body
+ */
+function getTerminalId(req: SyncRequest): string | undefined {
+    return (req.headers[SYNC_HEADERS.TERMINAL_ID] as string) || req.body.terminalId;
+}
+
+/**
+ * Extract tenant ID from request headers or body
+ */
+function getTenantId(req: SyncRequest): string | undefined {
+    return (req.headers[SYNC_HEADERS.TENANT_ID] as string) || req.body.tenantId;
+}
+
+/**
+ * Extract branch ID from request headers or body
+ */
+function getBranchId(req: SyncRequest): string | undefined {
+    return (req.headers[SYNC_HEADERS.BRANCH_ID] as string) || req.body.branchId;
+}
+
+/**
+ * Create a standard sync response
+ */
+function createSyncResponse(result: SyncResult & { inventoriesRecalculated?: number }) {
+    return {
+        success: result.success,
+        accepted: result.accepted,
+        rejected: result.rejected,
+        skipped: result.skipped,
+        errors: result.errors,
+        ...(result.inventoriesRecalculated !== undefined && {
+            inventoriesRecalculated: result.inventoriesRecalculated,
+        }),
+        timestamp: new Date().toISOString(),
+    };
+}
+
+/**
+ * Generic sync endpoint handler to reduce code duplication
+ */
+async function handleSyncEndpoint(
+    req: SyncRequest,
+    res: Response,
+    logContext: string,
+    config: SyncHandlerConfig
+): Promise<void> {
+    try {
+        const { records } = req.body;
+
+        if (!records || !Array.isArray(records)) {
+            res.status(400).json({
+                success: false,
+                message: 'Records array is required',
+            });
+            return;
+        }
+
+        const terminalId = getTerminalId(req) || '';
+
+        if (config.requireTerminalId && !terminalId) {
+            res.status(400).json({
+                success: false,
+                message: 'Terminal ID is required',
+            });
+            return;
+        }
+
+        const result = await config.handler(records, terminalId);
+
+        res.status(200).json(createSyncResponse(result));
+    } catch (error) {
+        console.error(`${LOG_PREFIX.CONTROLLER} ${logContext} error:`, error);
+        res.status(500).json({
+            success: false,
+            message: 'Sync failed',
+            error: error instanceof Error ? error.message : 'Unknown error',
+        });
+    }
+}
+
+// ==========================================
+// Controller
+// ==========================================
+
 export class SyncController extends BaseController {
+    // ==========================================
+    // Batch Sync
+    // ==========================================
 
     /**
      * Batch sync - process all tables in one request
      * POST /api/v1/sync/batch
      */
-    static async batchSync(req: Request & AuthRequest, res: Response): Promise<void> {
+    static async batchSync(req: SyncRequest, res: Response): Promise<void> {
         try {
-            const terminalId = req.headers['x-terminal-id'] as string || req.body.terminalId;
+            const terminalId = getTerminalId(req);
 
             if (!terminalId) {
                 res.status(400).json({
@@ -49,339 +166,135 @@ export class SyncController extends BaseController {
             } = req.body;
 
             const result = await SyncReceiverService.processSyncBatch(
-                {
-                    sales,
-                    saleItems,
-                    salePayments,
-                    returns,
-                    returnItems,
-                    stockMovements,
-                    customers,
-                    orders,
-                },
+                { sales, saleItems, salePayments, returns, returnItems, stockMovements, customers, orders },
                 terminalId
             );
 
             res.status(result.success ? 200 : 207).json({
                 success: result.success,
-                message: result.success
-                    ? 'Sync completed successfully'
-                    : 'Sync completed with some errors',
+                message: result.success ? 'Sync completed successfully' : 'Sync completed with some errors',
                 data: {
                     summary: result.summary,
                     results: result.results,
                 },
                 timestamp: new Date().toISOString(),
             });
-        } catch (error: any) {
-            console.error('[Sync] Batch sync error:', error);
+        } catch (error) {
+            console.error(`${LOG_PREFIX.CONTROLLER} Batch sync error:`, error);
             res.status(500).json({
                 success: false,
                 message: 'Sync failed',
-                error: error.message,
+                error: error instanceof Error ? error.message : 'Unknown error',
             });
         }
     }
+
+    // ==========================================
+    // Individual Table Sync Endpoints
+    // ==========================================
 
     /**
      * Sync sales
      * POST /api/v1/sync/sales
      */
-    static async syncSales(req: Request & AuthRequest, res: Response): Promise<void> {
-        try {
-            const terminalId = req.headers['x-terminal-id'] as string || req.body.terminalId;
-            const { records } = req.body;
-
-            if (!records || !Array.isArray(records)) {
-                res.status(400).json({
-                    success: false,
-                    message: 'Records array is required',
-                });
-                return;
-            }
-
-            const result = await SyncReceiverService.receiveSales(records, terminalId);
-
-            res.status(200).json({
-                success: result.success,
-                accepted: result.accepted,
-                rejected: result.rejected,
-                skipped: result.skipped,
-                errors: result.errors,
-                timestamp: new Date().toISOString(),
-            });
-        } catch (error: any) {
-            console.error('[Sync] Sales sync error:', error);
-            res.status(500).json({
-                success: false,
-                message: 'Sync failed',
-                error: error.message,
-            });
-        }
+    static async syncSales(req: SyncRequest, res: Response): Promise<void> {
+        await handleSyncEndpoint(req, res, 'Sales sync', {
+            requireTerminalId: true,
+            handler: (records, terminalId) =>
+                SyncReceiverService.receiveSales(records as Parameters<typeof SyncReceiverService.receiveSales>[0], terminalId),
+        });
     }
 
     /**
      * Sync sale items
      * POST /api/v1/sync/sale-items
      */
-    static async syncSaleItems(req: Request & AuthRequest, res: Response): Promise<void> {
-        try {
-            const terminalId = req.headers['x-terminal-id'] as string || req.body.terminalId;
-            const { records } = req.body;
-
-            if (!records || !Array.isArray(records)) {
-                res.status(400).json({
-                    success: false,
-                    message: 'Records array is required',
-                });
-                return;
-            }
-
-            const result = await SyncReceiverService.receiveSaleItems(records, terminalId);
-
-            res.status(200).json({
-                success: result.success,
-                accepted: result.accepted,
-                rejected: result.rejected,
-                skipped: result.skipped,
-                errors: result.errors,
-                timestamp: new Date().toISOString(),
-            });
-        } catch (error: any) {
-            console.error('[Sync] Sale items sync error:', error);
-            res.status(500).json({
-                success: false,
-                message: 'Sync failed',
-                error: error.message,
-            });
-        }
+    static async syncSaleItems(req: SyncRequest, res: Response): Promise<void> {
+        await handleSyncEndpoint(req, res, 'Sale items sync', {
+            requireTerminalId: true,
+            handler: (records, terminalId) =>
+                SyncReceiverService.receiveSaleItems(records as Parameters<typeof SyncReceiverService.receiveSaleItems>[0], terminalId),
+        });
     }
 
     /**
      * Sync sale payments
      * POST /api/v1/sync/sale-payments
      */
-    static async syncSalePayments(req: Request & AuthRequest, res: Response): Promise<void> {
-        try {
-            const { records } = req.body;
-
-            if (!records || !Array.isArray(records)) {
-                res.status(400).json({
-                    success: false,
-                    message: 'Records array is required',
-                });
-                return;
-            }
-
-            const result = await SyncReceiverService.receiveSalePayments(records);
-
-            res.status(200).json({
-                success: result.success,
-                accepted: result.accepted,
-                rejected: result.rejected,
-                skipped: result.skipped,
-                errors: result.errors,
-                timestamp: new Date().toISOString(),
-            });
-        } catch (error: any) {
-            console.error('[Sync] Sale payments sync error:', error);
-            res.status(500).json({
-                success: false,
-                message: 'Sync failed',
-                error: error.message,
-            });
-        }
+    static async syncSalePayments(req: SyncRequest, res: Response): Promise<void> {
+        await handleSyncEndpoint(req, res, 'Sale payments sync', {
+            handler: (records) =>
+                SyncReceiverService.receiveSalePayments(records as Parameters<typeof SyncReceiverService.receiveSalePayments>[0]),
+        });
     }
 
     /**
      * Sync returns
      * POST /api/v1/sync/returns
      */
-    static async syncReturns(req: Request & AuthRequest, res: Response): Promise<void> {
-        try {
-            const terminalId = req.headers['x-terminal-id'] as string || req.body.terminalId;
-            const { records } = req.body;
-
-            if (!records || !Array.isArray(records)) {
-                res.status(400).json({
-                    success: false,
-                    message: 'Records array is required',
-                });
-                return;
-            }
-
-            const result = await SyncReceiverService.receiveReturns(records, terminalId);
-
-            res.status(200).json({
-                success: result.success,
-                accepted: result.accepted,
-                rejected: result.rejected,
-                skipped: result.skipped,
-                errors: result.errors,
-                timestamp: new Date().toISOString(),
-            });
-        } catch (error: any) {
-            console.error('[Sync] Returns sync error:', error);
-            res.status(500).json({
-                success: false,
-                message: 'Sync failed',
-                error: error.message,
-            });
-        }
+    static async syncReturns(req: SyncRequest, res: Response): Promise<void> {
+        await handleSyncEndpoint(req, res, 'Returns sync', {
+            requireTerminalId: true,
+            handler: (records, terminalId) =>
+                SyncReceiverService.receiveReturns(records as Parameters<typeof SyncReceiverService.receiveReturns>[0], terminalId),
+        });
     }
 
     /**
      * Sync return items
      * POST /api/v1/sync/return-items
      */
-    static async syncReturnItems(req: Request & AuthRequest, res: Response): Promise<void> {
-        try {
-            const { records } = req.body;
-
-            if (!records || !Array.isArray(records)) {
-                res.status(400).json({
-                    success: false,
-                    message: 'Records array is required',
-                });
-                return;
-            }
-
-            const result = await SyncReceiverService.receiveReturnItems(records);
-
-            res.status(200).json({
-                success: result.success,
-                accepted: result.accepted,
-                rejected: result.rejected,
-                skipped: result.skipped,
-                errors: result.errors,
-                timestamp: new Date().toISOString(),
-            });
-        } catch (error: any) {
-            console.error('[Sync] Return items sync error:', error);
-            res.status(500).json({
-                success: false,
-                message: 'Sync failed',
-                error: error.message,
-            });
-        }
+    static async syncReturnItems(req: SyncRequest, res: Response): Promise<void> {
+        await handleSyncEndpoint(req, res, 'Return items sync', {
+            handler: (records) =>
+                SyncReceiverService.receiveReturnItems(records as Parameters<typeof SyncReceiverService.receiveReturnItems>[0]),
+        });
     }
 
     /**
      * Sync stock movements
      * POST /api/v1/sync/stock-movements
      */
-    static async syncStockMovements(req: Request & AuthRequest, res: Response): Promise<void> {
-        try {
-            const { records } = req.body;
-
-            if (!records || !Array.isArray(records)) {
-                res.status(400).json({
-                    success: false,
-                    message: 'Records array is required',
-                });
-                return;
-            }
-
-            const result = await SyncReceiverService.receiveStockMovements(records);
-
-            res.status(200).json({
-                success: result.success,
-                accepted: result.accepted,
-                rejected: result.rejected,
-                skipped: result.skipped,
-                errors: result.errors,
-                inventoriesRecalculated: result.inventoriesRecalculated,
-                timestamp: new Date().toISOString(),
-            });
-        } catch (error: any) {
-            console.error('[Sync] Stock movements sync error:', error);
-            res.status(500).json({
-                success: false,
-                message: 'Sync failed',
-                error: error.message,
-            });
-        }
+    static async syncStockMovements(req: SyncRequest, res: Response): Promise<void> {
+        await handleSyncEndpoint(req, res, 'Stock movements sync', {
+            handler: (records) =>
+                SyncReceiverService.receiveStockMovements(records as Parameters<typeof SyncReceiverService.receiveStockMovements>[0]),
+        });
     }
 
     /**
      * Sync customers
      * POST /api/v1/sync/customers
      */
-    static async syncCustomers(req: Request & AuthRequest, res: Response): Promise<void> {
-        try {
-            const { records } = req.body;
-
-            if (!records || !Array.isArray(records)) {
-                res.status(400).json({
-                    success: false,
-                    message: 'Records array is required',
-                });
-                return;
-            }
-
-            const result = await SyncReceiverService.receiveCustomers(records);
-
-            res.status(200).json({
-                success: result.success,
-                accepted: result.accepted,
-                rejected: result.rejected,
-                skipped: result.skipped,
-                errors: result.errors,
-                timestamp: new Date().toISOString(),
-            });
-        } catch (error: any) {
-            console.error('[Sync] Customers sync error:', error);
-            res.status(500).json({
-                success: false,
-                message: 'Sync failed',
-                error: error.message,
-            });
-        }
+    static async syncCustomers(req: SyncRequest, res: Response): Promise<void> {
+        await handleSyncEndpoint(req, res, 'Customers sync', {
+            handler: (records) =>
+                SyncReceiverService.receiveCustomers(records as Parameters<typeof SyncReceiverService.receiveCustomers>[0]),
+        });
     }
 
     /**
      * Sync orders
      * POST /api/v1/sync/orders
      */
-    static async syncOrders(req: Request & AuthRequest, res: Response): Promise<void> {
-        try {
-            const { records } = req.body;
-
-            if (!records || !Array.isArray(records)) {
-                res.status(400).json({
-                    success: false,
-                    message: 'Records array is required',
-                });
-                return;
-            }
-
-            const result = await SyncReceiverService.receiveOrders(records);
-
-            res.status(200).json({
-                success: result.success,
-                accepted: result.accepted,
-                rejected: result.rejected,
-                skipped: result.skipped,
-                errors: result.errors,
-                timestamp: new Date().toISOString(),
-            });
-        } catch (error: any) {
-            console.error('[Sync] Orders sync error:', error);
-            res.status(500).json({
-                success: false,
-                message: 'Sync failed',
-                error: error.message,
-            });
-        }
+    static async syncOrders(req: SyncRequest, res: Response): Promise<void> {
+        await handleSyncEndpoint(req, res, 'Orders sync', {
+            handler: (records) =>
+                SyncReceiverService.receiveOrders(records as Parameters<typeof SyncReceiverService.receiveOrders>[0]),
+        });
     }
+
+    // ==========================================
+    // Status
+    // ==========================================
 
     /**
      * Get sync status for a terminal
      * GET /api/v1/sync/status
      */
-    static async getSyncStatus(req: Request & AuthRequest, res: Response): Promise<void> {
+    static async getSyncStatus(req: SyncRequest, res: Response): Promise<void> {
         try {
-            const terminalId = req.headers['x-terminal-id'] as string || req.query.terminalId as string;
+            const terminalId = getTerminalId(req) || (req.query.terminalId as string);
 
             if (!terminalId) {
                 res.status(400).json({
@@ -391,7 +304,6 @@ export class SyncController extends BaseController {
                 return;
             }
 
-            // Get terminal info
             const terminal = await prisma.terminal.findUnique({
                 where: { terminalId },
                 select: {
@@ -421,36 +333,29 @@ export class SyncController extends BaseController {
                     serverTime: new Date().toISOString(),
                 },
             });
-        } catch (error: any) {
-            console.error('[Sync] Get status error:', error);
+        } catch (error) {
+            console.error(`${LOG_PREFIX.CONTROLLER} Get status error:`, error);
             res.status(500).json({
                 success: false,
                 message: 'Failed to get sync status',
-                error: error.message,
+                error: error instanceof Error ? error.message : 'Unknown error',
             });
         }
     }
 
-    // ==================== PULL OPERATIONS ====================
-    // These endpoints allow terminals to pull data from the server
+    // ==========================================
+    // Pull Operations
+    // ==========================================
 
     /**
      * Pull all changed data from server
      * POST /api/v1/sync/pull
-     * 
-     * This is the main endpoint for the PULL phase of bidirectional sync.
-     * Terminals call this after pushing their changes to receive:
-     * - Products, ProductVariants, Categories (master data)
-     * - Inventory (recalculated quantities)
-     * - PaymentMethods
-     * - StockMovements from other terminals
-     * - Customers
      */
-    static async pullData(req: Request & AuthRequest, res: Response): Promise<void> {
+    static async pullData(req: SyncRequest, res: Response): Promise<void> {
         try {
-            const terminalId = req.headers['x-terminal-id'] as string || req.body.terminalId;
-            const tenantId = req.headers['x-tenant-id'] as string || req.body.tenantId;
-            const branchId = req.headers['x-branch-id'] as string || req.body.branchId;
+            const terminalId = getTerminalId(req);
+            const tenantId = getTenantId(req);
+            const branchId = getBranchId(req);
             const { since, tables, limit } = req.body;
 
             if (!terminalId || !tenantId || !branchId) {
@@ -461,7 +366,6 @@ export class SyncController extends BaseController {
                 return;
             }
 
-            // Parse since date if provided
             const sinceDate = since ? new Date(since) : null;
 
             const result = await SyncReceiverService.getPullData(
@@ -479,12 +383,12 @@ export class SyncController extends BaseController {
                 serverTime: result.serverTime.toISOString(),
                 errors: result.errors,
             });
-        } catch (error: any) {
-            console.error('[Sync] Pull data error:', error);
+        } catch (error) {
+            console.error(`${LOG_PREFIX.CONTROLLER} Pull data error:`, error);
             res.status(500).json({
                 success: false,
                 message: 'Failed to pull data',
-                error: error.message,
+                error: error instanceof Error ? error.message : 'Unknown error',
             });
         }
     }
@@ -492,15 +396,13 @@ export class SyncController extends BaseController {
     /**
      * Pull data for a specific table
      * POST /api/v1/sync/pull/:tableName
-     * 
-     * Useful for incremental sync of individual tables when bandwidth is limited.
      */
-    static async pullTableData(req: Request & AuthRequest, res: Response): Promise<void> {
+    static async pullTableData(req: SyncRequest, res: Response): Promise<void> {
         try {
-            const tableName = req.params.tableName as string;
-            const terminalId = req.headers['x-terminal-id'] as string || req.body.terminalId;
-            const tenantId = req.headers['x-tenant-id'] as string || req.body.tenantId;
-            const branchId = req.headers['x-branch-id'] as string || req.body.branchId;
+            const tableName = req.params.tableName as PullTableName;
+            const terminalId = getTerminalId(req);
+            const tenantId = getTenantId(req);
+            const branchId = getBranchId(req);
             const { since, limit } = req.body;
 
             if (!terminalId || !tenantId || !branchId) {
@@ -511,15 +413,10 @@ export class SyncController extends BaseController {
                 return;
             }
 
-            const validTables = [
-                'products', 'productVariants', 'categories',
-                'inventory', 'paymentMethods', 'stockMovements', 'customers'
-            ];
-
-            if (!validTables.includes(tableName)) {
+            if (!VALID_PULL_TABLES.has(tableName)) {
                 res.status(400).json({
                     success: false,
-                    message: `Invalid table name. Valid tables: ${validTables.join(', ')}`,
+                    message: `Invalid table name. Valid tables: ${[...VALID_PULL_TABLES].join(', ')}`,
                 });
                 return;
             }
@@ -527,7 +424,7 @@ export class SyncController extends BaseController {
             const sinceDate = since ? new Date(since) : null;
 
             const result = await SyncReceiverService.getTableDelta(
-                tableName as any,
+                tableName,
                 tenantId,
                 branchId,
                 terminalId,
@@ -543,28 +440,29 @@ export class SyncController extends BaseController {
                 hasMore: result.hasMore,
                 serverTime: new Date().toISOString(),
             });
-        } catch (error: any) {
-            console.error('[Sync] Pull table data error:', error);
+        } catch (error) {
+            console.error(`${LOG_PREFIX.CONTROLLER} Pull table data error:`, error);
             res.status(500).json({
                 success: false,
                 message: 'Failed to pull table data',
-                error: error.message,
+                error: error instanceof Error ? error.message : 'Unknown error',
             });
         }
     }
 
+    // ==========================================
+    // Bidirectional Sync
+    // ==========================================
+
     /**
      * Bidirectional sync - push then pull in one request
      * POST /api/v1/sync/bidirectional
-     * 
-     * Convenience endpoint that combines push and pull into a single request.
-     * Order: Push first (to send local changes), then Pull (to receive updates).
      */
-    static async bidirectionalSync(req: Request & AuthRequest, res: Response): Promise<void> {
+    static async bidirectionalSync(req: SyncRequest, res: Response): Promise<void> {
         try {
-            const terminalId = req.headers['x-terminal-id'] as string || req.body.terminalId;
-            const tenantId = req.headers['x-tenant-id'] as string || req.body.tenantId;
-            const branchId = req.headers['x-branch-id'] as string || req.body.branchId;
+            const terminalId = getTerminalId(req);
+            const tenantId = getTenantId(req);
+            const branchId = getBranchId(req);
 
             if (!terminalId || !tenantId || !branchId) {
                 res.status(400).json({
@@ -574,21 +472,16 @@ export class SyncController extends BaseController {
                 return;
             }
 
-            const {
-                push: pushData,
-                pullSince,
-                pullTables,
-                pullLimit,
-            } = req.body;
+            const { push: pushData, pullSince, pullTables, pullLimit } = req.body;
 
-            // Phase 1: PUSH - Process incoming data from terminal
-            let pushResult: any = { summary: { total: 0, accepted: 0, rejected: 0, skipped: 0 } };
+            // Phase 1: PUSH
+            let pushResult = { summary: { total: 0, accepted: 0, rejected: 0, skipped: 0 }, results: {} };
 
             if (pushData && Object.keys(pushData).length > 0) {
                 pushResult = await SyncReceiverService.processSyncBatch(pushData, terminalId);
             }
 
-            // Phase 2: PULL - Get data for terminal to pull
+            // Phase 2: PULL
             const sinceDate = pullSince ? new Date(pullSince) : null;
             const pullResult = await SyncReceiverService.getPullData(
                 tenantId,
@@ -598,12 +491,11 @@ export class SyncController extends BaseController {
                 { tables: pullTables, limit: pullLimit }
             );
 
-            // Return combined result
             res.status(200).json({
                 success: pushResult.summary.rejected === 0 && pullResult.success,
                 push: {
                     summary: pushResult.summary,
-                    results: pushResult.results || {},
+                    results: pushResult.results,
                 },
                 pull: {
                     data: pullResult.data,
@@ -612,12 +504,12 @@ export class SyncController extends BaseController {
                 },
                 serverTime: new Date().toISOString(),
             });
-        } catch (error: any) {
-            console.error('[Sync] Bidirectional sync error:', error);
+        } catch (error) {
+            console.error(`${LOG_PREFIX.CONTROLLER} Bidirectional sync error:`, error);
             res.status(500).json({
                 success: false,
                 message: 'Bidirectional sync failed',
-                error: error.message,
+                error: error instanceof Error ? error.message : 'Unknown error',
             });
         }
     }
