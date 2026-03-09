@@ -63,6 +63,26 @@ export class BranchSubscriptionModel {
         }
     }
 
+    static async findByBranchId(branchId: string): Promise<BranchSubscription | null> {
+        try {
+            const branch = await prisma.branch.findUnique({
+                where: { branchId },
+                include: {
+                    branchSubscription: {
+                        include: {
+                            subscriptionPlan: true
+                        }
+                    }
+                }
+            });
+            return branch?.branchSubscription as unknown as BranchSubscription | null;
+        } catch (error) {
+            throw new Error(
+                `Error finding subscription by branch ID: ${error instanceof Error ? error.message : 'Unknown error'}`
+            );
+        }
+    }
+
     static async create(subscriptionData: BranchSubscriptionUncheckedCreateInput): Promise<BranchSubscription> {
         try {
             return await prisma.branchSubscription.create({

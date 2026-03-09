@@ -25,13 +25,13 @@ export class AuthService {
      * 
      * @param username - User's username (automatically sanitized)
      * @param password - User's plain text password
-     * @param offlineMode - If true, includes branch with branchSubscription for offline sync
+     * @param _offlineMode - Deprecated: subscription info is now always included
      * @returns Object containing user data with token, or error message
      */
     static async loginUser(
         username: string,
         password: string,
-        offlineMode = false,
+        _offlineMode = false,
     ): Promise<{ user?: any; token?: string; message?: string }> {
         const escapedUsername = validator.escape(username);
 
@@ -52,13 +52,26 @@ export class AuthService {
 
             const completeUser: any = UserModel.getPublicUser(user);
 
-            if (offlineMode && user.branchId) {
+            const { permissions } = await this.verifyUserPrivileges(user.roleId);
+            completeUser.permissions = permissions || [];
+
+            // Always include branch and subscription info for subscription enforcement
+            if (user.branchId) {
                 const branchData = await BranchModel.findByIdWithRelations(user.branchId);
                 if (branchData) {
                     completeUser.branch = {
                         ...branchData.branch,
                         branchSubscription: branchData.branchSubscription || null
                     };
+
+                    // Include subscription status for client-side enforcement
+                    if (branchData.branchSubscription) {
+                        completeUser.subscriptionStatus = branchData.branchSubscription.status;
+                        completeUser.subscriptionEndsAt = branchData.branchSubscription.endsAt;
+                    } else {
+                        completeUser.subscriptionStatus = 'inactive';
+                        completeUser.subscriptionEndsAt = null;
+                    }
                 }
             }
 
@@ -341,7 +354,12 @@ export class AuthService {
                 throw new Error('User not found or inactive');
             }
 
-            return this.generateJWTToken(user);
+            const completeUser: any = UserModel.getPublicUser(user);
+
+            const { permissions } = await this.verifyUserPrivileges(user.roleId);
+            completeUser.permissions = permissions || [];
+
+            return this.generateJWTToken(completeUser);
         } catch (error) {
             throw new Error('Token refresh failed');
         }
@@ -481,10 +499,12 @@ export class AuthService {
             throw new Error('You do not have access to this branch');
         }
 
-        const branch = await BranchModel.findById(targetBranchId);
-        if (!branch) {
+        const branchData = await BranchModel.findByIdWithRelations(targetBranchId);
+        if (!branchData) {
             throw new Error('Branch not found');
         }
+
+        const branch = branchData.branch;
 
         if (branch.tenantId !== tenantId) {
             throw new Error('Branch does not belong to this tenant');
@@ -514,7 +534,14 @@ export class AuthService {
         // Record branch access by touching updatedAt
         await BranchModel.update(targetBranchId, {});
 
-        return { user: completeUser, token, branch };
+        return {
+            user: completeUser,
+            token,
+            branch: {
+                ...branch,
+                branchSubscription: branchData.branchSubscription || null
+            }
+        };
     }
 
     /**
