@@ -1,5 +1,5 @@
 /**
- * Sync Services - Central export barrel
+ * Sync Services - Central Export Barrel
  * 
  * ARCHITECTURE OVERVIEW:
  * ----------------------
@@ -54,7 +54,6 @@
  * │                                                             │
  * └─────────────────────────────────────────────────────────────┘
  * 
- * 
  * USAGE:
  * ------
  * 
@@ -62,7 +61,6 @@
  * 
  *    import { initSyncJob } from './services/sync';
  *    
- *    // Start bidirectional sync job when terminal is authenticated
  *    initSyncJob({
  *      serverUrl: 'https://api.example.com/api/v1',
  *      apiKey: 'terminal-jwt-token',
@@ -70,25 +68,15 @@
  *      tenantId: 'tenant-001',
  *      branchId: 'branch-001',
  *      intervalMs: 30000,   // 30 seconds (default)
- *      enablePull: true,    // Enable pull phase (default: true)
+ *      enablePull: true,    // Enable pull phase (default)
  *    });
  * 
  * 2. ON SERVER:
  * 
- *    Server exposes endpoints for bidirectional sync:
- *    
- *    PUSH (receive from terminal):
- *    - POST /api/v1/sync/sales
- *    - POST /api/v1/sync/sale-items
- *    - POST /api/v1/sync/stock-movements
- *    - POST /api/v1/sync/batch (bulk push)
- *    
- *    PULL (send to terminal):
+ *    Server exposes sync endpoints via SyncController:
+ *    - POST /api/v1/sync/batch
  *    - POST /api/v1/sync/pull
- *    - POST /api/v1/sync/pull/:tableName
- *    
- *    COMBINED:
- *    - POST /api/v1/sync/bidirectional (push + pull in one request)
+ *    - POST /api/v1/sync/bidirectional
  * 
  * 3. MANUAL SYNC TRIGGER:
  * 
@@ -96,7 +84,7 @@
  *    
  *    const job = getSyncJob();
  *    if (job) {
- *      await job.runSyncCycle(); // Runs push then pull
+ *      await job.runSyncCycle();
  *    }
  */
 
@@ -105,9 +93,36 @@ export {
     initSyncJob,
     getSyncJob,
     stopSyncJob,
-    resetSyncTimestamps
+    resetSyncTimestamps,
 } from './sync-job.service';
+export { SyncReceiverService } from './sync-receiver.service';
+export type {
+    SyncRecordBase,
+    SyncResult,
+    SyncError,
+    StockMovementSyncResult,
+    PullTableName,
+    PullDataResult,
+    PullOptions,
+    TableDeltaResult,
+    PushTableName,
+    PushTableConfig,
+    SyncBatchResult,
+    PullBatchResult,
+    BatchSyncData,
+    BatchSyncResult,
+    SyncJobConfig,
+    SyncStats,
+    SyncCycleResult,
+    UpsertResult,
+} from './types';
 
 export {
-    SyncReceiverService
-} from './sync-receiver.service';
+    SYNC_DEFAULTS,
+    PUSH_TABLE_CONFIGS,
+    PULL_TABLE_NAMES,
+    VALID_PULL_TABLES,
+    BATCH_MULTIPLIERS,
+    SYNC_HEADERS,
+    LOG_PREFIX,
+} from './constants';

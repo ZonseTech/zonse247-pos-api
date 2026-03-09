@@ -1,42 +1,7 @@
-/**
- * Sync Routes
- * 
- * Endpoints for bidirectional sync with offline terminals.
- * 
- * PUSH ENDPOINTS (Terminal → Server):
- * - POST /batch              - Bulk sync all tables
- * - POST /sales              - Sync sales
- * - POST /sale-items         - Sync sale items
- * - POST /sale-payments      - Sync sale payments
- * - POST /returns            - Sync returns
- * - POST /return-items       - Sync return items
- * - POST /stock-movements    - Sync stock movements
- * - POST /customers          - Sync customers
- * - POST /orders             - Sync orders
- * 
- * PULL ENDPOINTS (Server → Terminal):
- * - POST /pull               - Pull all changed data from server
- * - POST /pull/:tableName    - Pull specific table data
- * 
- * BIDIRECTIONAL:
- * - POST /bidirectional      - Push then pull in one request
- * 
- * STATUS:
- * - GET  /status             - Get terminal sync status
- * 
- * SECURITY NOTE:
- * In production, these endpoints should be protected with terminal authentication.
- * Use the authRequired middleware after testing.
- */
-
 import { Router } from 'express';
 import { SyncController } from '../controllers/sync.controller';
-// import { authRequired } from '../middlewares/auth.middleware';
 
 const router = Router();
-
-// ==================== PUSH ENDPOINTS ====================
-// Terminal → Server (receive data from offline terminals)
 
 /**
  * @route   POST /api/v1/sync/batch
@@ -108,9 +73,6 @@ router.post('/orders', SyncController.syncOrders);
  */
 router.get('/status', SyncController.getSyncStatus);
 
-// ==================== PULL ENDPOINTS ====================
-// Server → Terminal (send data to offline terminals)
-
 /**
  * @route   POST /api/v1/sync/pull
  * @desc    Pull all changed data from server since timestamp
@@ -126,8 +88,6 @@ router.post('/pull', SyncController.pullData);
  * @body    { since?: Date, limit?: number }
  */
 router.post('/pull/:tableName', SyncController.pullTableData);
-
-// ==================== BIDIRECTIONAL ====================
 
 /**
  * @route   POST /api/v1/sync/bidirectional
