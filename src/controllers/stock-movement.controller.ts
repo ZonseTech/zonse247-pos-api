@@ -204,16 +204,16 @@ export class StockMovementController extends BaseController {
     }
 
     /**
-     * Get stock movements for a product
+     * Get stock movements for a variant
      */
-    static async getProductMovements(req: Request & AuthRequest, res: Response): Promise<void> {
+    static async getVariantMovements(req: Request & AuthRequest, res: Response): Promise<void> {
         try {
-            const { productId } = req.params;
+            const { variantId } = req.params;
             const page = parseInt(req.query.page as string) || 1;
             const perPage = parseInt(req.query.perPage as string) || 50;
 
-            const { movements, total, totalPages } = await StockMovementService.getMovementsByProduct(
-                productId as string,
+            const { movements, total, totalPages } = await StockMovementService.getMovementsByVariant(
+                variantId as string,
                 req.auth.tenantId,
                 req.auth.activeBranchId || req.auth.branchId,
                 page,

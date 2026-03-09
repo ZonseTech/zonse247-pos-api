@@ -892,7 +892,7 @@ Common HTTP Status Codes:
 
 | Method | Endpoint                              | Description                | Auth Required |
 | ------ | ------------------------------------- | -------------------------- | ------------- |
-| GET    | `/stock-movements/product/:productId` | Get product stock history  | Yes           |
+| GET    | `/stock-movements/variant/:variantId` | Get variant stock history  | Yes           |
 | GET    | `/stock-movements/branch`             | Get branch stock movements | Yes           |
 
 ---

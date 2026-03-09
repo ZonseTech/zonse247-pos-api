@@ -6,55 +6,119 @@ import { stockMovementSchemas } from '../validations/stock-movement.schemas';
 
 const router = Router();
 
-// =============================================================================
-// General Stock Movement Endpoints
-// =============================================================================
-
-// Record a single stock movement
+/**
+ * POST /
+ * Record a single stock movement
+ * @body {string} variantId - Variant UUID
+ * @body {string} inventoryId - Inventory UUID
+ * @body {string} movementType - Movement type (SALE, RETURN, ADJUSTMENT, etc.)
+ * @body {number} quantity - Quantity to move
+ * @body {string} [referenceType] - Reference type (SALE, RETURN, ADJUSTMENT, etc.)
+ * @body {string} [referenceId] - Reference UUID
+ * @body {number} [unitCost] - Unit cost
+ * @body {string} [notes] - Additional notes
+ */
 router.post('/', validateBody(stockMovementSchemas.recordMovement), StockMovementController.recordMovement);
 
-// Sync movements from offline terminal (bulk insert)
+/**
+ * POST /sync
+ * Sync stock movements from offline terminal (bulk insert)
+ * @body {Array} movements - Array of stock movements to sync
+ */
 router.post('/sync', validateBody(stockMovementSchemas.syncMovements), StockMovementController.syncFromOffline);
 
-// Recalculate inventory from movements
+/**
+ * POST /recalculate/:inventoryId
+ * Recalculate inventory quantity from all movements (rebuild cache)
+ * @param {string} inventoryId - Inventory UUID to recalculate
+ */
 router.post('/recalculate/:inventoryId', StockMovementController.recalculateInventory);
 
-// Recalculate all inventory for a branch
+/**
+ * POST /recalculate-branch
+ * Recalculate all inventory for the current branch
+ */
 router.post('/recalculate-branch', StockMovementController.recalculateBranchInventory);
 
-// =============================================================================
-// Stock Adjustment Endpoints (Counts, Damages, Expiry, Transfers)
-// =============================================================================
-
-// Record stock count (physical count vs system)
+/**
+ * POST /stock-count
+ * Record physical stock count (creates adjustment if variance exists)
+ * @body {string} inventoryId - Inventory UUID
+ * @body {number} actualQuantity - Physical count quantity
+ * @body {string} [notes] - Additional notes
+ */
 router.post('/stock-count', validateBody(stockMovementSchemas.stockCount), StockAdjustmentController.recordStockCount);
 
-// Record generic adjustment (+ or -)
+/**
+ * POST /adjust
+ * Record manual stock adjustment (positive or negative)
+ * @body {string} inventoryId - Inventory UUID
+ * @body {number} quantity - Adjustment quantity (positive = add, negative = remove)
+ * @body {string} [notes] - Reason for adjustment
+ */
 router.post('/adjust', validateBody(stockMovementSchemas.adjustment), StockAdjustmentController.recordAdjustment);
 
-// Record damaged stock
+/**
+ * POST /damage
+ * Record damaged stock (decreases inventory)
+ * @body {string} inventoryId - Inventory UUID
+ * @body {number} quantity - Damaged quantity
+ * @body {string} [notes] - Description of damage
+ */
 router.post('/damage', validateBody(stockMovementSchemas.damage), StockAdjustmentController.recordDamage);
 
-// Record expired stock
+/**
+ * POST /expiry
+ * Record expired stock (decreases inventory)
+ * @body {string} inventoryId - Inventory UUID
+ * @body {number} quantity - Expired quantity
+ * @body {string} [notes] - Additional notes
+ */
 router.post('/expiry', validateBody(stockMovementSchemas.expiry), StockAdjustmentController.recordExpiry);
 
-// Record stock transfer between branches
+/**
+ * POST /transfer
+ * Record stock transfer between branches
+ * @body {string} inventoryId - Source inventory UUID
+ * @body {string} toBranchId - Destination branch UUID
+ * @body {number} quantity - Transfer quantity
+ * @body {string} [notes] - Transfer notes
+ */
 router.post('/transfer', validateBody(stockMovementSchemas.transfer), StockAdjustmentController.recordTransfer);
 
-// Record correction for an incorrect movement (immutable ledger - creates compensating movement)
+/**
+ * POST /correction
+ * Create compensating movement to correct an error (immutable ledger pattern)
+ * @body {string} originalMovementId - Movement UUID to correct
+ * @body {string} [notes] - Reason for correction
+ */
 router.post('/correction', validateBody(stockMovementSchemas.correction), StockAdjustmentController.recordCorrection);
 
-// =============================================================================
-// Query Endpoints
-// =============================================================================
+/**
+ * GET /variant/:variantId
+ * Get stock movement history for a specific variant
+ * @param {string} variantId - Variant UUID
+ * @query {number} [page=1] - Page number
+ * @query {number} [perPage=50] - Items per page
+ */
+router.get('/variant/:variantId', StockMovementController.getVariantMovements);
 
-// Get single movement by ID
-router.get('/:id', StockMovementController.getMovementById);
-
-// Get movements for a product
-router.get('/product/:productId', StockMovementController.getProductMovements);
-
-// Get movements for a branch (with filters)
+/**
+ * GET /branch
+ * Get stock movements for the current branch with optional filters
+ * @query {string} [movementType] - Filter by movement type
+ * @query {string} [startDate] - Filter by date range start
+ * @query {string} [endDate] - Filter by date range end
+ * @query {number} [page=1] - Page number
+ * @query {number} [limit=100] - Items per page
+ */
 router.get('/branch', StockMovementController.getBranchMovements);
+
+/**
+ * GET /:id
+ * Get a single stock movement by ID
+ * @param {string} id - Movement UUID
+ */
+router.get('/:id', StockMovementController.getMovementById);
 
 export default router;
