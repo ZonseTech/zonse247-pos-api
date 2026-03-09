@@ -12,6 +12,15 @@ const router = Router();
 router.get('/', BranchController.list);
 
 /**
+ * @route   GET /branches/tenant-branch/primary-terminal-id
+ * @desc    Get the primary terminal ID for web client login
+ * @query   tenantId - Tenant ID (optional, falls back to auth)
+ * @query   branchId - Branch ID (optional, falls back to auth)
+ * @access  Protected
+ */
+router.get('/tenant-branch/primary-terminal-id', BranchController.getPrimaryTerminalId);
+
+/**
  * @route   POST /branches
  * @desc    Create a new branch with subscription
  * @body    tenantId: string, branchName: string, subscriptionPlanId: string, subscriptionMonths?: number

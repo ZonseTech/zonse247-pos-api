@@ -106,6 +106,30 @@ export class TerminalModel {
     }
 
     /**
+     * @method  findPrimaryByBranchId
+     * @desc    Find the primary terminal for a branch (for web clients)
+     * @param   branchId - Unique branch identifier
+     * @param   tenantId - Optional tenant ID for scope validation
+     * @returns Promise<Terminal | null> - Primary terminal or null if not found
+     * @throws  Error - Error finding primary terminal
+     */
+    static async findPrimaryByBranchId(branchId: string, tenantId?: string): Promise<Terminal | null> {
+        try {
+            const where: any = { branchId, isPrimary: true };
+            if (tenantId) {
+                where.tenantId = tenantId;
+            }
+
+            return await prisma.terminal.findFirst({
+                where,
+                orderBy: { createdAt: 'asc' }
+            }) as unknown as Terminal | null;
+        } catch (error) {
+            throw new Error(`Error finding primary terminal: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+    }
+
+    /**
      * @method  findWithActivationDetails
      * @desc    Find a terminal by ID with tenant, branch, and subscription details for activation
      * @param   terminalId - Unique terminal identifier

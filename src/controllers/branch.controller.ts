@@ -4,6 +4,7 @@ import { AuthRequest } from "../lib/express.type";
 import { BaseController } from "./base.controller";
 import { Branch, CreateBranchRequest } from "branch";
 import { BranchService } from "../services/branch.service";
+import { TerminalModel } from "../models/terminal.model";
 
 /**
  * @class   BranchController
@@ -149,6 +150,44 @@ export class BranchController {
             }
 
             BaseController.sendResponse(res, statusCode, false, error.message, undefined, error.message);
+        }
+    }
+
+    /**
+     * @method  getPrimaryTerminalId
+     * @desc    Get the primary terminal ID for a branch (used by web clients)
+     * @param   req - Express request with tenantId and branchId query params
+     * @param   res - Express response object
+     * @returns Promise<void> - JSON response with primary terminal ID
+     * @throws  400 - Missing required parameters
+     * @throws  404 - Primary terminal not found
+     * @throws  500 - Internal server error
+     */
+    static async getPrimaryTerminalId(req: Request & AuthRequest, res: Response): Promise<void> {
+        try {
+            const tenantId = req.query.tenantId as string || req.auth?.tenantId;
+            const branchId = req.query.branchId as string || req.auth?.branchId;
+
+            if (!branchId) {
+                BaseController.sendResponse(res, 400, false, 'Branch ID is required');
+                return;
+            }
+
+            const primaryTerminal = await TerminalModel.findPrimaryByBranchId(branchId, tenantId);
+
+            if (!primaryTerminal) {
+                BaseController.sendResponse(res, 404, false, 'No primary terminal found for this branch. Please set a terminal as primary.');
+                return;
+            }
+
+            BaseController.sendResponse(res, 200, true, 'Primary terminal retrieved successfully', {
+                terminalId: primaryTerminal.terminalId,
+                terminalCode: primaryTerminal.terminalCode,
+                terminalLabel: primaryTerminal.terminalLabel
+            });
+        } catch (error: any) {
+            console.error('Error fetching primary terminal:', error);
+            BaseController.sendResponse(res, 500, false, error.message, undefined, error.message);
         }
     }
 }
