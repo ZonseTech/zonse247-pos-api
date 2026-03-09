@@ -36,8 +36,7 @@ export class CustomerService {
             name: validator.escape(customerData.name.trim()),
             tenantId: customerData.tenantId,
             branchId: customerData.branchId,
-            userId: customerData.userId,
-            synced: 0,
+            userId: customerData.userId || undefined,
         };
 
         if (customerData.email && customerData.email.trim()) {
@@ -127,24 +126,5 @@ export class CustomerService {
         });
 
         return await CustomerModel.find(sanitizedConditions);
-    }
-
-    static async getUnsyncedCustomers(): Promise<Customer[]> {
-        return await CustomerModel.getUnsyncedRecords();
-    }
-
-    static async markCustomerAsSynced(customerId: string): Promise<boolean> {
-        if (!customerId) {
-            throw new Error('Customer ID is required');
-        }
-
-        const sanitizedId = validator.escape(customerId.toString());
-        await CustomerModel.markAsSynced(sanitizedId);
-        return true;
-    }
-
-    static async validateCustomerExists(customerId: string): Promise<boolean> {
-        const customer = await this.getCustomerById(customerId);
-        return customer !== null;
     }
 }

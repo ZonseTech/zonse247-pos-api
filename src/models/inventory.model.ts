@@ -4,7 +4,8 @@ import { CartItem } from 'order';
 import { AuthenticatedUser } from 'auth';
 import { InventoryItem } from 'inventory-item';
 import prisma from '../databases/prisma/client';
-import { ProductService } from '../services/product.service';
+import { ProductService } from '../services/inventory/product.service';
+import { StockMovementService } from '../services/inventory/stock-movement.service';
 import {
     DbErrorHandler,
     ValidationError,
@@ -18,6 +19,10 @@ import {
 /**
  * Inventory Model - Now works with ProductVariant + Inventory tables
  * 
+ * GOLDEN RULE: Never update inventory quantities directly.
+ * Always record a stock movement and derive current inventory from movements.
+ * Use StockMovementService for all quantity changes.
+ * 
  * In the new schema:
  * - Product is the parent/master product (e.g., "Nivea Lotion")
  * - ProductVariant is the sellable unit (e.g., "Nivea 50ml", "Nivea 200ml")
@@ -25,6 +30,11 @@ import {
  * 
  * This model queries ProductVariant to provide the flattened InventoryItem interface
  * for backward compatibility with the POS terminal and other endpoints.
+ * 
+ * DEPRECATED METHODS (use StockMovementService instead):
+ * - updateQuantity() - use StockMovementService.recordAdjustment()
+ * - incrementInventory() - use StockMovementService.recordPurchaseReceipt() or recordReturn()
+ * - decrementInventory() - use StockMovementService.recordSale()
  */
 export class InventoryModel {
 
@@ -595,24 +605,44 @@ export class InventoryModel {
                         }
                     });
 
+                    // GOLDEN RULE: Create inventory with 0 quantity, then record movement
+                    const inventoryId = uuidv4();
+                    const costPrice = parseFloat(variant.costPrice || 0);
+
                     await tx.inventory.create({
                         data: {
-                            id: uuidv4(),
+                            id: inventoryId,
                             tenantId: auth.tenantId,
                             branchId: auth.branchId,
                             productId: productId,
                             variantId: variantId,
-                            availableQuantity: quantity,
+                            availableQuantity: 0, // Start at 0, stock movement will set the quantity
                             reservedQuantity: parseInt(variant.reservedQuantity || 0),
                             damagedQuantity: 0,
-                            averageCost: parseFloat(variant.costPrice || 0),
-                            lastPurchaseCost: parseFloat(variant.costPrice || 0),
+                            averageCost: costPrice,
+                            lastPurchaseCost: costPrice,
                             reorderPoint: minStock,
                             maxStock: maxStock,
                             trackInventory: variant.trackInventory !== false,
                             allowNegativeStock: variant.allowNegativeStock || false
                         }
                     });
+
+                    // Record initial stock movement if quantity > 0
+                    if (quantity > 0) {
+                        await StockMovementService.recordInitialStock(
+                            {
+                                tenantId: auth.tenantId,
+                                branchId: auth.branchId,
+                                inventoryId: inventoryId,
+                                quantity: quantity,
+                                unitCost: costPrice,
+                                notes: 'Initial stock on product creation',
+                                movedBy: auth.userId,
+                            },
+                            tx
+                        );
+                    }
 
                     if (variant.additionalBarcodes && Array.isArray(variant.additionalBarcodes)) {
                         for (const barcode of variant.additionalBarcodes) {
@@ -731,6 +761,8 @@ export class InventoryModel {
             }
 
             if (Object.keys(inventoryUpdate).length > 0) {
+                // Always increment version on any inventory update
+                inventoryUpdate.version = { increment: 1 };
                 await tx.inventory.updateMany({
                     where: { variantId },
                     data: inventoryUpdate
@@ -849,6 +881,8 @@ export class InventoryModel {
                         }
 
                         if (Object.keys(inventoryUpdate).length > 0) {
+                            // Always increment version on any inventory update
+                            inventoryUpdate.version = { increment: 1 };
                             await tx.inventory.updateMany({
                                 where: { variantId: variantData.id },
                                 data: inventoryUpdate
@@ -863,6 +897,7 @@ export class InventoryModel {
                         const maxStock = variantData.maxStock ? parseInt(variantData.maxStock) : null;
                         const primaryBarcode = variantData.primaryBarcode || variantData.barcode || null;
                         const sku = variantData.sku || variantData.barcode || null;
+                        const costPrice = parseFloat(variantData.costPrice || 0);
 
                         await tx.productVariant.create({
                             data: {
@@ -874,7 +909,7 @@ export class InventoryModel {
                                 variantName: variantData.variantName || updateData.name || 'Default',
                                 primaryBarcode: primaryBarcode,
                                 sellingPrice: sellPrice,
-                                costPrice: parseFloat(variantData.costPrice || 0),
+                                costPrice: costPrice,
                                 unit: variantData.unit || updateData.defaultUnit || updateData.unit || 'piece',
                                 description: variantData.description || null,
                                 brand: variantData.brand || null,
@@ -900,24 +935,43 @@ export class InventoryModel {
                             }
                         });
 
+                        // GOLDEN RULE: Create inventory with 0 quantity, then record movement
+                        const newInventoryId = uuidv4();
+
                         await tx.inventory.create({
                             data: {
-                                id: uuidv4(),
+                                id: newInventoryId,
                                 tenantId: auth.tenantId,
                                 branchId: auth.branchId,
                                 productId: productId,
                                 variantId: newVariantId,
-                                availableQuantity: quantity,
+                                availableQuantity: 0, // Start at 0, stock movement will set the quantity
                                 reservedQuantity: parseInt(variantData.reservedQuantity || 0),
                                 damagedQuantity: 0,
-                                averageCost: parseFloat(variantData.costPrice || 0),
-                                lastPurchaseCost: parseFloat(variantData.costPrice || 0),
+                                averageCost: costPrice,
+                                lastPurchaseCost: costPrice,
                                 reorderPoint: minStock,
                                 maxStock: maxStock,
                                 trackInventory: variantData.trackInventory !== false,
                                 allowNegativeStock: variantData.allowNegativeStock || false
                             }
                         });
+
+                        // Record initial stock movement if quantity > 0
+                        if (quantity > 0) {
+                            await StockMovementService.recordInitialStock(
+                                {
+                                    tenantId: auth.tenantId,
+                                    branchId: auth.branchId,
+                                    inventoryId: newInventoryId,
+                                    quantity: quantity,
+                                    unitCost: costPrice,
+                                    notes: 'Initial stock on variant creation',
+                                    movedBy: auth.userId,
+                                },
+                                tx
+                            );
+                        }
 
                         if (variantData.additionalBarcodes && Array.isArray(variantData.additionalBarcodes)) {
                             for (const barcode of variantData.additionalBarcodes) {
@@ -974,109 +1028,154 @@ export class InventoryModel {
 
     /**
      * Update quantity
+     * @deprecated VIOLATES GOLDEN RULE - use StockMovementService.recordAdjustment() instead
+     * This method is kept for backward compatibility but should not be used for new code.
      */
-    static async updateQuantity(variantId: string, quantity: number, auth: AuthenticatedUser): Promise<number> {
-        await prisma.inventory.updateMany({
+    static async updateQuantity(variantId: string, newQuantity: number, auth: AuthenticatedUser): Promise<number> {
+        console.warn('DEPRECATED: InventoryModel.updateQuantity() violates the golden rule. Use StockMovementService.recordAdjustment() instead.');
+
+        // Find the inventory record
+        const inventory = await prisma.inventory.findFirst({
             where: {
                 variantId: variantId,
-                branchId: auth.branchId
+                branchId: auth.branchId,
+                tenantId: auth.tenantId,
             },
-            data: {
-                availableQuantity: quantity
-            }
         });
+
+        if (!inventory) {
+            throw new Error(`Inventory not found for variant ${variantId}`);
+        }
+
+        const currentQuantity = inventory.availableQuantity;
+        const adjustment = newQuantity - currentQuantity;
+
+        if (adjustment === 0) {
+            return 1; // No change needed
+        }
+
+        // GOLDEN RULE: Use StockMovementService instead of direct update
+        await StockMovementService.recordAdjustment({
+            tenantId: auth.tenantId,
+            branchId: auth.branchId,
+            inventoryId: inventory.id,
+            quantity: adjustment,
+            unitCost: Number(inventory.averageCost || 0),
+            notes: `Quantity update from ${currentQuantity} to ${newQuantity} (via deprecated updateQuantity)`,
+            movedBy: auth.userId,
+        });
+
         return 1;
     }
 
     /**
      * Increment inventory (for purchase receipts, returns, etc.)
      * Note: productId in items is actually variantId now
+     * @deprecated VIOLATES GOLDEN RULE - use StockMovementService.recordReturn() or recordPurchaseReceipt() instead
      */
     static async incrementInventory(
         products: Array<{ productId: string; quantity: number }>,
         auth: AuthenticatedUser
     ): Promise<void> {
-        await prisma.$transaction(async (tx) => {
-            for (const item of products) {
-                const inventory = await tx.inventory.findFirst({
-                    where: {
-                        variantId: item.productId, // productId is variantId
-                        branchId: auth.branchId
-                    }
-                });
+        console.warn('DEPRECATED: InventoryModel.incrementInventory() violates the golden rule. Use StockMovementService.recordReturn() or recordPurchaseReceipt() instead.');
 
-                if (!inventory) {
-                    throw new Error(`Inventory not found for variant ${item.productId}`);
+        for (const item of products) {
+            const inventory = await prisma.inventory.findFirst({
+                where: {
+                    OR: [
+                        { variantId: item.productId },
+                        { productId: item.productId }
+                    ],
+                    branchId: auth.branchId,
+                    tenantId: auth.tenantId,
                 }
+            });
 
-                await tx.inventory.update({
-                    where: { id: inventory.id },
-                    data: {
-                        availableQuantity: inventory.availableQuantity + item.quantity
-                    }
-                });
+            if (!inventory) {
+                throw new Error(`Inventory not found for variant ${item.productId}`);
             }
-        });
+
+            // GOLDEN RULE: Use StockMovementService instead of direct update
+            await StockMovementService.recordReturn({
+                tenantId: auth.tenantId,
+                branchId: auth.branchId,
+                inventoryId: inventory.id,
+                quantity: item.quantity,
+                unitCost: Number(inventory.averageCost || 0),
+                referenceId: `increment-${Date.now()}`,
+                notes: 'Inventory increment (via deprecated incrementInventory)',
+                movedBy: auth.userId,
+            });
+        }
     }
 
     /**
      * Decrement inventory (for sales)
      * Validates stock availability and handles errors gracefully
      * Note: productId in items is actually variantId now
+     * @deprecated VIOLATES GOLDEN RULE - use StockMovementService.recordSale() instead
      */
     static async decrementInventory(
         products: CartItem[],
         auth: AuthenticatedUser
     ): Promise<void> {
+        console.warn('DEPRECATED: InventoryModel.decrementInventory() violates the golden rule. Use StockMovementService.recordSale() instead.');
+
         try {
-            await prisma.$transaction(async (tx) => {
-                for (const item of products) {
-                    const inventory = await tx.inventory.findFirst({
-                        where: {
-                            variantId: item.productId, // productId is variantId
-                            branchId: auth.branchId
-                        },
-                        include: {
-                            variant: {
-                                include: {
-                                    product: {
-                                        select: { name: true }
-                                    }
+            for (const item of products) {
+                const inventory = await prisma.inventory.findFirst({
+                    where: {
+                        OR: [
+                            { variantId: item.productId },
+                            { productId: item.productId }
+                        ],
+                        branchId: auth.branchId,
+                        tenantId: auth.tenantId,
+                    },
+                    include: {
+                        variant: {
+                            include: {
+                                product: {
+                                    select: { name: true }
                                 }
                             }
                         }
-                    });
-
-                    if (!inventory) {
-                        throw new NotFoundError('Inventory', item.productId);
                     }
+                });
 
-                    const newQuantity = inventory.availableQuantity - item.quantity;
-
-                    if (newQuantity < 0 && !inventory.allowNegativeStock) {
-                        const productName = inventory.variant?.variantName !== 'Default'
-                            ? `${inventory.variant?.product?.name} - ${inventory.variant?.variantName}`
-                            : inventory.variant?.product?.name || item.productId;
-                        throw new BusinessLogicError(
-                            InventoryErrors.INSUFFICIENT_STOCK(productName, inventory.availableQuantity, item.quantity),
-                            {
-                                productId: item.productId,
-                                productName,
-                                availableQuantity: inventory.availableQuantity,
-                                requestedQuantity: item.quantity
-                            }
-                        );
-                    }
-
-                    await tx.inventory.update({
-                        where: { id: inventory.id },
-                        data: {
-                            availableQuantity: newQuantity,
-                            lastSoldAt: new Date()
-                        }
-                    });
+                if (!inventory) {
+                    throw new NotFoundError('Inventory', item.productId);
                 }
-            });
+
+                const newQuantity = inventory.availableQuantity - item.quantity;
+
+                if (newQuantity < 0 && !inventory.allowNegativeStock) {
+                    const productName = inventory.variant?.variantName !== 'Default'
+                        ? `${inventory.variant?.product?.name} - ${inventory.variant?.variantName}`
+                        : inventory.variant?.product?.name || item.productId;
+                    throw new BusinessLogicError(
+                        InventoryErrors.INSUFFICIENT_STOCK(productName, inventory.availableQuantity, item.quantity),
+                        {
+                            productId: item.productId,
+                            productName,
+                            availableQuantity: inventory.availableQuantity,
+                            requestedQuantity: item.quantity
+                        }
+                    );
+                }
+
+                // GOLDEN RULE: Use StockMovementService instead of direct update
+                await StockMovementService.recordSale({
+                    tenantId: auth.tenantId,
+                    branchId: auth.branchId,
+                    inventoryId: inventory.id,
+                    quantity: item.quantity,
+                    unitCost: Number(inventory.averageCost || 0),
+                    referenceId: `sale-${Date.now()}`,
+                    notes: `Sale of ${item.name || item.productId} (via deprecated decrementInventory)`,
+                    movedBy: auth.userId,
+                });
+            }
         } catch (error) {
             // Re-throw if it's already a handled error
             if (error instanceof ValidationError ||
@@ -1129,12 +1228,13 @@ export class InventoryModel {
                         { expirationDate: null },
                         // Missing cost price (0 or null)
                         { costPrice: { equals: 0 } },
-                        // Missing stock quantity (no inventory record or availableQuantity is 0/null)
-                        { inventory: null },
-                        { inventory: { availableQuantity: { equals: 0 } } },
-                        // Missing low stock alert (reorderPoint is 0 or null)
-                        { inventory: { reorderPoint: null } },
-                        { inventory: { reorderPoint: { equals: 0 } } }
+                        // No inventory records
+                        { inventories: { none: {} } },
+                        // Has inventory but availableQuantity is 0
+                        { inventories: { some: { availableQuantity: { equals: 0 } } } },
+                        // Has inventory but reorderPoint is null or 0
+                        { inventories: { some: { reorderPoint: null } } },
+                        { inventories: { some: { reorderPoint: { equals: 0 } } } }
                     ]
                 }
             }),
@@ -1142,8 +1242,10 @@ export class InventoryModel {
             prisma.productVariant.count({
                 where: {
                     ...baseWhereClause,
-                    inventory: {
-                        availableQuantity: { gt: 0 }
+                    inventories: {
+                        some: {
+                            availableQuantity: { gt: 0 }
+                        }
                     }
                 }
             }),
@@ -1151,15 +1253,13 @@ export class InventoryModel {
             prisma.productVariant.count({
                 where: {
                     ...baseWhereClause,
-                    inventory: {
-                        AND: [
-                            { availableQuantity: { gt: 0 } },
-                            { reorderPoint: { gt: 0 } },
-                            {
-                                // This raw check is needed because Prisma doesn't support field-to-field comparison
-                                // We'll handle this with a raw query or by filtering in memory
-                            }
-                        ]
+                    inventories: {
+                        some: {
+                            AND: [
+                                { availableQuantity: { gt: 0 } },
+                                { reorderPoint: { gt: 0 } }
+                            ]
+                        }
                     }
                 }
             }).catch(() => 0), // Fallback if the above fails
@@ -1179,14 +1279,16 @@ export class InventoryModel {
         const lowStockVariants = await prisma.productVariant.findMany({
             where: {
                 ...baseWhereClause,
-                inventory: {
-                    availableQuantity: { gt: 0 },
-                    reorderPoint: { gt: 0 }
+                inventories: {
+                    some: {
+                        availableQuantity: { gt: 0 },
+                        reorderPoint: { gt: 0 }
+                    }
                 }
             },
             select: {
                 id: true,
-                inventory: {
+                inventories: {
                     select: {
                         availableQuantity: true,
                         reorderPoint: true
@@ -1196,7 +1298,7 @@ export class InventoryModel {
         });
 
         const accurateLowStockCount = lowStockVariants.filter(
-            v => v.inventory && v.inventory.availableQuantity <= (v.inventory.reorderPoint || 0)
+            v => v.inventories?.[0] && v.inventories[0].availableQuantity <= (v.inventories[0].reorderPoint || 0)
         ).length;
 
         return {

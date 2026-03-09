@@ -63,6 +63,13 @@ export interface RuntimeConfig {
     // Feature flags
     enableAnalytics: boolean;
 
+    // Sync config (for offline terminals)
+    syncEnabled: boolean;
+    syncIntervalMs: number;
+    syncBatchSize: number;
+    syncMaxRetries: number;
+    syncServerUrl: string;
+
     // App info
     appName: string;
     appVersion: string;
@@ -105,6 +112,11 @@ const DEFAULT_CONFIG: RuntimeConfig = {
     migrationsPath: './.backups/migrations',
     clientPortalUrl: 'https://pos.zonse247.com',
     enableAnalytics: false,
+    syncEnabled: true,
+    syncIntervalMs: 30000, // 30 seconds
+    syncBatchSize: 100,
+    syncMaxRetries: 3,
+    syncServerUrl: 'http://139.59.103.109:2025/api/v1',
     appName: 'Zonse247 POS',
     appVersion: '1.0.0',
 };
@@ -171,6 +183,13 @@ export function initializeConfig(overrides?: Partial<RuntimeConfig>): RuntimeCon
 
         // Feature flags
         enableAnalytics: process.env.ENABLE_ANALYTICS === 'true' || overrides?.enableAnalytics || DEFAULT_CONFIG.enableAnalytics,
+
+        // Sync config (for offline terminals)
+        syncEnabled: process.env.SYNC_ENABLED !== 'false' && (overrides?.syncEnabled ?? DEFAULT_CONFIG.syncEnabled),
+        syncIntervalMs: parseInt(process.env.SYNC_INTERVAL_MS || '') || overrides?.syncIntervalMs || DEFAULT_CONFIG.syncIntervalMs,
+        syncBatchSize: parseInt(process.env.SYNC_BATCH_SIZE || '') || overrides?.syncBatchSize || DEFAULT_CONFIG.syncBatchSize,
+        syncMaxRetries: parseInt(process.env.SYNC_MAX_RETRIES || '') || overrides?.syncMaxRetries || DEFAULT_CONFIG.syncMaxRetries,
+        syncServerUrl: process.env.SYNC_SERVER_URL || overrides?.syncServerUrl || DEFAULT_CONFIG.syncServerUrl,
 
         // App info
         appName: process.env.APP_NAME || overrides?.appName || DEFAULT_CONFIG.appName,

@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import { prisma } from '../databases/prisma/client';
-import { StockMovementService } from './stock-movement.service';
+import { StockMovementService } from './inventory/stock-movement.service';
 import {
     CreateSaleInput,
     SaleWithItems,
@@ -14,7 +14,6 @@ import {
     SALE_NUMBER,
     PAGINATION,
     ERROR_MESSAGES,
-    MOVEMENT_TYPES,
     roundCurrency,
 } from '../constants/sale.constants';
 import {
@@ -41,15 +40,10 @@ export class SaleService {
     /**
      * Create a new sale with support for multiple payment methods
      * 
-     * Features:
-     * - Validates product variants and stock availability
-     * - Supports both single and multiple payment methods
-     * - Includes retry logic for sale number generation race conditions
-     * - Updates inventory and creates stock movements
-     * 
      * @param data - Sale input data
      * @param tenantId - Tenant identifier
      * @param branchId - Branch identifier
+     * @param userId - User identifier (from auth context)
      * @param retryAttempt - Current retry attempt (internal use)
      * @returns Created sale with items and payments
      * @throws Error if validation fails or insufficient stock/payment
@@ -58,11 +52,11 @@ export class SaleService {
         data: CreateSaleInput,
         tenantId: string,
         branchId: string,
+        userId: string,
         retryAttempt = 0
     ): Promise<SaleWithItems> {
         try {
             return await prisma.$transaction(async (tx) => {
-                // Step 1: Process and validate all items
                 const { items: processedItems, subtotal } = await this.processItems(
                     data.items,
                     tenantId,
@@ -70,23 +64,19 @@ export class SaleService {
                     tx
                 );
 
-                // Step 2: Calculate sale totals
                 const totals = this.calculateSaleTotals(data, subtotal);
 
-                // Step 3: Validate payment
                 const totalPaid = this.getTotalPaid(data);
                 validatePaymentAmount(totals.totalAmount, totalPaid);
 
-                // Step 4: Generate unique sale number
                 const saleNumber = await this.generateSaleNumber(tenantId, branchId, tx, retryAttempt);
 
-                // Step 5: Prepare payment data
                 const payments = this.preparePayments(data, totalPaid);
 
-                // Step 6: Create the sale record
                 const sale = await this.createSaleRecord(tx, {
                     tenantId,
                     branchId,
+                    userId,
                     saleNumber,
                     data,
                     totals,
@@ -95,16 +85,14 @@ export class SaleService {
                     payments,
                 });
 
-                // Step 7: Update inventory and record movements
-                await this.updateInventoryForSale(tx, processedItems, sale.id, saleNumber, data.userId, tenantId, branchId);
+                await this.updateInventoryForSale(tx, processedItems, sale.id, saleNumber, userId, tenantId, branchId, data.terminalId);
 
                 return mapSaleToResponse(sale);
             });
         } catch (error: any) {
-            // Handle unique constraint errors with retry
             if (this.isUniqueConstraintError(error) && retryAttempt < SALE_NUMBER.MAX_RETRIES) {
                 await this.delay(SALE_NUMBER.RETRY_DELAY_MS * (retryAttempt + 1));
-                return this.createSale(data, tenantId, branchId, retryAttempt + 1);
+                return this.createSale(data, tenantId, branchId, userId, retryAttempt + 1);
             }
             throw error;
         }
@@ -373,6 +361,7 @@ export class SaleService {
         params: {
             tenantId: string;
             branchId: string;
+            userId: string;
             saleNumber: string;
             data: CreateSaleInput;
             totals: { taxAmount: number; discountAmount: number; otherCharges: number; totalAmount: number };
@@ -381,18 +370,13 @@ export class SaleService {
             payments: any[];
         }
     ): Promise<any> {
-        const { tenantId, branchId, saleNumber, data, totals, totalPaid, processedItems, payments } = params;
+        const { tenantId, branchId, userId, saleNumber, data, totals, totalPaid, processedItems, payments } = params;
         const changeAmount = totalPaid - totals.totalAmount;
 
         return tx.sale.create({
             data: {
                 id: uuidv4(),
-                tenantId,
-                branchId,
                 saleNumber,
-                customerId: data.customerId,
-                terminalId: data.terminalId,
-                userId: data.userId,
                 subtotal: processedItems.reduce((sum, item) => sum + item.subtotal, 0),
                 taxAmount: totals.taxAmount,
                 discountAmount: totals.discountAmount,
@@ -400,17 +384,41 @@ export class SaleService {
                 totalAmount: totals.totalAmount,
                 amountPaid: totalPaid,
                 changeAmount,
-                paymentMethodId: data.payments?.[0]?.paymentMethodId || data.paymentMethodId,
                 status: 'COMPLETED',
                 notes: data.notes,
+                tenant: { connect: { tenantId } },
+                branch: { connect: { branchId } },
+                user: { connect: { userId } },
+                ...(data.customerId && { customer: { connect: { customerId: data.customerId } } }),
+                ...(data.terminalId && { terminal: { connect: { terminalId: data.terminalId } } }),
+                ...(data.payments?.[0]?.paymentMethodId || data.paymentMethodId) && {
+                    paymentMethod: { connect: { methodId: data.payments?.[0]?.paymentMethodId || data.paymentMethodId } }
+                },
                 items: {
-                    create: processedItems.map(({ inventoryId: _inventoryId, ...item }) => ({
+                    create: processedItems.map(({ inventoryId: _inventoryId, productId, variantId, ...item }) => ({
                         id: uuidv4(),
-                        ...item,
+                        productId,
+                        quantity: item.quantity,
+                        unitPrice: item.unitPrice,
+                        unitCost: item.unitCost,
+                        subtotal: item.subtotal,
+                        taxAmount: item.taxAmount,
+                        discountAmount: item.discountAmount,
+                        totalAmount: item.totalAmount,
+                        tenant: { connect: { tenantId } },
+                        branch: { connect: { branchId } },
+                        variant: { connect: { id: variantId } },
                     })),
                 },
                 ...(payments.length > 0 && {
-                    payments: { create: payments },
+                    payments: {
+                        create: payments.map(({ paymentMethodId, ...payment }) => ({
+                            ...payment,
+                            tenant: { connect: { tenantId } },
+                            branch: { connect: { branchId } },
+                            paymentMethod: { connect: { methodId: paymentMethodId } },
+                        })),
+                    },
                 }),
             },
             include: buildSaleInclude(),
@@ -419,6 +427,7 @@ export class SaleService {
 
     /**
      * Update inventory quantities and record stock movements
+     * Following the golden rule: only record movements, inventory cache is updated atomically
      */
     private static async updateInventoryForSale(
         tx: any,
@@ -427,27 +436,21 @@ export class SaleService {
         saleNumber: string,
         userId: string,
         tenantId: string,
-        branchId: string
+        branchId: string,
+        terminalId?: string
     ): Promise<void> {
         for (const item of items) {
-            await tx.inventory.update({
-                where: { id: item.inventoryId },
-                data: {
-                    availableQuantity: { decrement: item.quantity },
-                    lastSoldAt: new Date(),
-                },
-            });
-
-            await StockMovementService.recordMovement(
+            // GOLDEN RULE: Only record the stock movement
+            // The inventory cache is updated atomically by StockMovementService
+            await StockMovementService.recordSale(
                 {
                     tenantId,
                     branchId,
+                    terminalId,
                     inventoryId: item.inventoryId,
-                    movementType: MOVEMENT_TYPES.SALE,
                     quantity: item.quantity,
-                    referenceType: 'SALE',
-                    referenceId: saleId,
                     unitCost: item.unitCost,
+                    referenceId: saleId,
                     notes: `Sale ${saleNumber}`,
                     movedBy: userId,
                 },
@@ -458,6 +461,7 @@ export class SaleService {
 
     /**
      * Restore inventory when voiding a sale
+     * Following the golden rule: only record movements, inventory cache is updated atomically
      */
     private static async restoreInventoryForVoid(
         tx: any,
@@ -467,26 +471,24 @@ export class SaleService {
         branchId: string
     ): Promise<void> {
         for (const item of sale.items) {
-            const inventory = item.variant?.inventory;
+            // Find inventory for this branch (inventories is an array from the include)
+            const inventory = item.variant?.inventories?.find(
+                (inv: any) => inv.branchId === branchId
+            ) || item.variant?.inventory;
             if (!inventory) continue;
 
-            await tx.inventory.update({
-                where: { id: inventory.id },
-                data: {
-                    availableQuantity: { increment: item.quantity },
-                },
-            });
-
-            await StockMovementService.recordMovement(
+            // GOLDEN RULE: Only record the stock movement
+            // The inventory cache is updated atomically by StockMovementService
+            await StockMovementService.recordReturn(
                 {
                     tenantId,
                     branchId,
+                    terminalId: sale.terminalId, // Use original sale's terminalId
                     inventoryId: inventory.id,
-                    movementType: MOVEMENT_TYPES.RETURN,
                     quantity: item.quantity,
-                    referenceType: 'SALE',
-                    referenceId: sale.id,
                     unitCost: Number(item.unitCost),
+                    referenceType: 'SALE', // Reference the voided sale
+                    referenceId: sale.id,
                     notes: `Void sale ${sale.saleNumber}: ${data.voidReason}`,
                     movedBy: data.voidedBy,
                 },

@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
-import { BaseController } from './base.controller';
-import { PurchaseOrderService } from '../services/purchase-order.service';
 import { AuthRequest } from '../lib/express.type';
+import { BaseController } from './base.controller';
+import { PurchaseOrderService } from '../services/inventory/purchase-order.service';
 
 export class PurchaseOrderController extends BaseController {
     /**

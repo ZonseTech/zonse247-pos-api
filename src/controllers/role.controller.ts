@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { BaseController } from "./base.controller";
-import { RoleService } from "../services/role.service";
+import { RoleService } from "../services/auth/role.service";
 import { ApiResponse } from "network";
 import { CreateRoleRequest, Role } from "role-permission";
 

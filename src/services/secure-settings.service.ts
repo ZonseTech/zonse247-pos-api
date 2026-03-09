@@ -310,7 +310,18 @@ export class SecureSettingsService {
                 ...updates,
             };
 
-            await this.saveAppSetup(updated);
+            const now = new Date();
+
+            await prisma.appSetup.upsert({
+                where: { setupId: updated.setupId },
+                update: {
+                    tenantId: updated.tenantId,
+                    branchId: updated.branchId,
+                    terminalId: updated.terminalId,
+                    verificationToken: updated.verificationToken,
+                    updatedAt: now,
+                },
+            });
         } catch (error) {
             console.error('Error updating app setup:', error);
             throw error;

@@ -1,7 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { PaymentMethodModel } from '../models/payment-methods.model';
 import { CreatePaymentMethodDto, PaymentMethod, UpdatePaymentMethodDto } from 'payment-method';
-import { PaymentMethodCreateInput } from '../databases/prisma/generated/prisma/models';
+import { PaymentMethodUncheckedCreateInput } from '../databases/prisma/generated/prisma/models';
 
 export class PaymentMethodService {
 
@@ -44,12 +44,14 @@ export class PaymentMethodService {
             }
 
             const paymentMethodData = {
+                methodId: uuidv4(),
+                tenantId: data.tenantId,
+                branchId: data.branchId,
                 name: data.name,
                 icon: data.icon,
                 sortOrder: data.sortOrder,
                 isActive: data.isActive ?? true,
-                methodId: uuidv4(),
-            } as unknown as PaymentMethodCreateInput
+            } as unknown as PaymentMethodUncheckedCreateInput
 
             return await PaymentMethodModel.create(paymentMethodData);
         } catch (error) {

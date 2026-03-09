@@ -57,11 +57,13 @@ export class PaymentServiceProviderModel {
         }
     }
 
-    static async findBySynced(synced: number): Promise<PaymentServiceProvider[]> {
+    /**
+     * @deprecated The synced column has been removed. Use updatedAt for delta sync.
+     */
+    static async findBySynced(_synced: number): Promise<PaymentServiceProvider[]> {
         try {
-            return await prisma.paymentServiceProvider.findMany({
-                where: { synced }
-            }) as unknown as PaymentServiceProvider[];
+            // Return empty array - synced field no longer exists
+            return [];
         } catch (error) {
             throw new Error(`Error finding payment service providers by sync status: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
@@ -79,7 +81,6 @@ export class PaymentServiceProviderModel {
             logoUrl: data.logoUrl,
             createdAt: now,
             updatedAt: now,
-            synced: 0
         };
     }
 
@@ -92,7 +93,6 @@ export class PaymentServiceProviderModel {
                     type: pspData.type || 'bank',
                     userId: pspData.userId,
                     logoUrl: pspData.logoUrl,
-                    synced: 0
                 }
             }) as unknown as PaymentServiceProvider;
         } catch (error) {
@@ -105,7 +105,6 @@ export class PaymentServiceProviderModel {
             const dataWithTimestamp = {
                 ...updateData,
                 updatedAt: new Date(),
-                synced: 0
             };
 
             await prisma.paymentServiceProvider.update({
@@ -140,12 +139,14 @@ export class PaymentServiceProviderModel {
         }
     }
 
+    /**
+     * @deprecated The synced column has been removed. Updates updatedAt instead.
+     */
     static async markAsSynced(id: string): Promise<number> {
         try {
             await prisma.paymentServiceProvider.update({
                 where: { providerId: id },
                 data: {
-                    synced: 1,
                     updatedAt: new Date()
                 }
             });
@@ -155,12 +156,14 @@ export class PaymentServiceProviderModel {
         }
     }
 
+    /**
+     * @deprecated The synced column has been removed.
+     */
     static async markAsUnsynced(id: string): Promise<number> {
         try {
             await prisma.paymentServiceProvider.update({
                 where: { providerId: id },
                 data: {
-                    synced: 0,
                     updatedAt: new Date()
                 }
             });
@@ -225,10 +228,6 @@ export class PaymentServiceProviderModel {
             if (data.logoUrl && !this.isValidUrl(data.logoUrl)) {
                 errors.push('Logo URL must be a valid URL');
             }
-        }
-
-        if (data.synced !== undefined && ![0, 1].includes(data.synced)) {
-            errors.push('Synced status must be 0 or 1');
         }
 
         return errors;

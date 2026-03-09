@@ -45,6 +45,14 @@ import { migration as m20260304_01 } from './20260304_01_add_branch_id_to_tenant
 import { migration as m20260304_02 } from './20260304_02_refactor_tenant_subscription_to_branch_subscription';
 import { migration as m20260304_03 } from './20260304_03_migrate_tenant_subscriptions_to_branch_subscriptions';
 import { migration as m20260304_04 } from './20260304_04_create_onboarding_progress_tables';
+import { migration as m20260306_01 } from './20260306_01_add_updated_at_to_sale_items_and_stock_movements';
+import { migration as m20260306_02 } from './20260306_02_add_stockmovement_composite_index_for_performance';
+import { migration as m20260306_03 } from './20260306_03_remove_legacy_synced_column_from_all_tables';
+import { migration as m20260306_04 } from './20260306_04_add_tenant_branch_ids_to_child_tables_for_sync';
+import { migration as m20260306_05 } from './20260306_05_create_terminal_sync_state_table_for_sync_tracking';
+import { migration as m20260306_06 } from './20260306_06_create_change_log_table_for_delta_sync';
+import { migration as m20260306_07 } from './20260306_07_add_version_deleted_at_to_tenant_branch_role_permission_tables';
+import { migration as m20260307_01 } from './20260307_01_add_triggers_to_enforce_stockmovement_immutability';
 
 /**
  * All registered migrations, sorted by version
@@ -85,6 +93,14 @@ export const registeredMigrations: Migration[] = [
     m20260304_02,
     m20260304_03,
     m20260304_04,
+    m20260306_01,
+    m20260306_02,
+    m20260306_03,
+    m20260306_04,
+    m20260306_05,
+    m20260306_06,
+    m20260306_07,
+    m20260307_01,
 ].sort((a, b) => a.version.localeCompare(b.version));
 
 /**

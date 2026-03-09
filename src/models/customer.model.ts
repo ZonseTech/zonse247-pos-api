@@ -24,8 +24,9 @@ export class CustomerModel {
                 where: { customerId },
             });
         } catch (error) {
-            console.error('CustomerModel.findById error:', error);
-            throw error;
+            throw new Error(
+                `Error finding customer by ID: ${error instanceof Error ? error.message : 'Unknown error'}`
+            );
         }
     }
 
@@ -33,8 +34,9 @@ export class CustomerModel {
         try {
             return await prisma.customer.findMany();
         } catch (error) {
-            console.error('CustomerModel.findAll error:', error);
-            throw error;
+            throw new Error(
+                `Error finding all customers: ${error instanceof Error ? error.message : 'Unknown error'}`
+            );
         }
     }
 
@@ -44,8 +46,9 @@ export class CustomerModel {
                 where: conditions,
             });
         } catch (error) {
-            console.error('CustomerModel.find error:', error);
-            throw error;
+            throw new Error(
+                `Error finding customers: ${error instanceof Error ? error.message : 'Unknown error'}`
+            );
         }
     }
 
@@ -57,8 +60,9 @@ export class CustomerModel {
                 data: customerData,
             });
         } catch (error) {
-            console.error('CustomerModel.create error:', error);
-            throw error;
+            throw new Error(
+                `Error creating customer: ${error instanceof Error ? error.message : 'Unknown error'}`
+            );
         }
     }
 
@@ -69,8 +73,9 @@ export class CustomerModel {
                 data: updateData,
             });
         } catch (error) {
-            console.error('CustomerModel.update error:', error);
-            throw error;
+            throw new Error(
+                `Error updating customer: ${error instanceof Error ? error.message : 'Unknown error'}`
+            );
         }
     }
 
@@ -80,8 +85,9 @@ export class CustomerModel {
                 where: { customerId },
             });
         } catch (error) {
-            console.error('CustomerModel.delete error:', error);
-            throw error;
+            throw new Error(
+                `Error deleting customer: ${error instanceof Error ? error.message : 'Unknown error'}`
+            );
         }
     }
 
@@ -91,19 +97,21 @@ export class CustomerModel {
                 where: conditions,
             });
         } catch (error) {
-            console.error('CustomerModel.count error:', error);
-            throw error;
+            throw new Error(
+                `Error counting customers: ${error instanceof Error ? error.message : 'Unknown error'}`
+            );
         }
     }
 
     static async getUnsyncedRecords(): Promise<Customer[]> {
         try {
             return await prisma.customer.findMany({
-                where: { synced: 0 },
+                where: { lastSyncedAt: null },
             });
         } catch (error) {
-            console.error('CustomerModel.getUnsyncedRecords error:', error);
-            throw error;
+            throw new Error(
+                `Error getting unsynced customers: ${error instanceof Error ? error.message : 'Unknown error'}`
+            );
         }
     }
 
@@ -111,11 +119,12 @@ export class CustomerModel {
         try {
             return await prisma.customer.update({
                 where: { customerId },
-                data: { synced: 1 },
+                data: { lastSyncedAt: new Date() },
             });
         } catch (error) {
-            console.error('CustomerModel.markAsSynced error:', error);
-            throw error;
+            throw new Error(
+                `Error marking customer as synced: ${error instanceof Error ? error.message : 'Unknown error'}`
+            );
         }
     }
 }

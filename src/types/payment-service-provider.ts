@@ -8,7 +8,6 @@ export type PaymentServiceProvider = {
     createdAt?: Date;
     updatedAt?: Date;
     logoUrl?: string;
-    synced?: number;
 };
 
 export interface CreatePaymentServiceProviderRequest {
@@ -27,7 +26,6 @@ export interface UpdatePaymentServiceProviderDto {
     branchId?: string;
     userId?: string;
     logoUrl?: string;
-    synced?: number;
 }
 
 export interface PaymentServiceProviderFilters {

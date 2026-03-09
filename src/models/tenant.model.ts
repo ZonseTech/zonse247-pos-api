@@ -189,7 +189,6 @@ export class TenantModel {
             createdAt: now,
             updatedAt: now,
             activatedAt: null,
-            synced: 0
         };
     }
 

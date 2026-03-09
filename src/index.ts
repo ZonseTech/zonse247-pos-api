@@ -15,7 +15,16 @@ export {
     PrintAgentService,
     type PrintAgentConfig,
     type PrintAgentStatus
-} from './services/print-agent.service';
+} from './services/printer/print-agent.service';
+
+export {
+    SyncJobService,
+    initSyncJob,
+    getSyncJob,
+    stopSyncJob,
+    resetSyncTimestamps,
+    SyncReceiverService
+} from './services/sync';
 
 import { Server } from './server';
 

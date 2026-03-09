@@ -163,14 +163,19 @@ export class OnboardingDataController {
      */
     static async syncPaymentMethods(req: Request, res: Response): Promise<void> {
         try {
-            const { paymentMethods } = req.body;
+            const { paymentMethods, tenantId, branchId } = req.body;
 
             if (!paymentMethods || !Array.isArray(paymentMethods)) {
                 BaseController.sendResponse(res, 400, false, 'paymentMethods array is required');
                 return;
             }
 
-            const syncResult = await OnboardingSyncService.syncPaymentMethods(paymentMethods);
+            if (!tenantId || !branchId) {
+                BaseController.sendResponse(res, 400, false, 'tenantId and branchId are required');
+                return;
+            }
+
+            const syncResult = await OnboardingSyncService.syncPaymentMethods(paymentMethods, tenantId, branchId);
 
             const message = `Payment methods sync completed. Saved: ${syncResult.summary.saved}, Skipped: ${syncResult.summary.skipped}, Failed: ${syncResult.summary.failed}`;
             BaseController.sendResponse(res, 200, true, message, syncResult);

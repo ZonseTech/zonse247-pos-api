@@ -29,13 +29,37 @@ function mapSaleStatus(status: string | undefined): string | undefined {
 }
 export class SaleController extends BaseController {
     /**
+     * Get value from body, fallback to auth
+     */
+    private static getValue(bodyValue: any, authValue: any): string {
+        // Use body value if it exists and is not empty string
+        if (bodyValue !== undefined && bodyValue !== null && bodyValue !== '') {
+            return bodyValue;
+        }
+        return authValue;
+    }
+
+    /**
+     * Get auth values with activeBranchId fallback
+     */
+    private static getAuthValues(auth: any): { tenantId: string; branchId: string } {
+        return {
+            tenantId: auth.tenantId,
+            branchId: auth.activeBranchId || auth.currentBranchId || auth.branchId,
+        };
+    }
+
+    /**
      * Create a sale
-     * Uses activeBranchId for branch switching support
+     * Takes tenantId, branchId, userId from body if provided, otherwise from auth
      */
     static async createSale(req: Request & AuthRequest, res: Response): Promise<void> {
         try {
-            const branchId = req.auth.activeBranchId || req.auth.branchId;
-            const sale = await SaleService.createSale(req.body, req.auth.tenantId, branchId);
+            const tenantId = SaleController.getValue(req.body.tenantId, req.auth.tenantId);
+            const branchId = SaleController.getValue(req.body.branchId, req.auth.activeBranchId || req.auth.currentBranchId || req.auth.branchId);
+            const userId = SaleController.getValue(req.body.userId, req.auth.userId);
+
+            const sale = await SaleService.createSale(req.body, tenantId, branchId, userId);
             BaseController.sendResponse(res, 201, true, 'Sale completed successfully', sale);
         } catch (error: any) {
             BaseController.sendResponse(res, 400, false, 'Failed to complete sale', undefined, error.message);
@@ -49,13 +73,9 @@ export class SaleController extends BaseController {
     static async getSale(req: Request & AuthRequest, res: Response): Promise<void> {
         try {
             const { saleId } = req.params;
-            const branchId = req.auth.activeBranchId || req.auth.branchId;
+            const { tenantId, branchId } = SaleController.getAuthValues(req.auth);
 
-            const sale = await SaleService.getSaleById(
-                saleId as string,
-                req.auth.tenantId,
-                branchId
-            );
+            const sale = await SaleService.getSaleById(saleId as string, tenantId, branchId);
 
             if (!sale) {
                 BaseController.sendResponse(res, 404, false, 'Sale not found');
@@ -87,9 +107,8 @@ export class SaleController extends BaseController {
                 includeItems,
                 search
             } = req.query;
-            const branchId = req.auth.activeBranchId || req.auth.branchId;
+            const { tenantId, branchId } = SaleController.getAuthValues(req.auth);
 
-            // Validate and map status
             const validStatus = mapSaleStatus(status as string);
             if (status && !validStatus) {
                 BaseController.sendResponse(
@@ -101,7 +120,6 @@ export class SaleController extends BaseController {
                 return;
             }
 
-            // Parse dates properly - ensure they're treated as local dates
             let parsedStartDate: Date | undefined;
             let parsedEndDate: Date | undefined;
 
@@ -115,12 +133,11 @@ export class SaleController extends BaseController {
                 parsedEndDate = new Date(dateStr + 'T00:00:00');
             }
 
-            // Support both limit and perPage parameters
             const itemsPerPage = perPage ? parseInt(perPage as string) : (limit ? parseInt(limit as string) : 50);
             const currentPage = page ? parseInt(page as string) : 1;
 
             const result = await SaleService.listSales(
-                req.auth.tenantId,
+                tenantId,
                 branchId,
                 {
                     status: validStatus as any,
@@ -157,14 +174,9 @@ export class SaleController extends BaseController {
     static async voidSale(req: Request & AuthRequest, res: Response): Promise<void> {
         try {
             const { saleId } = req.params;
-            const branchId = req.auth.activeBranchId || req.auth.branchId;
+            const { tenantId, branchId } = SaleController.getAuthValues(req.auth);
 
-            const sale = await SaleService.voidSale(
-                saleId as string,
-                req.auth.tenantId,
-                branchId,
-                req.body
-            );
+            const sale = await SaleService.voidSale(saleId as string, tenantId, branchId, req.body);
 
             BaseController.sendResponse(res, 200, true, 'Sale voided successfully', sale);
         } catch (error: any) {
@@ -179,7 +191,7 @@ export class SaleController extends BaseController {
     static async getSummaries(req: Request & AuthRequest, res: Response): Promise<void> {
         try {
             const { status, userId, terminalId, paymentMethodId, startDate, endDate } = req.query;
-            const branchId = req.auth.activeBranchId || req.auth.branchId;
+            const { tenantId, branchId } = SaleController.getAuthValues(req.auth);
 
             // Validate and map status
             const validStatus = mapSaleStatus(status as string);
@@ -208,7 +220,7 @@ export class SaleController extends BaseController {
             }
 
             const result = await SaleService.getSalesSummary(
-                req.auth.tenantId,
+                tenantId,
                 branchId,
                 {
                     status: validStatus,

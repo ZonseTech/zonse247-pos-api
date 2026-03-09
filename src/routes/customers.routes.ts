@@ -10,7 +10,5 @@ router.put('/:customerId', CustomerController.update);
 router.delete('/:customerId', CustomerController.delete);
 router.get('/count', CustomerController.count);
 router.post('/search', CustomerController.search);
-router.get('/unsynced', CustomerController.getUnsynced);
-router.put('/:customerId/sync', CustomerController.markSynced);
 
 export default router;

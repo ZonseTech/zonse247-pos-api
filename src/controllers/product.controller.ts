@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import { Request, Response } from 'express';
 import { BaseController } from './base.controller';
-import { ProductService } from '../services/product.service';
+import { ProductService } from '../services/inventory/product.service';
 import { AuthRequest } from '../lib/express.type';
 import {
     DbErrorHandler,

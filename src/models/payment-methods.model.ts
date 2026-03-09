@@ -1,7 +1,7 @@
 import type { ValidationParams } from 'on-boarding';
 import type { PaymentMethod } from 'payment-method';
 import prisma from '../databases/prisma/client';
-import { PaymentMethodCreateInput } from '../databases/prisma/generated/prisma/models';
+import { PaymentMethodUncheckedCreateInput } from '../databases/prisma/generated/prisma/models';
 
 export class PaymentMethodModel {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -53,13 +53,10 @@ export class PaymentMethodModel {
         }
     }
 
-    static async create(data: PaymentMethodCreateInput): Promise<PaymentMethod> {
+    static async create(data: PaymentMethodUncheckedCreateInput): Promise<PaymentMethod> {
         try {
             return await prisma.paymentMethod.create({
-                data: {
-                    ...data,
-                    synced: 0,
-                }
+                data,
             }) as unknown as PaymentMethod;
         } catch (error) {
             console.error('Error creating payment method:', error);
@@ -113,23 +110,30 @@ export class PaymentMethodModel {
         }
     }
 
+    /**
+     * @deprecated The synced column has been removed. Use updatedAt/lastSyncedAt for delta sync.
+     */
     static async markAsSynced(uuid: string): Promise<number> {
         try {
             await prisma.paymentMethod.update({
                 where: { methodId: uuid },
-                data: { synced: 1 }
+                data: { lastSyncedAt: new Date() }
             });
-            return 1; // Return 1 to indicate successful update
+            return 1;
         } catch (error) {
             console.error(`Error marking payment method ${uuid} as synced:`, error);
             throw error;
         }
     }
 
+    /**
+     * @deprecated The synced column has been removed. Use updatedAt for delta sync queries.
+     */
     static async getUnsyncedRecords(): Promise<PaymentMethod[]> {
         try {
+            // Return records that have never been synced (lastSyncedAt is null)
             return await prisma.paymentMethod.findMany({
-                where: { synced: 0 }
+                where: { lastSyncedAt: null }
             }) as unknown as PaymentMethod[];
         } catch (error) {
             console.error('Error getting unsynced payment methods:', error);

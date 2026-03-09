@@ -69,16 +69,22 @@ export class OrderModel {
         });
     }
 
+    /**
+     * @deprecated The synced column has been removed. Use updatedAt for delta sync.
+     */
     static async getUnsyncedRecords(): Promise<OrderItem[]> {
         return await prisma.order.findMany({
-            where: { synced: 0 },
+            where: { lastSyncedAt: null },
         }) as unknown as OrderItem[];
     }
 
+    /**
+     * @deprecated The synced column has been removed. Updates lastSyncedAt instead.
+     */
     static async markAsSynced(orderId: string): Promise<number> {
         const result = await prisma.order.update({
             where: { orderId },
-            data: { synced: 1 },
+            data: { lastSyncedAt: new Date() },
         });
         return result ? 1 : 0;
     }

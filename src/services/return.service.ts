@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import { ReturnItemModel, ReturnItem } from '../models/return-item.model';
-import { InventoryModel } from '../models/inventory.model';
+import { StockMovementService } from './inventory/stock-movement.service';
 import { AuthenticatedUser } from 'auth';
 import { Decimal } from '../databases/prisma/generated/prisma/internal/prismaNamespace';
 import { SaleService } from './sale.service';
@@ -100,7 +100,7 @@ export class ReturnService {
             auth
         );
 
-        await this.updateInventoryForReturn(request.items, auth);
+        await this.updateInventoryForReturn(request.items, originalSale, auth);
 
         // Get updated sale
         const updatedSale = await SaleService.getSaleById(originalSale.id, auth.tenantId, auth.branchId);
@@ -176,6 +176,7 @@ export class ReturnService {
 
     /**
      * Cancel/void a return (if not yet processed)
+     * GOLDEN RULE: Uses StockMovementService for inventory changes
      */
     static async cancelReturn(saleId: string, auth: AuthenticatedUser): Promise<void> {
         const sale = await SaleService.getSaleById(saleId, auth.tenantId, auth.branchId);
@@ -192,28 +193,38 @@ export class ReturnService {
         const returnItems = await ReturnItemModel.findByReturnTransactionId(saleId);
 
         // Reverse inventory changes (remove items that were added back)
+        // This is reversing a return, so we record a SALE movement to decrement inventory
         const itemsToReverse = returnItems
-            .filter(item => Number(item.restockedQuantity || 0) > 0)
-            .map(item => ({
-                productId: item.productId,
-                quantity: Number(item.restockedQuantity || 0),
-            }));
+            .filter(item => Number(item.restockedQuantity || 0) > 0);
 
-        if (itemsToReverse.length > 0) {
-            // Since decrementInventory expects CartItem[], we need to build minimal objects
-            // In a production system, you might want to fetch full product details
-            const inventoryUpdates = itemsToReverse.map(item => ({
-                productId: item.productId,
-                quantity: item.quantity,
-                barcode: '',
-                name: '',
-                categoryId: '',
-                sellPrice: 0,
-                discount: 0,
-                purchasePrice: 0,
-            }));
+        for (const item of itemsToReverse) {
+            const quantity = Number(item.restockedQuantity || 0);
+            if (quantity <= 0) continue;
 
-            await InventoryModel.decrementInventory(inventoryUpdates, auth);
+            // Find the inventory record for this product
+            const inventory = await prisma.inventory.findFirst({
+                where: {
+                    productId: item.productId,
+                    branchId: auth.branchId,
+                    tenantId: auth.tenantId,
+                },
+            });
+
+            if (inventory) {
+                // GOLDEN RULE: Record stock movement to reverse the return
+                await StockMovementService.recordMovement({
+                    tenantId: auth.tenantId,
+                    branchId: auth.branchId,
+                    inventoryId: inventory.id,
+                    movementType: 'SALE', // Use SALE to decrement (reversing a return)
+                    quantity: quantity,
+                    referenceType: 'RETURN',
+                    referenceId: saleId,
+                    unitCost: Number(item.returnPrice || 0),
+                    notes: `Cancel return - reverse restock for sale ${saleId}`,
+                    movedBy: auth.userId,
+                });
+            }
         }
 
         // Update sale status back to COMPLETED
@@ -228,12 +239,17 @@ export class ReturnService {
 
     /**
      * Process restocking of returned items
+     * GOLDEN RULE: Uses StockMovementService for inventory changes
      */
     static async restockReturnedItems(
         saleId: string,
         restockItems: { returnItemId: string; restockQuantity: number }[],
         auth?: AuthenticatedUser
     ): Promise<void> {
+        if (!auth) {
+            throw new Error('Authentication context is required for restocking items');
+        }
+
         for (const item of restockItems) {
             const returnItem = await ReturnItemModel.findById(item.returnItemId);
 
@@ -252,22 +268,31 @@ export class ReturnService {
                 throw new Error(`Only ${remainingToRestock} items remaining to restock for this return item`);
             }
 
-            // Actually add items back to inventory
-            if (auth) {
-                await InventoryModel.incrementInventory(
-                    [{ productId: returnItem.productId, quantity: item.restockQuantity }],
-                    auth
-                );
-            } else {
-                // Fallback: increment without auth context
-                await prisma.inventory.updateMany({
-                    where: { productId: returnItem.productId },
-                    data: {
-                        availableQuantity: { increment: item.restockQuantity },
-                        updatedAt: new Date(),
-                    },
-                });
+            // Find the inventory record for this product
+            const inventory = await prisma.inventory.findFirst({
+                where: {
+                    productId: returnItem.productId,
+                    branchId: auth.branchId,
+                    tenantId: auth.tenantId,
+                },
+            });
+
+            if (!inventory) {
+                throw new Error(`Inventory not found for product ${returnItem.productId}`);
             }
+
+            // GOLDEN RULE: Record stock movement to add items back to inventory
+            await StockMovementService.recordReturn({
+                tenantId: auth.tenantId,
+                branchId: auth.branchId,
+                inventoryId: inventory.id,
+                quantity: item.restockQuantity,
+                unitCost: Number(returnItem.returnPrice || 0),
+                referenceType: 'SALE', // Reference the original sale
+                referenceId: saleId,
+                notes: `Restock from return item ${item.returnItemId}`,
+                movedBy: auth.userId,
+            });
 
             // Update the return item's restock status
             await ReturnItemModel.updateRestockStatus(
@@ -445,7 +470,6 @@ export class ReturnService {
                 notes: item.notes,
                 restockStatus: 'pending',
                 restockedQuantity: new Decimal(0) as any,
-                synced: 0,
             };
         });
 
@@ -466,16 +490,48 @@ export class ReturnService {
         return ReturnItemModel.findByReturnTransactionId(originalSale.id);
     }
 
+    /**
+     * Update inventory for returned items
+     * GOLDEN RULE: Uses StockMovementService for inventory changes
+     */
     private static async updateInventoryForReturn(
         returnItems: ReturnItemRequest[],
+        originalSale: SaleWithItems,
         auth: AuthenticatedUser
     ): Promise<void> {
-        const inventoryUpdates = returnItems.map(item => ({
-            productId: item.productId,
-            quantity: item.returnQuantity,
-        }));
+        for (const item of returnItems) {
+            // Find the original sale item to get the unit cost
+            const originalItem = originalSale.items.find(si => si.id === item.saleItemId);
+            const unitCost = originalItem ? Number(originalItem.unitCost || 0) : 0;
 
-        // Increment inventory for returned items
-        await InventoryModel.incrementInventory(inventoryUpdates, auth);
+            // Find the inventory record for this product
+            const inventory = await prisma.inventory.findFirst({
+                where: {
+                    productId: item.productId,
+                    branchId: auth.branchId,
+                    tenantId: auth.tenantId,
+                },
+            });
+
+            if (!inventory) {
+                // Log warning but continue - inventory might not exist for all products
+                console.warn(`Inventory not found for product ${item.productId}, skipping stock update`);
+                continue;
+            }
+
+            // GOLDEN RULE: Record stock movement to increment inventory
+            // referenceType: 'SALE' because we're referencing the original sale
+            await StockMovementService.recordReturn({
+                tenantId: auth.tenantId,
+                branchId: auth.branchId,
+                inventoryId: inventory.id,
+                quantity: item.returnQuantity,
+                unitCost,
+                referenceType: 'SALE', // Reference the original sale
+                referenceId: originalSale.id,
+                notes: item.returnReason || 'Customer return',
+                movedBy: auth.userId,
+            });
+        }
     }
 }
