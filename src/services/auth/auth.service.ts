@@ -55,6 +55,14 @@ export class AuthService {
             const { permissions } = await this.verifyUserPrivileges(user.roleId);
             completeUser.permissions = permissions || [];
 
+            // Include role details
+            if (user.roleId) {
+                const role = await RoleModel.findById(user.roleId);
+                if (role) {
+                    completeUser.role = role;
+                }
+            }
+
             // Always include branch and subscription info for subscription enforcement
             if (user.branchId) {
                 const branchData = await BranchModel.findByIdWithRelations(user.branchId);
