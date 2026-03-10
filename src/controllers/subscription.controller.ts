@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { BaseController } from "./base.controller";
 import { SubscriptionService } from "../services/subscription.service";
+import { AuthRequest, getEffectiveBranchId } from "../lib/express.type";
 
 export class SubscriptionController extends BaseController {
 
@@ -266,18 +267,28 @@ export class SubscriptionController extends BaseController {
         }
     }
 
-    /**
-     * @deprecated Use branch-level subscription lookup instead
-     */
-    static async getByTenantId(req: Request, res: Response): Promise<void> {
-        BaseController.sendResponse(res, 410, false, 'This endpoint is deprecated. Subscriptions are now branch-level. Use GET /subscriptions?planId=<id> instead.');
-    }
+    static async getCurrentBranchSubscription(req: Request, res: Response): Promise<void> {
+        try {
+            const authReq = req as unknown as AuthRequest;
+            const branchId = getEffectiveBranchId(authReq.auth);
 
-    /**
-     * @deprecated Use branch-level subscription lookup instead
-     */
-    static async getSubscriptionByTenantId(req: Request, res: Response): Promise<void> {
-        BaseController.sendResponse(res, 410, false, 'This endpoint is deprecated. Subscriptions are now branch-level.');
+            if (!branchId) {
+                BaseController.sendResponse(res, 400, false, 'No active branch found. Please select a branch first.');
+                return;
+            }
+
+            const subscription = await SubscriptionService.getByBranchId(branchId);
+
+            if (!subscription) {
+                BaseController.sendResponse(res, 404, false, 'No subscription found for this branch');
+                return;
+            }
+
+            BaseController.sendResponse(res, 200, true, 'Branch subscription retrieved successfully', subscription);
+        } catch (error: any) {
+            console.error('Error fetching branch subscription:', error);
+            BaseController.sendResponse(res, 500, false, 'Failed to fetch branch subscription', undefined, error.message);
+        }
     }
 
     static async getByPlanId(req: Request, res: Response): Promise<void> {
