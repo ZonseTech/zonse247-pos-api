@@ -11,6 +11,8 @@ import type { SubscriptionPlan, BranchSubscription } from 'subscription';
 
 export { OnboardingFetchService } from './onboarding-fetch.service';
 export { OnboardingSyncService } from './onboarding-sync.service';
+export { InitialSyncService, INITIAL_SYNC_TABLES, STEP_TO_TABLES_MAP } from './initial-sync.service';
+export { MasterDataFetchService } from './master-data-fetch.service';
 
 
 interface SaveResult {

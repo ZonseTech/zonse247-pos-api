@@ -8,6 +8,21 @@ import type {
 
 /**
  * Default onboarding steps configuration
+ * Order matters - respects dependencies between steps
+ * 
+ * ONBOARDING FLOW:
+ * 1. TERMINAL_ACTIVATION - Validate activation code with cloud, get terminal details
+ * 2. TERMINAL_DETAILS_SAVE - Save tenant, branch, subscription, terminal to local DB
+ * 3. SUBSCRIPTION_PLANS_SYNC - Sync subscription plans (reference data)
+ * 4. PAYMENT_METHODS_SYNC - Sync payment methods for the branch
+ * 5. PAYMENT_PROVIDERS_SYNC - Sync payment service providers
+ * 6. CATEGORIES_SYNC - Sync product categories
+ * 7. PRODUCTS_SYNC - Sync products, variants, and barcodes
+ * 8. INVENTORY_SYNC - Sync inventory levels
+ * 9. CUSTOMERS_SYNC - Sync customer records
+ * 10. USERS_SYNC - Sync users and permissions
+ * 11. SETTINGS_SYNC - Sync terminal/branch settings
+ * 12. MRA_SETUP - Configure MRA integration (optional)
  */
 const ONBOARDING_STEPS_CONFIG: Array<{ stepType: OnboardingStepType; order: number; required: boolean }> = [
     { stepType: 'TERMINAL_ACTIVATION', order: 1, required: true },
@@ -16,8 +31,12 @@ const ONBOARDING_STEPS_CONFIG: Array<{ stepType: OnboardingStepType; order: numb
     { stepType: 'PAYMENT_METHODS_SYNC', order: 4, required: false },
     { stepType: 'PAYMENT_PROVIDERS_SYNC', order: 5, required: false },
     { stepType: 'CATEGORIES_SYNC', order: 6, required: false },
-    { stepType: 'CUSTOMERS_SYNC', order: 7, required: false },
-    { stepType: 'MRA_SETUP', order: 8, required: false },
+    { stepType: 'PRODUCTS_SYNC', order: 7, required: false },
+    { stepType: 'INVENTORY_SYNC', order: 8, required: false },
+    { stepType: 'CUSTOMERS_SYNC', order: 9, required: false },
+    { stepType: 'USERS_SYNC', order: 10, required: false },
+    { stepType: 'SETTINGS_SYNC', order: 11, required: false },
+    { stepType: 'MRA_SETUP', order: 12, required: false },
 ];
 
 /**
