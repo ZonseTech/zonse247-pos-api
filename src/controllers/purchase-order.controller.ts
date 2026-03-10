@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { AuthRequest } from '../lib/express.type';
 import { BaseController } from './base.controller';
 import { PurchaseOrderService } from '../services/inventory/purchase-order.service';
+import { PurchaseOrderStatus } from '../databases/prisma/generated/prisma/client';
 
 export class PurchaseOrderController extends BaseController {
     /**
@@ -115,11 +116,27 @@ export class PurchaseOrderController extends BaseController {
         try {
             const { status, supplierId, page, limit } = req.query;
 
+            // Validate status if provided
+            const validStatuses = Object.values(PurchaseOrderStatus);
+            const validatedStatus = status && validStatuses.includes(status as PurchaseOrderStatus)
+                ? (status as PurchaseOrderStatus)
+                : undefined;
+
+            if (status && !validatedStatus) {
+                BaseController.sendResponse(
+                    res,
+                    400,
+                    false,
+                    `Invalid status. Valid values are: ${validStatuses.join(', ')}`
+                );
+                return;
+            }
+
             const result = await PurchaseOrderService.listPurchaseOrders(
                 req.auth.tenantId,
                 req.auth.activeBranchId || req.auth.branchId,
                 {
-                    status: status as any,
+                    status: validatedStatus,
                     supplierId: supplierId as string,
                     page: page ? parseInt(page as string) : undefined,
                     limit: limit ? parseInt(limit as string) : undefined,

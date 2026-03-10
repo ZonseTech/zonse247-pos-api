@@ -22,7 +22,7 @@ export interface PurchaseOrder {
 export interface PurchaseOrderItem {
     id: string;
     purchaseOrderId: string;
-    productId: string;
+    variantId: string;
     orderedQuantity: number;
     receivedQuantity: number;
     damagedQuantity: number;
@@ -31,6 +31,15 @@ export interface PurchaseOrderItem {
     notes?: string;
     createdAt: Date;
     updatedAt: Date;
+    variant?: {
+        id: string;
+        variantName: string;
+        sku?: string;
+        product?: {
+            id: string;
+            name: string;
+        };
+    };
 }
 
 export interface CreatePurchaseOrderInput {
@@ -41,7 +50,7 @@ export interface CreatePurchaseOrderInput {
     notes?: string;
     createdBy: string;
     items: {
-        productId: string;
+        variantId: string;
         orderedQuantity: number;
         unitPrice: number;
     }[];
@@ -50,7 +59,7 @@ export interface CreatePurchaseOrderInput {
 export interface ReceivePurchaseOrderInput {
     receivedBy: string;
     items: {
-        productId: string;
+        variantId: string;
         receivedQuantity: number;
         damagedQuantity: number;
     }[];
