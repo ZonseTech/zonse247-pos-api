@@ -17,6 +17,24 @@ export { ConflictError } from './conflict.error';
 export { BusinessLogicError } from './business-logic.error';
 export { TransactionError } from './transaction.error';
 
+// Printer errors
+export {
+    PrinterError,
+    PrinterErrorCode,
+    PrinterErrorMessages,
+    PrinterErrorHints,
+    PrinterNotFoundError,
+    PrinterOfflineError,
+    PrinterConnectionError,
+    PrintJobError,
+    PrintJobNotFoundError,
+    PlatformNotSupportedError,
+    PrinterConfigurationError,
+    PrinterNameExistsError,
+    getStatusCodeFromPrinterError,
+    isRetryableError
+} from './printer.error';
+
 // Error codes
 export { DbErrorCode, AppErrorCode } from './error-codes';
 
