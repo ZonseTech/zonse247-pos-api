@@ -17,6 +17,39 @@ export {
     type PrintAgentStatus
 } from './services/printer/print-agent.service';
 
+// Printer Platform Types
+export {
+    AppPlatform,
+    PrintErrorCode,
+    PLATFORM_CAPABILITIES,
+    type PlatformCapabilities,
+    type PlatformPrintRequest,
+    type PlatformPrintOptions,
+    type PrintResult,
+    type PlatformPrinter,
+    type PrinterCapabilities,
+    type PlatformDiscoveryRequest,
+    type PlatformDiscoveryResult,
+    type DiscoveredPlatformPrinter,
+    type PrinterResponseDTO,
+    type PrinterListResponseDTO,
+    type PrintJobResponseDTO,
+    type PrinterHealthResponseDTO,
+    type QueueStatusResponseDTO,
+    type PrintAgentStatusDTO,
+    type PermissionsCheckDTO,
+    type SetupInstructionsDTO
+} from './types/printer.platform';
+
+// Print Strategies
+export {
+    PrintStrategyFactory,
+    PrintStrategySelector,
+    PrintContext,
+    initializePrintStrategies,
+    ensureStrategiesInitialized
+} from './services/printer/strategies';
+
 export {
     SyncJobService,
     initSyncJob,

@@ -22,56 +22,6 @@ router.post(
 );
 
 router.post(
-    '/progress/init',
-    asyncHandler(OnboardingController.initializeProgress)
-);
-
-router.get(
-    '/progress/:terminalId',
-    asyncHandler(OnboardingController.getProgress)
-);
-
-router.get(
-    '/progress/:terminalId/next-step',
-    asyncHandler(OnboardingController.getNextStep)
-);
-
-router.put(
-    '/progress/step',
-    asyncHandler(OnboardingController.updateStepStatus)
-);
-
-router.post(
-    '/progress/step/start',
-    asyncHandler(OnboardingController.startStep)
-);
-
-router.post(
-    '/progress/step/complete',
-    asyncHandler(OnboardingController.completeStep)
-);
-
-router.post(
-    '/progress/step/fail',
-    asyncHandler(OnboardingController.failStep)
-);
-
-router.post(
-    '/progress/step/skip',
-    asyncHandler(OnboardingController.skipStep)
-);
-
-router.post(
-    '/progress/:terminalId/reset',
-    asyncHandler(OnboardingController.resetProgress)
-);
-
-router.delete(
-    '/progress/:terminalId',
-    asyncHandler(OnboardingController.deleteProgress)
-);
-
-router.post(
     '/fetch/subscription-plans',
     asyncHandler(OnboardingDataController.fetchSubscriptionPlans)
 );
@@ -121,10 +71,6 @@ router.post(
     asyncHandler(OnboardingDataController.syncCustomers)
 );
 
-// ==========================================
-// INITIAL MASTER DATA SYNC ROUTES
-// ==========================================
-
 /**
  * @route   GET /api/v1/onboarding/sync/tables
  * @desc    Get list of tables for initial sync (in dependency order)
@@ -156,11 +102,6 @@ router.post(
     '/sync/step',
     asyncHandler(OnboardingDataController.syncStepData)
 );
-
-// ==========================================
-// PAGINATED MASTER DATA FETCH ROUTES
-// Best practices: cursor-based pagination, batch processing, delta sync
-// ==========================================
 
 /**
  * @route   POST /api/v1/onboarding/master-data/table
