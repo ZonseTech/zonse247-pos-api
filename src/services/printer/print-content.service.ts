@@ -1,8 +1,31 @@
+/**
+ * Print Content Service
+ * 
+ * Generates ESC/POS content for thermal receipt printers.
+ * 
+ * PERFORMANCE BEST PRACTICES:
+ * 1. Pass `receiptSettings` in the request to skip terminal settings DB lookup
+ * 2. DB calls for branch and terminal settings run in parallel
+ * 3. Content generation is synchronous and memory-efficient
+ * 4. For batch printing, cache receiptSettings in the caller
+ * 
+ * @example
+ * // Fast path - pass settings directly
+ * await PrintContentService.generateReceiptContent({
+ *   saleId: '...',
+ *   tenantId: '...',
+ *   branchId: '...',
+ *   receiptSettings: cachedSettings, // Skips DB lookup
+ * });
+ */
+
 import { Printer } from '../../types/printer';
 import { OrderModel } from '../../models/order.model';
 import { BranchModel } from '../../models/branch.model';
 import { ProductService } from '../inventory/product.service';
 import { SaleService } from '../sale.service';
+import { TerminalSettingsModel } from '../../models/terminal-settings.model';
+import { ReceiptDisplaySettings } from '../../types/terminal-settings';
 
 const ESC_POS = {
     // Initialization
@@ -66,6 +89,13 @@ export interface ReceiptContentRequest {
     customMessage?: string;
     tenantId?: string;
     branchId?: string;
+    terminalId?: string;
+    // Receipt display settings from terminal settings
+    receiptSettings?: ReceiptDisplaySettings;
+    // Printer configuration options
+    openCashDrawer?: boolean;
+    beepAfterPrint?: boolean;
+    cutPaper?: boolean;
 }
 
 export interface LabelContentRequest {
@@ -86,6 +116,7 @@ export interface ReceiptData {
     address?: string;
     phone?: string;
     email?: string;
+    website?: string;
     taxId?: string;
     receiptNumber: string;
     date: Date;
@@ -94,6 +125,7 @@ export interface ReceiptData {
     customer?: {
         name: string;
         phone?: string;
+        address?: string;
         loyaltyPoints?: number;
     };
     items: Array<{
@@ -104,6 +136,7 @@ export interface ReceiptData {
         name: string;
         quantity: number;
         unitPrice: number;
+        listPrice?: number;        // Original price before discounts
         unitCost: number;
         subtotal: number;
         total: number;
@@ -133,47 +166,95 @@ export interface ReceiptData {
     amountPaid: number;
     changeAmount: number;
     paymentMethod: string;
+    payments?: Array<{
+        method: string;
+        amount: number;
+        reference?: string;
+    }>;
+    totalItemCount?: number;      // Total quantity of all items
+    savedAmount?: number;         // Total money saved from discounts
+    listPriceTotal?: number;      // Total before any discounts
     currency?: string;
 }
 
 export class PrintContentService {
     /**
      * Generate receipt content (ESC/POS format) with actual data
+     * 
+     * Performance optimizations:
+     * - Uses provided receiptSettings to skip DB lookup
+     * - Parallel data fetching in fetchSaleData
+     * - Content generation is synchronous/memory-efficient
      */
     static async generateReceiptContent(request: ReceiptContentRequest): Promise<string> {
         let receiptData: ReceiptData | null = null;
+        let receiptSettings: ReceiptDisplaySettings | null = request.receiptSettings || null;
 
         // Fetch sale/order data (prioritize saleId - transactions table is deprecated)
         if (request.saleId && request.tenantId && request.branchId) {
-            receiptData = await this.fetchSaleData(request.saleId, request.tenantId, request.branchId);
+            const result = await this.fetchSaleData(
+                request.saleId,
+                request.tenantId,
+                request.branchId,
+                request.terminalId,
+                receiptSettings  // Pass existing settings to avoid redundant fetch
+            );
+            if (result) {
+                receiptData = result.data;
+                // Use fetched settings only if not already provided
+                receiptSettings = receiptSettings || result.settings;
+            }
         } else if (request.orderId) {
             receiptData = await this.fetchOrderData(request.orderId);
         }
 
         // If no data found, generate a basic receipt
         if (!receiptData) {
-            return this.generateBasicReceipt(request);
+            return this.generateBasicReceipt(request, receiptSettings);
         }
 
-        return this.formatReceiptContent(receiptData, request);
+        return this.formatReceiptContent(receiptData, request, receiptSettings);
     }
 
     /**
      * Fetch sale data for receipt
+     * 
+     * Performance optimizations:
+     * - Parallel database calls for branch and terminal settings
+     * - Skip terminal settings fetch if already provided
+     * - Minimal data transformation
      */
     private static async fetchSaleData(
         saleId: string,
         tenantId: string,
-        branchId: string
-    ): Promise<ReceiptData | null> {
+        branchId: string,
+        terminalId?: string,
+        existingSettings?: ReceiptDisplaySettings | null
+    ): Promise<{ data: ReceiptData; settings: ReceiptDisplaySettings | null } | null> {
+        // Fetch sale data first (required for receipt)
         const sale = await SaleService.getSaleById(saleId, tenantId, branchId);
 
         if (!sale) {
             return null;
         }
 
-        // Get branch data
-        const branch = await BranchModel.findById(branchId);
+        // Determine terminal ID for settings lookup
+        const saleTerminalId = terminalId || sale.terminal?.terminalId;
+
+        // Parallel fetch: branch data AND terminal settings (if needed)
+        // Skip terminal settings fetch if already provided in request
+        const [branch, terminalSettings] = await Promise.all([
+            BranchModel.findById(branchId),
+            // Only fetch terminal settings if not provided and terminal ID exists
+            (!existingSettings && saleTerminalId)
+                ? TerminalSettingsModel.findByTerminalId(saleTerminalId)
+                : Promise.resolve(null)
+        ]);
+
+        // Use provided settings or fetched settings
+        const receiptSettings: ReceiptDisplaySettings | null = existingSettings
+            || (terminalSettings?.receiptSettings as unknown as ReceiptDisplaySettings)
+            || null;
 
         // Map sale items to receipt items with full variant/product data
         const items = sale.items.map((item) => {
@@ -184,6 +265,10 @@ export class PrintContentService {
                 ? `${productName} - ${variantName}`
                 : productName;
 
+            // Calculate list price (original price before discount)
+            const itemDiscount = Number(item.discountAmount || 0);
+            const listPrice = Number(item.unitPrice || 0) + (item.quantity > 0 ? itemDiscount / item.quantity : 0);
+
             return {
                 id: item.id,
                 saleId: item.saleId,
@@ -192,10 +277,11 @@ export class PrintContentService {
                 name: displayName,
                 quantity: item.quantity || 1,
                 unitPrice: Number(item.unitPrice || 0),
+                listPrice,
                 unitCost: Number(item.unitCost || 0),
                 subtotal: Number(item.subtotal || 0),
                 total: Number(item.totalAmount || item.subtotal || 0),
-                discount: Number(item.discountAmount || 0),
+                discount: itemDiscount,
                 tax: Number(item.taxAmount || 0),
                 createdAt: new Date(item.createdAt),
                 variant: {
@@ -215,25 +301,46 @@ export class PrintContentService {
             };
         });
 
+        // Calculate totals
+        const totalItemCount = items.reduce((sum, item) => sum + item.quantity, 0);
+        const discountAmount = Number(sale.discountAmount || 0);
+        const savedAmount = discountAmount;
+        const listPriceTotal = items.reduce((sum, item) => sum + (item.listPrice * item.quantity), 0);
+
         // Determine payment method name - check for multiple payments first
         let paymentMethodName = 'Cash';
+        const payments: Array<{ method: string; amount: number; reference?: string }> = [];
+
         if (sale.payments && sale.payments.length > 0) {
             if (sale.payments.length === 1) {
                 paymentMethodName = sale.payments[0].paymentMethod?.name || 'Cash';
             } else {
                 paymentMethodName = 'Split Payment';
             }
+            // Build payments array for detailed display
+            for (const payment of sale.payments) {
+                payments.push({
+                    method: payment.paymentMethod?.name || 'Cash',
+                    amount: Number(payment.amount || 0),
+                    reference: (payment as any).reference || undefined
+                });
+            }
         } else if (sale.paymentMethod) {
             paymentMethodName = sale.paymentMethod.name || 'Cash';
+            payments.push({
+                method: paymentMethodName,
+                amount: Number(sale.amountPaid || sale.totalAmount || 0)
+            });
         }
 
         const receiptData: ReceiptData = {
-            businessName: branch?.branchName || 'Store',
+            businessName: receiptSettings?.storeName || branch?.branchName || 'Store',
             branchName: branch?.branchName || '',
-            address: [branch?.addressLine1, branch?.addressLine2, branch?.city].filter(Boolean).join(', ') || '',
-            phone: branch?.phoneNumber || '',
+            address: receiptSettings?.storeAddress || [branch?.addressLine1, branch?.addressLine2, branch?.city].filter(Boolean).join(', ') || '',
+            phone: receiptSettings?.storePhone || branch?.phoneNumber || '',
             email: branch?.email || '',
-            taxId: (branch as any)?.taxId || '',
+            website: receiptSettings?.storeWebsite || (branch as any)?.website || '',
+            taxId: receiptSettings?.businessTaxId || (branch as any)?.taxId || '',
             receiptNumber: sale.saleNumber || saleId.substring(0, 8).toUpperCase(),
             date: new Date(sale.saleDate || sale.createdAt),
             cashier: sale.user?.fullname || sale.user?.username,
@@ -241,21 +348,26 @@ export class PrintContentService {
             customer: sale.customer ? {
                 name: sale.customer.name,
                 phone: sale.customer.phone,
+                address: (sale.customer as any)?.address,
                 loyaltyPoints: undefined
             } : undefined,
             items,
             subtotal: Number(sale.subtotal || 0),
             taxAmount: Number(sale.taxAmount || 0),
-            discountAmount: Number(sale.discountAmount || 0),
+            discountAmount,
             otherCharges: Number(sale.otherCharges || 0),
             totalAmount: Number(sale.totalAmount || 0),
             amountPaid: Number(sale.amountPaid || sale.totalAmount || 0),
             changeAmount: Number(sale.changeAmount || 0),
             paymentMethod: paymentMethodName,
+            payments,
+            totalItemCount,
+            savedAmount,
+            listPriceTotal,
             currency: (branch as any)?.currency || 'MWK'
         };
 
-        return receiptData;
+        return { data: receiptData, settings: receiptSettings };
     }
 
     /**
@@ -320,13 +432,31 @@ export class PrintContentService {
     /**
      * Generate basic receipt when no data available
      */
-    private static generateBasicReceipt(request: ReceiptContentRequest): string {
+    private static generateBasicReceipt(
+        request: ReceiptContentRequest,
+        settings: ReceiptDisplaySettings | null
+    ): string {
         let content = '';
 
         content += ESC_POS.INIT;
 
         if (request.includeHeader !== false) {
             content += ESC_POS.ALIGN_CENTER;
+
+            // Store name from settings
+            if (settings?.storeName) {
+                content += ESC_POS.BOLD_ON;
+                content += ESC_POS.DOUBLE_SIZE;
+                content += `${settings.storeName}\n`;
+                content += ESC_POS.NORMAL;
+                content += ESC_POS.BOLD_OFF;
+            }
+
+            // Receipt header message
+            if (settings?.receiptHeader) {
+                content += `${settings.receiptHeader}\n`;
+            }
+
             content += ESC_POS.BOLD_ON;
             content += 'RECEIPT\n';
             content += ESC_POS.BOLD_OFF;
@@ -344,50 +474,132 @@ export class PrintContentService {
         if (request.includeFooter !== false) {
             content += '================================\n';
             content += ESC_POS.ALIGN_CENTER;
-            content += 'Thank you for your purchase!\n';
+            // Use thank you note from settings or default
+            content += `${settings?.thankYouNote || 'Thank you for your purchase!'}\n`;
+
+            // Show powered by if enabled
+            if (settings?.showPoweredBy !== false) {
+                content += '\nPowered by Zonse247 POS\n';
+            }
         }
 
         content += ESC_POS.FEED_LINES(3);
-        content += ESC_POS.CUT_PAPER;
+
+        // Cut paper (default: true)
+        if (request.cutPaper !== false) {
+            content += ESC_POS.CUT_PAPER;
+        }
+
+        // Open cash drawer if configured
+        if (request.openCashDrawer) {
+            content += ESC_POS.OPEN_DRAWER;
+        }
+
+        // Beep after print if configured
+        if (request.beepAfterPrint) {
+            content += ESC_POS.BEEP;
+        }
 
         return content;
     }
 
     /**
      * Format receipt content with ESC/POS commands
+     * Applies all receipt display settings
      */
-    private static formatReceiptContent(data: ReceiptData, _request: ReceiptContentRequest): string {
+    private static formatReceiptContent(
+        data: ReceiptData,
+        request: ReceiptContentRequest,
+        settings: ReceiptDisplaySettings | null
+    ): string {
         let content = '';
         const lineWidth = 32; // Standard receipt width
+        const separator = '='.repeat(lineWidth) + '\n';
+        const lightSeparator = '-'.repeat(lineWidth) + '\n';
 
         // Initialize printer
         content += ESC_POS.INIT;
 
-        // Header
+        // ============================================
+        // HEADER SECTION
+        // ============================================
         content += ESC_POS.ALIGN_CENTER;
-        content += '='.repeat(lineWidth) + '\n';
+
+        // Store name (large, bold)
+        const storeName = settings?.storeName || data.businessName;
+        if (storeName) {
+            content += ESC_POS.BOLD_ON;
+            content += ESC_POS.DOUBLE_SIZE;
+            content += `${storeName}\n`;
+            content += ESC_POS.NORMAL;
+            content += ESC_POS.BOLD_OFF;
+        }
+
+        // Store address (if showAddressOnReceipt is true)
+        const storeAddress = settings?.storeAddress || data.address;
+        if (storeAddress && settings?.showAddressOnReceipt !== false) {
+            content += `${storeAddress}\n`;
+        }
+
+        // Store phone (if showPhoneOnReceipt is true)
+        const storePhone = settings?.storePhone || data.phone;
+        if (storePhone && settings?.showPhoneOnReceipt !== false) {
+            content += `Tel: ${storePhone}\n`;
+        }
+
+        // Store website (if showWebsiteOnReceipt is true)
+        const storeWebsite = settings?.storeWebsite || data.website;
+        if (storeWebsite && settings?.showWebsiteOnReceipt === true) {
+            content += `${storeWebsite}\n`;
+        }
+
+        // Business Tax ID (if set)
+        const taxId = settings?.businessTaxId || data.taxId;
+        if (taxId && settings?.showTaxOnReceipt !== false) {
+            const taxTitle = settings?.taxTitle || 'VAT';
+            content += `${taxTitle} #: ${taxId}\n`;
+        }
+
+        // Receipt header custom message
+        if (settings?.receiptHeader) {
+            content += `${settings.receiptHeader}\n`;
+        }
+
+        content += separator;
         content += ESC_POS.BOLD_ON;
         content += 'RECEIPT\n';
         content += ESC_POS.BOLD_OFF;
-        content += '='.repeat(lineWidth) + '\n';
+        content += separator;
 
-        // Receipt details
+        // ============================================
+        // RECEIPT DETAILS SECTION
+        // ============================================
         content += ESC_POS.ALIGN_LEFT;
         content += `Receipt #: ${data.receiptNumber}\n`;
 
-        // Format date as "Feb 07, 2026"
+        // Format date
         const dateOptions: Intl.DateTimeFormatOptions = { month: 'short', day: '2-digit', year: 'numeric' };
         content += `Date: ${data.date.toLocaleDateString('en-US', dateOptions)}\n`;
 
         // Customer info
         if (data.customer) {
             content += `Customer: ${data.customer.name}\n`;
+
+            // Show customer phone if enabled
+            if (data.customer.phone && settings?.showCustomerPhone === true) {
+                content += `Phone: ${data.customer.phone}\n`;
+            }
+
+            // Show customer address if enabled
+            if (data.customer.address && settings?.showCustomerAddress === true) {
+                content += `Address: ${data.customer.address}\n`;
+            }
         } else {
             content += `Customer: Walk-in Customer\n`;
         }
 
-        // Cashier
-        if (data.cashier) {
+        // Cashier (if showCashierName is true)
+        if (data.cashier && settings?.showCashierName !== false) {
             content += `Cashier: ${data.cashier}\n`;
         }
 
@@ -396,56 +608,154 @@ export class PrintContentService {
             content += `Terminal: ${data.terminal}\n`;
         }
 
-        // Items section
-        content += '='.repeat(lineWidth) + '\n';
+        // ============================================
+        // ITEMS SECTION
+        // ============================================
+        content += separator;
         content += ESC_POS.ALIGN_CENTER;
         content += 'ITEMS\n';
-        content += '='.repeat(lineWidth) + '\n';
+        content += separator;
         content += ESC_POS.ALIGN_LEFT;
 
-        // Items - format: "Name  qty x price = total"
-        for (const item of data.items) {
-            const itemLine = `${item.name}  ${item.quantity} x ${item.unitPrice.toFixed(2)} = ${item.total.toFixed(2)}`;
-            content += `${itemLine}\n`;
+        // Sort items based on orderItemsBy setting
+        const sortedItems = [...data.items];
+        if (settings?.orderItemsBy === 'name') {
+            sortedItems.sort((a, b) => a.name.localeCompare(b.name));
+        }
+        // 'orderAdded' is the default - no sorting needed
+
+        // Items format based on settings
+        for (const item of sortedItems) {
+            // Show list price if enabled and different from selling price
+            if (settings?.showListPrice === true && item.listPrice && item.listPrice > item.unitPrice) {
+                // Show original price struck through (use brackets to indicate)
+                content += `${item.name}\n`;
+                content += `  [${item.listPrice.toFixed(2)}] -> ${item.unitPrice.toFixed(2)}\n`;
+                content += `  ${item.quantity} x ${item.unitPrice.toFixed(2)} = ${item.total.toFixed(2)}\n`;
+            } else {
+                // Standard item line
+                const itemLine = `${item.name}`;
+                content += `${itemLine}\n`;
+
+                // Show rate if enabled (qty x price = total)
+                if (settings?.showRateInReceipt !== false) {
+                    content += `  ${item.quantity} x ${item.unitPrice.toFixed(2)} = ${item.total.toFixed(2)}\n`;
+                } else {
+                    content += `  Qty: ${item.quantity}  Total: ${item.total.toFixed(2)}\n`;
+                }
+            }
+        }
+
+        // ============================================
+        // TOTALS SECTION
+        // ============================================
+        content += separator;
+
+        // Total item count (if showTotalItemCount is true)
+        if (settings?.showTotalItemCount === true && data.totalItemCount) {
+            content += `Total Items: ${data.totalItemCount}\n`;
+            content += lightSeparator;
         }
 
         // Subtotal
-        content += '='.repeat(lineWidth) + '\n';
-        content += `Subtotal: ${data.subtotal.toFixed(2)}\n`;
+        content += `Subtotal: ${data.currency || ''} ${data.subtotal.toFixed(2)}\n`;
 
         // Discount (if any)
         if (data.discountAmount > 0) {
-            content += `Discount: -${data.discountAmount.toFixed(2)}\n`;
+            content += `Discount: -${data.currency || ''} ${data.discountAmount.toFixed(2)}\n`;
+        }
+
+        // Total money saved (if showTotalMoneySaved is true and there are savings)
+        if (settings?.showTotalMoneySaved === true && data.savedAmount && data.savedAmount > 0) {
+            content += ESC_POS.BOLD_ON;
+            content += `You Saved: ${data.currency || ''} ${data.savedAmount.toFixed(2)}\n`;
+            content += ESC_POS.BOLD_OFF;
         }
 
         // Other charges (if any)
         if (data.otherCharges > 0) {
-            content += `Other Charges: ${data.otherCharges.toFixed(2)}\n`;
+            content += `Other Charges: ${data.currency || ''} ${data.otherCharges.toFixed(2)}\n`;
         }
 
-        // Tax (if any)
-        if (data.taxAmount > 0) {
-            content += `Tax: ${data.taxAmount.toFixed(2)}\n`;
+        // Tax (if showTaxOnReceipt is true and tax exists)
+        if (data.taxAmount > 0 && settings?.showTaxOnReceipt !== false) {
+            const taxTitle = settings?.taxTitle || 'Tax';
+            content += `${taxTitle}: ${data.currency || ''} ${data.taxAmount.toFixed(2)}\n`;
         }
 
-        // Total section
-        content += '='.repeat(lineWidth) + '\n';
+        // ============================================
+        // GRAND TOTAL SECTION
+        // ============================================
+        content += separator;
         content += ESC_POS.BOLD_ON;
-        content += `TOTAL: ${data.totalAmount.toFixed(2)}\n`;
+        content += ESC_POS.DOUBLE_SIZE;
+        content += `TOTAL: ${data.currency || ''} ${data.totalAmount.toFixed(2)}\n`;
+        content += ESC_POS.NORMAL;
         content += ESC_POS.BOLD_OFF;
-        content += `Paid: ${data.amountPaid.toFixed(2)}\n`;
-        content += `Change: ${data.changeAmount.toFixed(2)}\n`;
-        content += `Payment: ${data.paymentMethod}\n`;
 
-        // Footer
-        content += '='.repeat(lineWidth) + '\n';
+        // ============================================
+        // PAYMENT DETAILS SECTION
+        // ============================================
+        if (settings?.showPaymentDetails !== false) {
+            content += lightSeparator;
+
+            // Show individual payments if multiple
+            if (data.payments && data.payments.length > 1) {
+                content += 'Payment Details:\n';
+                for (const payment of data.payments) {
+                    content += `  ${payment.method}: ${data.currency || ''} ${payment.amount.toFixed(2)}\n`;
+                    if (payment.reference) {
+                        content += `    Ref: ${payment.reference}\n`;
+                    }
+                }
+            } else {
+                content += `Payment: ${data.paymentMethod}\n`;
+            }
+
+            content += `Amount Paid: ${data.currency || ''} ${data.amountPaid.toFixed(2)}\n`;
+        }
+
+        // Change (if showChangeReturn is true and there's change)
+        if (settings?.showChangeReturn !== false && data.changeAmount > 0) {
+            content += ESC_POS.BOLD_ON;
+            content += `Change: ${data.currency || ''} ${data.changeAmount.toFixed(2)}\n`;
+            content += ESC_POS.BOLD_OFF;
+        }
+
+        // ============================================
+        // FOOTER SECTION
+        // ============================================
+        content += separator;
         content += ESC_POS.ALIGN_CENTER;
-        content += 'Thank you for your business!\n';
-        content += '='.repeat(lineWidth) + '\n';
+
+        // Thank you note
+        const thankYouNote = settings?.thankYouNote || 'Thank you for your business!';
+        content += `${thankYouNote}\n`;
+
+        // Powered by (if showPoweredBy is true)
+        if (settings?.showPoweredBy !== false) {
+            content += '\nPowered by Zonse247 POS\n';
+        }
+
+        content += separator;
 
         // Feed and cut
         content += ESC_POS.FEED_LINES(4);
-        content += ESC_POS.CUT_PAPER;
+
+        // Cut paper (default: true)
+        if (request.cutPaper !== false) {
+            content += ESC_POS.CUT_PAPER;
+        }
+
+        // Open cash drawer if configured
+        if (request.openCashDrawer) {
+            content += ESC_POS.OPEN_DRAWER;
+        }
+
+        // Beep after print if configured
+        if (request.beepAfterPrint) {
+            content += ESC_POS.BEEP;
+        }
 
         return content;
     }
