@@ -1,0 +1,243 @@
+================================================================================
+                    PRINTER MODULE - FRONTEND INTEGRATION NOTES
+================================================================================
+
+1. CACHE RECEIPT SETTINGS FOR FAST PRINTING
+--------------------------------------------------------------------------------
+On app initialization or terminal selection, cache the settings:
+
+    const terminalSettings = await api.get(`/terminals/${terminalId}/settings`);
+    const receiptSettings = terminalSettings.data.receiptSettings;
+
+    // Store in state/context for reuse
+    useTerminalStore.setState({ receiptSettings });
+
+
+2. PRINT RECEIPT (OPTIMAL PATH)
+--------------------------------------------------------------------------------
+FAST: Pass cached receiptSettings to skip DB lookup
+
+    const printReceipt = async (saleId: string) => {
+      const { receiptSettings } = useTerminalStore.getState();
+      
+      await api.post('/printers/receipt', {
+        saleId,
+        receiptSettings,  // Skips terminal settings DB lookup
+        // terminalId,    // Only needed if receiptSettings not passed
+      });
+    };
+
+
+3. PRINT ON SALE COMPLETION
+--------------------------------------------------------------------------------
+Fire-and-forget printing (don't block UI):
+
+    const completeSale = async (saleData) => {
+      const sale = await api.post('/sales', saleData);
+      
+      // Fire-and-forget printing (don't block UI)
+      printReceipt(sale.data.id).catch(err => {
+        toast.error('Print failed: ' + err.message);
+      });
+      
+      // Navigate immediately
+      router.push('/sales');
+    };
+
+
+4. PRINTER SETUP FLOW
+--------------------------------------------------------------------------------
+Step 1: Discover available printers
+
+    const { data: discovered } = await api.post('/printers/discover', {
+      connectionTypes: ['USB', 'NETWORK', 'BLUETOOTH']
+    });
+
+Step 2: Add printer
+
+    const { data: printer } = await api.post('/printers', {
+      printerName: 'Receipt Printer',
+      printerType: 'THERMAL',
+      connectionType: 'USB',
+      connectionAddress: discovered[0].address,
+      isDefault: true,
+      defaultFor: 'receipt',
+      configuration: {
+        openCashDrawer: true,   // Auto-open drawer after receipt
+        beepAfterPrint: true,
+        cutPaper: true,
+      }
+    });
+
+Step 3: Test printer
+
+    await api.post(`/printers/test/${printer.printerId}`);
+
+
+5. MANUAL CASH DRAWER
+--------------------------------------------------------------------------------
+For "No Sale" / drawer open without receipt:
+
+    const openCashDrawer = async (printerId?: string) => {
+      const id = printerId || defaultPrinterId;
+      await api.post(`/printers/drawer/open/${id}`);
+    };
+
+
+6. REPRINT RECEIPT
+--------------------------------------------------------------------------------
+    const reprintReceipt = async (saleId: string) => {
+      const { receiptSettings } = useTerminalStore.getState();
+      
+      await api.post('/printers/receipt', {
+        saleId,
+        receiptSettings,
+        copies: 1,  // Or prompt user for copies
+      });
+    };
+
+
+7. RECEIPT SETTINGS UI SYNC
+--------------------------------------------------------------------------------
+When user updates receipt settings in Settings screen:
+
+    const saveReceiptSettings = async (settings: ReceiptDisplaySettings) => {
+      await api.put(`/terminals/${terminalId}/settings`, {
+        receipt: settings
+      });
+      
+      // Update local cache immediately
+      useTerminalStore.setState({ receiptSettings: settings });
+    };
+
+
+8. ERROR HANDLING
+--------------------------------------------------------------------------------
+    const printWithRetry = async (saleId: string, maxRetries = 2) => {
+      for (let i = 0; i <= maxRetries; i++) {
+        try {
+          await api.post('/printers/receipt', { saleId, receiptSettings });
+          return;
+        } catch (err) {
+          if (i === maxRetries) {
+            // Offer manual print option
+            showPrintFailedDialog(saleId, err.message);
+          }
+          await sleep(500);
+        }
+      }
+    };
+
+
+9. DESKTOP AGENT SETUP
+--------------------------------------------------------------------------------
+For Windows/Mac/Linux desktop apps using the print agent:
+
+    Agent polls this endpoint for pending jobs:
+    GET /printers/agent/jobs?printerId=xxx
+
+    Agent updates job status after printing:
+    PUT /printers/agent/jobs/:jobId
+    { status: 'COMPLETED' | 'FAILED', errorMessage?: string }
+
+
+10. RECEIPT SETTINGS FIELDS REFERENCE
+--------------------------------------------------------------------------------
+Field                   Type                        Effect
+--------------------------------------------------------------------------------
+storeName               string                      Header store name
+storePhone              string                      Shown if showPhoneOnReceipt: true
+storeAddress            string                      Shown if showAddressOnReceipt: true
+storeWebsite            string                      Shown if showWebsiteOnReceipt: true
+businessTaxId           string                      Tax ID in header
+taxTitle                string                      Label for tax (e.g., "VAT")
+receiptHeader           string                      Custom header message
+thankYouNote            string                      Footer message
+showCashierName         boolean                     Show/hide cashier name
+showCustomerPhone       boolean                     Show customer phone
+showCustomerAddress     boolean                     Show customer address
+showTotalItemCount      boolean                     "Total Items: X" line
+showChangeReturn        boolean                     Show change amount
+showPaymentDetails      boolean                     Payment breakdown
+showListPrice           boolean                     Original price before discount
+showRateInReceipt       boolean                     qty x price format
+showTotalMoneySaved     boolean                     "You Saved: X" line
+showPoweredBy           boolean                     "Powered by Zonse247 POS"
+orderItemsBy            'orderAdded' | 'name'       Item sorting
+
+
+================================================================================
+                           KEY PERFORMANCE TIPS
+================================================================================
+
+1. ALWAYS PASS receiptSettings
+   - Eliminates 1 DB query per print
+   - Cache on app load, update when settings change
+
+2. DON'T AWAIT PRINT
+   - Fire-and-forget unless you need confirmation
+   - Handle errors with toast/notification
+
+3. CACHE PRINTER ID
+   - Avoid default printer lookup per print
+   - Store defaultPrinterId in terminal state
+
+4. BATCH PRINTS
+   - For kitchen orders, batch items to same printer
+   - Reduces connection overhead
+
+
+================================================================================
+                              API ENDPOINTS
+================================================================================
+
+CRUD:
+  POST   /printers                    Create printer
+  GET    /printers                    List printers
+  GET    /printers/:id                Get printer
+  PUT    /printers/:id                Update printer
+  DELETE /printers/:id                Delete printer
+
+Discovery & Testing:
+  POST   /printers/discover           Discover printers
+  POST   /printers/test/:id           Test printer
+  GET    /printers/health/:id         Health check
+
+Printing:
+  POST   /printers/receipt            Print receipt
+  POST   /printers/label              Print label
+  POST   /printers/test-page/:id      Print test page
+  POST   /printers/drawer/open/:id    Open cash drawer
+
+Jobs:
+  GET    /printers/jobs               List jobs
+  GET    /printers/jobs/:id           Get job
+  DELETE /printers/jobs/:id           Cancel job
+
+Agent (Desktop):
+  POST   /printers/agent/jobs         Get pending jobs
+  PUT    /printers/agent/jobs/:id     Update job status
+
+
+================================================================================
+                         PRINT REQUEST INTERFACE
+================================================================================
+
+interface PrintReceiptRequest {
+  printerId?: string;        // Optional - uses default if not specified
+  saleId?: string;           // Primary identifier
+  transactionId?: string;    // @deprecated - use saleId
+  orderId?: string;
+  terminalId?: string;       // For settings lookup (if receiptSettings not passed)
+  receiptSettings?: object;  // Pass directly to skip DB lookup
+  copies?: number;
+  includeHeader?: boolean;
+  includeFooter?: boolean;
+  includeLogo?: boolean;
+  customMessage?: string;
+}
+
+
+================================================================================
+                              END OF DOCUMENT
+================================================================================
