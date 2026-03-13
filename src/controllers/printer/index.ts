@@ -36,7 +36,6 @@ import { PrintQueueController } from './queue.controller';
  * Maps all methods from individual controllers
  */
 export const PrinterController = {
-    // CRUD Operations
     createPrinter: PrinterCrudController.createPrinter,
     getAllPrinters: PrinterCrudController.getAllPrinters,
     getPrinter: PrinterCrudController.getPrinter,
@@ -48,7 +47,6 @@ export const PrinterController = {
     updatePrinterConfiguration: PrinterCrudController.updatePrinterConfiguration,
     deletePrinter: PrinterCrudController.deletePrinter,
 
-    // Discovery & Testing
     testPrinter: PrinterDiscoveryController.testPrinter,
     discoverPrinters: PrinterDiscoveryController.discoverPrinters,
     scanNetworkRange: PrinterDiscoveryController.scanNetworkRange,
@@ -59,27 +57,23 @@ export const PrinterController = {
     getBranchPrinterHealth: PrinterDiscoveryController.getBranchPrinterHealth,
     monitorPrinterHealth: PrinterDiscoveryController.monitorPrinterHealth,
 
-    // Print Operations
     printReceipt: PrinterPrintingController.printReceipt,
     printLabel: PrinterPrintingController.printLabel,
     printTestPage: PrinterPrintingController.printTestPage,
     openCashDrawer: PrinterPrintingController.openCashDrawer,
 
-    // Job Management
     getPrintJobHistory: PrintJobsController.getPrintJobHistory,
     getPendingPrintJobs: PrintJobsController.getPendingPrintJobs,
     cancelPrintJob: PrintJobsController.cancelPrintJob,
     retryPrintJob: PrintJobsController.retryPrintJob,
     cleanupPrintJobs: PrintJobsController.cleanupPrintJobs,
 
-    // Print Agent
     startPrintAgent: PrintAgentController.startPrintAgent,
     stopPrintAgent: PrintAgentController.stopPrintAgent,
     getPrintAgentStatus: PrintAgentController.getPrintAgentStatus,
     checkPermissions: PrintAgentController.checkPermissions,
     getSetupInstructions: PrintAgentController.getSetupInstructions,
 
-    // Queue Operations
     getQueueStatus: PrintQueueController.getQueueStatus,
     retryAllQueuedJobs: PrintQueueController.retryAllQueuedJobs,
     clearPrintQueue: PrintQueueController.clearPrintQueue
