@@ -1,17 +1,3 @@
-/**
- * MRA EIS (Electronic Invoicing System) Types
- * Based on MRA API Documentation: https://dev-eis-api.mra.mw/docs/
- * 
- * The MRA EIS Integration follows this flow:
- * 1. Taxpayer applies for terminal on MRA Portal → Gets TAC (Terminal Activation Code)
- * 2. Terminal sends TAC to MRA's activation endpoint → Gets config
- * 3. Terminal persists config locally
- * 4. Terminal confirms activation with MRA
- * 5. Terminal can now submit sales to MRA
- */
-
-// ==================== ENUMS ====================
-
 export enum MraEnvironment {
     SANDBOX = 'SANDBOX',
     PRODUCTION = 'PRODUCTION'
@@ -56,33 +42,198 @@ export interface MraApiConfig {
 // ==================== TERMINAL ACTIVATION ====================
 
 /**
+ * Platform information for terminal activation
+ * All fields are required by MRA API
+ */
+export interface MraPlatformInfo {
+    osName: string;
+    osVersion: string;
+    osBuild: string;      // Required by MRA API
+    macAddress: string;   // Required by MRA API
+}
+
+/**
+ * POS product information for terminal activation
+ */
+export interface MraPosInfo {
+    productID: string;
+    productVersion: string;
+}
+
+/**
+ * Terminal runtime environment for activation request
+ */
+export interface MraTerminalRuntimeEnvironment {
+    platform: MraPlatformInfo;
+    pos: MraPosInfo;
+}
+
+/**
  * Request to activate a terminal with MRA
  * Requires TAC (Terminal Activation Code) obtained from MRA Portal
+ * 
+ * @see https://dev-eis-api.mra.mw/docs/terminal_activation.htm
  */
 export interface MraTerminalActivationRequest {
-    tac: string;                 // Terminal Activation Code from MRA Portal
-    terminalId: string;          // Internal terminal ID
-    deviceId?: string;           // Device identifier
-    osName?: string;             // Operating system name
-    osVersion?: string;          // Operating system version
-    posProductId?: string;       // POS software product ID
-    posProductVersion?: string;  // POS software version
+    terminalActivationCode: string;     // Terminal Activation Code from MRA Portal
+    environment: MraTerminalRuntimeEnvironment;
+}
+
+/**
+ * Terminal credentials returned during activation
+ */
+export interface MraTerminalCredentials {
+    jwtToken: string | null;
+    secretKey: string | null;
+}
+
+/**
+ * Activated terminal info from MRA
+ */
+export interface MraActivatedTerminal {
+    terminalId: string | null;
+    terminalPosition: number | null;
+    taxpayerId: number;
+    activationDate: string | null;
+    terminalCredentials: MraTerminalCredentials | null;
+}
+
+/**
+ * Tax rate configuration from MRA
+ */
+export interface MraTaxRateDto {
+    id: string | null;
+    name: string | null;
+    chargeMode: string | null;
+    ordinal: number;
+    rate: number;
+}
+
+/**
+ * Global (tax) configuration from MRA
+ */
+export interface MraTaxConfiguration {
+    id: number;
+    versionNo: number;
+    taxrates: MraTaxRateDto[] | null;
+}
+
+/**
+ * Tax office information
+ */
+export interface MraTaxOfficeDto {
+    code: string | null;
+    name: string | null;
+}
+
+/**
+ * Activated levy information
+ */
+export interface MraActivatedLevyDto {
+    id: string | null;
+    name: string | null;
+    chargeMode: string | null;
+    rate: number;
+    isActive: boolean;
+}
+
+/**
+ * Taxpayer configuration from MRA
+ */
+export interface MraTaxpayerConfiguration {
+    versionNo: number;
+    tin: string | null;
+    isVATRegistered: boolean;
+    taxOfficeCode: string | null;
+    taxOffice: MraTaxOfficeDto | null;
+    activatedTaxRateIds: string[] | null;
+    activatedLevies: MraActivatedLevyDto[] | null;
+}
+
+/**
+ * Terminal site information
+ */
+export interface MraTerminalSiteDto {
+    siteId: string | null;
+    siteName: string | null;
+}
+
+/**
+ * Offline transaction limits
+ */
+export interface MraOfflineLimit {
+    maxTransactionAgeInHours: number;
+    maxCummulativeAmount: number;
+}
+
+/**
+ * Terminal configuration from MRA
+ */
+export interface MraTerminalConfigurationResponse {
+    versionNo: number;
+    terminalLabel: string | null;
+    isActiveTerminal: boolean;
+    emailAddress: string | null;
+    phoneNumber: string | null;
+    tradingName: string | null;
+    addressLines: string[] | null;
+    terminalSite: MraTerminalSiteDto | null;
+    offlineLimit: MraOfflineLimit | null;
+}
+
+/**
+ * Combined configuration from MRA activation
+ */
+export interface MraConfiguration {
+    globalConfiguration: MraTaxConfiguration | null;
+    terminalConfiguration: MraTerminalConfigurationResponse | null;
+    taxpayerConfiguration: MraTaxpayerConfiguration | null;
+}
+
+/**
+ * Response data from MRA terminal activation endpoint
+ */
+export interface MraTerminalActivationResponseData {
+    activatedTerminal: MraActivatedTerminal | null;
+    configuration: MraConfiguration | null;
 }
 
 /**
  * Response from MRA terminal activation endpoint
+ * 
+ * @see https://dev-eis-api.mra.mw/docs/terminal_activation.htm
  */
 export interface MraTerminalActivationResponse {
-    success: boolean;
-    message: string;
-    data?: {
-        terminalId: string;           // MRA-assigned terminal ID
-        taxpayerInfo: MraTaxpayerInfo;
-        terminalConfig: MraTerminalConfig;
-        globalConfig: MraGlobalConfig;
-        securityKeys: MraSecurityKeys;
-    };
-    error?: MraErrorResponse;
+    statusCode: number;
+    remark: string | null;
+    data: MraTerminalActivationResponseData;
+    errors: MraErrorDetail[] | null;
+}
+
+/**
+ * MRA API error detail
+ */
+export interface MraErrorDetail {
+    errorCode: number;
+    fieldName: string | null;
+    errorMessage: string | null;
+}
+
+/**
+ * Request to confirm terminal activation with MRA
+ */
+export interface MraActivationConfirmationRequest {
+    terminalId: string;
+}
+
+/**
+ * Response from MRA terminal activation confirmation endpoint
+ */
+export interface MraActivationConfirmationResponse {
+    statusCode: number;
+    remark: string | null;
+    data: boolean;
+    errors: MraErrorDetail[] | null;
 }
 
 /**
@@ -154,37 +305,6 @@ export interface MraSecurityKeys {
     ivKey: string;             // Initialization vector for encryption
     keyVersion: number;        // Key version for rotation
     expiresAt?: Date;          // Key expiration date
-}
-
-// ==================== TERMINAL ACTIVATION CONFIRMATION ====================
-
-/**
- * Request to confirm terminal activation
- * Sent after successfully persisting configuration
- */
-export interface MraActivationConfirmationRequest {
-    terminalId: string;        // MRA terminal ID
-    configVersion: number;     // Config version that was persisted
-    deviceInfo?: {
-        deviceId: string;
-        osName: string;
-        osVersion: string;
-        posProductId: string;
-        posProductVersion: string;
-    };
-}
-
-/**
- * Response from activation confirmation
- */
-export interface MraActivationConfirmationResponse {
-    success: boolean;
-    message: string;
-    data?: {
-        status: MraTerminalStatus;
-        activatedAt: Date;
-    };
-    error?: MraErrorResponse;
 }
 
 // ==================== CONFIGURATION SYNC ====================
@@ -441,4 +561,209 @@ export interface MraActivateTerminalResult {
     message: string;
     taxpayerInfo?: MraTaxpayerInfo;
     requiresConfirmation: boolean;
+}
+
+// ==================== TERMINAL SITE PRODUCTS ====================
+
+/**
+ * Product/Service from MRA terminal site
+ */
+export interface MraTerminalProduct {
+    productCode: string;
+    productName: string;
+    description?: string;
+    categoryCode: string;
+    categoryName: string;
+    unitOfMeasure: string;
+    unitPrice: number;
+    taxCode: string;
+    taxRate: number;
+    hsCode?: string;
+    isService: boolean;
+    stockLevel?: number;
+    isActive: boolean;
+}
+
+/**
+ * Response from get terminal site products endpoint
+ */
+export interface MraTerminalProductsResponse {
+    success: boolean;
+    message?: string;
+    data?: {
+        products: MraTerminalProduct[];
+        totalCount: number;
+        lastUpdated: Date;
+    };
+    error?: MraErrorResponse;
+}
+
+// ==================== TIN VALIDATION ====================
+
+/**
+ * TIN validation request
+ */
+export interface MraTinValidationRequest {
+    tin: string;               // Taxpayer Identification Number
+}
+
+/**
+ * TIN validation response
+ */
+export interface MraTinValidationResponse {
+    success: boolean;
+    message?: string;
+    data?: {
+        tin: string;
+        isValid: boolean;
+        taxpayerName?: string;
+        tradingName?: string;
+        registrationStatus?: string;
+        vatRegistered?: boolean;
+        businessCategory?: string;
+    };
+    error?: MraErrorResponse;
+}
+
+// ==================== TERMINAL BLOCKING ====================
+
+/**
+ * Terminal blocking message response
+ */
+export interface MraBlockingMessageResponse {
+    success: boolean;
+    message?: string;
+    data?: {
+        isBlocked: boolean;
+        blockingReason?: string;
+        blockedAt?: Date;
+        blockedBy?: string;
+        instructions?: string;
+    };
+    error?: MraErrorResponse;
+}
+
+/**
+ * Terminal unblock status response
+ */
+export interface MraUnblockStatusResponse {
+    success: boolean;
+    message?: string;
+    data?: {
+        isUnblocked: boolean;
+        unblockedAt?: Date;
+        previousBlockingReason?: string;
+    };
+    error?: MraErrorResponse;
+}
+
+// ==================== VAT CERTIFICATE VALIDATION ====================
+
+/**
+ * VAT 5 Certificate validation request
+ */
+export interface MraVat5ValidationRequest {
+    certificateNumber: string;
+    supplierTin?: string;
+}
+
+/**
+ * VAT 5 Certificate validation response
+ */
+export interface MraVat5ValidationResponse {
+    success: boolean;
+    message?: string;
+    data?: {
+        certificateNumber: string;
+        isValid: boolean;
+        supplierTin?: string;
+        supplierName?: string;
+        issueDate?: Date;
+        expiryDate?: Date;
+        certificateType?: string;
+        exemptions?: string[];
+    };
+    error?: MraErrorResponse;
+}
+
+// ==================== SERVICE HEALTH ====================
+
+/**
+ * Service health check result
+ */
+export interface MraServiceHealthResult {
+    reachable: boolean;
+    latencyMs?: number;
+    serverTime?: Date;
+    apiVersion?: string;
+    status?: 'OK' | 'MAINTENANCE' | 'DEGRADED';
+    errorMessage?: string;
+}
+
+// ==================== OFFLINE TRANSACTION ====================
+
+/**
+ * Offline transaction limits from configuration
+ */
+export interface MraOfflineLimits {
+    maxTransactionAgeInHours: number;
+    maxCumulativeAmount: number;
+    maxTransactionCount?: number;
+}
+
+/**
+ * Offline transaction status
+ */
+export interface MraOfflineTransactionStatus {
+    isWithinLimits: boolean;
+    currentAge: number;
+    currentCumulativeAmount: number;
+    transactionCount: number;
+    limits: MraOfflineLimits;
+    warnings?: string[];
+}
+
+// ==================== INVENTORY UPLOAD ====================
+
+/**
+ * Initial inventory upload item
+ */
+export interface MraInventoryItem {
+    productCode: string;
+    productName: string;
+    description?: string;
+    categoryCode: string;
+    unitOfMeasure: string;
+    unitPrice: number;
+    taxCode: string;
+    openingStock: number;
+    hsCode?: string;
+}
+
+/**
+ * Initial inventory upload request
+ */
+export interface MraInventoryUploadRequest {
+    items: MraInventoryItem[];
+    effectiveDate: Date;
+}
+
+/**
+ * Initial inventory upload response
+ */
+export interface MraInventoryUploadResponse {
+    success: boolean;
+    message?: string;
+    data?: {
+        uploadId: string;
+        itemsReceived: number;
+        itemsAccepted: number;
+        itemsRejected: number;
+        rejectedItems?: Array<{
+            productCode: string;
+            reason: string;
+        }>;
+        status: 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED';
+    };
+    error?: MraErrorResponse;
 }
