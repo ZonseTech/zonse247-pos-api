@@ -954,24 +954,29 @@ export class StockMovementService {
     }
 
     /**
-     * Get stock movements for a product
+     * Get stock movements for a variant
      */
-    static async getMovementsByProduct(
-        productId: string,
+    static async getMovementsByVariant(
+        variantId: string,
         tenantId: string,
         branchId: string,
         page = 1,
-        perPage = 50
+        perPage = 50,
+        movementType?: string
     ): Promise<{ movements: StockMovementWithProduct[]; total: number; totalPages: number }> {
         const skip = (page - 1) * perPage;
 
-        const where = {
+        const where: any = {
             tenantId,
             branchId,
             inventory: {
-                productId,
+                variantId,
             },
         };
+
+        if (movementType) {
+            where.movementType = movementType as StockMovementType;
+        }
 
         const [movements, total] = await Promise.all([
             prisma.stockMovement.findMany({
@@ -979,11 +984,14 @@ export class StockMovementService {
                 include: {
                     inventory: {
                         include: {
-                            product: {
-                                select: {
-                                    id: true,
-                                    name: true,
-                                    sku: true,
+                            variant: {
+                                include: {
+                                    product: {
+                                        select: {
+                                            id: true,
+                                            name: true,
+                                        },
+                                    },
                                 },
                             },
                         },
@@ -1039,11 +1047,14 @@ export class StockMovementService {
                 include: {
                     inventory: {
                         include: {
-                            product: {
-                                select: {
-                                    id: true,
-                                    name: true,
-                                    sku: true,
+                            variant: {
+                                include: {
+                                    product: {
+                                        select: {
+                                            id: true,
+                                            name: true,
+                                        },
+                                    },
                                 },
                             },
                         },
@@ -1069,6 +1080,7 @@ export class StockMovementService {
      * Helper: Map stock movement
      */
     private static mapMovement(movement: any): StockMovementWithProduct {
+        const product = movement.inventory?.variant?.product;
         return {
             id: movement.id,
             tenantId: movement.tenantId,
@@ -1087,11 +1099,14 @@ export class StockMovementService {
             movementDate: movement.movementDate,
             createdAt: movement.createdAt,
             inventory: {
-                product: {
-                    id: movement.inventory.product.id,
-                    name: movement.inventory.product.name,
-                    sku: movement.inventory.product.sku,
-                },
+                variant: movement.inventory?.variant ? {
+                    id: movement.inventory.variant.id,
+                    sku: movement.inventory.variant.sku,
+                } : null,
+                product: product ? {
+                    id: product.id,
+                    name: product.name,
+                } : null,
             },
         };
     }

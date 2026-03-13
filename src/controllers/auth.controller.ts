@@ -402,6 +402,7 @@ export class AuthController extends BaseController {
     /**
      * Switch User's Active Branch
      * Allows authenticated users to switch their active branch context
+     * Records branch access by updating the branch's updatedAt timestamp
      * @static
      * @param req - Express request with branchId in body and authenticated user
      * @param res - Express response

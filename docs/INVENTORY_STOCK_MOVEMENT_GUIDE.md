@@ -99,7 +99,7 @@ The inventory system is built on an **immutable ledger** pattern. Instead of dir
 | Method | Endpoint              | Description                      |
 | ------ | --------------------- | -------------------------------- |
 | `GET`  | `/:id`                | Get single movement by ID        |
-| `GET`  | `/product/:productId` | Get movements for a product      |
+| `GET`  | `/variant/:variantId` | Get movements for a variant      |
 | `GET`  | `/branch`             | Get movements for current branch |
 
 #### Recalculation
@@ -564,7 +564,7 @@ const sale = await api.post('/sales', { items: [{ quantity: 5 }], ... });
 // Action 3: Return 5 units (RETURN)
 // Action 4: Adjust -10 units (ADJUSTMENT)
 
-const movements = await api.get(`/stock-movements/product/${productId}`);
+const movements = await api.get(`/stock-movements/variant/${variantId}`);
 
 // Expected movements (newest first):
 // Movement 4: prev=75, new=65, type=ADJUSTMENT, qty=10

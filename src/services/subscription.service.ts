@@ -75,6 +75,10 @@ export class SubscriptionService {
 		return BranchSubscriptionModel.findByPlanId(planId);
 	}
 
+	static async getByBranchId(branchId: string): Promise<BranchSubscription | null> {
+		return BranchSubscriptionModel.findByBranchId(branchId);
+	}
+
 	static async cancel(id: string): Promise<BranchSubscription | null> {
 		const subscription = await BranchSubscriptionModel.findById(id);
 		if (!subscription) {

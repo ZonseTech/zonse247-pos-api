@@ -407,4 +407,136 @@ export class ProductRepository {
 
         return where;
     }
+
+    /**
+     * Move a variant to a different product (convert to variant of another product)
+     * Returns the updated variant and info about whether the original product was orphaned
+     */
+    static async moveVariantToProduct(
+        variantId: string,
+        targetProductId: string,
+        scope: TenantBranchScope,
+        options: { variantName?: string; deleteOrphanedProduct?: boolean } = {}
+    ): Promise<{
+        variant: any;
+        orphanedProductDeleted: boolean;
+        deletedProductId?: string;
+        affectedRecords: { saleItems: number; stockMovements: number; purchaseOrderItems: number };
+        originalProductId: string;
+    }> {
+        return prisma.$transaction(async (tx) => {
+            // Get the current variant with its product
+            const currentVariant = await tx.productVariant.findFirst({
+                where: { id: variantId, ...scope },
+                include: { product: true },
+            });
+
+            if (!currentVariant) {
+                throw new Error(`Variant with ID ${variantId} not found`);
+            }
+
+            const originalProductId = currentVariant.productId;
+
+            // Verify target product exists and is in the same scope
+            const targetProduct = await tx.product.findFirst({
+                where: { id: targetProductId, ...scope, isActive: true },
+            });
+
+            if (!targetProduct) {
+                throw new Error(`Target product with ID ${targetProductId} not found`);
+            }
+
+            // Prevent moving to the same product
+            if (originalProductId === targetProductId) {
+                throw new Error('Variant is already under this product');
+            }
+
+            // Check if variant name already exists in target product
+            const newVariantName = options.variantName || currentVariant.variantName;
+            const existingVariantWithName = await tx.productVariant.findFirst({
+                where: {
+                    productId: targetProductId,
+                    variantName: newVariantName,
+                    id: { not: variantId },
+                },
+            });
+
+            if (existingVariantWithName) {
+                throw new Error(`A variant with name "${newVariantName}" already exists in the target product`);
+            }
+
+            // Count affected historical records BEFORE making changes
+            const [saleItemsCount, purchaseOrderItemsCount] = await Promise.all([
+                tx.saleItem.count({ where: { variantId } }),
+                tx.purchaseOrderItem.count({ where: { variantId } }),
+            ]);
+
+            // Get inventory IDs for this variant to count stock movements
+            const inventories = await tx.inventory.findMany({
+                where: { variantId },
+                select: { id: true },
+            });
+            const inventoryIds = inventories.map(inv => inv.id);
+
+            const stockMovementsCount = inventoryIds.length > 0
+                ? await tx.stockMovement.count({ where: { inventoryId: { in: inventoryIds } } })
+                : 0;
+
+            // Update the variant's productId (move it to the new product)
+            const updatedVariant = await tx.productVariant.update({
+                where: { id: variantId },
+                data: {
+                    productId: targetProductId,
+                    variantName: newVariantName,
+                    isDefault: false, // Moving a variant should not make it default
+                },
+                include: buildVariantInclude(),
+            });
+
+            // IMPORTANT: Also update the Inventory record's productId to maintain consistency
+            // This ensures current inventory state reflects the new product relationship
+            await tx.inventory.updateMany({
+                where: { variantId: variantId },
+                data: { productId: targetProductId },
+            });
+
+            // Check if the original product is now orphaned (no more variants)
+            let orphanedProductDeleted = false;
+            let deletedProductId: string | undefined;
+
+            const remainingVariants = await tx.productVariant.count({
+                where: { productId: originalProductId },
+            });
+
+            if (remainingVariants === 0 && options.deleteOrphanedProduct !== false) {
+                // Delete the orphaned product
+                await tx.product.delete({
+                    where: { id: originalProductId },
+                });
+                orphanedProductDeleted = true;
+                deletedProductId = originalProductId;
+            }
+
+            return {
+                variant: updatedVariant,
+                orphanedProductDeleted,
+                deletedProductId,
+                affectedRecords: {
+                    saleItems: saleItemsCount,
+                    stockMovements: stockMovementsCount,
+                    purchaseOrderItems: purchaseOrderItemsCount,
+                },
+                originalProductId,
+            };
+        });
+    }
+
+    /**
+     * Get the count of variants for a product
+     */
+    static async getVariantCount(productId: string): Promise<number> {
+        return prisma.productVariant.count({
+            where: { productId },
+        });
+    }
 }

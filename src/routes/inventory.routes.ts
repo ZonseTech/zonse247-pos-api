@@ -179,4 +179,22 @@ router.put('/item-void/:itemId', InventoryController.voidInventoryItem);
  */
 router.delete('/item/:itemId', InventoryController.deleteInventoryItem);
 
+/**
+ * PUT /item/:variantId/convert-to-variant
+ * Convert a variant to become a variant of a different product.
+ * This allows moving an existing product's variant to become a variant of another product.
+ * 
+ * Use cases:
+ * - Moving a standalone product to become a variant of another product
+ * - Reorganizing variants between products
+ * 
+ * @param {string} variantId - The variant UUID to convert/move
+ * @body {string} targetProductId - The product UUID to move the variant to (required)
+ * @body {string} [variantName] - Optional new name for the variant
+ * @body {boolean} [deleteOrphanedProduct=true] - Whether to delete the original product if it becomes orphaned (has no more variants)
+ * 
+ * @returns {object} - { variant: ProductWithInventory, orphanedProductDeleted: boolean, deletedProductId?: string }
+ */
+router.put('/item/:variantId/convert-to-variant', InventoryController.convertToVariant);
+
 export default router;

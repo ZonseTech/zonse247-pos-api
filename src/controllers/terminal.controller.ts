@@ -4,6 +4,7 @@ import { AuthRequest } from "../lib/express.type";
 import { BaseController } from "./base.controller";
 import { CreateTerminalRequest, Terminal } from "terminal";
 import { TerminalService } from "../services/terminal.service";
+import { getScopeFromRequest } from "../utils/scope.utils";
 
 /**
  * @class   TerminalController
@@ -21,10 +22,16 @@ export class TerminalController {
      */
     static async getAllTerminals(req: Request & AuthRequest, res: Response): Promise<void> {
         try {
-            const terminals = await TerminalService.getAllTerminals(req.query, {
-                tenantId: req.auth.tenantId,
-                branchId: req.auth.branchId,
-            });
+            const scope = getScopeFromRequest(req);
+            const isAdminMode = req.query.isAdminMode === 'true';
+            const branchIdOverride = req.query.branchId as string | undefined;
+
+            const terminals = await TerminalService.getAllTerminals(
+                scope.build({
+                    isAdminMode,
+                    branchIdOverride
+                })
+            );
             BaseController.sendResponse(res, 200, true, 'Terminals retrieved successfully', terminals);
         } catch (error: any) {
             console.error('Error retrieving terminals:', error);
@@ -131,7 +138,12 @@ export class TerminalController {
      */
     static async deleteTerminal(req: Request<{ id: string }> & AuthRequest, res: Response): Promise<void> {
         try {
-            const deleted = await TerminalService.deleteTerminal(req.params.id, req.auth.tenantId, req.auth.branchId);
+            const scope = getScopeFromRequest(req);
+            const deleted = await TerminalService.deleteTerminal(
+                req.params.id,
+                scope.getTenantId(),
+                scope.getBranchId()
+            );
             if (!deleted) {
                 BaseController.sendResponse(res, 404, false, 'Terminal not found');
                 return;

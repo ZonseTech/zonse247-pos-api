@@ -325,4 +325,16 @@ export class PrinterService {
     ): Promise<PrintJob> {
         return PrintJobService.printTestPage(printerId, tenantId, branchId, userId);
     }
+
+    /**
+     * Open cash drawer connected to a printer
+     */
+    static async openCashDrawer(
+        printerId: string,
+        tenantId: string,
+        branchId?: string,
+        userId?: string
+    ): Promise<PrintJob> {
+        return PrintJobService.openCashDrawer(printerId, tenantId, branchId, userId);
+    }
 }

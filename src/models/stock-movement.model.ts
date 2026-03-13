@@ -38,11 +38,14 @@ export interface CreateStockMovementInput {
 
 export interface StockMovementWithProduct extends StockMovement {
     inventory: {
+        variant: {
+            id: string;
+            sku: string;
+        } | null;
         product: {
             id: string;
             name: string;
-            sku: string;
-        };
+        } | null;
     };
 }
 

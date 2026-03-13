@@ -15,6 +15,8 @@ import {
     SearchProductResult,
     DuplicateBarcodeResult,
     PaginatedProductsResponse,
+    ConvertToVariantInput,
+    ConvertToVariantResult,
 } from '../../types/product.types';
 import {
     PAGINATION,
@@ -292,5 +294,83 @@ export class ProductService {
         }
 
         await ProductRepository.createBarcode(variantId, barcode, barcodeType, barcodeSource, description);
+    }
+
+    /**
+     * Convert a variant to become a variant of a different product.
+     * This allows moving an existing variant (including a standalone product's default variant)
+     * to become a variant of another product.
+     * 
+     * Note: Historical records (sales, stock movements) maintain their original variant reference.
+     * The variant ID remains the same, only the parent product changes.
+     * 
+     * @param data - The conversion input data
+     * @param tenantId - Tenant ID
+     * @param branchId - Branch ID
+     * @returns The converted variant and info about orphaned product deletion
+     */
+    static async convertToVariant(
+        data: ConvertToVariantInput,
+        tenantId: string,
+        branchId: string
+    ): Promise<ConvertToVariantResult> {
+        try {
+            const scope = { tenantId, branchId };
+
+            const sourceVariant = await ProductRepository.findVariantById(data.variantId, scope);
+            if (!sourceVariant) {
+                throw new NotFoundError('Variant', data.variantId);
+            }
+
+            const targetProduct = await ProductRepository.findActiveProductById(data.targetProductId, scope);
+            if (!targetProduct) {
+                throw new NotFoundError('Target Product', data.targetProductId);
+            }
+
+            if (sourceVariant.productId === data.targetProductId) {
+                throw new ValidationError('Variant is already under this product', {
+                    variantId: 'The variant already belongs to the specified product',
+                });
+            }
+
+            const newVariantName = data.variantName || sourceVariant.variantName;
+            await this.validateVariantNameUniqueness(data.targetProductId, newVariantName, data.variantId);
+
+            const result = await ProductRepository.moveVariantToProduct(
+                data.variantId,
+                data.targetProductId,
+                scope,
+                {
+                    variantName: data.variantName,
+                    deleteOrphanedProduct: data.deleteOrphanedProduct,
+                }
+            );
+
+            // Build warning message if there are affected historical records
+            let warning: string | undefined;
+            const { saleItems, stockMovements, purchaseOrderItems } = result.affectedRecords;
+            const totalAffected = saleItems + stockMovements + purchaseOrderItems;
+
+            if (totalAffected > 0) {
+                const parts: string[] = [];
+                if (saleItems > 0) parts.push(`${saleItems} sale item(s)`);
+                if (stockMovements > 0) parts.push(`${stockMovements} stock movement(s)`);
+                if (purchaseOrderItems > 0) parts.push(`${purchaseOrderItems} purchase order item(s)`);
+
+                warning = `Historical records affected: ${parts.join(', ')}. ` +
+                    `These records reference the variant by ID and will continue to work correctly. ` +
+                    `However, reports grouped by product may show this variant under its new parent product.`;
+            }
+
+            return {
+                variant: mapVariantToProductWithInventory(result.variant),
+                orphanedProductDeleted: result.orphanedProductDeleted,
+                deletedProductId: result.deletedProductId,
+                affectedRecords: result.affectedRecords,
+                warning,
+            };
+        } catch (error) {
+            this.handleServiceError(error);
+        }
     }
 }

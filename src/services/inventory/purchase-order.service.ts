@@ -30,7 +30,9 @@ export class PurchaseOrderService {
                 items: {
                     create: data.items.map((item) => ({
                         id: uuidv4(),
-                        productId: item.productId,
+                        tenantId,
+                        branchId,
+                        variantId: item.variantId,
                         orderedQuantity: item.orderedQuantity,
                         unitPrice: item.unitPrice,
                         totalPrice: item.orderedQuantity * item.unitPrice,
@@ -40,11 +42,17 @@ export class PurchaseOrderService {
             include: {
                 items: {
                     include: {
-                        product: {
+                        variant: {
                             select: {
                                 id: true,
-                                name: true,
+                                variantName: true,
                                 sku: true,
+                                product: {
+                                    select: {
+                                        id: true,
+                                        name: true,
+                                    },
+                                },
                             },
                         },
                     },
@@ -92,9 +100,9 @@ export class PurchaseOrderService {
             }
 
             for (const receivedItem of data.items) {
-                const poItem = po.items.find((i) => i.productId === receivedItem.productId);
+                const poItem = po.items.find((i) => i.variantId === receivedItem.variantId);
                 if (!poItem) {
-                    throw new Error(`Product ${receivedItem.productId} not found in purchase order`);
+                    throw new Error(`Variant ${receivedItem.variantId} not found in purchase order`);
                 }
 
                 await tx.purchaseOrderItem.update({
@@ -110,7 +118,7 @@ export class PurchaseOrderService {
                     where: {
                         tenantId,
                         branchId,
-                        productId: receivedItem.productId,
+                        variantId: receivedItem.variantId,
                     },
                 });
 
@@ -122,7 +130,8 @@ export class PurchaseOrderService {
                             id: uuidv4(),
                             tenantId,
                             branchId,
-                            productId: receivedItem.productId,
+                            variantId: receivedItem.variantId,
+                            productId: receivedItem.variantId, // Legacy field - use variantId
                             availableQuantity: 0,
                             reservedQuantity: 0,
                             damagedQuantity: 0,
@@ -171,7 +180,7 @@ export class PurchaseOrderService {
             }
 
             const allItemsReceived = data.items.every((item) => {
-                const poItem = po.items.find((i) => i.productId === item.productId);
+                const poItem = po.items.find((i) => i.variantId === item.variantId);
                 return poItem && item.receivedQuantity + item.damagedQuantity === poItem.orderedQuantity;
             });
 
@@ -188,11 +197,17 @@ export class PurchaseOrderService {
                 include: {
                     items: {
                         include: {
-                            product: {
+                            variant: {
                                 select: {
                                     id: true,
-                                    name: true,
+                                    variantName: true,
                                     sku: true,
+                                    product: {
+                                        select: {
+                                            id: true,
+                                            name: true,
+                                        },
+                                    },
                                 },
                             },
                         },
@@ -227,11 +242,17 @@ export class PurchaseOrderService {
             include: {
                 items: {
                     include: {
-                        product: {
+                        variant: {
                             select: {
                                 id: true,
-                                name: true,
+                                variantName: true,
                                 sku: true,
+                                product: {
+                                    select: {
+                                        id: true,
+                                        name: true,
+                                    },
+                                },
                             },
                         },
                     },
@@ -280,11 +301,17 @@ export class PurchaseOrderService {
                 include: {
                     items: {
                         include: {
-                            product: {
+                            variant: {
                                 select: {
                                     id: true,
-                                    name: true,
+                                    variantName: true,
                                     sku: true,
+                                    product: {
+                                        select: {
+                                            id: true,
+                                            name: true,
+                                        },
+                                    },
                                 },
                             },
                         },
@@ -401,7 +428,7 @@ export class PurchaseOrderService {
             items: po.items.map((item: any) => ({
                 id: item.id,
                 purchaseOrderId: item.purchaseOrderId,
-                productId: item.productId,
+                variantId: item.variantId,
                 orderedQuantity: item.orderedQuantity,
                 receivedQuantity: item.receivedQuantity,
                 damagedQuantity: item.damagedQuantity,
@@ -410,7 +437,7 @@ export class PurchaseOrderService {
                 notes: item.notes,
                 createdAt: item.createdAt,
                 updatedAt: item.updatedAt,
-                product: item.product,
+                variant: item.variant,
             })),
             supplier: po.supplier,
         };

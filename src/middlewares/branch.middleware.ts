@@ -1,6 +1,7 @@
 import { UserModel } from '../models/user.model';
 import { AuthRequest } from '../lib/express.type';
 import { BranchModel } from '../models/branch.model';
+import { BranchSubscriptionModel } from '../models/branch-subscription.model';
 import { Request, Response, NextFunction } from 'express';
 import { BaseController } from '../controllers/base.controller';
 
@@ -183,7 +184,7 @@ export class BranchMiddleware {
         try {
             const user = req.auth;
             const branchId = user?.currentBranchId || user?.branchId || '';
-            
+
             // Get branch with subscription details
             const branchWithRelations = await BranchModel.findByIdWithRelations(branchId);
 
@@ -221,6 +222,11 @@ export class BranchMiddleware {
                 const endsAt = new Date(branchSubscription.endsAt);
 
                 if (endsAt < now) {
+                    // Auto-update subscription status to expired in database
+                    await BranchSubscriptionModel.update(branchSubscription.branchSubscriptionId, {
+                        status: 'expired'
+                    });
+
                     BaseController.sendForbiddenWithSubscription(
                         res,
                         'Your subscription has expired. Please renew to continue using the service.',

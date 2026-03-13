@@ -130,8 +130,8 @@ export class InventoryAnalyticsRepository {
             },
         });
 
-        if (filter === 'low-stock') {
-            variants = InventoryQueryBuilder.filterLowStock(variants);
+        if (InventoryQueryBuilder.requiresPostProcessing(filter as any)) {
+            variants = InventoryQueryBuilder.applyStockFilter(variants, filter as any);
         }
 
         const metrics = this.calculateOverviewMetrics(variants);

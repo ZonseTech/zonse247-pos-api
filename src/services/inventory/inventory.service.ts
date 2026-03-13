@@ -2,9 +2,11 @@ import { AuthenticatedUser } from 'auth';
 import { InventoryModel } from '../../models/inventory.model';
 import { CategoryService } from '../category.service';
 import { StockMovementService } from './stock-movement.service';
+import { ProductService } from './product.service';
 import { Category } from 'categoty';
 import { InventoryItem } from 'inventory-item';
 import prisma from '../../databases/prisma/client';
+import { ConvertToVariantInput, ConvertToVariantResult } from '../../types/product.types';
 
 /**
  * InventoryService - Facade for all inventory-related operations
@@ -472,5 +474,24 @@ export class InventoryService {
             ...data,
             movedBy: auth.userId,
         });
+    }
+
+    /**
+     * Convert a variant to become a variant of a different product.
+     * This allows moving an existing product's variant to become a variant of another product.
+     * 
+     * Use cases:
+     * - Moving a standalone product to become a variant of another product
+     * - Reorganizing variants between products
+     * 
+     * @param data - The conversion input data containing variantId and targetProductId
+     * @param auth - Authenticated user context
+     * @returns The converted variant and info about whether the original product was deleted
+     */
+    static async convertToVariant(
+        data: ConvertToVariantInput,
+        auth: AuthenticatedUser
+    ): Promise<ConvertToVariantResult> {
+        return await ProductService.convertToVariant(data, auth.tenantId, auth.branchId);
     }
 }

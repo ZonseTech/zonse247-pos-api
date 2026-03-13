@@ -66,7 +66,7 @@ export const inventoryValidationSchemas = {
         createdBy: Joi.string().uuid().required(),
         items: Joi.array().items(
             Joi.object({
-                productId: Joi.string().uuid().required(),
+                variantId: Joi.string().uuid().required(),
                 orderedQuantity: Joi.number().integer().min(1).required(),
                 unitPrice: Joi.number().min(0).required(),
             })
@@ -79,7 +79,7 @@ export const inventoryValidationSchemas = {
         receivedBy: Joi.string().uuid().required(),
         items: Joi.array().items(
             Joi.object({
-                productId: Joi.string().uuid().required(),
+                variantId: Joi.string().uuid().required(),
                 receivedQuantity: Joi.number().integer().min(0).required(),
                 damagedQuantity: Joi.number().integer().min(0).required(),
             })

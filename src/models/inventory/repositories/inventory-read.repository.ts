@@ -129,17 +129,29 @@ export class InventoryReadRepository {
         const { filter = 'all' } = options;
         const whereClause = InventoryQueryBuilder.buildVariantWhereClause(auth, options);
 
-        let results = await prisma.productVariant.findMany({
+        if (InventoryQueryBuilder.requiresPostProcessing(filter as any)) {
+            let results = await prisma.productVariant.findMany({
+                where: whereClause,
+                include: VARIANT_INCLUDE,
+                orderBy: { createdAt: 'desc' },
+            });
+
+            results = InventoryQueryBuilder.applyStockFilter(results, filter as any);
+
+            results = results.slice(skip, skip + limit);
+
+            return results
+                .map((r) => InventoryMapper.mapToInventoryItem(r))
+                .filter((item): item is InventoryItem => item !== null);
+        }
+
+        const results = await prisma.productVariant.findMany({
             where: whereClause,
             include: VARIANT_INCLUDE,
             skip,
             take: limit,
             orderBy: { createdAt: 'desc' },
         });
-
-        if (InventoryQueryBuilder.requiresPostProcessing(filter as any)) {
-            results = InventoryQueryBuilder.filterLowStock(results);
-        }
 
         return results
             .map((r) => InventoryMapper.mapToInventoryItem(r))
@@ -161,7 +173,7 @@ export class InventoryReadRepository {
                 where: whereClause,
                 include: { inventories: true },
             });
-            return InventoryQueryBuilder.filterLowStock(results).length;
+            return InventoryQueryBuilder.applyStockFilter(results, filter as any).length;
         }
 
         return prisma.productVariant.count({ where: whereClause });
@@ -250,6 +262,37 @@ export class InventoryReadRepository {
         const productWhere = InventoryQueryBuilder.buildProductWhereClause(auth, options);
         const variantWhere = InventoryQueryBuilder.buildVariantSubWhereClause(filter as any);
 
+        if (InventoryQueryBuilder.requiresPostProcessing(filter as any)) {
+            const results = await prisma.product.findMany({
+                where: productWhere,
+                include: {
+                    category: true,
+                    variants: {
+                        where: variantWhere,
+                        orderBy: [{ isDefault: 'desc' }, { variantName: 'asc' }],
+                        include: {
+                            inventories: true,
+                            barcodes: { where: { isActive: true } },
+                        },
+                    },
+                },
+                orderBy: { name: 'asc' },
+            });
+
+            let filteredResults = results.filter((p) => p.variants.length > 0);
+            filteredResults = InventoryQueryBuilder.applyProductStockFilter(filteredResults, filter as any);
+
+            const total = filteredResults.length;
+
+            const paginatedResults = filteredResults.slice(skip, skip + limit);
+
+            const products = paginatedResults
+                .map((product) => InventoryMapper.mapToProductWithVariants(product))
+                .filter(Boolean);
+
+            return { products, total };
+        }
+
         const [results, totalCount] = await Promise.all([
             prisma.product.findMany({
                 where: productWhere,
@@ -271,11 +314,7 @@ export class InventoryReadRepository {
             prisma.product.count({ where: productWhere }),
         ]);
 
-        let filteredResults = results.filter((p) => p.variants.length > 0);
-
-        if (filter === 'low-stock') {
-            filteredResults = InventoryQueryBuilder.filterProductsWithLowStockVariants(filteredResults);
-        }
+        const filteredResults = results.filter((p) => p.variants.length > 0);
 
         const products = filteredResults
             .map((product) => InventoryMapper.mapToProductWithVariants(product))
@@ -316,8 +355,8 @@ export class InventoryReadRepository {
             },
         });
 
-        if (options.filter === 'low-stock') {
-            variants = InventoryQueryBuilder.filterLowStock(variants);
+        if (InventoryQueryBuilder.requiresPostProcessing(options.filter as any)) {
+            variants = InventoryQueryBuilder.applyStockFilter(variants, options.filter as any);
         }
 
         return variants;

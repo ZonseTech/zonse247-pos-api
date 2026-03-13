@@ -3,6 +3,8 @@
  * Defines types for printer management in POS system
  */
 
+import { ReceiptDisplaySettings } from './terminal-settings';
+
 export enum PrinterType {
     THERMAL = 'THERMAL',
     INKJET = 'INKJET',
@@ -43,7 +45,8 @@ export enum PrintJobType {
     LABEL = 'LABEL',
     BARCODE = 'BARCODE',
     KITCHEN_ORDER = 'KITCHEN_ORDER',
-    TEST_PAGE = 'TEST_PAGE'
+    TEST_PAGE = 'TEST_PAGE',
+    CASH_DRAWER = 'CASH_DRAWER'
 }
 
 export interface PrinterConfiguration {
@@ -204,6 +207,8 @@ export interface PrintReceiptRequest {
     saleId?: string;                  // Primary identifier - use this for new sales
     transactionId?: string;           // @deprecated - use saleId instead (transactions table deprecated)
     orderId?: string;
+    terminalId?: string;              // Terminal ID for fetching receipt settings (if receiptSettings not provided)
+    receiptSettings?: ReceiptDisplaySettings; // Pass directly to skip terminal settings DB lookup
     copies?: number;
     includeHeader?: boolean;
     includeFooter?: boolean;
