@@ -10,7 +10,7 @@
 
 import { MraSubmissionModel, MraSubmission } from '../../models/mra-submission.model';
 import { TerminalModel } from '../../models/terminal.model';
-import { MraBaseService } from './base.service';
+import { MraBaseService, MRA_HEADERS } from './base.service';
 import { MraConfigurationService } from './configuration.service';
 import {
     MraEnvironment,
@@ -181,7 +181,13 @@ export class MraOfflineSyncService {
             }
 
             const saleData = submission.requestPayload as MraSaleSubmissionRequest;
-            const client = MraBaseService.getAxiosInstance(apiConfig.apiBaseUrl, apiConfig.apiKey);
+
+            const credentials = {
+                secretKey: apiConfig.apiKey || undefined,
+                jwtToken: apiConfig.apiSecret || undefined,
+            };
+
+            const client = MraBaseService.getAxiosInstance(apiConfig.apiBaseUrl, credentials);
 
             // Include offline timestamp to indicate this was created offline
             const request = {
@@ -189,20 +195,24 @@ export class MraOfflineSyncService {
                 offlineTimestamp: submission.createdAt.toISOString(),
             };
 
-            const signature = MraBaseService.generateSignature(request, apiConfig.apiKey || '');
+            const config = MraBaseService.createRequestConfig(
+                request,
+                apiConfig.apiKey || undefined,
+                apiConfig.apiSecret || undefined
+            );
+
+            // Add offline sync header
+            if (config.headers) {
+                config.headers['X-Offline-Sync'] = 'true';
+            }
 
             // Mark as processing
             await MraSubmissionModel.markAsProcessing(submissionId);
 
             const response = await client.post<MraSaleSubmissionResponse>(
-                '/sales/submit-offline',
+                '/sales/submit-offline-transaction',
                 request,
-                {
-                    headers: {
-                        'X-Signature': signature,
-                        'X-Offline-Sync': 'true',
-                    },
-                }
+                config
             );
 
             if (response.data.success && response.data.data) {

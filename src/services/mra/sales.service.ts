@@ -42,17 +42,22 @@ export class MraSalesService {
             // Ensure the sale uses the MRA terminal ID
             saleData.terminalId = terminal.mraTerminalId;
 
-            const client = MraBaseService.getAxiosInstance(apiConfig.apiBaseUrl, apiConfig.apiKey);
-            const signature = MraBaseService.generateSignature(saleData, apiConfig.apiKey || '');
+            const credentials = {
+                secretKey: apiConfig.apiKey || undefined,
+                jwtToken: apiConfig.apiSecret || undefined,
+            };
+
+            const client = MraBaseService.getAxiosInstance(apiConfig.apiBaseUrl, credentials);
+            const config = MraBaseService.createRequestConfig(
+                saleData,
+                apiConfig.apiKey || undefined,
+                apiConfig.apiSecret || undefined
+            );
 
             const response = await client.post<MraSaleSubmissionResponse>(
-                '/sales/submit',
+                '/sales/submit-sales-transaction',
                 saleData,
-                {
-                    headers: {
-                        'X-Signature': signature,
-                    },
-                }
+                config
             );
 
             return response.data;
@@ -120,18 +125,23 @@ export class MraSalesService {
                 };
             }
 
-            const client = MraBaseService.getAxiosInstance(apiConfig.apiBaseUrl, apiConfig.apiKey);
+            const credentials = {
+                secretKey: apiConfig.apiKey || undefined,
+                jwtToken: apiConfig.apiSecret || undefined,
+            };
+
+            const client = MraBaseService.getAxiosInstance(apiConfig.apiBaseUrl, credentials);
             const request = { terminalId: terminal.mraTerminalId, invoiceNumber };
-            const signature = MraBaseService.generateSignature(request, apiConfig.apiKey || '');
+            const config = MraBaseService.createRequestConfig(
+                request,
+                apiConfig.apiKey || undefined,
+                apiConfig.apiSecret || undefined
+            );
 
             const response = await client.post<{ success: boolean; data?: unknown; message?: string }>(
                 '/sales/verify',
                 request,
-                {
-                    headers: {
-                        'X-Signature': signature,
-                    },
-                }
+                config
             );
 
             return response.data;
@@ -172,22 +182,27 @@ export class MraSalesService {
                 };
             }
 
-            const client = MraBaseService.getAxiosInstance(apiConfig.apiBaseUrl, apiConfig.apiKey);
+            const credentials = {
+                secretKey: apiConfig.apiKey || undefined,
+                jwtToken: apiConfig.apiSecret || undefined,
+            };
+
+            const client = MraBaseService.getAxiosInstance(apiConfig.apiBaseUrl, credentials);
             const request = {
                 terminalId: terminal.mraTerminalId,
                 startDate: startDate.toISOString(),
                 endDate: endDate.toISOString(),
             };
-            const signature = MraBaseService.generateSignature(request, apiConfig.apiKey || '');
+            const config = MraBaseService.createRequestConfig(
+                request,
+                apiConfig.apiKey || undefined,
+                apiConfig.apiSecret || undefined
+            );
 
             const response = await client.post<{ success: boolean; data?: unknown; message?: string }>(
                 '/sales/summary',
                 request,
-                {
-                    headers: {
-                        'X-Signature': signature,
-                    },
-                }
+                config
             );
 
             return response.data;

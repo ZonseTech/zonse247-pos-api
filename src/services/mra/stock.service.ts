@@ -8,7 +8,7 @@
  */
 
 import { TerminalModel } from '../../models/terminal.model';
-import { MraBaseService } from './base.service';
+import { MraBaseService, MRA_HEADERS } from './base.service';
 import { MraConfigurationService } from './configuration.service';
 import {
     MraEnvironment,
@@ -56,23 +56,28 @@ export class MraStockService {
                 };
             }
 
-            const client = MraBaseService.getAxiosInstance(apiConfig.apiBaseUrl, apiConfig.apiKey);
+            const credentials = {
+                secretKey: apiConfig.apiKey || undefined,
+                jwtToken: apiConfig.apiSecret || undefined,
+            };
+
+            const client = MraBaseService.getAxiosInstance(apiConfig.apiBaseUrl, credentials);
 
             const request: MraProductStatusRequest = {
                 terminalId: terminal.mraTerminalId,
                 productCode,
             };
 
-            const signature = MraBaseService.generateSignature(request, apiConfig.apiKey || '');
+            const config = MraBaseService.createRequestConfig(
+                request,
+                apiConfig.apiKey || undefined,
+                apiConfig.apiSecret || undefined
+            );
 
             const response = await client.post<MraProductStatusResponse>(
-                '/products/status',
+                '/utilities/product-status',
                 request,
-                {
-                    headers: {
-                        'X-Signature': signature,
-                    },
-                }
+                config
             );
 
             return response.data;
@@ -123,23 +128,28 @@ export class MraStockService {
                 };
             }
 
-            const client = MraBaseService.getAxiosInstance(apiConfig.apiBaseUrl, apiConfig.apiKey);
+            const credentials = {
+                secretKey: apiConfig.apiKey || undefined,
+                jwtToken: apiConfig.apiSecret || undefined,
+            };
+
+            const client = MraBaseService.getAxiosInstance(apiConfig.apiBaseUrl, credentials);
 
             const request = {
                 terminalId: terminal.mraTerminalId,
                 ...productData,
             };
 
-            const signature = MraBaseService.generateSignature(request, apiConfig.apiKey || '');
+            const config = MraBaseService.createRequestConfig(
+                request,
+                apiConfig.apiKey || undefined,
+                apiConfig.apiSecret || undefined
+            );
 
             const response = await client.post<{ success: boolean; data?: unknown; message?: string }>(
                 '/products/register',
                 request,
-                {
-                    headers: {
-                        'X-Signature': signature,
-                    },
-                }
+                config
             );
 
             return response.data;
@@ -180,7 +190,12 @@ export class MraStockService {
                 };
             }
 
-            const client = MraBaseService.getAxiosInstance(apiConfig.apiBaseUrl, apiConfig.apiKey);
+            const credentials = {
+                secretKey: apiConfig.apiKey || undefined,
+                jwtToken: apiConfig.apiSecret || undefined,
+            };
+
+            const client = MraBaseService.getAxiosInstance(apiConfig.apiBaseUrl, credentials);
 
             const request = {
                 terminalId: terminal.mraTerminalId,
@@ -189,16 +204,16 @@ export class MraStockService {
                 updatedAt: new Date().toISOString(),
             };
 
-            const signature = MraBaseService.generateSignature(request, apiConfig.apiKey || '');
+            const config = MraBaseService.createRequestConfig(
+                request,
+                apiConfig.apiKey || undefined,
+                apiConfig.apiSecret || undefined
+            );
 
             const response = await client.post<{ success: boolean; message?: string }>(
                 '/products/stock-update',
                 request,
-                {
-                    headers: {
-                        'X-Signature': signature,
-                    },
-                }
+                config
             );
 
             return response.data;
