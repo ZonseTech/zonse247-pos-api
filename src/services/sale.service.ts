@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { prisma } from '../databases/prisma/client';
 import { StockMovementService } from './inventory/stock-movement.service';
+import { MraComplianceService } from './mra/compliance.service';
 import {
     CreateSaleInput,
     SaleWithItems,
@@ -10,6 +11,7 @@ import {
     SalesSummary,
     ProcessedSaleItem,
 } from '../types/sale.types';
+import { MraSaleSubmissionRequest, MraSaleItem } from '../types/mra.types';
 import {
     SALE_NUMBER,
     PAGINATION,
@@ -629,5 +631,133 @@ export class SaleService {
      */
     private static delay(ms: number): Promise<void> {
         return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    // ==========================================
+    // MRA COMPLIANCE INTEGRATION
+    // ==========================================
+
+    /**
+     * Process a completed sale for MRA compliance
+     * This is called after the sale transaction is committed.
+     * 
+     * For MRA-enabled tenants with activated terminals: submits in real-time
+     * For MRA-enabled tenants with non-activated terminals: queues for later sync
+     * For non-MRA tenants: marks as NOT_APPLICABLE
+     * 
+     * @param sale - The completed sale
+     * @param tenantId - Tenant identifier
+     * @param terminalId - Terminal identifier
+     * @returns Updated sale with MRA status
+     */
+    static async processSaleForMraCompliance(
+        sale: SaleWithItems,
+        tenantId: string,
+        terminalId?: string
+    ): Promise<SaleWithItems> {
+        // If no terminal, we can't submit to MRA (offline/unknown terminal)
+        if (!terminalId) {
+            return sale;
+        }
+
+        try {
+            // Build MRA sale submission request
+            const saleData = this.buildMraSaleRequest(sale);
+
+            // Process through compliance service
+            const result = await MraComplianceService.processSaleForMra(
+                tenantId,
+                terminalId,
+                sale.id,
+                saleData
+            );
+
+            // Update sale with MRA result
+            await MraComplianceService.updateSaleWithMraResult(sale.id, result);
+
+            // Return updated sale with MRA fields
+            return {
+                ...sale,
+                mraStatus: result.mraStatus as any,
+                mraSubmissionId: result.mraSubmissionId,
+                mraQrCode: result.mraQrCode,
+                mraVerificationUrl: result.mraVerificationUrl,
+            } as SaleWithItems;
+
+        } catch (error) {
+            console.error('[MRA] Sale compliance processing error:', error);
+            // Sale is still valid, MRA submission failed but can be retried
+            return sale;
+        }
+    }
+
+    /**
+     * Build MRA sale submission request from sale data
+     * Maps local sale format to MRA API expected format
+     */
+    private static buildMraSaleRequest(sale: SaleWithItems): MraSaleSubmissionRequest {
+        const saleDate = new Date(sale.saleDate || new Date());
+
+        // Map sale items to MRA format
+        const items: MraSaleItem[] = sale.items.map((item, index) => ({
+            itemNo: index + 1,
+            itemCode: item.variant?.sku || item.productId || 'ITEM',
+            itemDesc: item.variant?.product?.name || 'Product',
+            quantity: Number(item.quantity),
+            unitOfMeasure: 'PCS', // Default to pieces
+            unitPrice: Number(item.unitPrice),
+            discountAmount: Number(item.discountAmount || 0),
+            taxCode: 'A', // Standard VAT - would need to be configured per product
+            taxAmount: Number(item.taxAmount || 0),
+            totalAmount: Number(item.totalAmount),
+        }));
+
+        // Calculate tax summary (simplified - single tax rate)
+        const totalTax = Number(sale.taxAmount || 0);
+        const taxableAmount = Number(sale.subtotal || 0);
+        const taxSummary = totalTax > 0 ? [
+            {
+                taxCode: 'A', // Standard VAT
+                taxableAmount,
+                taxAmount: totalTax,
+            }
+        ] : [];
+
+        // Map payments to MRA format
+        const payments = (sale.payments || []).map(payment => ({
+            paymentMethod: payment.paymentMethod?.name || 'CASH',
+            amount: Number(payment.amount),
+            reference: payment.reference,
+        }));
+
+        // If no payments array, use single payment
+        if (payments.length === 0 && sale.paymentMethod) {
+            payments.push({
+                paymentMethod: sale.paymentMethod.name || 'CASH',
+                amount: Number(sale.amountPaid || 0),
+                reference: undefined,
+            });
+        }
+
+        return {
+            terminalId: sale.terminal?.terminalId || '',
+            invoiceNumber: sale.saleNumber,
+            invoiceType: 'NORMAL',
+            transactionType: sale.isVoided ? 'VOID' : 'SALE',
+            transactionDate: saleDate,
+            transactionTime: saleDate.toTimeString().split(' ')[0], // HH:mm:ss
+            customerTpin: (sale.customer as any)?.tin || undefined,
+            customerName: sale.customer?.name,
+            items,
+            subtotal: Number(sale.subtotal || 0),
+            totalDiscount: Number(sale.discountAmount || 0),
+            totalTax: Number(sale.taxAmount || 0),
+            totalAmount: Number(sale.totalAmount || 0),
+            taxSummary,
+            payments,
+            amountPaid: Number(sale.amountPaid || 0),
+            changeAmount: Number(sale.changeAmount || 0),
+            isOffline: false, // Will be set by offline sync if needed
+        };
     }
 }

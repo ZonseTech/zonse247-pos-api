@@ -137,3 +137,5 @@ generated
 src/databases/prisma/schema.prisma
 src/databases/prisma/migrations-backup/
 src/databases/prisma/migrations
+
+uploads/

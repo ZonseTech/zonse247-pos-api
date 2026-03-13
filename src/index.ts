@@ -17,7 +17,6 @@ export {
     type PrintAgentStatus
 } from './services/printer/print-agent.service';
 
-// Printer Platform Types
 export {
     AppPlatform,
     PrintErrorCode,
@@ -41,7 +40,6 @@ export {
     type SetupInstructionsDTO
 } from './types/printer.platform';
 
-// Print Strategies
 export {
     PrintStrategyFactory,
     PrintStrategySelector,
