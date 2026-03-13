@@ -8,7 +8,7 @@
 
 import { MraApiConfigModel } from '../../models/mra-api-config.model';
 import { TerminalModel } from '../../models/terminal.model';
-import { MraBaseService, MRA_API_URLS } from './base.service';
+import { MraBaseService, MRA_API_URLS, MRA_HEADERS } from './base.service';
 import {
     MraEnvironment,
     MraApiConfig,
@@ -78,23 +78,28 @@ export class MraConfigurationService {
                 };
             }
 
-            const client = MraBaseService.getAxiosInstance(apiConfig.apiBaseUrl, apiConfig.apiKey);
+            const credentials = {
+                secretKey: apiConfig.apiKey || undefined,
+                jwtToken: apiConfig.apiSecret || undefined,
+            };
+
+            const client = MraBaseService.getAxiosInstance(apiConfig.apiBaseUrl, credentials);
 
             const request: MraGetConfigRequest = {
                 terminalId: terminal.mraTerminalId,
                 currentConfigVersion: Number(terminal.terminalConfigVersion) || 0,
             };
 
-            const signature = MraBaseService.generateSignature(request, apiConfig.apiKey || '');
+            const config = MraBaseService.createRequestConfig(
+                request,
+                apiConfig.apiKey || undefined,
+                apiConfig.apiSecret || undefined
+            );
 
             const response = await client.post<MraGetConfigResponse>(
-                '/terminal/get-config',
+                '/configuration/get-latest-configs',
                 request,
-                {
-                    headers: {
-                        'X-Signature': signature,
-                    },
-                }
+                config
             );
 
             if (response.data.success && response.data.data?.hasUpdates) {
