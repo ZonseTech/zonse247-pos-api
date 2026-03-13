@@ -210,4 +210,27 @@ router.get(
     asyncHandler(TerminalSettingsController.getAllSettings)
 );
 
+/**
+ * @route   GET /api/v1/onboarding/steps/:tenantId
+ * @desc    Get onboarding steps for a tenant (excludes MRA_SETUP when not required)
+ * @access  Public
+ * @param   tenantId - The tenant ID
+ * @query   includeMraSetup - Override to include MRA setup step (default: false, MRA set up later)
+ */
+router.get(
+    '/steps/:tenantId',
+    asyncHandler(OnboardingController.getOnboardingStepsConfig)
+);
+
+/**
+ * @route   GET /api/v1/onboarding/mra-check/:tenantId
+ * @desc    Check if MRA setup should be included for a tenant
+ * @access  Public
+ * @param   tenantId - The tenant ID
+ */
+router.get(
+    '/mra-check/:tenantId',
+    asyncHandler(OnboardingController.checkMraSetupRequirements)
+);
+
 export default router;

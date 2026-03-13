@@ -98,6 +98,9 @@ export class OnboardingService {
             mraPortalUsername: tenantData.mraPortalUsername || null,
             tradingName: tenantData.tradingName || null,
             isVatRegistered: parseBoolean(tenantData.isVatRegistered),
+            // MRA compliance fields
+            isMraEnabled: parseBoolean((tenantData as any).isMraEnabled),
+            mraEnvironment: (tenantData as any).mraEnvironment || 'SANDBOX',
             taxOfficeCode: tenantData.taxOfficeCode || null,
             msonkhoOnlineStatus: tenantData.msonkhoOnlineStatus || DEFAULTS.MSONKHO_STATUS,
             verificationToken: tenantData.verificationToken || DEFAULTS.VERIFICATION_TOKEN,
