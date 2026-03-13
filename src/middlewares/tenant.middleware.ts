@@ -16,6 +16,10 @@ export class TenantMiddleware {
                 tenantId = req.headers?.['x-tenant-id'] as string;
             }
 
+            if (!tenantId && (req as any).auth?.tenantId) {
+                tenantId = (req as any).auth.tenantId;
+            }
+
             if (tenantSignature) {
                 const verification = await SecureSettingsService.verifyTenantSignature(tenantSignature);
                 tenantId = verification.tenantId;

@@ -167,6 +167,9 @@ export class TenantModel {
         const tenantId = data.tenantId || uuidv4();
         const verificationToken = await this.generateVerificationToken(tenantId);
 
+        // Cast data to any to access new fields not yet in generated types
+        const inputData = data as any;
+
         return {
             tenantId,
             tenantCode: data.tenantCode || this.generateTenantCode(),
@@ -179,6 +182,9 @@ export class TenantModel {
             email: data.email,
             mraPortalUsername: data.mraPortalUsername || null,
             isVatRegistered: data.isVatRegistered || false,
+            // New MRA fields - cast to any until Prisma types regenerated
+            isMraEnabled: inputData.isMraEnabled || false,
+            mraEnvironment: inputData.mraEnvironment || 'SANDBOX',
             taxOfficeCode: data.taxOfficeCode || null,
             msonkhoOnlineStatus: data.msonkhoOnlineStatus || 'PENDING',
             address: data.address || null,
@@ -189,7 +195,7 @@ export class TenantModel {
             createdAt: now,
             updatedAt: now,
             activatedAt: null,
-        };
+        } as TenantCreateInput;
     }
 
     /**

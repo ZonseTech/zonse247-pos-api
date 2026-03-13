@@ -1,39 +1,38 @@
 /* eslint-disable @typescript-eslint/no-var-requires */
-/**
- * MRA Services Index
- * 
- * Re-exports all MRA service modules for convenient importing.
- * 
- * Usage:
- * ```typescript
- * import { 
- *   MraOnboardingService, 
- *   MraSalesService,
- *   MraConfigurationService 
- * } from './services/mra';
- * ```
- */
-
-// Base service with shared utilities
 export { MraBaseService } from './base.service';
-
-// Configuration management
 export { MraConfigurationService } from './configuration.service';
-
-// Terminal onboarding and activation
 export { MraOnboardingService } from './onboarding.service';
-
-// Sales and invoicing
 export { MraSalesService } from './sales.service';
-
-// Stock and product management
 export { MraStockService } from './stock.service';
-
-// Utility functions
 export { MraUtilitiesService } from './utilities.service';
-
-// Offline sync management
 export { MraOfflineSyncService } from './offline-sync.service';
+export { MraComplianceService } from './compliance.service';
+export { MraEventsService, mraEvents, MraEventType } from './events.service';
+export type {
+    MraTerminalActivatedEvent,
+    MraTerminalDeactivatedEvent,
+    MraConfigSyncedEvent,
+    MraComplianceChangedEvent
+} from './events.service';
 
-// Re-export MraBaseService as MraService for backwards compatibility
+export { MraPostOnboardingService } from './post-onboarding.service';
+export type { PostOnboardingSyncResult } from './post-onboarding.service';
 export { MraBaseService as MraService } from './base.service';
+
+/**
+ * Initialize MRA services (event handlers for post-onboarding sync)
+ * Only initializes for MySQL database (server deployments)
+ * SQLite (desktop) skips MRA initialization for performance
+ */
+export function initializeMraServices(): void {
+    const { DATABASE_TYPE } = require('../../databases/prisma/client');
+
+    if (DATABASE_TYPE === 'sqlite') {
+        console.log('[MRA] Skipping initialization (SQLite/desktop mode)');
+        return;
+    }
+
+    const { MraPostOnboardingService } = require('./post-onboarding.service');
+    MraPostOnboardingService.initialize();
+    console.log('[MRA] Services initialized');
+}

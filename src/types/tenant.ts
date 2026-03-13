@@ -1,6 +1,7 @@
 export type BusinessType = 'PRODUCT_BASED' | 'SERVICE_BASED';
 export type MsonkhoOnlineStatus = 'VERIFIED' | 'PENDING' | 'FAILED';
 export type TenantStatus = 'pending' | 'active' | 'suspended' | 'cancelled';
+export type MraEnvironment = 'SANDBOX' | 'PRODUCTION';
 
 export interface BaseTimestamps {
     createdAt?: Date | null;
@@ -20,6 +21,8 @@ export interface Tenant extends BaseTimestamps {
     email: string;
     mraPortalUsername?: string | null;
     isVatRegistered?: boolean;
+    isMraEnabled?: boolean;
+    mraEnvironment?: MraEnvironment | null;
     taxOfficeCode?: string | null;
     msonkhoOnlineStatus: MsonkhoOnlineStatus;
     address?: string | null;

@@ -140,6 +140,10 @@ export class Server {
 			await DatabaseInitializer.ensureReady(userDataPath);
 			console.log('✓ Database ready');
 
+			const { initializeMraServices } = await import('./services/mra');
+			initializeMraServices();
+			console.log('✓ MRA services initialized');
+
 			const port = parseInt(this.config.serverPort);
 			this.server.listen(
 				port,
