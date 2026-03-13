@@ -21,7 +21,6 @@ export function detectPlatform(req: Request): AppPlatform {
     const userAgent = req.headers['user-agent'] || '';
     const platformHeader = req.headers['x-platform'] as string;
 
-    // Check explicit platform header first
     if (platformHeader) {
         const platform = platformHeader.toUpperCase();
         if (Object.values(AppPlatform).includes(platform as AppPlatform)) {
@@ -29,7 +28,6 @@ export function detectPlatform(req: Request): AppPlatform {
         }
     }
 
-    // Detect from user agent
     if (userAgent.includes('Electron')) {
         return AppPlatform.DESKTOP;
     }
@@ -68,7 +66,6 @@ export function handleError(res: Response, error: unknown): void {
         const message = error.message;
         let statusCode = 500;
 
-        // Map common error messages to status codes
         if (message.includes('not found')) statusCode = 404;
         else if (message.includes('already exists')) statusCode = 409;
         else if (message.includes('required') || message.includes('invalid')) statusCode = 400;

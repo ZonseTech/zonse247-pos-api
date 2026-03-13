@@ -114,9 +114,33 @@ export interface InitOnboardingProgressRequest {
 }
 
 /**
- * Default onboarding steps configuration
+ * Options for generating onboarding steps
  */
-export const DEFAULT_ONBOARDING_STEPS: Array<{ stepType: OnboardingStepType; order: number; required: boolean }> = [
+export interface OnboardingStepsOptions {
+    /** Whether MRA compliance is enabled for the tenant */
+    isMraEnabled?: boolean;
+    /** Whether to include product sync steps (default: false) */
+    includeProductSync?: boolean;
+    /** Whether to include inventory sync steps (default: false) */
+    includeInventorySync?: boolean;
+    /** Whether to include user sync steps (default: false) */
+    includeUserSync?: boolean;
+}
+
+/**
+ * Onboarding step configuration
+ */
+export interface OnboardingStepConfig {
+    stepType: OnboardingStepType;
+    order: number;
+    required: boolean;
+}
+
+/**
+ * Default onboarding steps configuration
+ * Note: MRA_SETUP is included by default but can be skipped based on tenant's isMraEnabled setting
+ */
+export const DEFAULT_ONBOARDING_STEPS: OnboardingStepConfig[] = [
     { stepType: 'TERMINAL_ACTIVATION', order: 1, required: true },
     { stepType: 'TERMINAL_DETAILS_SAVE', order: 2, required: true },
     { stepType: 'SUBSCRIPTION_PLANS_SYNC', order: 3, required: false },
@@ -126,3 +150,70 @@ export const DEFAULT_ONBOARDING_STEPS: Array<{ stepType: OnboardingStepType; ord
     { stepType: 'CUSTOMERS_SYNC', order: 7, required: false },
     { stepType: 'MRA_SETUP', order: 8, required: false },
 ];
+
+/**
+ * Get onboarding steps based on tenant's MRA compliance setting
+ * 
+ * @param options - Options for customizing onboarding steps
+ * @returns Array of onboarding step configurations
+ * 
+ * @example
+ * // For MRA-enabled tenant
+ * const steps = getOnboardingSteps({ isMraEnabled: true });
+ * 
+ * @example
+ * // For non-MRA tenant (skips MRA_SETUP step)
+ * const steps = getOnboardingSteps({ isMraEnabled: false });
+ */
+export function getOnboardingSteps(options: OnboardingStepsOptions = {}): OnboardingStepConfig[] {
+    const {
+        isMraEnabled = false,
+        includeProductSync = false,
+        includeInventorySync = false,
+        includeUserSync = false,
+    } = options;
+
+    // Start with base steps (always required)
+    const steps: OnboardingStepConfig[] = [
+        { stepType: 'TERMINAL_ACTIVATION', order: 1, required: true },
+        { stepType: 'TERMINAL_DETAILS_SAVE', order: 2, required: true },
+        { stepType: 'SUBSCRIPTION_PLANS_SYNC', order: 3, required: false },
+        { stepType: 'PAYMENT_METHODS_SYNC', order: 4, required: false },
+        { stepType: 'PAYMENT_PROVIDERS_SYNC', order: 5, required: false },
+        { stepType: 'CATEGORIES_SYNC', order: 6, required: false },
+        { stepType: 'CUSTOMERS_SYNC', order: 7, required: false },
+    ];
+
+    let order = 8;
+
+    // Add optional sync steps if requested
+    if (includeProductSync) {
+        steps.push({ stepType: 'PRODUCTS_SYNC', order: order++, required: false });
+    }
+
+    if (includeInventorySync) {
+        steps.push({ stepType: 'INVENTORY_SYNC', order: order++, required: false });
+    }
+
+    if (includeUserSync) {
+        steps.push({ stepType: 'USERS_SYNC', order: order++, required: false });
+    }
+
+    // Only include MRA_SETUP if tenant is MRA-enabled
+    if (isMraEnabled) {
+        steps.push({ stepType: 'MRA_SETUP', order: order++, required: false });
+    }
+
+    // Re-order steps sequentially
+    return steps.map((step, index) => ({
+        ...step,
+        order: index + 1,
+    }));
+}
+
+/**
+ * Check if MRA_SETUP step should be included in onboarding
+ */
+export function shouldIncludeMraSetup(isMraEnabled?: boolean): boolean {
+    return isMraEnabled === true;
+}

@@ -1,19 +1,15 @@
-/**
- * MRA Utilities Service
- * 
- * Handles utility operations:
- * - Ping/connectivity check
- * - Transaction lookups
- * - Environment configuration
- * - Status monitoring
- */
-
-import { MraSubmissionModel } from '../../models/mra-submission.model';
-import { MraBaseService } from './base.service';
+import { MraSubmissionModel, } from '../../models/mra-submission.model';
+import { TerminalModel } from '../../models/terminal.model';
+import { MraBaseService, } from './base.service';
 import { MraConfigurationService } from './configuration.service';
 import {
     MraEnvironment,
     MraPingResponse,
+    MraTerminalProductsResponse,
+    MraTinValidationResponse,
+    MraBlockingMessageResponse,
+    MraUnblockStatusResponse,
+    MraVat5ValidationResponse,
 } from '../../types/mra.types';
 
 /**
@@ -323,5 +319,424 @@ export class MraUtilitiesService {
             category: errorCategories[firstDigit] || 'Unknown Error',
             description: `Error code: ${errorCode}`,
         };
+    }
+
+    // ==================== TERMINAL SITE PRODUCTS ====================
+
+    /**
+     * Get terminal site products/services from MRA
+     * 
+     * Downloads all approved and registered products/services from MRA servers.
+     * Ensures that only approved items are listed for sale.
+     * 
+     * @route GET /api/v1/utilities/get-terminal-site-products
+     */
+    static async getTerminalSiteProducts(
+        tenantId: string,
+        terminalId: string,
+        environment: MraEnvironment = MraEnvironment.SANDBOX
+    ): Promise<MraTerminalProductsResponse> {
+        try {
+            const apiConfig = await MraConfigurationService.getApiConfig(tenantId, environment);
+            if (!apiConfig) {
+                return {
+                    success: false,
+                    message: 'MRA API configuration not found',
+                };
+            }
+
+            const terminal = await TerminalModel.findById(terminalId);
+            if (!terminal?.mraTerminalId) {
+                return {
+                    success: false,
+                    message: 'Terminal not activated with MRA',
+                };
+            }
+
+            const credentials = {
+                secretKey: apiConfig.apiKey || undefined,
+                jwtToken: apiConfig.apiSecret || undefined, // JWT stored in apiSecret
+            };
+
+            const client = MraBaseService.getAxiosInstance(apiConfig.apiBaseUrl, credentials);
+
+            const requestBody = { terminalId: terminal.mraTerminalId };
+            const config = MraBaseService.createRequestConfig(
+                requestBody,
+                apiConfig.apiKey || undefined,
+                apiConfig.apiSecret || undefined
+            );
+
+            // MRA API requires POST for this endpoint
+            const response = await client.post<MraTerminalProductsResponse>(
+                '/utilities/get-terminal-site-products',
+                requestBody,
+                config
+            );
+
+            return response.data;
+
+        } catch (error: unknown) {
+            console.error('[MRA] Get terminal site products error:', error);
+            return {
+                success: false,
+                message: MraBaseService.handleApiError(error),
+            };
+        }
+    }
+
+    // ==================== TIN VALIDATION ====================
+
+    /**
+     * Validate a Taxpayer Identification Number (TIN)
+     * 
+     * Verifies if a TIN is valid and retrieves associated taxpayer information.
+     */
+    static async validateTin(
+        tenantId: string,
+        terminalId: string,
+        tin: string,
+        environment: MraEnvironment = MraEnvironment.SANDBOX
+    ): Promise<MraTinValidationResponse> {
+        try {
+            const apiConfig = await MraConfigurationService.getApiConfig(tenantId, environment);
+            if (!apiConfig) {
+                return {
+                    success: false,
+                    message: 'MRA API configuration not found',
+                };
+            }
+
+            const terminal = await TerminalModel.findById(terminalId);
+            if (!terminal?.mraTerminalId) {
+                return {
+                    success: false,
+                    message: 'Terminal not activated with MRA',
+                };
+            }
+
+            const credentials = {
+                secretKey: apiConfig.apiKey || undefined,
+                jwtToken: apiConfig.apiSecret || undefined,
+            };
+
+            const client = MraBaseService.getAxiosInstance(apiConfig.apiBaseUrl, credentials);
+
+            const request = { tin };
+            const config = MraBaseService.createRequestConfig(
+                request,
+                apiConfig.apiKey || undefined,
+                apiConfig.apiSecret || undefined
+            );
+
+            const response = await client.post<MraTinValidationResponse>(
+                '/utilities/validate-tin',
+                request,
+                config
+            );
+
+            return response.data;
+
+        } catch (error: unknown) {
+            console.error('[MRA] TIN validation error:', error);
+            return {
+                success: false,
+                message: MraBaseService.handleApiError(error),
+            };
+        }
+    }
+
+    // ==================== TERMINAL BLOCKING STATUS ====================
+
+    /**
+     * Get terminal blocking message
+     * 
+     * Checks if the terminal is blocked and retrieves the blocking reason.
+     */
+    static async getBlockingMessage(
+        tenantId: string,
+        terminalId: string,
+        environment: MraEnvironment = MraEnvironment.SANDBOX
+    ): Promise<MraBlockingMessageResponse> {
+        try {
+            const apiConfig = await MraConfigurationService.getApiConfig(tenantId, environment);
+            if (!apiConfig) {
+                return {
+                    success: false,
+                    message: 'MRA API configuration not found',
+                };
+            }
+
+            const terminal = await TerminalModel.findById(terminalId);
+            if (!terminal?.mraTerminalId) {
+                return {
+                    success: false,
+                    message: 'Terminal not activated with MRA',
+                };
+            }
+
+            const credentials = {
+                secretKey: apiConfig.apiKey || undefined,
+                jwtToken: apiConfig.apiSecret || undefined,
+            };
+
+            const client = MraBaseService.getAxiosInstance(apiConfig.apiBaseUrl, credentials);
+
+            const config = MraBaseService.createRequestConfig(
+                { terminalId: terminal.mraTerminalId },
+                apiConfig.apiKey || undefined,
+                apiConfig.apiSecret || undefined
+            );
+
+            const response = await client.get<MraBlockingMessageResponse>(
+                `/utilities/blocking-message/${terminal.mraTerminalId}`,
+                config
+            );
+
+            return response.data;
+
+        } catch (error: unknown) {
+            console.error('[MRA] Get blocking message error:', error);
+            return {
+                success: false,
+                message: MraBaseService.handleApiError(error),
+            };
+        }
+    }
+
+    /**
+     * Check terminal unblock status
+     * 
+     * Checks if a previously blocked terminal has been unblocked.
+     */
+    static async checkUnblockStatus(
+        tenantId: string,
+        terminalId: string,
+        environment: MraEnvironment = MraEnvironment.SANDBOX
+    ): Promise<MraUnblockStatusResponse> {
+        try {
+            const apiConfig = await MraConfigurationService.getApiConfig(tenantId, environment);
+            if (!apiConfig) {
+                return {
+                    success: false,
+                    message: 'MRA API configuration not found',
+                };
+            }
+
+            const terminal = await TerminalModel.findById(terminalId);
+            if (!terminal?.mraTerminalId) {
+                return {
+                    success: false,
+                    message: 'Terminal not activated with MRA',
+                };
+            }
+
+            const credentials = {
+                secretKey: apiConfig.apiKey || undefined,
+                jwtToken: apiConfig.apiSecret || undefined,
+            };
+
+            const client = MraBaseService.getAxiosInstance(apiConfig.apiBaseUrl, credentials);
+
+            const config = MraBaseService.createRequestConfig(
+                { terminalId: terminal.mraTerminalId },
+                apiConfig.apiKey || undefined,
+                apiConfig.apiSecret || undefined
+            );
+
+            const response = await client.get<MraUnblockStatusResponse>(
+                `/utilities/check-unblock-status/${terminal.mraTerminalId}`,
+                config
+            );
+
+            return response.data;
+
+        } catch (error: unknown) {
+            console.error('[MRA] Check unblock status error:', error);
+            return {
+                success: false,
+                message: MraBaseService.handleApiError(error),
+            };
+        }
+    }
+
+    // ==================== VAT 5 CERTIFICATE VALIDATION ====================
+
+    /**
+     * Validate VAT 5 Certificate
+     * 
+     * Validates a VAT 5 exemption certificate.
+     */
+    static async validateVat5Certificate(
+        tenantId: string,
+        terminalId: string,
+        certificateNumber: string,
+        supplierTin?: string,
+        environment: MraEnvironment = MraEnvironment.SANDBOX
+    ): Promise<MraVat5ValidationResponse> {
+        try {
+            const apiConfig = await MraConfigurationService.getApiConfig(tenantId, environment);
+            if (!apiConfig) {
+                return {
+                    success: false,
+                    message: 'MRA API configuration not found',
+                };
+            }
+
+            const terminal = await TerminalModel.findById(terminalId);
+            if (!terminal?.mraTerminalId) {
+                return {
+                    success: false,
+                    message: 'Terminal not activated with MRA',
+                };
+            }
+
+            const credentials = {
+                secretKey: apiConfig.apiKey || undefined,
+                jwtToken: apiConfig.apiSecret || undefined,
+            };
+
+            const client = MraBaseService.getAxiosInstance(apiConfig.apiBaseUrl, credentials);
+
+            const request = {
+                certificateNumber,
+                ...(supplierTin && { supplierTin }),
+            };
+
+            const config = MraBaseService.createRequestConfig(
+                request,
+                apiConfig.apiKey || undefined,
+                apiConfig.apiSecret || undefined
+            );
+
+            const response = await client.post<MraVat5ValidationResponse>(
+                '/utilities/validate-vat5-certificate',
+                request,
+                config
+            );
+
+            return response.data;
+
+        } catch (error: unknown) {
+            console.error('[MRA] VAT 5 certificate validation error:', error);
+            return {
+                success: false,
+                message: MraBaseService.handleApiError(error),
+            };
+        }
+    }
+
+    // ==================== LAST TRANSACTIONS (MRA API) ====================
+
+    /**
+     * Get last online transaction from MRA API
+     * 
+     * Retrieves the last successfully submitted online transaction from MRA servers.
+     */
+    static async getLastOnlineTransactionFromMra(
+        tenantId: string,
+        terminalId: string,
+        environment: MraEnvironment = MraEnvironment.SANDBOX
+    ): Promise<{ success: boolean; data?: unknown; message?: string }> {
+        try {
+            const apiConfig = await MraConfigurationService.getApiConfig(tenantId, environment);
+            if (!apiConfig) {
+                return {
+                    success: false,
+                    message: 'MRA API configuration not found',
+                };
+            }
+
+            const terminal = await TerminalModel.findById(terminalId);
+            if (!terminal?.mraTerminalId) {
+                return {
+                    success: false,
+                    message: 'Terminal not activated with MRA',
+                };
+            }
+
+            const credentials = {
+                secretKey: apiConfig.apiKey || undefined,
+                jwtToken: apiConfig.apiSecret || undefined,
+            };
+
+            const client = MraBaseService.getAxiosInstance(apiConfig.apiBaseUrl, credentials);
+
+            const config = MraBaseService.createRequestConfig(
+                { terminalId: terminal.mraTerminalId },
+                apiConfig.apiKey || undefined,
+                apiConfig.apiSecret || undefined
+            );
+
+            const response = await client.get<{ success: boolean; data?: unknown; message?: string }>(
+                `/sales/last-online-transaction/${terminal.mraTerminalId}`,
+                config
+            );
+
+            return response.data;
+
+        } catch (error: unknown) {
+            console.error('[MRA] Get last online transaction from MRA error:', error);
+            return {
+                success: false,
+                message: MraBaseService.handleApiError(error),
+            };
+        }
+    }
+
+    /**
+     * Get last offline transaction from MRA API
+     * 
+     * Retrieves the last offline transaction that was successfully synced to MRA.
+     */
+    static async getLastOfflineTransactionFromMra(
+        tenantId: string,
+        terminalId: string,
+        environment: MraEnvironment = MraEnvironment.SANDBOX
+    ): Promise<{ success: boolean; data?: unknown; message?: string }> {
+        try {
+            const apiConfig = await MraConfigurationService.getApiConfig(tenantId, environment);
+            if (!apiConfig) {
+                return {
+                    success: false,
+                    message: 'MRA API configuration not found',
+                };
+            }
+
+            const terminal = await TerminalModel.findById(terminalId);
+            if (!terminal?.mraTerminalId) {
+                return {
+                    success: false,
+                    message: 'Terminal not activated with MRA',
+                };
+            }
+
+            const credentials = {
+                secretKey: apiConfig.apiKey || undefined,
+                jwtToken: apiConfig.apiSecret || undefined,
+            };
+
+            const client = MraBaseService.getAxiosInstance(apiConfig.apiBaseUrl, credentials);
+
+            const config = MraBaseService.createRequestConfig(
+                { terminalId: terminal.mraTerminalId },
+                apiConfig.apiKey || undefined,
+                apiConfig.apiSecret || undefined
+            );
+
+            const response = await client.get<{ success: boolean; data?: unknown; message?: string }>(
+                `/sales/last-offline-transaction/${terminal.mraTerminalId}`,
+                config
+            );
+
+            return response.data;
+
+        } catch (error: unknown) {
+            console.error('[MRA] Get last offline transaction from MRA error:', error);
+            return {
+                success: false,
+                message: MraBaseService.handleApiError(error),
+            };
+        }
     }
 }

@@ -8,7 +8,7 @@
  * - Constants
  */
 
-import axios, { AxiosInstance, AxiosError } from 'axios';
+import axios, { AxiosInstance, AxiosError, AxiosRequestConfig } from 'axios';
 import crypto from 'crypto';
 import {
     MraEnvironment,
@@ -22,6 +22,23 @@ export const MRA_API_URLS = {
     PRODUCTION: 'https://eis-api.mra.mw/api/v1'
 };
 
+// MRA Header names
+export const MRA_HEADERS = {
+    SIGNATURE: 'x-eis-message-hash',
+    ACCESS_KEY: 'x-access-key',
+    AUTHORIZATION: 'Authorization',
+} as const;
+
+/**
+ * MRA API credentials configuration
+ */
+export interface MraCredentials {
+    secretKey?: string;           // For HMAC signature
+    jwtToken?: string;            // Bearer token from activation
+    vendorAccessKey?: string;     // For production terminal activation
+    authorizationHeader?: string; // Raw Authorization header value (no prefix added)
+}
+
 /**
  * MRA Base Service with shared utilities
  */
@@ -29,20 +46,38 @@ export class MraBaseService {
     private static instances: Map<string, AxiosInstance> = new Map();
 
     /**
-     * Get or create an Axios instance for a specific tenant/terminal
+     * Get or create an Axios instance for MRA API calls
+     * 
+     * @param baseUrl - MRA API base URL
+     * @param credentials - Optional credentials for authentication
      */
-    static getAxiosInstance(baseUrl: string, apiKey?: string): AxiosInstance {
-        const instanceKey = `${baseUrl}-${apiKey || 'default'}`;
+    static getAxiosInstance(baseUrl: string, credentials?: MraCredentials): AxiosInstance {
+        const instanceKey = `${baseUrl}-${credentials?.jwtToken || credentials?.authorizationHeader || 'default'}`;
 
         if (!this.instances.has(instanceKey)) {
+            const headers: Record<string, string> = {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+            };
+
+            // Add raw authorization header if provided (takes precedence)
+            if (credentials?.authorizationHeader) {
+                headers[MRA_HEADERS.AUTHORIZATION] = credentials.authorizationHeader;
+            }
+            // Add Bearer token if available (from terminal activation)
+            else if (credentials?.jwtToken) {
+                headers[MRA_HEADERS.AUTHORIZATION] = `Bearer ${credentials.jwtToken}`;
+            }
+
+            // Add vendor access key for production (required for terminal activation)
+            if (credentials?.vendorAccessKey) {
+                headers[MRA_HEADERS.ACCESS_KEY] = credentials.vendorAccessKey;
+            }
+
             const instance = axios.create({
                 baseURL: baseUrl,
                 timeout: 30000,
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json',
-                    ...(apiKey && { 'X-API-Key': apiKey }),
-                }
+                headers,
             });
 
             // Request interceptor for logging
@@ -77,16 +112,73 @@ export class MraBaseService {
     }
 
     /**
+     * Clear cached axios instances (useful for testing or credential refresh)
+     */
+    static clearInstanceCache(): void {
+        this.instances.clear();
+    }
+
+    /**
      * Generate HMAC-SHA512 signature for API requests
      * 
      * As per MRA documentation, requests must be signed using HMAC-SHA512
      * with the secret key provided during terminal activation.
+     * The signature must be Base64 encoded.
+     * 
+     * @param data - The request payload to sign
+     * @param secretKey - The secret key from terminal activation
+     * @returns Base64 encoded HMAC-SHA512 signature
      */
     static generateSignature(data: unknown, secretKey: string): string {
-        const dataString = JSON.stringify(data);
+        const dataString = typeof data === 'string' ? data : JSON.stringify(data);
         const hmac = crypto.createHmac('sha512', secretKey);
         hmac.update(dataString);
-        return hmac.digest('hex');
+        return hmac.digest('base64'); // MRA requires base64 encoding
+    }
+
+    /**
+     * Build headers with signature for authenticated MRA requests
+     * 
+     * @param payload - The request payload to sign
+     * @param secretKey - The secret key for HMAC signature
+     * @param additionalHeaders - Any additional headers to include
+     * @returns Headers object with signature
+     */
+    static buildSignedHeaders(
+        payload: unknown,
+        secretKey: string,
+        additionalHeaders?: Record<string, string>
+    ): Record<string, string> {
+        const signature = this.generateSignature(payload, secretKey);
+        return {
+            [MRA_HEADERS.SIGNATURE]: signature,
+            ...additionalHeaders,
+        };
+    }
+
+    /**
+     * Create axios request config with proper MRA headers
+     * 
+     * @param payload - The request payload
+     * @param secretKey - The secret key for signing
+     * @param jwtToken - Optional JWT token for authorization
+     */
+    static createRequestConfig(
+        payload: unknown,
+        secretKey?: string,
+        jwtToken?: string
+    ): AxiosRequestConfig {
+        const headers: Record<string, string> = {};
+
+        if (secretKey) {
+            headers[MRA_HEADERS.SIGNATURE] = this.generateSignature(payload, secretKey);
+        }
+
+        if (jwtToken) {
+            headers[MRA_HEADERS.AUTHORIZATION] = `Bearer ${jwtToken}`;
+        }
+
+        return { headers };
     }
 
     /**
@@ -95,6 +187,15 @@ export class MraBaseService {
     static handleApiError(error: unknown): string {
         if (axios.isAxiosError(error)) {
             const axiosError = error as AxiosError;
+
+            // Log the full error for debugging
+            console.error('[MRA API Error]', {
+                status: axiosError.response?.status,
+                statusText: axiosError.response?.statusText,
+                data: axiosError.response?.data,
+                code: axiosError.code,
+                url: axiosError.config?.url,
+            });
 
             if (axiosError.code === 'ECONNREFUSED' || axiosError.code === 'ENOTFOUND') {
                 return 'Unable to connect to MRA server. Please check your internet connection.';
@@ -105,7 +206,17 @@ export class MraBaseService {
             }
 
             if (axiosError.response) {
-                const responseData = axiosError.response.data as { error?: { code?: string; message?: string }; message?: string };
+                const responseData = axiosError.response.data as {
+                    error?: { code?: string; message?: string };
+                    message?: string;
+                    detail?: string;
+                    errors?: any[];
+                };
+                const statusCode = axiosError.response.status;
+                const headers = axiosError.response.headers as Record<string, any>;
+
+                // Check for x-failure-reason header (MRA specific)
+                const failureReason = headers?.['x-failure-reason'];
 
                 // Handle specific MRA error codes
                 if (responseData?.error?.code) {
@@ -128,11 +239,42 @@ export class MraBaseService {
                         case MRA_ERROR_CODES.DUPLICATE_INVOICE:
                             return 'Invoice has already been submitted.';
                         default:
-                            return responseData.error.message || 'MRA API error occurred.';
+                            return `MRA Error [${errorCode}]: ${responseData.error.message || 'Unknown error'}`;
                     }
                 }
 
-                return responseData?.message || 'MRA API error occurred.';
+                const errorParts: string[] = [];
+
+                if (statusCode) {
+                    errorParts.push(`HTTP ${statusCode}`);
+                }
+
+                if (failureReason) {
+                    errorParts.push(failureReason);
+                }
+
+                if (responseData?.message) {
+                    errorParts.push(responseData.message);
+                }
+
+                if (responseData?.detail) {
+                    errorParts.push(responseData.detail);
+                }
+
+                if (responseData?.errors && Array.isArray(responseData.errors)) {
+                    const errorMessages = responseData.errors
+                        .map((e: any) => e.message || e.msg || JSON.stringify(e))
+                        .join('; ');
+                    if (errorMessages) {
+                        errorParts.push(errorMessages);
+                    }
+                }
+
+                if (errorParts.length > 0) {
+                    return `MRA API: ${errorParts.join(' - ')}`;
+                }
+
+                return `MRA API error (${statusCode}): ${JSON.stringify(responseData)}`;
             }
         }
 

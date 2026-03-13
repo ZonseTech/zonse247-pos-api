@@ -77,7 +77,26 @@ const ESC_POS = {
 
     // Beep
     BEEP: '\x1B\x42\x03\x02',
+
+    // Raster bit image (GS v 0)
+    // m=0: normal, m=1: double width, m=2: double height, m=3: double width+height
+    RASTER_IMAGE: (width: number, height: number, data: Uint8Array, mode = 0) => {
+        const xL = (width / 8) % 256;
+        const xH = Math.floor((width / 8) / 256);
+        const yL = height % 256;
+        const yH = Math.floor(height / 256);
+        return `\x1D\x76\x30${String.fromCharCode(mode)}${String.fromCharCode(xL)}${String.fromCharCode(xH)}${String.fromCharCode(yL)}${String.fromCharCode(yH)}${String.fromCharCode(...data)}`;
+    },
 };
+
+// Zonse247 placeholder logo (simple text version for thermal printers)
+const ZONSE247_LOGO = [
+    '********************************',
+    '*                              *',
+    '*        ZONSE247 POS          *',
+    '*                              *',
+    '********************************',
+].join('\n') + '\n';
 
 export interface ReceiptContentRequest {
     saleId?: string;
@@ -514,8 +533,23 @@ export class PrintContentService {
     ): string {
         let content = '';
         const lineWidth = 32; // Standard receipt width
-        const separator = '='.repeat(lineWidth) + '\n';
+        const separator = '_'.repeat(lineWidth) + '\n';
         const lightSeparator = '-'.repeat(lineWidth) + '\n';
+
+        // Helper function to format left-right aligned line
+        const formatLR = (left: string, right: string): string => {
+            const maxLeft = lineWidth - right.length - 1;
+            const truncatedLeft = left.length > maxLeft ? left.substring(0, maxLeft) : left;
+            const spaces = lineWidth - truncatedLeft.length - right.length;
+            return truncatedLeft + ' '.repeat(Math.max(1, spaces)) + right + '\n';
+        };
+
+        // Helper to format currency with thousands separator
+        const formatMoney = (amount: number, currency?: string): string => {
+            const curr = currency || data.currency || 'MK';
+            const formatted = amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            return `${curr}${formatted}`;
+        };
 
         // Initialize printer
         content += ESC_POS.INIT;
@@ -525,14 +559,33 @@ export class PrintContentService {
         // ============================================
         content += ESC_POS.ALIGN_CENTER;
 
-        // Store name (large, bold)
+        // Business logo (if includeLogo is true or not specified)
+        if (request.includeLogo !== false) {
+            // Use custom logo from settings if available, otherwise use Zonse247 placeholder
+            const logoData = settings?.logoData; // Base64 encoded logo from settings
+
+            if (logoData) {
+                // Custom logo: decode base64 and print as raster image
+                try {
+                    const logoImage = PrintContentService.decodeLogoData(logoData);
+                    if (logoImage) {
+                        content += ESC_POS.RASTER_IMAGE(logoImage.width, logoImage.height, logoImage.data);
+                        content += '\n';
+                    }
+                } catch {
+                    // Fallback to simple text logo on decode error
+                    content += ZONSE247_LOGO;
+                }
+            } else {
+                // Use Zonse247 placeholder logo (simple text version for compatibility)
+                content += ZONSE247_LOGO;
+            }
+        }
+
+        // Store name (centered)
         const storeName = settings?.storeName || data.businessName;
         if (storeName) {
-            content += ESC_POS.BOLD_ON;
-            content += ESC_POS.DOUBLE_SIZE;
             content += `${storeName}\n`;
-            content += ESC_POS.NORMAL;
-            content += ESC_POS.BOLD_OFF;
         }
 
         // Store address (if showAddressOnReceipt is true)
@@ -566,46 +619,44 @@ export class PrintContentService {
         }
 
         content += separator;
-        content += ESC_POS.BOLD_ON;
         content += 'RECEIPT\n';
-        content += ESC_POS.BOLD_OFF;
         content += separator;
 
         // ============================================
-        // RECEIPT DETAILS SECTION
+        // RECEIPT DETAILS SECTION (Left-Right Format)
         // ============================================
         content += ESC_POS.ALIGN_LEFT;
-        content += `Receipt #: ${data.receiptNumber}\n`;
+        content += formatLR('Receipt #:', data.receiptNumber);
 
         // Format date
         const dateOptions: Intl.DateTimeFormatOptions = { month: 'short', day: '2-digit', year: 'numeric' };
-        content += `Date: ${data.date.toLocaleDateString('en-US', dateOptions)}\n`;
+        content += formatLR('Date:', data.date.toLocaleDateString('en-US', dateOptions));
 
         // Customer info
         if (data.customer) {
-            content += `Customer: ${data.customer.name}\n`;
+            content += formatLR('Customer:', data.customer.name);
 
             // Show customer phone if enabled
             if (data.customer.phone && settings?.showCustomerPhone === true) {
-                content += `Phone: ${data.customer.phone}\n`;
+                content += formatLR('Phone:', data.customer.phone);
             }
 
             // Show customer address if enabled
             if (data.customer.address && settings?.showCustomerAddress === true) {
-                content += `Address: ${data.customer.address}\n`;
+                content += formatLR('Address:', data.customer.address);
             }
         } else {
-            content += `Customer: Walk-in Customer\n`;
+            content += formatLR('Customer:', 'Walk-in Customer');
         }
 
         // Cashier (if showCashierName is true)
         if (data.cashier && settings?.showCashierName !== false) {
-            content += `Cashier: ${data.cashier}\n`;
+            content += formatLR('Cashier:', data.cashier);
         }
 
         // Terminal
         if (data.terminal) {
-            content += `Terminal: ${data.terminal}\n`;
+            content += formatLR('Terminal:', data.terminal);
         }
 
         // ============================================
@@ -631,95 +682,84 @@ export class PrintContentService {
                 // Show original price struck through (use brackets to indicate)
                 content += `${item.name}\n`;
                 content += `  [${item.listPrice.toFixed(2)}] -> ${item.unitPrice.toFixed(2)}\n`;
-                content += `  ${item.quantity} x ${item.unitPrice.toFixed(2)} = ${item.total.toFixed(2)}\n`;
+                content += formatLR(`  ${item.quantity} x ${item.unitPrice.toFixed(2)}`, formatMoney(item.total));
             } else {
                 // Standard item line
-                const itemLine = `${item.name}`;
-                content += `${itemLine}\n`;
+                content += `${item.name}\n`;
 
                 // Show rate if enabled (qty x price = total)
                 if (settings?.showRateInReceipt !== false) {
-                    content += `  ${item.quantity} x ${item.unitPrice.toFixed(2)} = ${item.total.toFixed(2)}\n`;
+                    content += formatLR(`  ${item.quantity} x ${item.unitPrice.toFixed(2)}`, formatMoney(item.total));
                 } else {
-                    content += `  Qty: ${item.quantity}  Total: ${item.total.toFixed(2)}\n`;
+                    content += formatLR(`  Qty: ${item.quantity}`, formatMoney(item.total));
                 }
             }
         }
 
         // ============================================
-        // TOTALS SECTION
+        // TOTALS SECTION (Left-Right Format)
         // ============================================
         content += separator;
 
         // Total item count (if showTotalItemCount is true)
         if (settings?.showTotalItemCount === true && data.totalItemCount) {
-            content += `Total Items: ${data.totalItemCount}\n`;
+            content += formatLR('Total Items:', data.totalItemCount.toString());
             content += lightSeparator;
         }
 
         // Subtotal
-        content += `Subtotal: ${data.currency || ''} ${data.subtotal.toFixed(2)}\n`;
+        content += formatLR('Subtotal:', formatMoney(data.subtotal));
 
         // Discount (if any)
         if (data.discountAmount > 0) {
-            content += `Discount: -${data.currency || ''} ${data.discountAmount.toFixed(2)}\n`;
+            content += formatLR('Discount:', `-${formatMoney(data.discountAmount)}`);
         }
 
         // Total money saved (if showTotalMoneySaved is true and there are savings)
         if (settings?.showTotalMoneySaved === true && data.savedAmount && data.savedAmount > 0) {
-            content += ESC_POS.BOLD_ON;
-            content += `You Saved: ${data.currency || ''} ${data.savedAmount.toFixed(2)}\n`;
-            content += ESC_POS.BOLD_OFF;
+            content += formatLR('You Saved:', formatMoney(data.savedAmount));
         }
 
         // Other charges (if any)
         if (data.otherCharges > 0) {
-            content += `Other Charges: ${data.currency || ''} ${data.otherCharges.toFixed(2)}\n`;
+            content += formatLR('Other Charges:', formatMoney(data.otherCharges));
         }
 
         // Tax (if showTaxOnReceipt is true and tax exists)
         if (data.taxAmount > 0 && settings?.showTaxOnReceipt !== false) {
             const taxTitle = settings?.taxTitle || 'Tax';
-            content += `${taxTitle}: ${data.currency || ''} ${data.taxAmount.toFixed(2)}\n`;
+            content += formatLR(`${taxTitle}:`, formatMoney(data.taxAmount));
         }
 
         // ============================================
-        // GRAND TOTAL SECTION
+        // GRAND TOTAL SECTION (Left-Right Format)
         // ============================================
+        content += lightSeparator;
+        content += formatLR('TOTAL:', formatMoney(data.totalAmount));
         content += separator;
-        content += ESC_POS.BOLD_ON;
-        content += ESC_POS.DOUBLE_SIZE;
-        content += `TOTAL: ${data.currency || ''} ${data.totalAmount.toFixed(2)}\n`;
-        content += ESC_POS.NORMAL;
-        content += ESC_POS.BOLD_OFF;
 
         // ============================================
-        // PAYMENT DETAILS SECTION
+        // PAYMENT DETAILS SECTION (Left-Right Format)
         // ============================================
         if (settings?.showPaymentDetails !== false) {
-            content += lightSeparator;
+            content += 'Payment\n';
 
             // Show individual payments if multiple
             if (data.payments && data.payments.length > 1) {
-                content += 'Payment Details:\n';
                 for (const payment of data.payments) {
-                    content += `  ${payment.method}: ${data.currency || ''} ${payment.amount.toFixed(2)}\n`;
+                    content += formatLR(`${payment.method}:`, formatMoney(payment.amount));
                     if (payment.reference) {
-                        content += `    Ref: ${payment.reference}\n`;
+                        content += formatLR('  Ref:', payment.reference);
                     }
                 }
             } else {
-                content += `Payment: ${data.paymentMethod}\n`;
+                content += formatLR(`${data.paymentMethod}:`, formatMoney(data.amountPaid));
             }
-
-            content += `Amount Paid: ${data.currency || ''} ${data.amountPaid.toFixed(2)}\n`;
         }
 
         // Change (if showChangeReturn is true and there's change)
         if (settings?.showChangeReturn !== false && data.changeAmount > 0) {
-            content += ESC_POS.BOLD_ON;
-            content += `Change: ${data.currency || ''} ${data.changeAmount.toFixed(2)}\n`;
-            content += ESC_POS.BOLD_OFF;
+            content += formatLR('Change:', formatMoney(data.changeAmount));
         }
 
         // ============================================
@@ -791,6 +831,41 @@ export class PrintContentService {
         const absAmount = Math.abs(amount);
         const sign = amount < 0 ? '-' : '';
         return `${sign}${currency} ${absAmount.toFixed(2)}`;
+    }
+
+    /**
+     * Decode base64 logo data to raster image format for ESC/POS
+     * @param logoData - Base64 encoded monochrome bitmap or PNG
+     * @returns Object with width, height, and pixel data for ESC/POS raster printing
+     */
+    private static decodeLogoData(logoData: string): { width: number; height: number; data: Uint8Array } | null {
+        try {
+            // Remove data URL prefix if present
+            const base64Data = logoData.replace(/^data:image\/\w+;base64,/, '');
+
+            // Decode base64 to buffer
+            const buffer = Buffer.from(base64Data, 'base64');
+
+            // For simplicity, assume pre-processed monochrome bitmap data
+            // Format: first 4 bytes = width (2 bytes) + height (2 bytes), rest = pixel data
+            if (buffer.length < 4) {
+                return null;
+            }
+
+            const width = buffer.readUInt16LE(0);
+            const height = buffer.readUInt16LE(2);
+            const pixelData = new Uint8Array(buffer.slice(4));
+
+            // Validate data length (width/8 * height bytes required)
+            const expectedBytes = Math.ceil(width / 8) * height;
+            if (pixelData.length < expectedBytes) {
+                return null;
+            }
+
+            return { width, height, data: pixelData };
+        } catch {
+            return null;
+        }
     }
 
     /**

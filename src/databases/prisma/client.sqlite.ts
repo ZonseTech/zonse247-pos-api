@@ -9,6 +9,9 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 import { DATABASE_URL } from '../../config/db';
 
+// Database type identifier
+export const DATABASE_TYPE: 'mysql' | 'sqlite' = 'sqlite';
+
 // SQLite client - dynamically imported to avoid loading native better-sqlite3 on servers
 let SQLitePrismaClient: any;
 let PrismaBetterSqlite3: any;

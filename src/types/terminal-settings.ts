@@ -31,6 +31,7 @@ export interface ReceiptDisplaySettings {
     taxTitle: string;                      // e.g., "VAT"
     businessTaxId: string;
     logoUrl: string;
+    logoData?: string;                     // Base64 encoded monochrome logo for thermal printing
     receiptHeader: string;
     showPhoneOnReceipt: boolean;
     showAddressOnReceipt: boolean;

@@ -21,6 +21,7 @@ import {
     MraOnboardingStatus,
 } from '../../types/mra.types';
 import { MraConfigurationService } from './configuration.service';
+import { mraEvents } from './events.service';
 
 /**
  * MRA Onboarding Service for terminal activation and setup
@@ -31,6 +32,11 @@ export class MraOnboardingService {
      * 
      * The TAC is obtained by the taxpayer from the MRA EIS Portal after applying for a terminal.
      * This endpoint validates the TAC and returns configuration data.
+     * 
+     * NOTE: This endpoint does NOT require Authorization header - no JWT exists yet.
+     * The TAC is sent only in the request body.
+     * 
+     * @see https://dev-eis-api.mra.mw/docs/terminal_activation.htm
      */
     static async activateTerminal(input: MraActivateTerminalInput): Promise<MraActivateTerminalResult> {
         const { tenantId, branchId: _branchId, terminalId, tac, environment = MraEnvironment.SANDBOX } = input;
@@ -38,7 +44,8 @@ export class MraOnboardingService {
         try {
             // Get or create API configuration
             const apiConfig = await MraConfigurationService.ensureApiConfig(tenantId, environment);
-            const client = MraBaseService.getAxiosInstance(apiConfig.apiBaseUrl, apiConfig.apiKey);
+            // For TAC activation, NO Authorization header needed - TAC is in body only
+            const client = MraBaseService.getAxiosInstance(apiConfig.apiBaseUrl, {});
 
             // Get terminal details
             const terminal = await TerminalModel.findById(terminalId);
@@ -50,54 +57,90 @@ export class MraOnboardingService {
                 };
             }
 
-            // Prepare activation request
+            // Prepare activation request matching MRA API format
             const activationRequest: MraTerminalActivationRequest = {
-                tac,
-                terminalId: terminal.terminalId,
-                deviceId: terminal.deviceId || undefined,
-                osName: terminal.osName || undefined,
-                osVersion: terminal.osVersion || undefined,
-                posProductId: terminal.posProductId || undefined,
-                posProductVersion: terminal.posProductVersion || undefined,
+                terminalActivationCode: tac,
+                environment: {
+                    platform: {
+                        osName: terminal.osName || 'Linux',
+                        osVersion: terminal.osVersion || '1.0.0',
+                        osBuild: terminal.osBuild || 'Ubuntu 22.04',
+                        macAddress: terminal.macAddress || '00:00:00:00:00:00',
+                    },
+                    pos: {
+                        productID: terminal.posProductId || 'zonse247-pos',
+                        productVersion: terminal.posProductVersion || '1.0.0',
+                    },
+                },
             };
+
+            console.log('[MRA] Activation request:', JSON.stringify(activationRequest, null, 2));
 
             // Call MRA activation endpoint
             const response = await client.post<MraTerminalActivationResponse>(
-                '/terminal/activate',
+                '/onboarding/activate-terminal',
                 activationRequest
             );
 
-            if (!response.data.success || !response.data.data) {
+            console.log('[MRA] Activation response:', JSON.stringify(response.data, null, 2));
+
+            // MRA uses statusCode 1 for success
+            if (response.data.statusCode !== 1 || !response.data.data?.activatedTerminal) {
+                const errorMsg = response.data.errors?.[0]?.errorMessage || response.data.remark || 'Activation failed';
                 return {
                     success: false,
-                    message: response.data.message || 'Activation failed',
+                    message: errorMsg,
                     requiresConfirmation: false,
                 };
             }
 
-            const { terminalId: mraTerminalId, taxpayerInfo, terminalConfig, securityKeys } = response.data.data;
+            const { activatedTerminal, configuration } = response.data.data;
+            const mraTerminalId = activatedTerminal.terminalId;
+            const credentials = activatedTerminal.terminalCredentials;
+            const terminalConfig = configuration?.terminalConfiguration;
+            const taxpayerConfig = configuration?.taxpayerConfiguration;
 
-            // Persist MRA configuration
-            await MraApiConfigModel.update(apiConfig.configId, {
-                apiKey: securityKeys.secretKey,  // Store as API key for HMAC signing
-                apiSecret: securityKeys.ivKey,
-                lastSyncTimestamp: new Date(),
-                syncStatus: 'SUCCESS',
-            });
+            // Persist MRA credentials
+            if (credentials?.secretKey) {
+                await MraApiConfigModel.update(apiConfig.configId, {
+                    apiKey: credentials.secretKey,  // Store secretKey for HMAC signing
+                    apiSecret: credentials.jwtToken || undefined, // Store JWT token
+                    lastSyncTimestamp: new Date(),
+                    syncStatus: 'SUCCESS',
+                });
+            }
 
             // Update terminal with MRA terminal ID and configuration
             await TerminalModel.update(terminalId, {
-                mraTerminalId,
-                activationCode: tac,  // Store TAC for reference
+                mraTerminalId: mraTerminalId || undefined,
+                activationCode: tac,  // Store TAC for confirmation step
                 mraApplicationStatus: 'APPROVED',
-                terminalConfigVersion: terminalConfig.configVersion,
-                offlineMaxTransactionAgeHours: terminalConfig.maxOfflineTransactionAge,
-                offlineMaxCumulativeAmount: terminalConfig.maxOfflineCumulativeAmount,
+                terminalConfigVersion: terminalConfig?.versionNo,
+                offlineMaxTransactionAgeHours: terminalConfig?.offlineLimit?.maxTransactionAgeInHours,
+                offlineMaxCumulativeAmount: terminalConfig?.offlineLimit?.maxCummulativeAmount,
+            });
+
+            // Build taxpayer info for event
+            const taxpayerInfo = {
+                tpin: taxpayerConfig?.tin || '',
+                taxpayerName: terminalConfig?.tradingName || '',
+                tradingName: terminalConfig?.tradingName,
+                vatNumber: taxpayerConfig?.isVATRegistered ? taxpayerConfig?.tin : undefined,
+            };
+
+            // Emit terminal activated event for post-onboarding sync
+            mraEvents.emitTerminalActivated({
+                tenantId,
+                branchId: _branchId,
+                terminalId,
+                mraTerminalId: mraTerminalId || '',
+                environment,
+                taxpayerInfo,
             });
 
             return {
                 success: true,
-                mraTerminalId,
+                mraTerminalId: mraTerminalId || undefined,
                 message: 'Terminal activated. Please confirm activation.',
                 taxpayerInfo,
                 requiresConfirmation: true,
@@ -141,37 +184,37 @@ export class MraOnboardingService {
                 return { success: false, message: 'Terminal not yet activated with MRA' };
             }
 
-            const client = MraBaseService.getAxiosInstance(apiConfig.apiBaseUrl, apiConfig.apiKey);
-
-            const confirmRequest: MraActivationConfirmationRequest = {
-                terminalId: terminal.mraTerminalId,
-                configVersion: Number(terminal.terminalConfigVersion) || 1,
-                deviceInfo: {
-                    deviceId: terminal.deviceId || '',
-                    osName: terminal.osName || '',
-                    osVersion: terminal.osVersion || '',
-                    posProductId: terminal.posProductId || '',
-                    posProductVersion: terminal.posProductVersion || '',
-                },
+            const credentials = {
+                secretKey: apiConfig.apiKey || undefined,
+                jwtToken: apiConfig.apiSecret || undefined, // JWT token stored in apiSecret
             };
 
-            // Sign the request
-            const signature = MraBaseService.generateSignature(confirmRequest, apiConfig.apiKey || '');
+            const client = MraBaseService.getAxiosInstance(apiConfig.apiBaseUrl, credentials);
 
-            const response = await client.post<MraActivationConfirmationResponse>(
-                '/terminal/confirm-activation',
+            // Per MRA API, confirmation only requires terminalId
+            const confirmRequest: MraActivationConfirmationRequest = {
+                terminalId: terminal.mraTerminalId,
+            };
+
+            // Build request config with signature
+            const config = MraBaseService.createRequestConfig(
                 confirmRequest,
-                {
-                    headers: {
-                        'X-Signature': signature,
-                    },
-                }
+                apiConfig.apiKey || undefined,
+                apiConfig.apiSecret || undefined
             );
 
-            if (!response.data.success) {
+            const response = await client.post<MraActivationConfirmationResponse>(
+                '/onboarding/terminal-activated-confirmation',
+                confirmRequest,
+                config
+            );
+
+            // MRA uses statusCode 1 for success
+            if (response.data.statusCode !== 1 || !response.data.data) {
+                const errorMsg = response.data.errors?.[0]?.errorMessage || response.data.remark || 'Activation confirmation failed';
                 return {
                     success: false,
-                    message: response.data.message || 'Activation confirmation failed',
+                    message: errorMsg,
                 };
             }
 
@@ -248,19 +291,24 @@ export class MraOnboardingService {
                 return { success: false, message: 'Terminal not activated with MRA' };
             }
 
-            const client = MraBaseService.getAxiosInstance(apiConfig.apiBaseUrl, apiConfig.apiKey);
+            const credentials = {
+                secretKey: apiConfig.apiKey || undefined,
+                jwtToken: apiConfig.apiSecret || undefined,
+            };
+
+            const client = MraBaseService.getAxiosInstance(apiConfig.apiBaseUrl, credentials);
 
             const request = { terminalId: terminal.mraTerminalId };
-            const signature = MraBaseService.generateSignature(request, apiConfig.apiKey || '');
+            const config = MraBaseService.createRequestConfig(
+                request,
+                apiConfig.apiKey || undefined,
+                apiConfig.apiSecret || undefined
+            );
 
             const response = await client.post<{ success: boolean; message?: string }>(
                 '/terminal/deactivate',
                 request,
-                {
-                    headers: {
-                        'X-Signature': signature,
-                    },
-                }
+                config
             );
 
             if (response.data.success) {

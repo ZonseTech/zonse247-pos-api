@@ -1026,6 +1026,8 @@ model Tenant {
   mraPortalUsername   String?                       @map("mra_portal_username")
   tradingName         String?                       @map("trading_name")
   isVatRegistered     Boolean?                      @default(false) @map("is_vat_registered")
+  isMraEnabled        Boolean?                      @default(false) @map("is_mra_enabled")
+  mraEnvironment      String?                       @default("SANDBOX") @map("mra_environment")
   taxOfficeCode       String?                       @map("tax_office_code")
   msonkhoOnlineStatus TenantMsonkhoOnlineStatus?    @default(PENDING) @map("msonkho_online_status")
   verificationToken   String                        @map("verification_token")
@@ -1565,6 +1567,7 @@ model PrintJob {
 // MRA (Malawi Revenue Authority) sale submission status
 enum MraSaleStatus {
   NONE
+  NOT_APPLICABLE
   PENDING
   SYNCED
   FAILED

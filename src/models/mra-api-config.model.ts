@@ -77,7 +77,7 @@ export class MraApiConfigModel {
                     apiKey: data.apiKey || null,
                     apiSecret: data.apiSecret || null,
                     lastSyncTimestamp: data.lastSyncTimestamp || null,
-                    syncStatus: (data.syncStatus || 'PENDING') as any,
+                    syncStatus: (data.syncStatus || 'IN_PROGRESS') as any,
                     isActive: data.isActive ?? true,
                 },
             });
