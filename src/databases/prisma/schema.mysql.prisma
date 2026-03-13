@@ -591,8 +591,8 @@ model MRA_API_CONFIG_TABLE {
   tenantId          String                            @map("tenant_id")
   environment       MRA_API_CONFIG_TABLE_environment? @default(SANDBOX) @map("environment")
   apiBaseUrl        String                            @map("api_base_url")
-  apiKey            String?                           @map("api_key")
-  apiSecret         String?                           @map("api_secret")
+  apiKey            String?                           @db.Text @map("api_key")
+  apiSecret         String?                           @db.Text @map("api_secret")
   lastSyncTimestamp DateTime?                         @map("last_sync_timestamp")
   syncStatus        MRA_API_CONFIG_TABLE_sync_status? @default(SUCCESS) @map("sync_status")
   isActive          Boolean?                          @default(true) @map("is_active")
@@ -1067,6 +1067,8 @@ model Tenant {
   mraPortalUsername   String?                       @map("mra_portal_username")
   tradingName         String?                       @map("trading_name")
   isVatRegistered     Boolean?                      @default(false) @map("is_vat_registered")
+  isMraEnabled        Boolean?                      @default(false) @map("is_mra_enabled")
+  mraEnvironment      String?                       @default("SANDBOX") @map("mra_environment")
   taxOfficeCode       String?                       @map("tax_office_code")
   msonkhoOnlineStatus TenantMsonkhoOnlineStatus?    @default(PENDING) @map("msonkho_online_status")
   verificationToken   String                        @map("verification_token")
@@ -1674,6 +1676,7 @@ model PrintJob {
 // MRA (Malawi Revenue Authority) sale submission status
 enum MraSaleStatus {
   NONE
+  NOT_APPLICABLE
   PENDING
   SYNCED
   FAILED

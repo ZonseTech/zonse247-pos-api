@@ -19,6 +19,9 @@ import {
 // MySQL client is always loaded (no native dependencies like SQLite)
 import { PrismaClient as MySQLPrismaClient } from './generated/mysql/client';
 
+// Database type identifier
+export const DATABASE_TYPE: 'mysql' | 'sqlite' = 'mysql';
+
 // Use 'any' to avoid circular type reference errors in Prisma's complex generated types
 type PrismaClientInstance = any;
 
