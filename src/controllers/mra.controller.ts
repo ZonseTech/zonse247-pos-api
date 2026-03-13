@@ -1,9 +1,3 @@
-/**
- * MRA EIS Controller
- * 
- * Handles MRA (Malawi Revenue Authority) Electronic Invoicing System integration endpoints.
- */
-
 import { Request, Response } from 'express';
 import { BaseController } from './base.controller';
 import {
@@ -12,6 +6,8 @@ import {
     MraSalesService,
     MraStockService,
     MraUtilitiesService,
+    MraComplianceService,
+    MraPostOnboardingService,
 } from '../services/mra';
 import { MraEnvironment, MraSaleSubmissionRequest } from '../types/mra.types';
 import { AuthRequest, getEffectiveBranchId, getParam } from '../lib/express.type';
@@ -35,6 +31,19 @@ interface SyncConfigBody {
 interface SubmitSaleBody {
     terminalId: string;
     saleData: MraSaleSubmissionRequest;
+    environment?: MraEnvironment;
+}
+
+interface ValidateTinBody {
+    terminalId: string;
+    tin: string;
+    environment?: MraEnvironment;
+}
+
+interface ValidateVat5Body {
+    terminalId: string;
+    certificateNumber: string;
+    supplierTin?: string;
     environment?: MraEnvironment;
 }
 
@@ -525,6 +534,568 @@ export class MraController extends BaseController {
         } catch (error: unknown) {
             console.error('[MRA] Init config error:', error);
             MraController.sendServerError(res, 'Failed to initialize MRA configuration');
+        }
+    }
+
+    // ==================== UTILITIES ====================
+
+    /**
+     * Sync products from MRA terminal site
+     * 
+     * Downloads all approved products/services from MRA.
+     * 
+     * @route GET /mra/products/sync/:terminalId
+     */
+    static async syncProducts(req: Request & AuthRequest, res: Response): Promise<void> {
+        try {
+            const terminalId = getParam(req.params.terminalId);
+            const tenantId = req.auth?.tenantId || '';
+            const environment = (req.query.environment as MraEnvironment) || MraEnvironment.SANDBOX;
+
+            if (!tenantId) {
+                MraController.sendResponse(res, 401, false, 'Authentication required');
+                return;
+            }
+
+            if (!terminalId) {
+                MraController.sendResponse(res, 400, false, 'Terminal ID is required');
+                return;
+            }
+
+            const result = await MraUtilitiesService.getTerminalSiteProducts(
+                tenantId,
+                terminalId,
+                environment
+            );
+
+            if (!result.success) {
+                MraController.sendResponse(res, 400, false, result.message || 'Failed to sync products');
+                return;
+            }
+
+            MraController.sendSuccess(res, 'Products synced from MRA', result.data);
+
+        } catch (error: unknown) {
+            console.error('[MRA] Sync products error:', error);
+            MraController.sendServerError(res, 'Failed to sync products from MRA');
+        }
+    }
+
+    /**
+     * Validate TIN (Taxpayer Identification Number)
+     * 
+     * @route POST /mra/validate-tin
+     */
+    static async validateTin(req: Request & AuthRequest, res: Response): Promise<void> {
+        try {
+            const { terminalId, tin, environment } = req.body as ValidateTinBody;
+            const tenantId = req.auth?.tenantId || '';
+
+            if (!tenantId) {
+                MraController.sendResponse(res, 401, false, 'Authentication required');
+                return;
+            }
+
+            if (!terminalId) {
+                MraController.sendResponse(res, 400, false, 'Terminal ID is required');
+                return;
+            }
+
+            if (!tin) {
+                MraController.sendResponse(res, 400, false, 'TIN is required');
+                return;
+            }
+
+            // Basic TIN format validation (adjust pattern as needed for Malawi TINs)
+            const tinRegex = /^[A-Z0-9]{6,15}$/i;
+            if (!tinRegex.test(tin)) {
+                MraController.sendResponse(res, 400, false, 'Invalid TIN format');
+                return;
+            }
+
+            const result = await MraUtilitiesService.validateTin(
+                tenantId,
+                terminalId,
+                tin,
+                environment || MraEnvironment.SANDBOX
+            );
+
+            if (!result.success) {
+                MraController.sendResponse(res, 400, false, result.message || 'TIN validation failed');
+                return;
+            }
+
+            MraController.sendSuccess(res, 'TIN validated successfully', result.data);
+
+        } catch (error: unknown) {
+            console.error('[MRA] Validate TIN error:', error);
+            MraController.sendServerError(res, 'Failed to validate TIN');
+        }
+    }
+
+    /**
+     * Get terminal blocking message
+     * 
+     * Checks if terminal is blocked and returns the reason.
+     * 
+     * @route GET /mra/blocking-message/:terminalId
+     */
+    static async getBlockingMessage(req: Request & AuthRequest, res: Response): Promise<void> {
+        try {
+            const terminalId = getParam(req.params.terminalId);
+            const tenantId = req.auth?.tenantId || '';
+            const environment = (req.query.environment as MraEnvironment) || MraEnvironment.SANDBOX;
+
+            if (!tenantId) {
+                MraController.sendResponse(res, 401, false, 'Authentication required');
+                return;
+            }
+
+            if (!terminalId) {
+                MraController.sendResponse(res, 400, false, 'Terminal ID is required');
+                return;
+            }
+
+            const result = await MraUtilitiesService.getBlockingMessage(
+                tenantId,
+                terminalId,
+                environment
+            );
+
+            if (!result.success) {
+                MraController.sendResponse(res, 400, false, result.message || 'Failed to get blocking message');
+                return;
+            }
+
+            MraController.sendSuccess(res, 'Blocking status retrieved', result.data);
+
+        } catch (error: unknown) {
+            console.error('[MRA] Get blocking message error:', error);
+            MraController.sendServerError(res, 'Failed to get terminal blocking message');
+        }
+    }
+
+    /**
+     * Check terminal unblock status
+     * 
+     * Checks if a previously blocked terminal has been unblocked.
+     * 
+     * @route GET /mra/unblock-status/:terminalId
+     */
+    static async checkUnblockStatus(req: Request & AuthRequest, res: Response): Promise<void> {
+        try {
+            const terminalId = getParam(req.params.terminalId);
+            const tenantId = req.auth?.tenantId || '';
+            const environment = (req.query.environment as MraEnvironment) || MraEnvironment.SANDBOX;
+
+            if (!tenantId) {
+                MraController.sendResponse(res, 401, false, 'Authentication required');
+                return;
+            }
+
+            if (!terminalId) {
+                MraController.sendResponse(res, 400, false, 'Terminal ID is required');
+                return;
+            }
+
+            const result = await MraUtilitiesService.checkUnblockStatus(
+                tenantId,
+                terminalId,
+                environment
+            );
+
+            if (!result.success) {
+                MraController.sendResponse(res, 400, false, result.message || 'Failed to check unblock status');
+                return;
+            }
+
+            MraController.sendSuccess(res, 'Unblock status retrieved', result.data);
+
+        } catch (error: unknown) {
+            console.error('[MRA] Check unblock status error:', error);
+            MraController.sendServerError(res, 'Failed to check terminal unblock status');
+        }
+    }
+
+    /**
+     * Validate VAT 5 Certificate
+     * 
+     * Validates a VAT 5 exemption certificate.
+     * 
+     * @route POST /mra/validate-vat5
+     */
+    static async validateVat5Certificate(req: Request & AuthRequest, res: Response): Promise<void> {
+        try {
+            const { terminalId, certificateNumber, supplierTin, environment } = req.body as ValidateVat5Body;
+            const tenantId = req.auth?.tenantId || '';
+
+            if (!tenantId) {
+                MraController.sendResponse(res, 401, false, 'Authentication required');
+                return;
+            }
+
+            if (!terminalId) {
+                MraController.sendResponse(res, 400, false, 'Terminal ID is required');
+                return;
+            }
+
+            if (!certificateNumber) {
+                MraController.sendResponse(res, 400, false, 'Certificate number is required');
+                return;
+            }
+
+            const result = await MraUtilitiesService.validateVat5Certificate(
+                tenantId,
+                terminalId,
+                certificateNumber,
+                supplierTin,
+                environment || MraEnvironment.SANDBOX
+            );
+
+            if (!result.success) {
+                MraController.sendResponse(res, 400, false, result.message || 'VAT 5 certificate validation failed');
+                return;
+            }
+
+            MraController.sendSuccess(res, 'VAT 5 certificate validated', result.data);
+
+        } catch (error: unknown) {
+            console.error('[MRA] Validate VAT 5 certificate error:', error);
+            MraController.sendServerError(res, 'Failed to validate VAT 5 certificate');
+        }
+    }
+
+    /**
+     * Get last online transaction from MRA API
+     * 
+     * Retrieves the last online transaction directly from MRA servers.
+     * 
+     * @route GET /mra/last-transaction/online-mra/:terminalId
+     */
+    static async getLastOnlineTransactionFromMra(req: Request & AuthRequest, res: Response): Promise<void> {
+        try {
+            const terminalId = getParam(req.params.terminalId);
+            const tenantId = req.auth?.tenantId || '';
+            const environment = (req.query.environment as MraEnvironment) || MraEnvironment.SANDBOX;
+
+            if (!tenantId) {
+                MraController.sendResponse(res, 401, false, 'Authentication required');
+                return;
+            }
+
+            if (!terminalId) {
+                MraController.sendResponse(res, 400, false, 'Terminal ID is required');
+                return;
+            }
+
+            const result = await MraUtilitiesService.getLastOnlineTransactionFromMra(
+                tenantId,
+                terminalId,
+                environment
+            );
+
+            if (!result.success) {
+                MraController.sendResponse(res, 400, false, result.message || 'Failed to get last transaction');
+                return;
+            }
+
+            MraController.sendSuccess(res, 'Last online transaction retrieved from MRA', result.data);
+
+        } catch (error: unknown) {
+            console.error('[MRA] Get last online transaction from MRA error:', error);
+            MraController.sendServerError(res, 'Failed to get last online transaction from MRA');
+        }
+    }
+
+    /**
+     * Get last offline transaction from MRA API
+     * 
+     * Retrieves the last offline transaction synced to MRA servers.
+     * 
+     * @route GET /mra/last-transaction/offline-mra/:terminalId
+     */
+    static async getLastOfflineTransactionFromMra(req: Request & AuthRequest, res: Response): Promise<void> {
+        try {
+            const terminalId = getParam(req.params.terminalId);
+            const tenantId = req.auth?.tenantId || '';
+            const environment = (req.query.environment as MraEnvironment) || MraEnvironment.SANDBOX;
+
+            if (!tenantId) {
+                MraController.sendResponse(res, 401, false, 'Authentication required');
+                return;
+            }
+
+            if (!terminalId) {
+                MraController.sendResponse(res, 400, false, 'Terminal ID is required');
+                return;
+            }
+
+            const result = await MraUtilitiesService.getLastOfflineTransactionFromMra(
+                tenantId,
+                terminalId,
+                environment
+            );
+
+            if (!result.success) {
+                MraController.sendResponse(res, 400, false, result.message || 'Failed to get last transaction');
+                return;
+            }
+
+            MraController.sendSuccess(res, 'Last offline transaction retrieved from MRA', result.data);
+
+        } catch (error: unknown) {
+            console.error('[MRA] Get last offline transaction from MRA error:', error);
+            MraController.sendServerError(res, 'Failed to get last offline transaction from MRA');
+        }
+    }
+
+    /**
+     * Deactivate terminal with MRA
+     * 
+     * Used for terminal transfer or replacement.
+     * 
+     * @route POST /mra/deactivate
+     */
+    static async deactivateTerminal(req: Request & AuthRequest, res: Response): Promise<void> {
+        try {
+            const { terminalId, environment } = req.body as ConfirmActivationBody;
+            const tenantId = req.auth?.tenantId || '';
+
+            if (!tenantId) {
+                MraController.sendResponse(res, 401, false, 'Authentication required');
+                return;
+            }
+
+            if (!terminalId) {
+                MraController.sendResponse(res, 400, false, 'Terminal ID is required');
+                return;
+            }
+
+            const result = await MraOnboardingService.deactivateTerminal(
+                tenantId,
+                terminalId,
+                environment || MraEnvironment.SANDBOX
+            );
+
+            if (!result.success) {
+                MraController.sendResponse(res, 400, false, result.message);
+                return;
+            }
+
+            MraController.sendSuccess(res, result.message);
+
+        } catch (error: unknown) {
+            console.error('[MRA] Deactivate terminal error:', error);
+            MraController.sendServerError(res, 'Failed to deactivate terminal');
+        }
+    }
+
+    // ==========================================
+    // MRA COMPLIANCE MANAGEMENT ENDPOINTS
+    // ==========================================
+
+    /**
+     * Get MRA compliance status for current tenant/terminal
+     * 
+     * Returns whether MRA is enabled and terminal activation status.
+     * 
+     * @route GET /mra/compliance/status
+     */
+    static async getComplianceStatus(req: Request & AuthRequest, res: Response): Promise<void> {
+        try {
+            const tenantId = req.auth?.tenantId || '';
+            const terminalId = getParam(req.query.terminalId as string | undefined);
+
+            if (!tenantId) {
+                MraController.sendResponse(res, 401, false, 'Authentication required');
+                return;
+            }
+
+            const status = await MraComplianceService.getComplianceStatus(
+                tenantId,
+                terminalId || undefined
+            );
+
+            MraController.sendSuccess(res, 'MRA compliance status retrieved', status);
+
+        } catch (error: unknown) {
+            console.error('[MRA] Get compliance status error:', error);
+            MraController.sendServerError(res, 'Failed to get MRA compliance status');
+        }
+    }
+
+    /**
+     * Enable MRA compliance for tenant
+     * 
+     * Activates MRA submission requirements for all sales.
+     * If TAC and terminalId are provided, also activates the terminal with MRA.
+     * 
+     * @route POST /mra/compliance/enable
+     * @body { environment?: 'SANDBOX' | 'PRODUCTION', terminalId?: string, tac?: string }
+     */
+    static async enableMraCompliance(req: Request & AuthRequest, res: Response): Promise<void> {
+        try {
+            const tenantId = req.auth?.tenantId || '';
+            const branchId = getEffectiveBranchId(req.auth);
+            const { environment, terminalId, tac } = req.body as {
+                environment?: MraEnvironment;
+                terminalId?: string;
+                tac?: string;
+            };
+
+            if (!tenantId) {
+                MraController.sendResponse(res, 401, false, 'Authentication required');
+                return;
+            }
+
+            if (tac && !terminalId) {
+                MraController.sendResponse(res, 400, false, 'Terminal ID is required when providing TAC');
+                return;
+            }
+
+            if (tac) {
+                const tacRegex = /^[A-Za-z0-9-]{8,20}$/;
+                if (!tacRegex.test(tac)) {
+                    MraController.sendResponse(res, 400, false, 'Invalid TAC format. TAC should be 8-20 alphanumeric characters (dashes allowed).');
+                    return;
+                }
+            }
+
+            const result = await MraComplianceService.enableMraCompliance(
+                tenantId,
+                environment || MraEnvironment.SANDBOX,
+                { terminalId, tac, branchId }
+            );
+
+            if (!result.success) {
+                MraController.sendResponse(res, 400, false, result.message);
+                return;
+            }
+
+            MraController.sendSuccess(res, result.message, {
+                mraTerminalId: result.mraTerminalId,
+                taxpayerInfo: result.taxpayerInfo,
+                requiresConfirmation: !!result.mraTerminalId,
+            });
+
+        } catch (error: unknown) {
+            console.error('[MRA] Enable compliance error:', error);
+            MraController.sendServerError(res, 'Failed to enable MRA compliance');
+        }
+    }
+
+    /**
+     * Disable MRA compliance for tenant
+     * 
+     * Turns off MRA submission requirements.
+     * Existing sales remain unchanged, future sales marked as NOT_APPLICABLE.
+     * 
+     * @route POST /mra/compliance/disable
+     */
+    static async disableMraCompliance(req: Request & AuthRequest, res: Response): Promise<void> {
+        try {
+            const tenantId = req.auth?.tenantId || '';
+
+            if (!tenantId) {
+                MraController.sendResponse(res, 401, false, 'Authentication required');
+                return;
+            }
+
+            const result = await MraComplianceService.disableMraCompliance(tenantId);
+
+            if (!result.success) {
+                MraController.sendResponse(res, 400, false, result.message);
+                return;
+            }
+
+            MraController.sendSuccess(res, result.message);
+
+        } catch (error: unknown) {
+            console.error('[MRA] Disable compliance error:', error);
+            MraController.sendServerError(res, 'Failed to disable MRA compliance');
+        }
+    }
+
+    /**
+     * Switch MRA environment (SANDBOX <-> PRODUCTION)
+     * 
+     * Changes the MRA API environment for the tenant.
+     * MRA compliance must be enabled first.
+     * 
+     * @route POST /mra/compliance/environment
+     */
+    static async switchMraEnvironment(req: Request & AuthRequest, res: Response): Promise<void> {
+        try {
+            const tenantId = req.auth?.tenantId || '';
+            const { environment } = req.body as { environment: MraEnvironment };
+
+            if (!tenantId) {
+                MraController.sendResponse(res, 401, false, 'Authentication required');
+                return;
+            }
+
+            if (!environment) {
+                MraController.sendResponse(res, 400, false, 'Environment is required (SANDBOX or PRODUCTION)');
+                return;
+            }
+
+            const result = await MraComplianceService.switchMraEnvironment(tenantId, environment);
+
+            if (!result.success) {
+                MraController.sendResponse(res, 400, false, result.message);
+                return;
+            }
+
+            MraController.sendSuccess(res, result.message);
+
+        } catch (error: unknown) {
+            console.error('[MRA] Switch environment error:', error);
+            MraController.sendServerError(res, 'Failed to switch MRA environment');
+        }
+    }
+
+    /**
+     * Manually trigger post-onboarding sync for a terminal
+     * 
+     * Syncs products, configuration, and tenant info from MRA.
+     * Useful for retrying failed syncs or refreshing data.
+     * 
+     * @route POST /mra/sync-data
+     */
+    static async syncMraData(req: Request & AuthRequest, res: Response): Promise<void> {
+        try {
+            const tenantId = req.auth?.tenantId || '';
+            const { terminalId, environment } = req.body as {
+                terminalId: string;
+                environment?: MraEnvironment
+            };
+
+            if (!tenantId) {
+                MraController.sendResponse(res, 401, false, 'Authentication required');
+                return;
+            }
+
+            if (!terminalId) {
+                MraController.sendResponse(res, 400, false, 'Terminal ID is required');
+                return;
+            }
+
+            const result = await MraPostOnboardingService.triggerSync(
+                tenantId,
+                terminalId,
+                environment || MraEnvironment.SANDBOX
+            );
+
+            if (!result.success) {
+                MraController.sendResponse(res, 400, false, 'Sync completed with errors', result);
+                return;
+            }
+
+            MraController.sendSuccess(res, 'MRA data synced successfully', result);
+
+        } catch (error: unknown) {
+            console.error('[MRA] Sync data error:', error);
+            MraController.sendServerError(res, 'Failed to sync MRA data');
         }
     }
 }
