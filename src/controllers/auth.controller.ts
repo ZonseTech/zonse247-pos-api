@@ -25,18 +25,19 @@ export class AuthController extends BaseController {
      * @returns Promise<void>
      */
     static async login(
-        req: Request<ApiResponse<{ user: PublicUser; token: string }>, { username: string; password: string; offlineMode?: boolean }>,
+        req: Request<ApiResponse<{ user: PublicUser; token: string }>, { username: string; password: string }>,
         res: Response
     ): Promise<void> {
         try {
-            const { username, password, offlineMode } = req.body;
+            const { username, password } = req.body;
+            const clientType = (req.headers['x-client-type'] as 'web' | 'mobile' | 'desktop') || 'desktop';
 
             if (!username || !password) {
                 BaseController.sendResponse(res, 400, false, 'Username and password are required');
                 return;
             }
 
-            const result = await AuthService.loginUser(username, password, offlineMode);
+            const result = await AuthService.loginUser(username, password, clientType);
 
             if (result.message) {
                 BaseController.sendResponse(res, 401, false, result.message);
@@ -47,7 +48,6 @@ export class AuthController extends BaseController {
                 });
             }
         } catch (error: any) {
-            console.error('Error during login:', error);
             BaseController.sendResponse(res, 500, false, 'Incorrect user credentials.', undefined, error.message);
         }
     }
