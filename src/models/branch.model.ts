@@ -1,7 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import prisma from '../databases/prisma/client';
 import { Branch, BranchStatus, CreateBranchRequest } from 'branch';
-import { BranchCreateInput, BranchUncheckedCreateInput } from 'src/databases/prisma/generated/prisma/models';
 import { BranchMRAApprovalStatus } from '../databases/prisma/generated/prisma/enums';
 import { Tenant } from 'tenant';
 import { BranchSubscription } from 'subscription';
@@ -86,7 +85,7 @@ export class BranchModel {
      * @param   branchData - Branch creation data
      * @returns Promise<Branch> - Created branch
      */
-    static async create(branchData: BranchCreateInput | BranchUncheckedCreateInput) {
+    static async create(branchData: any) {
         return await prisma.branch.create({
             data: {
                 ...branchData,
