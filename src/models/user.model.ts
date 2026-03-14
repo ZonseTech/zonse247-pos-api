@@ -19,6 +19,30 @@ export class UserModel {
         }
     }
 
+    static async findAllWithRelations(conditions: UserQueryParams = {}): Promise<(User & { branch?: any })[]> {
+        try {
+            return await prisma.user.findMany({
+                where: conditions,
+                orderBy: { createdAt: 'desc' },
+                include: {
+                    branch: {
+                        select: {
+                            branchId: true,
+                            branchName: true,
+                            branchCode: true,
+                            city: true,
+                            state: true,
+                            location: true,
+                            isActive: true,
+                        }
+                    }
+                }
+            }) as unknown as (User & { branch?: any })[];
+        } catch (error) {
+            throw new Error(`Error finding users with relations: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+    }
+
     static async findById(id: string, tenantId?: string, branchId?: string): Promise<User | null> {
         try {
             const user = await prisma.user.findUnique({
