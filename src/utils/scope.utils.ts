@@ -25,6 +25,7 @@ export interface ScopeBuilderOptions {
     includeTenant?: boolean;
     includeBranch?: boolean;
     branchIdOverride?: string;
+    tenantIdOverride?: string;
     isAdminMode?: boolean;
 }
 
@@ -67,20 +68,22 @@ export class ScopeBuilder {
             includeTenant = true,
             includeBranch = true,
             branchIdOverride,
+            tenantIdOverride,
             isAdminMode = false,
         } = options;
 
         const scope: AuthScopeParams = {};
 
-        if (includeTenant && !isAdminMode && this.tenantId) {
+        if (tenantIdOverride) {
+            scope.tenantId = tenantIdOverride;
+        } else if (!isAdminMode && includeTenant && this.tenantId) {
             scope.tenantId = this.tenantId;
         }
 
-        if (includeBranch) {
-            const effectiveBranchId = branchIdOverride || this.branchId;
-            if (effectiveBranchId) {
-                scope.branchId = effectiveBranchId;
-            }
+        if (branchIdOverride) {
+            scope.branchId = branchIdOverride;
+        } else if (!isAdminMode && includeBranch && this.branchId) {
+            scope.branchId = this.branchId;
         }
 
         return scope;

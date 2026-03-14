@@ -14,7 +14,9 @@ import { getScopeFromRequest } from "../utils/scope.utils";
 export class TerminalController {
     /**
      * @method  getAllTerminals
-     * @desc    Retrieve all terminals for the authenticated tenant/branch
+     * @desc    Retrieve all terminals for the authenticated tenant
+     *          By default shows all terminals for the tenant (regardless of branch)
+     *          Use ?branchId=xxx to filter by specific branch
      * @param   req - Express request object with auth context and query parameters
      * @param   res - Express response object
      * @returns Promise<void> - JSON response with terminals array
@@ -24,12 +26,15 @@ export class TerminalController {
         try {
             const scope = getScopeFromRequest(req);
             const isAdminMode = req.query.isAdminMode === 'true';
-            const branchIdOverride = req.query.branchId as string | undefined;
+            const branchIdFilter = req.query.branchId as string | undefined;
+            const tenantIdOverride = req.query.tenantId as string | undefined;
 
             const terminals = await TerminalService.getAllTerminals(
                 scope.build({
                     isAdminMode,
-                    branchIdOverride
+                    tenantIdOverride,
+                    branchIdOverride: branchIdFilter,
+                    includeBranch: false,
                 })
             );
             BaseController.sendResponse(res, 200, true, 'Terminals retrieved successfully', terminals);
@@ -53,7 +58,12 @@ export class TerminalController {
      */
     static async createTerminal(req: Request<ApiResponse<Terminal>, CreateTerminalRequest> & AuthRequest, res: Response): Promise<void> {
         try {
-            const newTerminal = await TerminalService.createTerminal(req.body);
+            const terminalData = {
+                ...req.body,
+                tenantId: req.body.tenantId || req.auth.tenantId,
+                branchId: req.body.branchId || req.auth.activeBranchId || req.auth.branchId,
+            };
+            const newTerminal = await TerminalService.createTerminal(terminalData);
             BaseController.sendResponse(res, 201, true, 'Terminal created successfully', newTerminal);
         } catch (error: any) {
             console.error('Error creating terminal:', error);
@@ -152,6 +162,42 @@ export class TerminalController {
         } catch (error: any) {
             console.error('Error deleting terminal:', error);
             BaseController.sendResponse(res, 500, false, error.message, undefined, error.message);
+        }
+    }
+
+    /**
+     * @method  regenerateActivationCode
+     * @desc    Regenerate activation code for a terminal and reset its activation status
+     * @param   req - Express request with terminalId param
+     * @param   res - Express response object
+     * @returns Promise<void> - JSON response with terminal and new activation code
+     * @throws  404 - Terminal not found
+     * @throws  500 - Internal server error
+     */
+    static async regenerateActivationCode(req: Request<{ terminalId: string }> & AuthRequest, res: Response): Promise<void> {
+        try {
+            const { terminalId } = req.params;
+
+            if (!terminalId) {
+                BaseController.sendResponse(res, 400, false, 'Terminal ID is required');
+                return;
+            }
+
+            const result = await TerminalService.regenerateActivationCode(terminalId);
+
+            BaseController.sendResponse(res, 200, true, 'Activation code regenerated successfully', {
+                terminal: result.terminal,
+                activationCode: result.activationCode
+            });
+        } catch (error: any) {
+            console.error('Error regenerating activation code:', error);
+
+            let statusCode = 500;
+            if (error.message.includes('not found')) {
+                statusCode = 404;
+            }
+
+            BaseController.sendResponse(res, statusCode, false, error.message, undefined, error.message);
         }
     }
 }

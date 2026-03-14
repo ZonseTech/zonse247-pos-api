@@ -13,7 +13,7 @@ export class BranchService {
 	/**
 	 * @method  getAllBranches
 	 * @desc    Retrieve all branches with optional query filters
-	 * @param   query - Optional query parameters (status, branchCode, city, state, district, branchName, isActive, isVirtualWarehouse, isAdminMode)
+	 * @param   query - Optional query parameters (status, branchCode, city, state, district, branchName, isActive, isVirtualWarehouse, isAdminMode, tenantId)
 	 * @param   tenantId - Tenant ID for scope filtering (bypassed if isAdminMode is true)
 	 * @returns Promise<Branch[]> - Array of branches
 	 * @throws  Error - Failed to retrieve branches
@@ -22,7 +22,9 @@ export class BranchService {
 		try {
 			const conditions: any = {};
 
-			if (!query.isAdminMode) {
+			if (query.tenantId) {
+				conditions.tenantId = query.tenantId;
+			} else if (!query.isAdminMode) {
 				conditions.tenantId = tenantId;
 			}
 
@@ -105,7 +107,6 @@ export class BranchService {
 		const branchNumber = existingBranches.length + 1;
 		data.branchCode = `BR${String(branchNumber).padStart(3, '0')}`;
 
-		// Create branch subscription first
 		const subscriptionData = BranchSubscriptionModel.buildSubscriptionData({
 			subscriptionPlanId: data.subscriptionPlanId,
 			subscriptionMonths: data.subscriptionMonths ?? 1,
@@ -113,7 +114,6 @@ export class BranchService {
 		});
 		const branchSubscription = await BranchSubscriptionModel.create(subscriptionData);
 
-		// Create branch with branchSubscriptionId
 		const branchData = BranchModel.buildBranchData({
 			...data,
 			tenantId: effectiveTenantId,
