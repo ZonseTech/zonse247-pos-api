@@ -1,7 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import prisma from '../databases/prisma/client';
 import { BranchSubscription } from 'subscription';
-import { BranchSubscriptionUncheckedCreateInput } from '../databases/prisma/generated/prisma/models';
 
 export class BranchSubscriptionModel {
     static async findAll(): Promise<BranchSubscription[]> {
@@ -83,7 +82,7 @@ export class BranchSubscriptionModel {
         }
     }
 
-    static async create(subscriptionData: BranchSubscriptionUncheckedCreateInput): Promise<BranchSubscription> {
+    static async create(subscriptionData: any): Promise<BranchSubscription> {
         try {
             return await prisma.branchSubscription.create({
                 data: subscriptionData,
@@ -225,7 +224,7 @@ export class BranchSubscriptionModel {
         subscriptionMonths?: number;
         autoRenew?: boolean;
         paymentMethod?: string;
-    }): BranchSubscriptionUncheckedCreateInput {
+    }) {
         const now = new Date();
         const months = data.subscriptionMonths ?? 1;
         const endDate = new Date(now);
