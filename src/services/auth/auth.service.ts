@@ -490,25 +490,20 @@ export class AuthService {
      * @param userId - The user's unique identifier
      * @param targetBranchId - The branch ID to switch to
      * @param tenantId - The tenant's unique identifier
+     * @param clientType - The type of client making the request (web, mobile, desktop)
      * @returns Object containing updated user data with new token
      * @throws {Error} When user not found, branch not found, or access denied
-     * 
-     * @example
-     * ```typescript
-     * const result = await AuthService.switchBranch(userId, newBranchId, tenantId);
-     * // Returns { user, token, branch }
-     * ```
      */
     static async switchBranch(
         userId: string,
         targetBranchId: string,
-        tenantId: string
-    ): Promise<{ user: any; token: string; branch: any }> {
+        tenantId: string,
+        clientType: 'web' | 'mobile' | 'desktop' = 'desktop'
+    ): Promise<{ user: any; token: string; branch: any; message?: string }> {
         if (!userId || !targetBranchId || !tenantId) {
             throw new Error('User ID, Branch ID, and Tenant ID are required');
         }
 
-        // Import here to avoid circular dependency
         const { BranchModel } = await import('../../models/branch.model');
         const { BranchMiddleware } = await import('../../middlewares/branch.middleware');
 
@@ -539,6 +534,27 @@ export class AuthService {
 
         if (branch.status !== 'active') {
             throw new Error('The target branch is not active');
+        }
+
+        const requiresSubscription = clientType === ClientType.WEB || clientType === ClientType.MOBILE;
+        if (requiresSubscription) {
+            const subscription = branchData.branchSubscription;
+
+            if (!subscription) {
+                throw new Error('No subscription assigned to the target branch. Please contact support.');
+            }
+
+            if (subscription.status !== 'active') {
+                throw new Error(`The target branch subscription is ${subscription.status || 'inactive'}. Please renew to continue using the service.`);
+            }
+
+            if (subscription.endsAt) {
+                const now = new Date();
+                const endsAt = new Date(subscription.endsAt);
+                if (endsAt < now) {
+                    throw new Error('The target branch subscription has expired. Please renew to continue using the service.');
+                }
+            }
         }
 
         await UserModel.update(userId, {
