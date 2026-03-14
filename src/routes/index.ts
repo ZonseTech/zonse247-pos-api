@@ -23,7 +23,6 @@ import SalesRoutes from './sales.routes'
 import ParkedSalesRoutes from './parked-sales.routes'
 import StockMovementsRoutes from './stock-movements.routes'
 import PrinterRoutes from './printer.routes'
-import TenantRegistrationDetailRoutes from './tenant-registration-detail.routes'
 import DistrictRoutes from './district.routes'
 import { AuthMiddleware } from '../middlewares/auth.middleware'
 import { apiMiddleware } from '../middlewares/api.middleware'
@@ -86,7 +85,6 @@ router.use('/parked-sales', ParkedSalesRoutes);
 router.use('/stock-movements', StockMovementsRoutes);
 router.use('/printers', PrinterRoutes);
 router.use('/reports', ReportsRoutes);
-router.use('/tenant-registration-details', TenantRegistrationDetailRoutes);
 router.use('/mra', MraRoutes);
 router.use('/sync', SyncRoutes);
 

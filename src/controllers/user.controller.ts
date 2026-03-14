@@ -7,16 +7,23 @@ import { AuthRequest } from '../lib/express.type';
 import {
 	ValidationError,
 } from '../utils/db-error-handler.util';
+import { getScopeFromRequest } from '../utils/scope.utils';
 
 export class UserController {
 
 	static async list(req: Request & AuthRequest, res: Response): Promise<void> {
 		try {
 			const query = req.query;
-			const users = await UserService.getAllUsers(query, {
-				tenantId: req.auth.tenantId,
-				branchId: req.auth.activeBranchId || req.auth.branchId,
-			});
+			const scope = getScopeFromRequest(req);
+			const isAdminMode = req.query.isAdminMode === 'true';
+			const branchIdOverride = req.query.branchId as string | undefined;
+			const tenantIdOverride = req.query.tenantId as string | undefined;
+
+			const users = await UserService.getAllUsers(query, scope.build({
+				isAdminMode,
+				branchIdOverride,
+				tenantIdOverride,
+			}));
 			BaseController.sendResponse(res, 200, true, 'Users retrieved successfully', users);
 		} catch (error) {
 			ValidationError.handleError(res, error);
@@ -25,7 +32,12 @@ export class UserController {
 
 	static async store(req: Request<ApiResponse<PublicUser>, Partial<User>> & AuthRequest, res: Response): Promise<void> {
 		try {
-			const newUser = await UserService.createUser(req.body);
+			const userData = {
+				...req.body,
+				tenantId: req.body.tenantId || req.auth.tenantId,
+				branchId: req.body.branchId || req.auth.activeBranchId || req.auth.branchId,
+			};
+			const newUser = await UserService.createUser(userData);
 			BaseController.sendResponse(res, 201, true, 'User created successfully', newUser);
 		} catch (error) {
 			ValidationError.handleError(res, error);

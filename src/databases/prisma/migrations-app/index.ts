@@ -12,7 +12,6 @@
 import { Migration } from '../migration.types';
 import { migration as m20250101_01 } from './20250101_01_initial_schema_baseline_version';
 import { migration as m20260108_01 } from './20260108_01_add_db_meta_table_for_version_tracking';
-import { migration as m20260110_01 } from './20260110_01_add_tenant_registration_details_table_for_storing_temporary_registration_info';
 import { migration as m20260120_01 } from './20260120_01_add_salepayment_table_for_multiple_payment_method_support';
 import { migration as m20260120_02 } from './20260120_02_add_parkedsale_and_parkedsaleitem_tables_for_parked_held_sales';
 import { migration as m20260121_01 } from './20260121_01_change_salenumber_from_global_unique_to_per_tenant_branch_unique_for_offline_support';
@@ -55,6 +54,7 @@ import { migration as m20260306_07 } from './20260306_07_add_version_deleted_at_
 import { migration as m20260307_01 } from './20260307_01_add_triggers_to_enforce_stockmovement_immutability';
 import { migration as m20260311_01 } from './20260311_01_add_is_mra_enabled_to_tenants_for_mra_compliance_toggle';
 import { migration as m20260313_01 } from './20260313_01_change_mra_api_config_credentials_to_text_type';
+import { migration as m20260314_01 } from './20260314_01_drop_tenant_registration_details_table';
 
 /**
  * All registered migrations, sorted by version
@@ -62,7 +62,6 @@ import { migration as m20260313_01 } from './20260313_01_change_mra_api_config_c
 export const registeredMigrations: Migration[] = [
     m20250101_01,
     m20260108_01,
-    m20260110_01,
     m20260120_01,
     m20260120_02,
     m20260121_01,
@@ -105,6 +104,7 @@ export const registeredMigrations: Migration[] = [
     m20260307_01,
     m20260311_01,
     m20260313_01,
+    m20260314_01,
 ].sort((a, b) => a.version.localeCompare(b.version));
 
 /**

@@ -311,4 +311,40 @@ export class BranchSubscriptionModel {
             );
         }
     }
+
+    /**
+     * @method  findByTenantId
+     * @desc    Find all subscriptions for branches belonging to a tenant
+     * @param   tenantId - Unique tenant identifier
+     * @returns Promise<BranchSubscription[]> - Array of subscriptions with branch details
+     */
+    static async findByTenantId(tenantId: string): Promise<(BranchSubscription & { branch?: any })[]> {
+        try {
+            const branches = await prisma.branch.findMany({
+                where: { tenantId },
+                include: {
+                    branchSubscription: {
+                        include: {
+                            subscriptionPlan: true
+                        }
+                    }
+                }
+            });
+
+            return branches
+                .filter(branch => branch.branchSubscription)
+                .map(branch => ({
+                    ...branch.branchSubscription,
+                    branch: {
+                        branchId: branch.branchId,
+                        branchName: branch.branchName,
+                        branchCode: branch.branchCode,
+                    }
+                })) as unknown as (BranchSubscription & { branch?: any })[];
+        } catch (error) {
+            throw new Error(
+                `Error finding subscriptions by tenant ID: ${error instanceof Error ? error.message : 'Unknown error'}`
+            );
+        }
+    }
 }

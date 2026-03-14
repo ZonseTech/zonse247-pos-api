@@ -15,13 +15,21 @@ export class TerminalService {
     /**
      * @method  getAllTerminals
      * @desc    Retrieve all terminals with scope filters
+     *          For non-activated terminals (PENDING), includes activation code
+     *          For activated terminals, activation code is hidden
      * @param   scope - Auth scope params with tenantId and optional branchId
      * @returns Promise<Terminal[]> - Array of terminals
      * @throws  Error - Failed to retrieve terminals
      */
     static async getAllTerminals(scope: AuthScopeParams = {}): Promise<Terminal[]> {
         try {
-            return await TerminalModel.getAll(scope);
+            const terminals = await TerminalModel.getAll(scope);
+
+            // Only show activation code for non-activated terminals (PENDING status)
+            return terminals.map(terminal => ({
+                ...terminal,
+                activationCode: terminal.activationStatus === 'PENDING' ? terminal.activationCode : null,
+            }));
         } catch (error) {
             throw new Error(`Failed to retrieve terminals: ${error}`);
         }
@@ -37,7 +45,7 @@ export class TerminalService {
      * @throws  Error - Branch not found
      */
     static async createTerminal(data: CreateTerminalRequest & { activationCode: string }): Promise<Terminal> {
-        const validationError = ValidationError.validateRequired(data, ['terminalLabel', 'terminalCode']);
+        const validationError = ValidationError.validateRequired(data, ['terminalLabel']);
         if (validationError) {
             throw new Error(validationError);
         }
@@ -129,6 +137,43 @@ export class TerminalService {
         }
 
         return await TerminalModel.findById(terminalId);
+    }
+
+    /**
+     * @method  regenerateActivationCode
+     * @desc    Regenerate activation code for a terminal and reset its activation status
+     * @param   terminalId - Unique terminal identifier
+     * @returns Promise<{ terminal: Terminal; activationCode: string }> - Updated terminal with new activation code
+     * @throws  Error - Terminal not found
+     */
+    static async regenerateActivationCode(terminalId: string): Promise<{ terminal: Terminal; activationCode: string }> {
+        const existingTerminal = await TerminalModel.findById(terminalId);
+        if (!existingTerminal) {
+            throw new Error('Terminal not found');
+        }
+
+        const activationCode = await SecureSettingsService.createActivationCode({
+            tenantId: existingTerminal.tenantId,
+            branchId: existingTerminal.branchId,
+            terminalId: terminalId
+        });
+
+        await TerminalModel.update(terminalId, {
+            activationCode: activationCode,
+            activationStatus: 'PENDING',
+            activationDate: null,
+            updatedAt: new Date()
+        });
+
+        const updatedTerminal = await TerminalModel.findById(terminalId);
+        if (!updatedTerminal) {
+            throw new Error('Failed to retrieve updated terminal');
+        }
+
+        return {
+            terminal: updatedTerminal,
+            activationCode: activationCode
+        };
     }
 
     /**

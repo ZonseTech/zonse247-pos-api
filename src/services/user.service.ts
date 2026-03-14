@@ -20,7 +20,8 @@ export class UserService {
 
 	static async getAllUsers(query?: any, scope?: AuthScopeParams): Promise<any[]> {
 		try {
-			let users: Array<User>;
+			let users: Array<User & { branch?: any }>;
+			const isAdminMode = query?.isAdminMode === 'true' || query?.isAdminMode === true;
 
 			if (query && Object.keys(query).length > 0) {
 				const searchCriteria: any = {};
@@ -46,18 +47,29 @@ export class UserService {
 					];
 				}
 
-				users = await UserModel.findAll(searchCriteria);
+
+				users = isAdminMode
+					? await UserModel.findAllWithRelations(searchCriteria)
+					: await UserModel.findAll(searchCriteria);
 			} else {
 				const searchCriteria: any = {};
 				if (scope?.tenantId) searchCriteria.tenantId = scope.tenantId;
 				if (scope?.branchId) searchCriteria.branchId = scope.branchId;
-				users = await UserModel.findAll(searchCriteria);
+
+				users = isAdminMode
+					? await UserModel.findAllWithRelations(searchCriteria)
+					: await UserModel.findAll(searchCriteria);
 			}
 
 			const publicUsers = await Promise.all(
 				users.map(async (user) => {
 					const roleData = await this.getRoleWithPermissions(user.roleId);
-					return this.getPublicUser(user, roleData || {});
+					const publicUser = this.getPublicUser(user, roleData || {});
+
+					if (isAdminMode && user.branch) {
+						return { ...publicUser, branch: user.branch };
+					}
+					return publicUser;
 				})
 			);
 

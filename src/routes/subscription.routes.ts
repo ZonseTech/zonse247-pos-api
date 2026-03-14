@@ -8,8 +8,16 @@ const router = Router();
  * List all branch subscriptions with optional filtering
  * @query {string} [status] - Filter by status: active, cancelled, expired, past_due
  * @query {string} [planId] - Filter by subscription plan UUID
+ * @query {string} [tenantId] - Filter by tenant UUID (returns all subscriptions for that tenant's branches)
  */
 router.get('/', SubscriptionController.list);
+
+/**
+ * GET /tenant/:tenantId
+ * Get all subscriptions for a specific tenant's branches
+ * @param {string} tenantId - Tenant UUID
+ */
+router.get('/tenant/:tenantId', SubscriptionController.getByTenantId);
 
 /**
  * GET /stats
@@ -47,6 +55,17 @@ router.get('/:id', SubscriptionController.show);
  * @body {string} [paymentMethod] - Payment method identifier
  */
 router.post('/', SubscriptionController.store);
+
+/**
+ * POST /subscribe-branch
+ * Subscribe a specific branch to a plan (creates subscription and links to branch)
+ * @body {string} branchId - Branch UUID to subscribe (required)
+ * @body {string} subscriptionPlanId - Subscription plan UUID (required)
+ * @body {number} [subscriptionMonths=1] - Duration in months
+ * @body {boolean} [autoRenew=false] - Auto-renewal setting
+ * @body {string} [paymentMethod] - Payment method identifier
+ */
+router.post('/subscribe-branch', SubscriptionController.subscribeBranch);
 
 /**
  * PUT /:id

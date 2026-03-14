@@ -7,10 +7,13 @@ export class SubscriptionController extends BaseController {
 
     static async list(req: Request, res: Response): Promise<void> {
         try {
-            const { status, planId } = req.query;
+            const { status, planId, tenantId } = req.query;
             let subscriptions;
 
-            if (status) {
+            if (tenantId) {
+                // Filter by tenant - returns all subscriptions for branches of that tenant
+                subscriptions = await SubscriptionService.getByTenantId(tenantId as string);
+            } else if (status) {
                 const validStatuses = ['active', 'cancelled', 'expired', 'past_due'];
                 if (!validStatuses.includes(status as string)) {
                     BaseController.sendResponse(res, 400, false, 'Invalid status. Must be one of: active, cancelled, expired, past_due');
@@ -27,6 +30,23 @@ export class SubscriptionController extends BaseController {
         } catch (error: any) {
             console.error('Error fetching subscriptions:', error);
             BaseController.sendResponse(res, 500, false, 'Failed to fetch subscriptions', undefined, error.message);
+        }
+    }
+
+    static async getByTenantId(req: Request, res: Response): Promise<void> {
+        try {
+            const { tenantId } = req.params;
+
+            if (!tenantId) {
+                BaseController.sendResponse(res, 400, false, 'Tenant ID is required');
+                return;
+            }
+
+            const subscriptions = await SubscriptionService.getByTenantId(tenantId as string);
+            BaseController.sendResponse(res, 200, true, 'Tenant subscriptions retrieved successfully', subscriptions);
+        } catch (error: any) {
+            console.error('Error fetching tenant subscriptions:', error);
+            BaseController.sendResponse(res, 500, false, 'Failed to fetch tenant subscriptions', undefined, error.message);
         }
     }
 
@@ -299,6 +319,46 @@ export class SubscriptionController extends BaseController {
         } catch (error: any) {
             console.error('Error fetching subscriptions by plan:', error);
             BaseController.sendResponse(res, 500, false, 'Failed to fetch subscriptions by plan', undefined, error.message);
+        }
+    }
+
+    /**
+     * @method  subscribeBranch
+     * @desc    Subscribe a specific branch to a plan
+     * @body    { branchId, subscriptionPlanId, subscriptionMonths?, autoRenew?, paymentMethod? }
+     */
+    static async subscribeBranch(req: Request, res: Response): Promise<void> {
+        try {
+            const { branchId, subscriptionPlanId, subscriptionMonths, autoRenew, paymentMethod } = req.body;
+
+            if (!branchId) {
+                BaseController.sendResponse(res, 400, false, 'Branch ID is required');
+                return;
+            }
+
+            if (!subscriptionPlanId) {
+                BaseController.sendResponse(res, 400, false, 'Subscription plan ID is required');
+                return;
+            }
+
+            const subscription = await SubscriptionService.subscribeBranch(branchId, subscriptionPlanId, {
+                subscriptionMonths,
+                autoRenew,
+                paymentMethod,
+            });
+
+            BaseController.sendResponse(res, 201, true, 'Branch subscribed successfully', subscription);
+        } catch (error: any) {
+            console.error('Error subscribing branch:', error);
+
+            let statusCode = 500;
+            if (error.message.includes('not found')) {
+                statusCode = 404;
+            } else if (error.message.includes('inactive')) {
+                statusCode = 400;
+            }
+
+            BaseController.sendResponse(res, statusCode, false, error.message, undefined, error.message);
         }
     }
 }

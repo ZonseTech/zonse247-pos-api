@@ -35,6 +35,7 @@ export class BranchController {
     /**
      * @method  create
      * @desc    Create a new branch with associated subscription
+     *          Admin can specify tenantId in body, otherwise uses auth tenant
      * @param   req - Express request with CreateBranchRequest body
      * @param   res - Express response object
      * @returns Promise<void> - JSON response with created branch
@@ -46,7 +47,11 @@ export class BranchController {
      */
     static async create(req: Request<ApiResponse<Branch>, CreateBranchRequest> & AuthRequest, res: Response): Promise<void> {
         try {
-            const newBranch = await BranchService.createBranch(req.body, req.auth.userId);
+            const branchData = {
+                ...req.body,
+                tenantId: req.body.tenantId || req.auth.tenantId,
+            };
+            const newBranch = await BranchService.createBranch(branchData, req.auth.userId);
             BaseController.sendResponse(res, 201, true, 'Branch created successfully', newBranch);
         } catch (error: any) {
             console.error('Error creating branch:', error);

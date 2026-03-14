@@ -9,6 +9,7 @@ import { RolePermissionModel } from '../../models/role-permission.model';
 import { UserStatus } from '../../databases/prisma/generated/prisma/enums';
 import { getConfig } from '../../config/app.config';
 import { BranchModel } from '../../models/branch.model';
+import { ClientType } from '../../utils/enums';
 
 /**
  * Service layer for authentication and authorization operations
@@ -25,13 +26,13 @@ export class AuthService {
      * 
      * @param username - User's username (automatically sanitized)
      * @param password - User's plain text password
-     * @param _offlineMode - Deprecated: subscription info is now always included
+     * @param clientType - Client type (web, mobile, desktop) - subscription enforced for web/mobile
      * @returns Object containing user data with token, or error message
      */
     static async loginUser(
         username: string,
         password: string,
-        _offlineMode = false,
+        clientType: 'web' | 'mobile' | 'desktop' = 'desktop',
     ): Promise<{ user?: any; token?: string; message?: string }> {
         const escapedUsername = validator.escape(username);
 
@@ -55,7 +56,6 @@ export class AuthService {
             const { permissions } = await this.verifyUserPrivileges(user.roleId);
             completeUser.permissions = permissions || [];
 
-            // Include role details
             if (user.roleId) {
                 const role = await RoleModel.findById(user.roleId);
                 if (role) {
@@ -63,7 +63,6 @@ export class AuthService {
                 }
             }
 
-            // Always include branch and subscription info for subscription enforcement
             if (user.branchId) {
                 const branchData = await BranchModel.findByIdWithRelations(user.branchId);
                 if (branchData) {
@@ -72,13 +71,33 @@ export class AuthService {
                         branchSubscription: branchData.branchSubscription || null
                     };
 
-                    // Include subscription status for client-side enforcement
                     if (branchData.branchSubscription) {
                         completeUser.subscriptionStatus = branchData.branchSubscription.status;
                         completeUser.subscriptionEndsAt = branchData.branchSubscription.endsAt;
                     } else {
                         completeUser.subscriptionStatus = 'inactive';
                         completeUser.subscriptionEndsAt = null;
+                    }
+
+                    const requiresSubscription = clientType === ClientType.WEB || clientType === ClientType.MOBILE;
+                    if (requiresSubscription) {
+                        const subscription = branchData.branchSubscription;
+
+                        if (!subscription) {
+                            return { message: 'No subscription assigned to this branch. Please contact support.' };
+                        }
+
+                        if (subscription.status !== 'active') {
+                            return { message: `Your branch subscription is ${subscription.status || 'inactive'}. Please renew to continue using the service.` };
+                        }
+
+                        if (subscription.endsAt) {
+                            const now = new Date();
+                            const endsAt = new Date(subscription.endsAt);
+                            if (endsAt < now) {
+                                return { message: 'Your subscription has expired. Please renew to continue using the service.' };
+                            }
+                        }
                     }
                 }
             }
@@ -471,25 +490,20 @@ export class AuthService {
      * @param userId - The user's unique identifier
      * @param targetBranchId - The branch ID to switch to
      * @param tenantId - The tenant's unique identifier
+     * @param clientType - The type of client making the request (web, mobile, desktop)
      * @returns Object containing updated user data with new token
      * @throws {Error} When user not found, branch not found, or access denied
-     * 
-     * @example
-     * ```typescript
-     * const result = await AuthService.switchBranch(userId, newBranchId, tenantId);
-     * // Returns { user, token, branch }
-     * ```
      */
     static async switchBranch(
         userId: string,
         targetBranchId: string,
-        tenantId: string
-    ): Promise<{ user: any; token: string; branch: any }> {
+        tenantId: string,
+        clientType: 'web' | 'mobile' | 'desktop' = 'desktop'
+    ): Promise<{ user: any; token: string; branch: any; message?: string }> {
         if (!userId || !targetBranchId || !tenantId) {
             throw new Error('User ID, Branch ID, and Tenant ID are required');
         }
 
-        // Import here to avoid circular dependency
         const { BranchModel } = await import('../../models/branch.model');
         const { BranchMiddleware } = await import('../../middlewares/branch.middleware');
 
@@ -520,6 +534,27 @@ export class AuthService {
 
         if (branch.status !== 'active') {
             throw new Error('The target branch is not active');
+        }
+
+        const requiresSubscription = clientType === ClientType.WEB || clientType === ClientType.MOBILE;
+        if (requiresSubscription) {
+            const subscription = branchData.branchSubscription;
+
+            if (!subscription) {
+                throw new Error('No subscription assigned to the target branch. Please contact support.');
+            }
+
+            if (subscription.status !== 'active') {
+                throw new Error(`The target branch subscription is ${subscription.status || 'inactive'}. Please renew to continue using the service.`);
+            }
+
+            if (subscription.endsAt) {
+                const now = new Date();
+                const endsAt = new Date(subscription.endsAt);
+                if (endsAt < now) {
+                    throw new Error('The target branch subscription has expired. Please renew to continue using the service.');
+                }
+            }
         }
 
         await UserModel.update(userId, {

@@ -44,4 +44,12 @@ router.put('/:terminalId', TerminalController.updateTerminal);
  */
 router.delete('/:terminalId', TerminalController.deleteTerminal);
 
+/**
+ * @route   POST /terminals/:terminalId/regenerate-activation-code
+ * @desc    Regenerate activation code for a terminal and reset activation status to PENDING
+ * @param   terminalId - Unique terminal identifier
+ * @access  Protected
+ */
+router.post('/:terminalId/regenerate-activation-code', TerminalController.regenerateActivationCode);
+
 export default router;

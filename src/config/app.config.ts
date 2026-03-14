@@ -5,8 +5,6 @@ export const APP_NAME = process.env.APP_NAME || "Zonse247 POS";
 
 export const isProduction = NODE_ENV === "production";
 
-// Runtime configuration that can be set programmatically
-// This is needed because env vars may not be available in packaged Electron builds
 export interface RuntimeConfig {
     // API/External config
     liveApiUrl: string;
@@ -52,10 +50,6 @@ export interface RuntimeConfig {
     smtpUser: string;
     smtpPass: string;
     smtpFrom: string;
-
-    // Paths config
-    uploadPath: string;
-    migrationsPath: string;
 
     // External URLs
     clientPortalUrl: string;
@@ -108,8 +102,6 @@ const DEFAULT_CONFIG: RuntimeConfig = {
     smtpUser: 'zonse247@gmail.com',
     smtpPass: 'beyx utjh idqi bamr',
     smtpFrom: 'Zonse247 POS <zonse247@gmail.com>',
-    uploadPath: './.backups/uploads',
-    migrationsPath: './.backups/migrations',
     clientPortalUrl: 'https://pos.zonse247.com',
     enableAnalytics: false,
     syncEnabled: true,
@@ -173,10 +165,6 @@ export function initializeConfig(overrides?: Partial<RuntimeConfig>): RuntimeCon
         smtpUser: process.env.SMTP_USER || overrides?.smtpUser || DEFAULT_CONFIG.smtpUser,
         smtpPass: process.env.SMTP_PASS || overrides?.smtpPass || DEFAULT_CONFIG.smtpPass,
         smtpFrom: process.env.SMTP_FROM || overrides?.smtpFrom || DEFAULT_CONFIG.smtpFrom,
-
-        // Paths config
-        uploadPath: process.env.UPLOAD_PATH || overrides?.uploadPath || DEFAULT_CONFIG.uploadPath,
-        migrationsPath: process.env.MIGRATIONS_PATH || overrides?.migrationsPath || DEFAULT_CONFIG.migrationsPath,
 
         // External URLs
         clientPortalUrl: process.env.CLIENT_PORTAL_URL || overrides?.clientPortalUrl || DEFAULT_CONFIG.clientPortalUrl,
