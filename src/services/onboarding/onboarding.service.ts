@@ -1,9 +1,3 @@
-/**
- * Onboarding Service
- * Core business logic for terminal onboarding operations
- * Handles saving terminal details with "exists skip" pattern
- */
-
 import { TenantModel } from '../../models/tenant.model';
 import { BranchModel } from '../../models/branch.model';
 import { TerminalModel } from '../../models/terminal.model';
@@ -11,9 +5,7 @@ import { SubscriptionPlanModel } from '../../models/subscription-plan.model';
 import { BranchSubscriptionModel } from '../../models/branch-subscription.model';
 import {
     TenantCreateInput,
-    BranchSubscriptionUncheckedCreateInput,
     SubscriptionPlanCreateInput,
-    BranchUncheckedCreateInput
 } from '../../databases/prisma/generated/prisma/models';
 import type { Tenant } from 'tenant';
 import type { Branch } from 'branch';
@@ -161,7 +153,7 @@ export class OnboardingService {
             paymentMethod: subscriptionData.paymentMethod || null,
             lastPaymentDate: subscriptionData.lastPaymentDate ? new Date(subscriptionData.lastPaymentDate) : null,
             nextPaymentDate: subscriptionData.nextPaymentDate ? new Date(subscriptionData.nextPaymentDate) : null
-        } as BranchSubscriptionUncheckedCreateInput);
+        });
 
         return { saved: true, exists: false, data: subscription };
     }
@@ -206,7 +198,7 @@ export class OnboardingService {
             mraApprovalStatus: branchData.mraApprovalStatus || DEFAULTS.MRA_STATUS,
             branchSubscriptionId: branchData.branchSubscriptionId || null,
             status: branchData.status || DEFAULTS.STATUS
-        } as BranchUncheckedCreateInput);
+        });
 
         return { saved: true, exists: false, data: branch };
     }
