@@ -19,6 +19,19 @@ import {
 import { PrintJobResponseDTO } from '../../types/printer.platform';
 
 /**
+ * Check if error is a "no printer available" error (not a system failure)
+ */
+function isNoPrinterError(error: unknown): boolean {
+    if (error instanceof Error) {
+        const msg = error.message.toLowerCase();
+        return msg.includes('no receipt printer available')
+            || msg.includes('no label printer available')
+            || msg.includes('no printer available');
+    }
+    return false;
+}
+
+/**
  * PrinterPrintingController - Print operations
  */
 export class PrinterPrintingController extends BaseController {
@@ -63,6 +76,13 @@ export class PrinterPrintingController extends BaseController {
 
             BaseController.sendSuccess(res, response.message, response.data);
         } catch (error) {
+            if (isNoPrinterError(error)) {
+                BaseController.sendResponse(res, 200, false, (error as Error).message, {
+                    noPrinter: true,
+                    hint: 'Add and configure a printer in Settings > Printers'
+                });
+                return;
+            }
             handleError(res, error);
         }
     }
@@ -82,6 +102,13 @@ export class PrinterPrintingController extends BaseController {
 
             BaseController.sendSuccess(res, 'Label print job created', { printJob });
         } catch (error) {
+            if (isNoPrinterError(error)) {
+                BaseController.sendResponse(res, 200, false, (error as Error).message, {
+                    noPrinter: true,
+                    hint: 'Add and configure a label printer in Settings > Printers'
+                });
+                return;
+            }
             handleError(res, error);
         }
     }
