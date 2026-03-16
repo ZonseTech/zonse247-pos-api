@@ -407,6 +407,7 @@ export class SaleService {
                         taxAmount: item.taxAmount,
                         discountAmount: item.discountAmount,
                         totalAmount: item.totalAmount,
+                        terminalId: data.terminalId || null,
                         tenant: { connect: { tenantId } },
                         branch: { connect: { branchId } },
                         variant: { connect: { id: variantId } },

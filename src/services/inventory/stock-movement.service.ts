@@ -1205,7 +1205,9 @@ export class StockMovementService {
             return result;
         }
 
-        const affectedInventoryIds = new Set<string>();
+        // Track net deltas per inventory for incremental updates
+        // Key: inventoryId, Value: net quantity change
+        const inventoryDeltas = new Map<string, number>();
 
         await prisma.$transaction(async (tx) => {
             for (const movement of movements) {
@@ -1273,7 +1275,13 @@ export class StockMovementService {
                         },
                     });
 
-                    affectedInventoryIds.add(inventory.id);
+                    // Accumulate the net delta for this inventory
+                    // (instead of recalculating from scratch which loses initial stock)
+                    const isIncrease = this.isIncreaseType(movement.movementType);
+                    const delta = isIncrease ? movement.quantity : -movement.quantity;
+                    const currentDelta = inventoryDeltas.get(inventory.id) || 0;
+                    inventoryDeltas.set(inventory.id, currentDelta + delta);
+
                     result.inserted++;
                 } catch (error: any) {
                     result.errors.push({
@@ -1283,14 +1291,21 @@ export class StockMovementService {
                 }
             }
 
-            // Recalculate all affected inventories
-            for (const inventoryId of affectedInventoryIds) {
+            // Apply incremental deltas to affected inventories
+            // This preserves existing stock and only adjusts by the newly synced movements
+            for (const [inventoryId, netDelta] of inventoryDeltas) {
                 try {
-                    await this.recalculateInventory(inventoryId, tx);
+                    await tx.inventory.update({
+                        where: { id: inventoryId },
+                        data: {
+                            availableQuantity: { increment: netDelta },
+                            version: { increment: 1 },
+                        },
+                    });
                     result.inventoriesRecalculated++;
                 } catch (error: any) {
                     // Log but don't fail the whole sync
-                    console.error(`Failed to recalculate inventory ${inventoryId}:`, error.message);
+                    console.error(`Failed to update inventory ${inventoryId}:`, error.message);
                 }
             }
         });
