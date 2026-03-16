@@ -30,22 +30,45 @@ interface TableSyncHandler {
 
 const districtsSync: TableSyncHandler = {
     async sync(records: unknown[]): Promise<TableSyncResult> {
-        return syncTableRecords(
-            records as RecordAny[],
-            {
-                getId: (r) => r.districtId as string,
-                findExisting: (id) => prisma.district.findUnique({ where: { districtId: id } }),
-                transformForCreate: (r) => ({
-                    districtId: r.districtId,
-                    name: r.name,
-                    code: r.code || null,
-                    region: r.region || null,
-                    isActive: parseBoolean(r.isActive, true),
-                }),
-                create: (data: any) => prisma.district.create({ data }),
-            },
-            'districts'
-        );
+        const result = createEmptyTableSyncResult('districts');
+
+        for (const record of records as RecordAny[]) {
+            try {
+                const districtId = record.districtId as string;
+                if (!districtId) {
+                    result.failed++;
+                    result.errors.push('District: Missing required districtId field');
+                    continue;
+                }
+
+                const existingById = await prisma.district.findUnique({ where: { districtId } });
+                const code = (record.code as string) || null;
+                const existingByCode = code
+                    ? await prisma.district.findUnique({ where: { code } })
+                    : null;
+
+                if (existingById || existingByCode) {
+                    result.skipped++;
+                } else {
+                    await prisma.district.create({
+                        data: {
+                            districtId,
+                            name: record.name as string,
+                            code,
+                            region: (record.region as string) || null,
+                            isActive: parseBoolean(record.isActive, true),
+                        },
+                    });
+                    result.inserted++;
+                }
+            } catch (error) {
+                result.failed++;
+                result.errors.push(`District: ${(error as Error).message}`);
+            }
+        }
+
+        result.success = result.failed === 0;
+        return result;
     },
 };
 
