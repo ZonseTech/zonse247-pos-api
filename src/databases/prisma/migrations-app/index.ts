@@ -55,6 +55,13 @@ import { migration as m20260307_01 } from './20260307_01_add_triggers_to_enforce
 import { migration as m20260311_01 } from './20260311_01_add_is_mra_enabled_to_tenants_for_mra_compliance_toggle';
 import { migration as m20260313_01 } from './20260313_01_change_mra_api_config_credentials_to_text_type';
 import { migration as m20260314_01 } from './20260314_01_drop_tenant_registration_details_table';
+import { migration as m20260318_01 } from './20260318_01_add_purchase_requisition_tables_for_procurement_workflow';
+import { migration as m20260318_02 } from './20260318_02_add_goods_receipt_tables_for_grn_workflow';
+import { migration as m20260318_03 } from './20260318_03_add_supplier_invoice_tables_for_billing';
+import { migration as m20260318_04 } from './20260318_04_add_supplier_payment_tables';
+import { migration as m20260318_05 } from './20260318_05_add_requisition_id_to_purchase_orders';
+import { migration as m20260318_06 } from './20260318_06_add_goods_receipt_to_stock_reference_type';
+import { migration as m20260318_07 } from './20260318_07_add_variant_id_index_to_requisition_items';
 
 /**
  * All registered migrations, sorted by version
@@ -105,6 +112,13 @@ export const registeredMigrations: Migration[] = [
     m20260311_01,
     m20260313_01,
     m20260314_01,
+    m20260318_01,
+    m20260318_02,
+    m20260318_03,
+    m20260318_04,
+    m20260318_05,
+    m20260318_06,
+    m20260318_07,
 ].sort((a, b) => a.version.localeCompare(b.version));
 
 /**
