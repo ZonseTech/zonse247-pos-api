@@ -409,7 +409,7 @@ model SupplierInvoice {
   supplier        Supplier        @relation(fields: [supplierId], references: [id], onDelete: Restrict)
   purchaseOrder   PurchaseOrder?  @relation(fields: [purchaseOrderId], references: [id], onDelete: SetNull)
   items           SupplierInvoiceItem[]
-  supplierPayments SupplierPayment[]
+  allocations     SupplierPaymentAllocation[]
 
   @@unique([tenantId, branchId, invoiceNumber])
   @@index([tenantId])
@@ -468,7 +468,6 @@ model SupplierPayment {
   branchId          String        @map("branch_id")
   terminalId        String?       @map("terminal_id")
   supplierId        String        @map("supplier_id")
-  supplierInvoiceId String?       @map("supplier_invoice_id")
   paymentNumber     String        @map("payment_number")
   paymentDate       DateTime      @default(now()) @map("payment_date")
   amount            Decimal       @map("amount") @db.Decimal(10, 2)
@@ -485,17 +484,48 @@ model SupplierPayment {
   tenant            Tenant           @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade)
   branch            Branch           @relation(fields: [branchId], references: [branchId], onDelete: Cascade)
   supplier          Supplier         @relation(fields: [supplierId], references: [id], onDelete: Restrict)
-  supplierInvoice   SupplierInvoice? @relation(fields: [supplierInvoiceId], references: [id], onDelete: SetNull)
+  allocations       SupplierPaymentAllocation[]
 
   @@unique([tenantId, branchId, paymentNumber])
   @@index([tenantId])
   @@index([branchId])
   @@index([supplierId])
-  @@index([supplierInvoiceId])
   @@index([tenantId, branchId, updatedAt])
   @@index([updatedAt])
   @@index([deletedAt])
   @@map("supplier_payments")
+}
+
+model SupplierPaymentAllocation {
+  id              String   @id @default(uuid()) @map("allocation_id")
+  tenantId        String   @map("tenant_id")
+  branchId        String   @map("branch_id")
+  terminalId      String?  @map("terminal_id")
+  paymentId       String   @map("payment_id")
+  invoiceId       String   @map("invoice_id")
+  allocatedAmount Decimal  @map("allocated_amount") @db.Decimal(10, 2)
+  allocatedDate   DateTime @default(now()) @map("allocated_date")
+  notes           String?  @map("notes")
+  version         Int      @default(1) @map("version")
+  deletedAt       DateTime? @map("deleted_at")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  tenant          Tenant          @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade)
+  branch          Branch          @relation(fields: [branchId], references: [branchId], onDelete: Cascade)
+  payment         SupplierPayment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  invoice         SupplierInvoice @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+
+  @@unique([paymentId, invoiceId], name: "unique_payment_invoice")
+  @@index([tenantId])
+  @@index([branchId])
+  @@index([paymentId])
+  @@index([invoiceId])
+  @@index([tenantId, branchId, updatedAt])
+  @@index([updatedAt])
+  @@index([deletedAt])
+  @@map("supplier_payment_allocations")
 }
 
 model Supplier {
@@ -1050,6 +1080,7 @@ model Branch {
   supplierInvoices   SupplierInvoice[]
   supplierInvoiceItems SupplierInvoiceItem[]
   supplierPayments   SupplierPayment[]
+  supplierPaymentAllocations SupplierPaymentAllocation[]
   inventories        Inventory[]
   stockMovements     StockMovement[]
   sales              Sale[]
@@ -1385,6 +1416,7 @@ model Tenant {
   supplierInvoices   SupplierInvoice[]
   supplierInvoiceItems SupplierInvoiceItem[]
   supplierPayments   SupplierPayment[]
+  supplierPaymentAllocations SupplierPaymentAllocation[]
   inventories        Inventory[]
   stockMovements     StockMovement[]
   sales              Sale[]
