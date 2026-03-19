@@ -1,4 +1,4 @@
-import { PurchaseOrderStatus } from '../databases/prisma/generated/prisma/client';
+type PurchaseOrderStatus = 'PENDING' | 'DRAFT' | 'SENT' | 'PARTIALLY_RECEIVED' | 'RECEIVED' | 'CANCELLED';
 
 export interface PurchaseOrder {
     id: string;
@@ -6,6 +6,7 @@ export interface PurchaseOrder {
     tenantId: string;
     branchId: string;
     supplierId: string;
+    requisitionId?: string | null;
     poNumber: string;
     status: PurchaseOrderStatus;
     orderDate: Date;
@@ -15,6 +16,8 @@ export interface PurchaseOrder {
     createdBy: string;
     receivedBy?: string;
     isLocked: boolean;
+    version: number;
+    deletedAt?: Date | null;
     createdAt: Date;
     updatedAt: Date;
 }
@@ -22,13 +25,18 @@ export interface PurchaseOrder {
 export interface PurchaseOrderItem {
     id: string;
     purchaseOrderId: string;
+    tenantId: string;
+    branchId: string;
     variantId: string;
     orderedQuantity: number;
     receivedQuantity: number;
     damagedQuantity: number;
+    invoicedQuantity: number;
     unitPrice: number;
     totalPrice: number;
     notes?: string;
+    version: number;
+    deletedAt?: Date | null;
     createdAt: Date;
     updatedAt: Date;
     variant?: {
@@ -43,9 +51,8 @@ export interface PurchaseOrderItem {
 }
 
 export interface CreatePurchaseOrderInput {
-    tenantId: string;
-    branchId: string;
     supplierId: string;
+    requisitionId?: string;
     expectedDeliveryDate?: string;
     notes?: string;
     createdBy: string;
@@ -53,6 +60,19 @@ export interface CreatePurchaseOrderInput {
         variantId: string;
         orderedQuantity: number;
         unitPrice: number;
+        notes?: string;
+    }[];
+}
+
+export interface UpdatePurchaseOrderInput {
+    supplierId?: string;
+    expectedDeliveryDate?: string;
+    notes?: string;
+    items?: {
+        variantId: string;
+        orderedQuantity: number;
+        unitPrice: number;
+        notes?: string;
     }[];
 }
 
@@ -71,4 +91,8 @@ export interface PurchaseOrderWithItems extends PurchaseOrder {
         id: string;
         name: string;
     };
+    requisition?: {
+        id: string;
+        requisitionNumber: string;
+    } | null;
 }
