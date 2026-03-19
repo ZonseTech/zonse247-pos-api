@@ -25,7 +25,7 @@ const PO_ITEM_SELECT = {
     damagedQuantity: true,
 };
 
-const USER_SELECT = { userId: true, firstName: true, lastName: true };
+const USER_SELECT = { userId: true, fullname: true };
 
 const GRN_INCLUDE = {
     items: {

@@ -31,7 +31,7 @@ const RETURN_INCLUDE = {
     supplier: { select: { id: true, name: true } },
     purchaseOrder: { select: { id: true, poNumber: true } },
     goodsReceipt: { select: { id: true, receiptNumber: true } },
-    returnedByUser: { select: { userId: true, firstName: true, lastName: true } },
+    returnedByUser: { select: { userId: true, fullname: true } },
     creditNotes: { where: { deletedAt: null } },
 };
 

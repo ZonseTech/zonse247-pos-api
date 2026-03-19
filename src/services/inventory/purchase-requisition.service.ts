@@ -30,8 +30,7 @@ const ITEM_INCLUDE = {
 
 const USER_SELECT = {
     userId: true,
-    firstName: true,
-    lastName: true,
+    fullname: true,
 } as const;
 
 const REQUISITION_INCLUDE = {
