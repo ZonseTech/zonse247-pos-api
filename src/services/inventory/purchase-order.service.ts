@@ -7,8 +7,7 @@ import {
     PurchaseOrderWithItems,
 } from '../../models/purchase-order.model';
 import { StockMovementService } from '../inventory/stock-movement.service';
-
-type PurchaseOrderStatus = 'PENDING' | 'DRAFT' | 'SENT' | 'PARTIALLY_RECEIVED' | 'RECEIVED' | 'CANCELLED';
+import type { PurchaseOrderStatus } from '../../databases/prisma/generated/mysql/enums';
 
 // ─── Shared Includes ───────────────────────────────────────────────
 

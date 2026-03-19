@@ -1990,11 +1990,13 @@ enum SupplierStatus {
 }
 
 enum PurchaseOrderStatus {
+  DRAFT
   PENDING
+  SENT
   SHIPPED
+  PARTIALLY_RECEIVED
   RECEIVED
   CANCELLED
-  PARTIALLY_RECEIVED
 }
 
 enum CostingMethod {
