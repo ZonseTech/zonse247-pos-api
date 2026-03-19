@@ -8,15 +8,20 @@ const movementTypes = [
     'TRANSFER_IN',
     'TRANSFER_OUT',
     'DAMAGE',
-    'EXPIRY'
+    'EXPIRY',
+    'OPENING_BALANCE',
+    'RETURN_TO_SUPPLIER',
 ];
 
 const referenceTypes = [
     'PURCHASE_ORDER',
+    'GOODS_RECEIPT',
     'SALE',
     'RETURN',
     'ADJUSTMENT',
-    'TRANSFER'
+    'TRANSFER',
+    'OPENING_BALANCE',
+    'SUPPLIER_RETURN',
 ];
 
 export const stockMovementSchemas = {
@@ -162,5 +167,44 @@ export const stockMovementSchemas = {
         originalMovementId: Joi.string().uuid().required(),
         reason: Joi.string().min(5).max(1000).required()
             .messages({ 'string.min': 'reason must be at least 5 characters' }),
+    }),
+
+    // ==========================================================================
+    // Opening Stock & Valuation Schemas
+    // ==========================================================================
+
+    /**
+     * Record opening stock balance
+     */
+    openingStock: Joi.object({
+        inventoryId: Joi.string().uuid().required(),
+        quantity: Joi.number().integer().min(1).required(),
+        unitCost: Joi.number().min(0).required(),
+        openingDate: Joi.date().iso().optional(),
+        notes: Joi.string().max(1000).allow(null, '').optional(),
+    }),
+
+    /**
+     * Change costing method for an inventory item
+     */
+    changeCostingMethod: Joi.object({
+        inventoryId: Joi.string().uuid().required(),
+        newMethod: Joi.string().valid('WEIGHTED_AVERAGE', 'FIFO', 'LIFO').required(),
+    }),
+
+    /**
+     * Calculate COGS preview for a quantity
+     */
+    calculateCOGS: Joi.object({
+        inventoryId: Joi.string().uuid().required(),
+        quantity: Joi.number().integer().min(1).required(),
+        overrideMethod: Joi.string().valid('WEIGHTED_AVERAGE', 'FIFO', 'LIFO').optional(),
+    }),
+
+    /**
+     * Rebuild cost layers from movement history
+     */
+    rebuildCostLayers: Joi.object({
+        inventoryId: Joi.string().uuid().required(),
     }),
 };
