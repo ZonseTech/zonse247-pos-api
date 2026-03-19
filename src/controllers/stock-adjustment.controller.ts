@@ -170,7 +170,7 @@ export class StockAdjustmentController extends BaseController {
                     destinationBranchId,
                     destinationInventoryId,
                     quantity,
-                    unitCost: unitCost || 0,
+                    unitCost: unitCost || undefined, // Let service auto-resolve from source avg cost
                     transferId,
                     terminalId: req.verifiedMetadata?.terminalId,
                     notes,
