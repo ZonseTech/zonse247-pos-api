@@ -64,6 +64,10 @@ import { migration as m20260318_06 } from './20260318_06_add_goods_receipt_to_st
 import { migration as m20260318_07 } from './20260318_07_add_variant_id_index_to_requisition_items';
 import { migration as m20260318_08 } from './20260318_08_remove_invoice_id_from_supplier_payments';
 import { migration as m20260318_09 } from './20260318_09_add_supplier_payment_allocations_table';
+import { migration as m20260318_10 } from './20260318_10_add_invoiced_quantity_to_purchase_order_items';
+import { migration as m20260319_01 } from './20260319_01_add_procurement_audit_action_types';
+import { migration as m20260319_02 } from './20260319_02_add_costing_method_and_cost_layers_for_perpetual_inventory';
+import { migration as m20260319_03 } from './20260319_03_add_supplier_return_tables_and_return_to_supplier_enum';
 
 /**
  * All registered migrations, sorted by version
@@ -123,6 +127,10 @@ export const registeredMigrations: Migration[] = [
     m20260318_07,
     m20260318_08,
     m20260318_09,
+    m20260318_10,
+    m20260319_01,
+    m20260319_02,
+    m20260319_03,
 ].sort((a, b) => a.version.localeCompare(b.version));
 
 /**
