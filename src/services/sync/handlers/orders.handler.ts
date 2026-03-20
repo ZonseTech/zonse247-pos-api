@@ -1,28 +1,38 @@
 import { prisma } from '../../../databases/prisma/client';
 import type { SyncResult } from '../types/sync.types';
-import { processRecords } from './base.handler';
+import {
+    createEmptySyncResult,
+    finalizeSyncResult,
+    findExistingIds,
+    partitionRecords,
+    batchInsert,
+    addSyncError,
+    getErrorMessage,
+} from './base.handler';
 
 type SyncRecord = Record<string, unknown> & { id: string };
 
 /**
- * Receive and upsert orders from terminal
+ * Receive and upsert orders from terminal.
+ *
+ * OPTIMISED: single bulk existence check + createMany (eliminates N+1).
  */
 export async function receiveOrders(
     orders: SyncRecord[]
 ): Promise<SyncResult> {
-    return processRecords(orders, async (order) => {
-        const existing = await prisma.order.findUnique({
-            where: { id: order.id },
-        });
+    const result = createEmptySyncResult();
+    if (orders.length === 0) return result;
 
-        if (existing) {
-            return 'skipped';
-        }
+    try {
+        const ids = orders.map((o) => o.id);
+        const existingIds = await findExistingIds(prisma.order, ids);
+        const { newRecords } = partitionRecords(orders, existingIds);
 
-        await prisma.order.create({
-            data: order as any,
-        });
+        result.skipped = existingIds.size;
+        result.accepted = await batchInsert(prisma.order, newRecords);
+    } catch (error) {
+        addSyncError(result, 'batch', getErrorMessage(error));
+    }
 
-        return 'accepted';
-    });
+    return finalizeSyncResult(result);
 }

@@ -8,6 +8,8 @@ import {
 	ValidationError,
 } from '../utils/db-error-handler.util';
 import { getScopeFromRequest } from '../utils/scope.utils';
+import { parsePaginationParams } from '../utils/pagination.utils';
+import { AuditService, getAuditContext } from '../services/audit.service';
 
 export class UserController {
 
@@ -18,13 +20,14 @@ export class UserController {
 			const isAdminMode = req.query.isAdminMode === 'true';
 			const branchIdOverride = req.query.branchId as string | undefined;
 			const tenantIdOverride = req.query.tenantId as string | undefined;
+			const pagination = parsePaginationParams(req.query);
 
-			const users = await UserService.getAllUsers(query, scope.build({
+			const result = await UserService.listUsers(query, scope.build({
 				isAdminMode,
 				branchIdOverride,
 				tenantIdOverride,
-			}));
-			BaseController.sendResponse(res, 200, true, 'Users retrieved successfully', users);
+			}), pagination);
+			BaseController.sendPaginated(res, 'Users retrieved successfully', result.data, result.pagination, 'users');
 		} catch (error) {
 			ValidationError.handleError(res, error);
 		}
@@ -38,6 +41,9 @@ export class UserController {
 				branchId: req.body.branchId || req.auth.activeBranchId || req.auth.branchId,
 			};
 			const newUser = await UserService.createUser(userData);
+
+			AuditService.logCreate(getAuditContext(req), 'User', (newUser as any).userId || '', (newUser as any).username || userData.username || '', { tenantId: userData.tenantId, branchId: userData.branchId });
+
 			BaseController.sendResponse(res, 201, true, 'User created successfully', newUser);
 		} catch (error) {
 			ValidationError.handleError(res, error);
@@ -69,6 +75,9 @@ export class UserController {
 			}
 
 			const updatedUser = await UserService.updateUser(userId, updateData);
+
+			AuditService.logUpdate(getAuditContext(req), 'User', userId, (updatedUser as any).username || userId, undefined, updateData as any);
+
 			BaseController.sendResponse(res, 200, true, 'User updated successfully', updatedUser);
 		} catch (error) {
 			ValidationError.handleError(res, error);
@@ -84,6 +93,9 @@ export class UserController {
 			}
 
 			await UserService.deleteUser(userId);
+
+			AuditService.logDelete(getAuditContext(req), 'User', userId, userId);
+
 			BaseController.sendResponse(res, 200, true, 'User deleted successfully', { status: true });
 		} catch (error) {
 			ValidationError.handleError(res, error);

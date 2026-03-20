@@ -5,7 +5,7 @@ import { BaseController } from "./base.controller";
 import { CreateTerminalRequest, Terminal } from "terminal";
 import { TerminalService } from "../services/terminal.service";
 import { getScopeFromRequest } from "../utils/scope.utils";
-
+import { parsePaginationParams } from "../utils/pagination.utils"; import { AuditService, getAuditContext } from '../services/audit.service';
 /**
  * @class   TerminalController
  * @desc    Handles all terminal-related HTTP requests
@@ -28,16 +28,18 @@ export class TerminalController {
             const isAdminMode = req.query.isAdminMode === 'true';
             const branchIdFilter = req.query.branchId as string | undefined;
             const tenantIdOverride = req.query.tenantId as string | undefined;
+            const pagination = parsePaginationParams(req.query);
 
-            const terminals = await TerminalService.getAllTerminals(
+            const result = await TerminalService.listTerminals(
                 scope.build({
                     isAdminMode,
                     tenantIdOverride,
                     branchIdOverride: branchIdFilter,
                     includeBranch: false,
-                })
+                }),
+                pagination,
             );
-            BaseController.sendResponse(res, 200, true, 'Terminals retrieved successfully', terminals);
+            BaseController.sendPaginated(res, 'Terminals retrieved successfully', result.data, result.pagination, 'terminals');
         } catch (error: any) {
             console.error('Error retrieving terminals:', error);
             BaseController.sendResponse(res, 500, false, error.message, undefined, error.message);
@@ -64,6 +66,9 @@ export class TerminalController {
                 branchId: req.body.branchId || req.auth.activeBranchId || req.auth.branchId,
             };
             const newTerminal = await TerminalService.createTerminal(terminalData);
+
+            AuditService.logCreate(getAuditContext(req), 'Terminal', (newTerminal as any).terminalId || '', terminalData.terminalLabel || '', terminalData);
+
             BaseController.sendResponse(res, 201, true, 'Terminal created successfully', newTerminal);
         } catch (error: any) {
             console.error('Error creating terminal:', error);
@@ -122,6 +127,9 @@ export class TerminalController {
                 BaseController.sendResponse(res, 404, false, 'Terminal not found');
                 return;
             }
+
+            AuditService.logUpdate(getAuditContext(req), 'Terminal', req.params.terminalId, (updatedTerminal as any).terminalLabel || req.params.terminalId, undefined, req.body as any);
+
             BaseController.sendResponse(res, 200, true, 'Terminal updated successfully', updatedTerminal);
         } catch (error: any) {
             console.error('Error updating terminal:', error);
@@ -158,6 +166,9 @@ export class TerminalController {
                 BaseController.sendResponse(res, 404, false, 'Terminal not found');
                 return;
             }
+
+            AuditService.logDelete(getAuditContext(req), 'Terminal', req.params.id, req.params.id);
+
             BaseController.sendResponse(res, 200, true, 'Terminal deleted successfully', { status: true });
         } catch (error: any) {
             console.error('Error deleting terminal:', error);

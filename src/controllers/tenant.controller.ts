@@ -3,7 +3,7 @@ import { Request, Response } from "express";
 import { Tenant, TenantFormValues } from "tenant";
 import { BaseController } from "./base.controller";
 import { TenantService } from "../services/tenant.service";
-
+import { parsePaginationParams } from "../utils/pagination.utils"; import { AuditService, getAuditContext } from '../services/audit.service';
 /**
  * @class   TenantController
  * @desc    Handles all tenant-related HTTP requests
@@ -21,8 +21,9 @@ export class TenantController {
     static async list(req: Request, res: Response) {
         try {
             const query = req.query;
-            const tenants = await TenantService.getAllTenants(query);
-            return BaseController.sendResponse(res, 200, true, 'Tenants retrieved successfully', tenants);
+            const pagination = parsePaginationParams(req.query);
+            const result = await TenantService.listTenants(query, pagination);
+            return BaseController.sendPaginated(res, 'Tenants retrieved successfully', result.data, result.pagination, 'tenants');
         } catch (error: any) {
             return BaseController.sendResponse(res, 500, false, error.message, undefined, error.message);
         }
@@ -41,6 +42,9 @@ export class TenantController {
     static async store(req: Request<ApiResponse<Tenant>, TenantFormValues>, res: Response) {
         try {
             const newTenant = await TenantService.registerTenant(req.body);
+
+            AuditService.logCreate(getAuditContext(req), 'Tenant', (newTenant as any).tenantId || '', (newTenant as any).businessName || req.body.businessName || '', req.body);
+
             return BaseController.sendResponse(res, 201, true, 'Tenant created successfully', newTenant);
         } catch (error: any) {
             let statusCode = 500;
@@ -103,6 +107,9 @@ export class TenantController {
             }
 
             const updatedTenant = await TenantService.updateTenant(tenantId, updateData);
+
+            AuditService.logUpdate(getAuditContext(req), 'Tenant', tenantId, (updatedTenant as any).businessName || tenantId, undefined, updateData as any);
+
             return BaseController.sendResponse(res, 200, true, 'Tenant updated successfully', updatedTenant);
         } catch (error: any) {
             let statusCode = 500;
@@ -135,6 +142,9 @@ export class TenantController {
             }
 
             const result = await TenantService.deleteTenant(tenantId);
+
+            AuditService.logDelete(getAuditContext(req), 'Tenant', tenantId, tenantId);
+
             return BaseController.sendResponse(res, 200, true, 'Tenant deleted successfully', result);
         } catch (error: any) {
             const statusCode = error.message.includes('not found') ? 404 : 500;

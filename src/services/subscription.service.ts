@@ -3,12 +3,42 @@ import { SubscriptionPlanService } from './subscription-plan.service';
 import { BranchModel } from '../models/branch.model';
 import type { CreateSubscriptionRequest, BranchSubscription } from 'subscription';
 import { ValidationError } from '../utils/errors';
+import prisma from '../databases/prisma/client';
+import { PaginationParams, buildPaginationMeta, PaginatedResult } from '../utils/pagination.utils';
 
 export class SubscriptionService {
 
 	static async getAll(): Promise<Array<BranchSubscription>> {
 		const subscriptions = await BranchSubscriptionModel.findAll();
 		return subscriptions;
+	}
+
+	static async listSubscriptions(
+		pagination: PaginationParams,
+		options?: { status?: string; planId?: string; tenantId?: string },
+	): Promise<PaginatedResult<BranchSubscription>> {
+		const where: any = {};
+		if (options?.status) where.status = options.status;
+		if (options?.planId) where.planId = options.planId;
+		if (options?.tenantId) {
+			where.branch = { tenantId: options.tenantId };
+		}
+
+		const [subscriptions, total] = await Promise.all([
+			prisma.branchSubscription.findMany({
+				where,
+				include: { subscriptionPlan: true },
+				skip: pagination.skip,
+				take: pagination.limit,
+				orderBy: { createdAt: 'desc' },
+			}),
+			prisma.branchSubscription.count({ where }),
+		]);
+
+		return {
+			data: subscriptions as unknown as BranchSubscription[],
+			pagination: buildPaginationMeta(total, pagination.page, pagination.limit),
+		};
 	}
 
 	static async getById(id: string): Promise<BranchSubscription | null> {

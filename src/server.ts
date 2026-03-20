@@ -19,12 +19,14 @@ import {
 } from './middlewares/security.middleware';
 import ApiRoutes from './routes';
 import { initializeConfig, RuntimeConfig } from './config/app.config';
+import { SocketService } from './services/socket';
 
 export class Server {
 	private server: HttpServer;
 	private app: Application;
 	private electron: any | null;
 	private config: RuntimeConfig;
+	private socketService: SocketService;
 
 	constructor(electronApp?: any, configOverrides?: Partial<RuntimeConfig>) {
 		this.config = initializeConfig(configOverrides);
@@ -37,6 +39,7 @@ export class Server {
 		}
 
 		this.server = createServer(this.app);
+		this.socketService = SocketService.getInstance();
 		this.setupMiddleware();
 		this.setupRoutes();
 		this.setupErrorHandling();
@@ -144,6 +147,9 @@ export class Server {
 			initializeMraServices();
 			console.log('✓ MRA services initialized');
 
+			// Initialize WebSocket server (attaches to the same HTTP server)
+			this.socketService.initialize(this.server);
+
 			const port = parseInt(this.config.serverPort);
 			this.server.listen(
 				port,
@@ -160,8 +166,17 @@ export class Server {
 		}
 	}
 
-	public stop() {
+	public async stop() {
+		await this.socketService.shutdown();
 		this.server.close();
+	}
+
+	/**
+	 * Get the socket service for emitting events from outside the server class.
+	 * Useful in Electron apps and for inter-service communication.
+	 */
+	public getSocketService(): SocketService {
+		return this.socketService;
 	}
 }
 

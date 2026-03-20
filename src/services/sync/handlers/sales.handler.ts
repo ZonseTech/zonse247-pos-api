@@ -1,101 +1,141 @@
 import { prisma } from '../../../databases/prisma/client';
 import type { SyncResult } from '../types/sync.types';
-import { processRecords } from './base.handler';
+import {
+    createEmptySyncResult,
+    finalizeSyncResult,
+    findExistingIds,
+    partitionRecords,
+    batchInsert,
+    addSyncError,
+    getErrorMessage,
+} from './base.handler';
 
 type SyncRecord = Record<string, unknown> & { id: string; saleId?: string; terminalId?: string };
 
 /**
- * Receive and upsert sales from terminal
- * Preserves original userId and terminalId from the record
+ * Receive and upsert sales from terminal.
+ *
+ * OPTIMISED: single bulk existence check + createMany with skipDuplicates
+ * instead of per-record findUnique + create (eliminates N+1).
  */
 export async function receiveSales(
     sales: SyncRecord[],
     terminalId: string
 ): Promise<SyncResult> {
-    return processRecords(sales, async (sale) => {
-        const existing = await prisma.sale.findUnique({
-            where: { id: sale.id },
-        });
+    const result = createEmptySyncResult();
+    if (sales.length === 0) return result;
 
-        if (existing) {
-            return 'skipped';
-        }
+    try {
+        const ids = sales.map((s) => s.id);
+        const existingIds = await findExistingIds(prisma.sale, ids);
+        const { newRecords } = partitionRecords(sales, existingIds);
 
-        await prisma.sale.create({
-            data: {
-                ...sale,
-                terminalId: sale.terminalId || terminalId,
-            } as any,
-        });
+        result.skipped = existingIds.size;
 
-        return 'accepted';
-    });
+        // Normalise terminalId on all new records before bulk insert
+        const toInsert = newRecords.map((sale) => ({
+            ...sale,
+            terminalId: sale.terminalId || terminalId,
+        }));
+
+        result.accepted = await batchInsert(prisma.sale, toInsert);
+    } catch (error) {
+        addSyncError(result, 'batch', getErrorMessage(error));
+    }
+
+    return finalizeSyncResult(result);
 }
 
 /**
- * Receive and upsert sale items from terminal
- * Validates parent sale exists before inserting
+ * Receive and upsert sale items from terminal.
+ *
+ * OPTIMISED: bulk existence check for items AND parent sales,
+ * then createMany for all valid new items.
  */
 export async function receiveSaleItems(
     items: SyncRecord[],
     terminalId: string
 ): Promise<SyncResult> {
-    return processRecords(items, async (item) => {
-        const existing = await prisma.saleItem.findUnique({
-            where: { id: item.id },
-        });
+    const result = createEmptySyncResult();
+    if (items.length === 0) return result;
 
-        if (existing) {
-            return 'skipped';
-        }
+    try {
+        // Bulk existence checks — 2 queries instead of 2N
+        const itemIds = items.map((i) => i.id);
+        const parentSaleIds = [...new Set(items.map((i) => i.saleId as string).filter(Boolean))];
 
-        const parentSale = await prisma.sale.findUnique({
-            where: { id: item.saleId as string },
-        });
+        const [existingItemIds, existingParentIds] = await Promise.all([
+            findExistingIds(prisma.saleItem, itemIds),
+            findExistingIds(prisma.sale, parentSaleIds),
+        ]);
 
-        if (!parentSale) {
-            return { rejected: 'Parent sale not found' };
-        }
+        const toInsert: Record<string, unknown>[] = [];
 
-        await prisma.saleItem.create({
-            data: {
+        for (const item of items) {
+            if (existingItemIds.has(item.id)) {
+                result.skipped++;
+                continue;
+            }
+
+            if (!existingParentIds.has(item.saleId as string)) {
+                addSyncError(result, item.id, 'Parent sale not found');
+                continue;
+            }
+
+            toInsert.push({
                 ...item,
                 terminalId: item.terminalId || terminalId,
-            } as any,
-        });
+            });
+        }
 
-        return 'accepted';
-    });
+        result.accepted = await batchInsert(prisma.saleItem, toInsert);
+    } catch (error) {
+        addSyncError(result, 'batch', getErrorMessage(error));
+    }
+
+    return finalizeSyncResult(result);
 }
 
 /**
- * Receive and upsert sale payments from terminal
- * Validates parent sale exists before inserting
+ * Receive and upsert sale payments from terminal.
+ *
+ * OPTIMISED: same bulk pattern — 2 queries total instead of 2N.
  */
 export async function receiveSalePayments(
     payments: SyncRecord[]
 ): Promise<SyncResult> {
-    return processRecords(payments, async (payment) => {
-        const existing = await prisma.salePayment.findUnique({
-            where: { id: payment.id },
-        });
+    const result = createEmptySyncResult();
+    if (payments.length === 0) return result;
 
-        if (existing) {
-            return 'skipped';
+    try {
+        const paymentIds = payments.map((p) => p.id);
+        const parentSaleIds = [...new Set(payments.map((p) => p.saleId as string).filter(Boolean))];
+
+        const [existingPaymentIds, existingParentIds] = await Promise.all([
+            findExistingIds(prisma.salePayment, paymentIds),
+            findExistingIds(prisma.sale, parentSaleIds),
+        ]);
+
+        const toInsert: Record<string, unknown>[] = [];
+
+        for (const payment of payments) {
+            if (existingPaymentIds.has(payment.id)) {
+                result.skipped++;
+                continue;
+            }
+
+            if (!existingParentIds.has(payment.saleId as string)) {
+                addSyncError(result, payment.id, 'Parent sale not found');
+                continue;
+            }
+
+            toInsert.push(payment);
         }
 
-        const parentSale = await prisma.sale.findUnique({
-            where: { id: payment.saleId as string },
-        });
+        result.accepted = await batchInsert(prisma.salePayment, toInsert);
+    } catch (error) {
+        addSyncError(result, 'batch', getErrorMessage(error));
+    }
 
-        if (!parentSale) {
-            return { rejected: 'Parent sale not found' };
-        }
-
-        await prisma.salePayment.create({
-            data: payment as any,
-        });
-
-        return 'accepted';
-    });
+    return finalizeSyncResult(result);
 }

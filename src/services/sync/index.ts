@@ -15,42 +15,42 @@
  * │         ▼            │ - StockMovements  │                 │
  * │  ┌──────────────┐    │ - Customers       │                 │
  * │  │ HTTP Client  │    │ - Products        │                 │
- * │  └──────────────┘    │ - Inventory       │                 │
- * │         │            └───────────────────┘                 │
+ * │  │ (gzip)       │    │ - Inventory       │                 │
+ * │  └──────────────┘    └───────────────────┘                 │
  * │         │                                                  │
  * └─────────│──────────────────────────────────────────────────┘
  *           │
- *           │ PUSH (POST /api/v1/sync/*)
- *           │ Sales, SaleItems, Returns, StockMovements
+ *           │ PUSH (POST /api/v1/sync/batch)
+ *           │ ↕ Parallel for independent tables ↕
+ *           │ Sequential for dependent: Sales → Items → Payments
  *           ▼
  * ┌─────────────────────────────────────────────────────────────┐
  * │                    SERVER (ONLINE)                          │
  * │                                                             │
- * │  ┌──────────────┐    ┌───────────────────┐                 │
- * │  │ SyncReceiver │────│ MySQL Database    │                 │
- * │  │ (endpoints)  │    │                   │                 │
- * │  └──────────────┘    │ - Sales           │                 │
- * │         │            │ - SaleItems       │                 │
- * │         ▼            │ - StockMovements  │                 │
- * │  ┌──────────────────┐│ - Customers       │                 │
- * │  │ StockMovement    ││ - Products        │                 │
- * │  │ Service          ││ - Inventory       │                 │
- * │  │ (recalculate)    │└───────────────────┘                 │
+ * │  ┌──────────────┐    ┌──────────────────┐                  │
+ * │  │ SyncReceiver │────│ MySQL Database   │                  │
+ * │  │ (batch ops)  │    │                  │                  │
+ * │  └──────────────┘    │ ChangeLog table  │← records changes │
+ * │         │            │ TerminalSyncState│← per-terminal    │
+ * │         ▼            └──────────────────┘   cursors        │
+ * │  ┌──────────────────┐                                      │
+ * │  │ StockMovement    │                                      │
+ * │  │ Service          │                                      │
+ * │  │ (recalculate)    │                                      │
  * │  └──────────────────┘                                      │
  * └─────────────────────────────────────────────────────────────┘
  *           │
  *           │ PULL (POST /api/v1/sync/pull)
- *           │ Products, Categories, Inventory, PaymentMethods
+ *           │ ChangeLog-based delta when available,
+ *           │ timestamp-scan as fallback
  *           ▼
  * ┌─────────────────────────────────────────────────────────────┐
  * │                    TERMINAL (OFFLINE)                       │
  * │                                                             │
- * │  Receives and saves pulled data locally (upsert)            │
- * │  - Products, ProductVariants, Categories                    │
- * │  - Inventory (recalculated quantities from server)          │
- * │  - PaymentMethods                                           │
- * │  - StockMovements from other terminals                      │
- * │  - Customers                                                │
+ * │  Receives and batch-upserts pulled data locally             │
+ * │  - Parallel table processing                                │
+ * │  - Chunked upsert (50 records per chunk)                    │
+ * │  - Separate push/pull timestamps                            │
  * │                                                             │
  * └─────────────────────────────────────────────────────────────┘
  * 
@@ -74,8 +74,8 @@
  * 2. ON SERVER:
  * 
  *    Server exposes sync endpoints via SyncController:
- *    - POST /api/v1/sync/batch
- *    - POST /api/v1/sync/pull
+ *    - POST /api/v1/sync/batch        (validated, batch-optimised)
+ *    - POST /api/v1/sync/pull         (ChangeLog-based delta)
  *    - POST /api/v1/sync/bidirectional
  * 
  * 3. MANUAL SYNC TRIGGER:
@@ -86,6 +86,16 @@
  *    if (job) {
  *      await job.runSyncCycle();
  *    }
+ *
+ * 4. RECORDING CHANGES (for delta sync):
+ *
+ *    import { recordChange, recordChangesAsync } from './services/sync';
+ *
+ *    // After product update in your CRUD service:
+ *    recordChangeAsync({
+ *      tableName: 'products', recordId: product.id,
+ *      operation: 'UPDATE', tenantId, branchId,
+ *    });
  */
 
 export {
@@ -96,6 +106,28 @@ export {
     resetSyncTimestamps,
 } from './sync-job.service';
 export { SyncReceiverService } from './sync-receiver.service';
+
+// ChangeLog service — record mutations for delta sync
+export {
+    recordChange,
+    recordChanges,
+    recordChangeAsync,
+    recordChangesAsync,
+    purgeOldChangeLogs,
+    getLatestSequence,
+    type ChangeEntry,
+    type ChangeOperation,
+} from './change-log.service';
+
+// TerminalSyncState service — per-terminal sync cursors
+export {
+    getOrCreateSyncState,
+    updatePushTimestamp,
+    updatePullState,
+    resetSyncState,
+    type SyncStateSnapshot,
+} from './terminal-sync-state.service';
+
 export type {
     SyncRecordBase,
     SyncResult,

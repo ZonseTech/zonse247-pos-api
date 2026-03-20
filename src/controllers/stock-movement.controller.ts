@@ -3,6 +3,7 @@ import { BaseController } from './base.controller';
 import { StockMovementService } from '../services/inventory/stock-movement.service';
 import { AuthRequest } from '../lib/express.type';
 import { SyncMovementInput } from '../models/stock-movement.model';
+import { AuditService, getAuditContext } from '../services/audit.service';
 
 export class StockMovementController extends BaseController {
     /**
@@ -39,6 +40,8 @@ export class StockMovementController extends BaseController {
                 'Stock movement recorded successfully',
                 result
             );
+
+            AuditService.logCreate(getAuditContext(req), 'StockMovement', (result as any).movementId || '', inventoryId || variantId || '', { movementType, quantity, referenceType });
         } catch (error: any) {
             BaseController.sendResponse(
                 res,

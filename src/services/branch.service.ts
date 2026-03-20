@@ -3,6 +3,8 @@ import { TenantModel } from "../models/tenant.model";
 import { BranchSubscriptionModel } from "../models/branch-subscription.model";
 import { Branch, CreateBranchRequest } from "branch";
 import { BranchCreateInput } from "../databases/prisma/generated/prisma/models";
+import prisma from '../databases/prisma/client';
+import { PaginationParams, buildPaginationMeta, PaginatedResult } from '../utils/pagination.utils';
 
 /**
  * @class   BranchService
@@ -61,6 +63,48 @@ export class BranchService {
 			}
 
 			return await BranchModel.findAll(conditions);
+		} catch (error: any) {
+			throw new Error(`Failed to retrieve branches: ${error.message}`);
+		}
+	}
+
+	static async listBranches(
+		query: any = {},
+		tenantId: string,
+		pagination: PaginationParams,
+	): Promise<PaginatedResult<Branch>> {
+		try {
+			const where: any = {};
+
+			if (query.tenantId) {
+				where.tenantId = query.tenantId;
+			} else if (!query.isAdminMode) {
+				where.tenantId = tenantId;
+			}
+
+			if (query.status) where.status = query.status;
+			if (query.branchCode) where.branchCode = query.branchCode;
+			if (query.city) where.city = query.city;
+			if (query.state) where.state = query.state;
+			if (query.district) where.district = query.district;
+			if (query.branchName) where.branchName = query.branchName;
+			if (query.isActive !== undefined) where.isActive = query.isActive;
+			if (query.isVirtualWarehouse !== undefined) where.isVirtualWarehouse = query.isVirtualWarehouse;
+
+			const [branches, total] = await Promise.all([
+				prisma.branch.findMany({
+					where,
+					skip: pagination.skip,
+					take: pagination.limit,
+					orderBy: { createdAt: 'desc' },
+				}),
+				prisma.branch.count({ where }),
+			]);
+
+			return {
+				data: branches as unknown as Branch[],
+				pagination: buildPaginationMeta(total, pagination.page, pagination.limit),
+			};
 		} catch (error: any) {
 			throw new Error(`Failed to retrieve branches: ${error.message}`);
 		}

@@ -1,8 +1,8 @@
 /**
  * Sync Controller
- * 
+ *
  * HTTP endpoints for bidirectional sync between terminals and server.
- * 
+ *
  * ENDPOINTS:
  * ----------
  * PUSH (Terminal → Server):
@@ -16,14 +16,20 @@
  *   POST /sync/customers      - Sync customers
  *   POST /sync/orders         - Sync orders
  *   POST /sync/users          - Sync user credential/profile changes
- * 
+ *
  * PULL (Server → Terminal):
  *   POST /sync/pull           - Pull all changed data
  *   POST /sync/pull/:table    - Pull specific table
- * 
+ *
  * COMBINED:
  *   POST /sync/bidirectional  - Push then pull in one request
  *   GET  /sync/status         - Get terminal sync status
+ *
+ * IMPROVEMENTS:
+ * - Request body validation (rejects malformed payloads early)
+ * - tenantId / branchId passed to processSyncBatch for TerminalSyncState
+ * - Compression-aware responses (gzip via express middleware)
+ * - Proper 207 Multi-Status for partial success
  */
 
 import { Request, Response } from 'express';
@@ -31,7 +37,7 @@ import { BaseController } from './base.controller';
 import { SyncReceiverService } from '../services/sync/sync-receiver.service';
 import type { AuthRequest } from '../lib/express.type';
 import type { SyncResult, PullTableName } from '../services/sync/types/sync.types';
-import { SYNC_HEADERS, VALID_PULL_TABLES, LOG_PREFIX } from '../services/sync/constants/sync.constants';
+import { SYNC_HEADERS, VALID_PULL_TABLES, LOG_PREFIX, SYNC_DEFAULTS } from '../services/sync/constants/sync.constants';
 import prisma from '../databases/prisma/client';
 
 // ==========================================
@@ -142,10 +148,15 @@ export class SyncController extends BaseController {
     /**
      * Batch sync - process all tables in one request
      * POST /api/v1/sync/batch
+     *
+     * Now passes tenantId/branchId for TerminalSyncState tracking
+     * and ChangeLog recording.
      */
     static async batchSync(req: SyncRequest, res: Response): Promise<void> {
         try {
             const terminalId = getTerminalId(req);
+            const tenantId = getTenantId(req);
+            const branchId = getBranchId(req);
 
             if (!terminalId) {
                 res.status(400).json({
@@ -167,9 +178,25 @@ export class SyncController extends BaseController {
                 users,
             } = req.body;
 
+            // Validate that at least one table has data
+            const hasData = [sales, saleItems, salePayments, returns, returnItems, stockMovements, customers, orders, users]
+                .some((arr) => Array.isArray(arr) && arr.length > 0);
+
+            if (!hasData) {
+                res.status(200).json({
+                    success: true,
+                    message: 'No data to sync',
+                    data: { summary: { total: 0, accepted: 0, rejected: 0, skipped: 0 }, results: {} },
+                    timestamp: new Date().toISOString(),
+                });
+                return;
+            }
+
             const result = await SyncReceiverService.processSyncBatch(
                 { sales, saleItems, salePayments, returns, returnItems, stockMovements, customers, orders, users },
-                terminalId
+                terminalId,
+                tenantId,
+                branchId
             );
 
             res.status(result.success ? 200 : 207).json({
@@ -304,10 +331,15 @@ export class SyncController extends BaseController {
     /**
      * Get sync status for a terminal
      * GET /api/v1/sync/status
+     *
+     * Now includes TerminalSyncState data (separate push/pull timestamps
+     * and ChangeLog sequence).
      */
     static async getSyncStatus(req: SyncRequest, res: Response): Promise<void> {
         try {
             const terminalId = getTerminalId(req) || (req.query.terminalId as string);
+            const tenantId = getTenantId(req) || (req.query.tenantId as string);
+            const branchId = getBranchId(req) || (req.query.branchId as string);
 
             if (!terminalId) {
                 res.status(400).json({
@@ -317,16 +349,31 @@ export class SyncController extends BaseController {
                 return;
             }
 
-            const terminal = await prisma.terminal.findUnique({
-                where: { terminalId },
-                select: {
-                    terminalId: true,
-                    name: true,
-                    lastSyncAt: true,
-                    status: true,
-                    updatedAt: true,
-                },
-            });
+            const [terminal, syncState] = await Promise.all([
+                prisma.terminal.findUnique({
+                    where: { terminalId },
+                    select: {
+                        terminalId: true,
+                        name: true,
+                        lastSyncAt: true,
+                        status: true,
+                        updatedAt: true,
+                    },
+                }),
+                // Fetch TerminalSyncState if tenant/branch provided
+                tenantId && branchId
+                    ? prisma.terminalSyncState.findUnique({
+                        where: {
+                            unique_terminal_sync: { tenantId, branchId, terminalId },
+                        },
+                        select: {
+                            lastPulledAt: true,
+                            lastPushedAt: true,
+                            lastSequence: true,
+                        },
+                    }).catch(() => null)
+                    : null,
+            ]);
 
             if (!terminal) {
                 res.status(404).json({
@@ -344,6 +391,14 @@ export class SyncController extends BaseController {
                     lastSyncAt: terminal.lastSyncAt,
                     status: terminal.status,
                     serverTime: new Date().toISOString(),
+                    // Extended sync state
+                    syncState: syncState
+                        ? {
+                            lastPulledAt: syncState.lastPulledAt,
+                            lastPushedAt: syncState.lastPushedAt,
+                            lastSequence: syncState.lastSequence?.toString() ?? null,
+                        }
+                        : null,
                 },
             });
         } catch (error) {
@@ -363,6 +418,8 @@ export class SyncController extends BaseController {
     /**
      * Pull all changed data from server
      * POST /api/v1/sync/pull
+     *
+     * Now auto-routes to ChangeLog-based delta when available.
      */
     static async pullData(req: SyncRequest, res: Response): Promise<void> {
         try {
@@ -379,6 +436,12 @@ export class SyncController extends BaseController {
                 return;
             }
 
+            // Cap the limit to prevent abuse
+            const cappedLimit = Math.min(
+                Number(limit) || SYNC_DEFAULTS.PULL_LIMIT,
+                SYNC_DEFAULTS.PULL_LIMIT * 4
+            );
+
             const sinceDate = since ? new Date(since) : null;
 
             const result = await SyncReceiverService.getPullData(
@@ -386,7 +449,7 @@ export class SyncController extends BaseController {
                 branchId,
                 terminalId,
                 sinceDate,
-                { tables, limit }
+                { tables, limit: cappedLimit }
             );
 
             res.status(result.success ? 200 : 500).json({
@@ -491,7 +554,7 @@ export class SyncController extends BaseController {
             let pushResult = { summary: { total: 0, accepted: 0, rejected: 0, skipped: 0 }, results: {} };
 
             if (pushData && Object.keys(pushData).length > 0) {
-                pushResult = await SyncReceiverService.processSyncBatch(pushData, terminalId);
+                pushResult = await SyncReceiverService.processSyncBatch(pushData, terminalId, tenantId, branchId);
             }
 
             // Phase 2: PULL

@@ -6,6 +6,7 @@ import { Decimal } from '../databases/prisma/generated/prisma/internal/prismaNam
 import { SaleService } from './sale.service';
 import { SaleWithItems } from '../models/sale.model';
 import { prisma } from '../databases/prisma/client';
+import { PaginationParams, buildPaginationMeta, PaginatedResult } from '../utils/pagination.utils';
 
 export interface ReturnItemRequest {
     saleItemId: string;        // Changed from orderItemId - links to sale_item_id
@@ -70,6 +71,48 @@ export class ReturnService {
         );
 
         return returns;
+    }
+
+    static async listReturns(
+        tenantId: string,
+        branchId: string,
+        pagination: PaginationParams,
+    ): Promise<PaginatedResult<ReturnResponse>> {
+        // Get paginated refunded/partially refunded sales
+        const { sales, total, totalPages } = await SaleService.listSales(tenantId, branchId, {
+            includeItems: true,
+            status: 'REFUNDED',
+            page: pagination.page,
+            limit: pagination.limit,
+        });
+
+        // Also include partially refunded   
+        const allRefunded = sales.filter(sale =>
+            sale.status === 'REFUNDED' || sale.status === 'PARTIALLY_REFUNDED'
+        );
+
+        const returns = await Promise.all(
+            allRefunded.map(async (sale) => {
+                const returnItems = await ReturnItemModel.findByReturnTransactionId(sale.id);
+
+                return {
+                    returnId: sale.id,
+                    returnNumber: `RET-${sale.saleNumber}`,
+                    returnItems,
+                    refundAmount: returnItems.reduce((sum, item) =>
+                        sum + (Number(item.returnPrice) * Number(item.returnedQuantity)), 0
+                    ),
+                    originalSale: sale,
+                    status: sale.status,
+                    createdAt: sale.updatedAt,
+                };
+            })
+        );
+
+        return {
+            data: returns,
+            pagination: buildPaginationMeta(total, pagination.page, pagination.limit),
+        };
     }
 
     /**

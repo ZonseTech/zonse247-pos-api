@@ -2,31 +2,29 @@ import { Request, Response } from "express";
 import { BaseController } from "./base.controller";
 import { SubscriptionService } from "../services/subscription.service";
 import { AuthRequest, getEffectiveBranchId } from "../lib/express.type";
-
+import { parsePaginationParams } from "../utils/pagination.utils"; import { AuditService, getAuditContext } from '../services/audit.service';
 export class SubscriptionController extends BaseController {
 
     static async list(req: Request, res: Response): Promise<void> {
         try {
             const { status, planId, tenantId } = req.query;
-            let subscriptions;
+            const pagination = parsePaginationParams(req.query);
 
-            if (tenantId) {
-                // Filter by tenant - returns all subscriptions for branches of that tenant
-                subscriptions = await SubscriptionService.getByTenantId(tenantId as string);
-            } else if (status) {
+            if (status) {
                 const validStatuses = ['active', 'cancelled', 'expired', 'past_due'];
                 if (!validStatuses.includes(status as string)) {
                     BaseController.sendResponse(res, 400, false, 'Invalid status. Must be one of: active, cancelled, expired, past_due');
                     return;
                 }
-                subscriptions = await SubscriptionService.getByStatus(status as 'active' | 'cancelled' | 'expired' | 'past_due');
-            } else if (planId) {
-                subscriptions = await SubscriptionService.getByPlanId(planId as string);
-            } else {
-                subscriptions = await SubscriptionService.getAll();
             }
 
-            BaseController.sendResponse(res, 200, true, 'Subscriptions retrieved successfully', subscriptions);
+            const result = await SubscriptionService.listSubscriptions(pagination, {
+                status: status as string | undefined,
+                planId: planId as string | undefined,
+                tenantId: tenantId as string | undefined,
+            });
+
+            BaseController.sendPaginated(res, 'Subscriptions retrieved successfully', result.data, result.pagination, 'subscriptions');
         } catch (error: any) {
             console.error('Error fetching subscriptions:', error);
             BaseController.sendResponse(res, 500, false, 'Failed to fetch subscriptions', undefined, error.message);
@@ -70,6 +68,9 @@ export class SubscriptionController extends BaseController {
     static async store(req: Request, res: Response): Promise<void> {
         try {
             const newSubscription = await SubscriptionService.create(req.body);
+
+            AuditService.logCreate(getAuditContext(req), 'Subscription', (newSubscription as any).subscriptionId || '', (newSubscription as any).subscriptionId || '', req.body);
+
             BaseController.sendResponse(res, 201, true, 'Subscription created successfully', newSubscription);
         } catch (error: any) {
             console.error('Error creating subscription:', error);
@@ -101,6 +102,8 @@ export class SubscriptionController extends BaseController {
                 return;
             }
 
+            AuditService.logUpdate(getAuditContext(req), 'Subscription', id as string, id as string, undefined, req.body);
+
             BaseController.sendResponse(res, 200, true, 'Subscription updated successfully', updatedSubscription);
         } catch (error: any) {
             console.error('Error updating subscription:', error);
@@ -126,6 +129,8 @@ export class SubscriptionController extends BaseController {
                 return;
             }
 
+            AuditService.logDelete(getAuditContext(req), 'Subscription', id as string, id as string);
+
             BaseController.sendResponse(res, 200, true, 'Subscription deleted successfully');
         } catch (error: any) {
             console.error('Error deleting subscription:', error);
@@ -142,6 +147,8 @@ export class SubscriptionController extends BaseController {
                 BaseController.sendResponse(res, 404, false, 'Subscription not found');
                 return;
             }
+
+            AuditService.logStatusChange(getAuditContext(req), 'cancel', 'Subscription', id as string, id as string, 'active', 'cancelled');
 
             BaseController.sendResponse(res, 200, true, 'Subscription cancelled successfully', cancelledSubscription);
         } catch (error: any) {

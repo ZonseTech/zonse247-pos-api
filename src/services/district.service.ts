@@ -1,5 +1,7 @@
 import { District, DistrictFilters, UpdateDistrictDto } from 'district';
 import { DistrictModel } from '../models/district.model';
+import prisma from '../databases/prisma/client';
+import { PaginationParams, buildPaginationMeta, PaginatedResult } from '../utils/pagination.utils';
 
 export class DistrictService {
     /**
@@ -8,6 +10,35 @@ export class DistrictService {
     static async getAllDistricts(filters?: DistrictFilters): Promise<District[]> {
         try {
             return await DistrictModel.findAll(filters);
+        } catch (error) {
+            console.error('Error fetching districts:', error);
+            throw new Error('Failed to fetch districts');
+        }
+    }
+
+    static async listDistricts(
+        filters: DistrictFilters = {},
+        pagination: PaginationParams,
+    ): Promise<PaginatedResult<District>> {
+        try {
+            const where: any = {};
+            if (filters.region) where.region = filters.region;
+            if (filters.isActive !== undefined) where.isActive = filters.isActive;
+
+            const [districts, total] = await Promise.all([
+                prisma.district.findMany({
+                    where,
+                    skip: pagination.skip,
+                    take: pagination.limit,
+                    orderBy: [{ region: 'asc' }, { name: 'asc' }],
+                }),
+                prisma.district.count({ where }),
+            ]);
+
+            return {
+                data: districts as unknown as District[],
+                pagination: buildPaginationMeta(total, pagination.page, pagination.limit),
+            };
         } catch (error) {
             console.error('Error fetching districts:', error);
             throw new Error('Failed to fetch districts');

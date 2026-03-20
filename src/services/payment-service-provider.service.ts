@@ -1,11 +1,42 @@
 import { CreatePaymentServiceProviderRequest, PaymentServiceProvider, PaymentServiceProviderFilters, UpdatePaymentServiceProviderDto } from "payment-service-provider";
 import { PaymentServiceProviderModel } from "../models/payment-service-provider.model";
 import { AuthenticatedUser } from "auth";
+import prisma from '../databases/prisma/client';
+import { PaginationParams, buildPaginationMeta, PaginatedResult } from '../utils/pagination.utils';
 
 export class PaymentServiceProviderService {
 
     static async selectAll(params): Promise<Array<PaymentServiceProvider>> {
         return await PaymentServiceProviderModel.findAllByRDBMS(params);
+    }
+
+    static async listPaymentServiceProviders(
+        filters: PaymentServiceProviderFilters,
+        pagination: PaginationParams,
+    ): Promise<PaginatedResult<PaymentServiceProvider>> {
+        try {
+            const where: any = {};
+            if (filters.tenantId) where.tenantId = filters.tenantId;
+            if (filters.branchId) where.branchId = filters.branchId;
+
+            const [providers, total] = await Promise.all([
+                prisma.paymentServiceProvider.findMany({
+                    where,
+                    skip: pagination.skip,
+                    take: pagination.limit,
+                    orderBy: { createdAt: 'desc' },
+                }),
+                prisma.paymentServiceProvider.count({ where }),
+            ]);
+
+            return {
+                data: providers as unknown as PaymentServiceProvider[],
+                pagination: buildPaginationMeta(total, pagination.page, pagination.limit),
+            };
+        } catch (error) {
+            console.error('Error listing payment service providers:', error);
+            throw new Error('Failed to retrieve payment service providers');
+        }
     }
 
     static async createPaymentServiceProvider(

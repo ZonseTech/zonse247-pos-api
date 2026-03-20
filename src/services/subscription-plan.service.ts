@@ -1,6 +1,8 @@
 import type { SubscriptionPlan } from 'subscription';
 import { SubscriptionPlanModel } from '../models/subscription-plan.model';
 import { SubscriptionPlanCreateInput, SubscriptionPlanUpdateInput } from '../databases/prisma/generated/prisma/models';
+import prisma from '../databases/prisma/client';
+import { PaginationParams, buildPaginationMeta, PaginatedResult } from '../utils/pagination.utils';
 
 export class SubscriptionPlanService {
 
@@ -10,6 +12,29 @@ export class SubscriptionPlanService {
 
     static async getAll(): Promise<SubscriptionPlan[]> {
         return SubscriptionPlanModel.findAll();
+    }
+
+    static async listPlans(
+        pagination: PaginationParams,
+        options?: { isActive?: boolean },
+    ): Promise<PaginatedResult<SubscriptionPlan>> {
+        const where: any = {};
+        if (options?.isActive !== undefined) where.isActive = options.isActive;
+
+        const [plans, total] = await Promise.all([
+            prisma.subscriptionPlan.findMany({
+                where,
+                skip: pagination.skip,
+                take: pagination.limit,
+                orderBy: { createdAt: 'desc' },
+            }),
+            prisma.subscriptionPlan.count({ where }),
+        ]);
+
+        return {
+            data: plans as unknown as SubscriptionPlan[],
+            pagination: buildPaginationMeta(total, pagination.page, pagination.limit),
+        };
     }
 
     static async getById(id: string): Promise<SubscriptionPlan | null> {

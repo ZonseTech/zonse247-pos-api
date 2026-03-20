@@ -4,6 +4,7 @@ import { AuthService } from '../services/auth/auth.service';
 import { PublicUser } from 'users';
 import { ApiResponse } from 'network';
 import { AuthRequest } from '../lib/express.type';
+import { AuditService, getAuditContext } from '../services/audit.service';
 
 /**
  * Authentication Controller
@@ -42,6 +43,8 @@ export class AuthController extends BaseController {
             if (result.message) {
                 BaseController.sendResponse(res, 401, false, result.message);
             } else {
+                AuditService.logAuth(getAuditContext(req), 'login', `User "${username}" logged in via ${clientType}`, { clientType, userId: (result.user as any)?.userId });
+
                 BaseController.sendResponse(res, 200, true, 'Login successful', {
                     user: result.user,
                     token: result.token
@@ -250,6 +253,9 @@ export class AuthController extends BaseController {
             }
 
             await AuthService.logoutUser(userId);
+
+            AuditService.logAuth({ userId }, 'logout', `User "${userId}" logged out`);
+
             BaseController.sendResponse(res, 200, true, 'User logged out successfully');
         } catch (error: any) {
             console.error('Error during logout:', error);
@@ -357,6 +363,9 @@ export class AuthController extends BaseController {
             }
 
             await AuthService.changePassword(userId, currentPassword, newPassword);
+
+            AuditService.logUpdate(getAuditContext(req), 'UserPassword', userId, userId, undefined, { passwordChanged: true });
+
             BaseController.sendResponse(res, 200, true, 'Password changed successfully', { status: true });
         } catch (error: any) {
             console.error('Error changing password:', error);
@@ -390,6 +399,9 @@ export class AuthController extends BaseController {
             }
 
             const result = await AuthService.resetPassword(userId);
+
+            AuditService.logUpdate(getAuditContext(req), 'UserPassword', userId, userId, undefined, { passwordReset: true });
+
             BaseController.sendResponse(res, 200, true, 'Password reset successfully', result);
         } catch (error: any) {
             console.error('Error resetting password:', error);
@@ -430,6 +442,8 @@ export class AuthController extends BaseController {
             const result = await AuthService.switchBranch(user.userId, branchId, user.tenantId, clientType);
 
             res.setHeader('X-Active-Branch-Id', branchId);
+
+            AuditService.logAuth(getAuditContext(req), 'access', `User switched to branch "${branchId}"`, { branchId, previousBranchId: user.activeBranchId || user.branchId });
 
             BaseController.sendResponse(res, 200, true, 'Branch switched successfully', {
                 user: result.user,

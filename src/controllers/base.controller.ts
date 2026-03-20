@@ -1,5 +1,6 @@
 import { Response } from "express";
 import { ApiResponse } from "network";
+import { PaginationMeta } from "../utils/pagination.utils";
 
 /**
  * Base Controller Class
@@ -191,5 +192,28 @@ export class BaseController {
      */
     static sendValidationError(res: Response, message: string, errors?: any): void {
         this.sendResponse(res, 422, false, message, errors);
+    }
+
+    /**
+     * Send paginated list response (200)
+     * @static
+     * @template T
+     * @param res - Express response object
+     * @param message - Success message
+     * @param items - Array of items for the current page
+     * @param pagination - Pagination metadata
+     * @param itemsKey - Key name for the items array in the response (default: 'items')
+     */
+    static sendPaginated<T>(
+        res: Response,
+        message: string,
+        items: T[],
+        pagination: PaginationMeta,
+        itemsKey = 'items',
+    ): void {
+        this.sendResponse(res, 200, true, message, {
+            [itemsKey]: items,
+            pagination,
+        });
     }
 }

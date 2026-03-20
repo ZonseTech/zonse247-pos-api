@@ -57,6 +57,27 @@ export {
     SyncReceiverService
 } from './services/sync';
 
+export {
+    SocketService,
+    TerminalPresenceManager,
+} from './services/socket';
+
+export type {
+    ConnectedTerminal,
+    TerminalOnlineStatus,
+    TerminalMetadata,
+    TerminalListResponse,
+    TerminalStatusChangePayload,
+    ServerStatus,
+    SocketAuthPayload,
+    HeartbeatPayload,
+    HeartbeatAck,
+    BranchNotification,
+    ForceDisconnectPayload,
+    ClientToServerEvents,
+    ServerToClientEvents,
+} from './types/socket';
+
 import { Server } from './server';
 
 export default Server;

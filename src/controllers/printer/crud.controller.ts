@@ -19,9 +19,10 @@ import {
 } from '../../types/printer';
 import {
     PrinterResponseDTO,
-    PrinterListResponseDTO
 } from '../../types/printer.platform';
 import { PrinterNotFoundError } from '../../utils/errors/printer.error';
+import { parsePaginationParams } from '../../utils/pagination.utils';
+import { AuditService, getAuditContext } from '../../services/audit.service';
 
 /**
  * PrinterCrudController - CRUD operations for printers
@@ -51,6 +52,8 @@ export class PrinterCrudController extends BaseController {
             };
 
             BaseController.sendCreated(res, response.message, response.data);
+
+            AuditService.logCreate(getAuditContext(req), 'Printer', (printer as any).printerId || '', (data as any).name || '', { type: (data as any).type, connectionType: (data as any).connectionType });
         } catch (error) {
             handleError(res, error);
         }
@@ -62,26 +65,15 @@ export class PrinterCrudController extends BaseController {
      */
     static async getAllPrinters(req: AuthenticatedRequest, res: Response): Promise<void> {
         try {
-            const printers = await PrinterService.getAllPrinters(
-                req.query,
+            const pagination = parsePaginationParams(req.query as Record<string, any>);
+            const result = await PrinterService.listPrinters(
+                req.query as Record<string, any>,
                 req.auth.tenantId,
-                req.auth.branchId
+                req.auth.branchId,
+                pagination,
             );
 
-            const response: PrinterListResponseDTO = {
-                success: true,
-                message: 'Printers retrieved successfully',
-                data: {
-                    printers,
-                    count: printers.length
-                },
-                meta: {
-                    platform: detectPlatform(req),
-                    timestamp: new Date().toISOString()
-                }
-            };
-
-            BaseController.sendSuccess(res, response.message, response.data);
+            BaseController.sendPaginated(res, 'Printers retrieved successfully', result.data, result.pagination, 'printers');
         } catch (error) {
             handleError(res, error);
         }
@@ -161,6 +153,8 @@ export class PrinterCrudController extends BaseController {
             if (!printer) {
                 throw new PrinterNotFoundError(req.params.id);
             }
+
+            AuditService.logUpdate(getAuditContext(req), 'Printer', req.params.id, (printer as any).name || req.params.id, undefined, req.body as any);
 
             BaseController.sendSuccess(res, 'Printer updated successfully', { printer });
         } catch (error) {
@@ -256,6 +250,8 @@ export class PrinterCrudController extends BaseController {
             if (!deleted) {
                 throw new PrinterNotFoundError(req.params.id);
             }
+
+            AuditService.logDelete(getAuditContext(req), 'Printer', req.params.id, req.params.id);
 
             BaseController.sendSuccess(res, 'Printer deleted successfully', { deleted: true });
         } catch (error) {

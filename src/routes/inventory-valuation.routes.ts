@@ -15,20 +15,6 @@ const router = Router();
  */
 router.get('/summary', InventoryValuationController.getValuationSummary);
 
-/**
- * GET /:inventoryId
- * Single-item valuation with cost-layer breakdown
- * @param inventoryId - Inventory UUID
- */
-router.get('/:inventoryId', InventoryValuationController.getItemValuation);
-
-/**
- * GET /:inventoryId/cost-layers
- * Remaining cost layers for an inventory item
- * @param inventoryId - Inventory UUID
- */
-router.get('/:inventoryId/cost-layers', InventoryValuationController.getCostLayers);
-
 // ──────────────────────────────────────────────────────────────
 // COGS
 // ──────────────────────────────────────────────────────────────
@@ -69,6 +55,24 @@ router.get('/gross-profit/by-product', InventoryValuationController.getGrossProf
  * @query [branchId]      - Optional branch override
  */
 router.get('/aging', InventoryValuationController.getInventoryAging);
+
+// ──────────────────────────────────────────────────────────────
+// Single-item valuation (must come AFTER literal routes like /aging, /cogs/*)
+// ──────────────────────────────────────────────────────────────
+
+/**
+ * GET /:inventoryId
+ * Single-item valuation with cost-layer breakdown
+ * @param inventoryId - Inventory UUID
+ */
+router.get('/:inventoryId', InventoryValuationController.getItemValuation);
+
+/**
+ * GET /:inventoryId/cost-layers
+ * Remaining cost layers for an inventory item
+ * @param inventoryId - Inventory UUID
+ */
+router.get('/:inventoryId/cost-layers', InventoryValuationController.getCostLayers);
 
 /**
  * POST /cogs

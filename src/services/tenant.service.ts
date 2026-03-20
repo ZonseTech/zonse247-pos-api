@@ -4,6 +4,8 @@ import { TenantModel } from "../models/tenant.model";
 import { TerminalModel } from "../models/terminal.model";
 import { TenantCreateInput } from "../databases/prisma/generated/prisma/models";
 import { ValidationError } from '../utils/errors';
+import prisma from '../databases/prisma/client';
+import { PaginationParams, buildPaginationMeta, PaginatedResult } from '../utils/pagination.utils';
 
 /**
  * @class   TenantService
@@ -21,6 +23,35 @@ export class TenantService {
         try {
             const tenants = await TenantModel.findAll(query);
             return tenants.map(tenant => TenantModel.sanitizeTenant(tenant));
+        } catch (error) {
+            throw new Error(`Failed to retrieve tenants: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+    }
+
+    static async listTenants(
+        query: any = {},
+        pagination: PaginationParams,
+    ): Promise<PaginatedResult<Omit<Tenant, 'verificationToken'>>> {
+        try {
+            const where: any = {};
+            if (query.status) where.status = query.status;
+            if (query.businessType) where.businessType = query.businessType;
+            if (query.country) where.country = query.country;
+
+            const [tenants, total] = await Promise.all([
+                prisma.tenant.findMany({
+                    where,
+                    skip: pagination.skip,
+                    take: pagination.limit,
+                    orderBy: { createdAt: 'desc' },
+                }),
+                prisma.tenant.count({ where }),
+            ]);
+
+            return {
+                data: tenants.map(t => TenantModel.sanitizeTenant(t as Tenant)),
+                pagination: buildPaginationMeta(total, pagination.page, pagination.limit),
+            };
         } catch (error) {
             throw new Error(`Failed to retrieve tenants: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }

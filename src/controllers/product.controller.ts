@@ -12,6 +12,7 @@ import {
     DatabaseError,
     TransactionError,
 } from '../utils/db-error-handler.util';
+import { AuditService, getAuditContext } from '../services/audit.service';
 
 export class ProductController extends BaseController {
     /**
@@ -95,6 +96,8 @@ export class ProductController extends BaseController {
                 req.auth.tenantId,
                 req.auth.activeBranchId || req.auth.branchId
             );
+
+            AuditService.logCreate(getAuditContext(req), 'Product', (product as any).productId || '', (product as any).name || req.body.name || '', { sku: (product as any).sku });
 
             BaseController.sendCreated(res, 'Product created successfully', product);
         } catch (error) {
@@ -228,6 +231,8 @@ export class ProductController extends BaseController {
                 req.body
             );
 
+            AuditService.logUpdate(getAuditContext(req), 'Product', productId as string, (product as any).name || productId as string, undefined, req.body);
+
             BaseController.sendSuccess(res, 'Product updated successfully', product);
         } catch (error) {
             this.handleError(res, error);
@@ -251,6 +256,8 @@ export class ProductController extends BaseController {
                 req.auth.tenantId,
                 req.auth.activeBranchId || req.auth.branchId
             );
+
+            AuditService.logDelete(getAuditContext(req), 'Product', productId as string, productId as string);
 
             BaseController.sendSuccess(res, 'Product deleted successfully');
         } catch (error) {
@@ -285,6 +292,8 @@ export class ProductController extends BaseController {
                 barcodeSource || 'STORE',
                 description
             );
+
+            AuditService.logCreate(getAuditContext(req), 'ProductBarcode', productId as string, barcode, { barcodeType, barcodeSource });
 
             BaseController.sendCreated(res, 'Barcode added successfully');
         } catch (error) {

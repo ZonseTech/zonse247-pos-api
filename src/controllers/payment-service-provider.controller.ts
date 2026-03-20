@@ -3,6 +3,8 @@ import { BaseController } from './base.controller';
 import { PaymentServiceProviderService } from '../services/payment-service-provider.service';
 import { AuthRequest } from '../lib/express.type';
 import { PaymentServiceProviderFilters } from 'payment-service-provider';
+import { parsePaginationParams } from '../utils/pagination.utils';
+import { AuditService, getAuditContext } from '../services/audit.service';
 
 export class PaymentServiceProviderController extends BaseController {
 
@@ -38,9 +40,10 @@ export class PaymentServiceProviderController extends BaseController {
                 tenantId: user.tenantId,
                 branchId: user.branchId
             };
+            const pagination = parsePaginationParams(req.query);
 
-            const psps = await PaymentServiceProviderService.selectAll(filters);
-            PaymentServiceProviderController.sendSuccess(res, 'Payment service providers retrieved successfully', psps);
+            const result = await PaymentServiceProviderService.listPaymentServiceProviders(filters, pagination);
+            BaseController.sendPaginated(res, 'Payment service providers retrieved successfully', result.data, result.pagination, 'providers');
         } catch (error) {
             console.error('Error in getAllPaymentServiceProviders:', error);
             PaymentServiceProviderController.sendServerError(
@@ -70,6 +73,8 @@ export class PaymentServiceProviderController extends BaseController {
                 { name, type, logoUrl },
                 user as any
             );
+
+            AuditService.logCreate(getAuditContext(req), 'PaymentServiceProvider', (newPSP as any).pspId || '', name, { type, logoUrl });
 
             PaymentServiceProviderController.sendCreated(res, 'Payment service provider created successfully', newPSP);
         } catch (error) {
@@ -110,6 +115,9 @@ export class PaymentServiceProviderController extends BaseController {
             }
 
             await PaymentServiceProviderService.updatePaymentServiceProvider(pspId as string, updateData, user as any);
+
+            AuditService.logUpdate(getAuditContext(req), 'PaymentServiceProvider', pspId as string, pspId as string, undefined, updateData as any);
+
             PaymentServiceProviderController.sendSuccess(res, 'Payment service provider updated successfully');
         } catch (error) {
             console.error('Error in updatePaymentServiceProvider:', error);
@@ -153,6 +161,9 @@ export class PaymentServiceProviderController extends BaseController {
             }
 
             await PaymentServiceProviderService.deletePaymentServiceProvider(pspId as string, user as any);
+
+            AuditService.logDelete(getAuditContext(req), 'PaymentServiceProvider', pspId as string, pspId as string);
+
             PaymentServiceProviderController.sendSuccess(res, 'Payment service provider deleted successfully');
         } catch (error) {
             console.error('Error in deletePaymentServiceProvider:', error);

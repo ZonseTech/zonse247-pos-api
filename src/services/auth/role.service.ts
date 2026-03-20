@@ -3,6 +3,8 @@ import { RolePermissionModel } from "../../models/role-permission.model";
 import { ValidationError } from '../../utils/errors';
 import { PermissionModel } from "../../models/permission.model";
 import { CreateRoleRequest, Permission, Role } from "role-permission";
+import prisma from '../../databases/prisma/client';
+import { PaginationParams, buildPaginationMeta, PaginatedResult } from '../../utils/pagination.utils';
 
 export class RoleService {
     static async getAllRoles(query: any = {}): Promise<Role[]> {
@@ -30,6 +32,37 @@ export class RoleService {
             }
 
             return await RoleModel.findAll(conditions);
+        } catch (error: any) {
+            throw new Error(`Failed to retrieve roles: ${error.message}`);
+        }
+    }
+
+    static async listRoles(
+        query: any = {},
+        pagination: PaginationParams,
+    ): Promise<PaginatedResult<Role>> {
+        try {
+            const where: any = {};
+            if (query.tenantId) where.tenantId = query.tenantId;
+            if (query.branchId) where.branchId = query.branchId;
+            if (query.isSystemRole !== undefined) where.isSystemRole = query.isSystemRole === 'true';
+            if (query.isActive !== undefined) where.isActive = query.isActive === 'true';
+            if (query.name) where.name = query.name;
+
+            const [roles, total] = await Promise.all([
+                prisma.role.findMany({
+                    where,
+                    skip: pagination.skip,
+                    take: pagination.limit,
+                    orderBy: { createdAt: 'desc' },
+                }),
+                prisma.role.count({ where }),
+            ]);
+
+            return {
+                data: roles as unknown as Role[],
+                pagination: buildPaginationMeta(total, pagination.page, pagination.limit),
+            };
         } catch (error: any) {
             throw new Error(`Failed to retrieve roles: ${error.message}`);
         }

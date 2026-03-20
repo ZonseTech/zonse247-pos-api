@@ -15,6 +15,8 @@ import {
 	UserErrors,
 } from '../utils/db-error-handler.util';
 import { AuthScopeParams } from 'auth';
+import prisma from '../databases/prisma/client';
+import { PaginationParams, buildPaginationMeta, PaginatedResult } from '../utils/pagination.utils';
 
 export class UserService {
 
@@ -74,6 +76,63 @@ export class UserService {
 			);
 
 			return publicUsers;
+		} catch (error) {
+			throw DbErrorHandler.handlePrismaError(error);
+		}
+	}
+
+	static async listUsers(
+		query: any = {},
+		scope: AuthScopeParams = {},
+		pagination: PaginationParams,
+	): Promise<PaginatedResult<any>> {
+		try {
+			const isAdminMode = query?.isAdminMode === 'true' || query?.isAdminMode === true;
+			const where: any = {};
+
+			if (scope?.tenantId) where.tenantId = scope.tenantId;
+			if (scope?.branchId) where.branchId = scope.branchId;
+			if (query?.status) where.status = query.status;
+			if (query?.roleId) where.roleId = query.roleId;
+			if (query?.branchId) where.branchId = query.branchId;
+			if (query?.search) {
+				const searchTerm = validator.escape(query.search);
+				where.OR = [
+					{ username: { contains: searchTerm } },
+					{ email: { contains: searchTerm } },
+					{ fullname: { contains: searchTerm } },
+				];
+			}
+
+			const include = isAdminMode ? { branch: true } : undefined;
+
+			const [users, total] = await Promise.all([
+				prisma.user.findMany({
+					where,
+					skip: pagination.skip,
+					take: pagination.limit,
+					orderBy: { createdAt: 'desc' },
+					...(include && { include }),
+				}),
+				prisma.user.count({ where }),
+			]);
+
+			const publicUsers = await Promise.all(
+				(users as any[]).map(async (user) => {
+					const roleData = await this.getRoleWithPermissions(user.roleId);
+					const publicUser = this.getPublicUser(user, roleData || {});
+
+					if (isAdminMode && user.branch) {
+						return { ...publicUser, branch: user.branch };
+					}
+					return publicUser;
+				})
+			);
+
+			return {
+				data: publicUsers,
+				pagination: buildPaginationMeta(total, pagination.page, pagination.limit),
+			};
 		} catch (error) {
 			throw DbErrorHandler.handlePrismaError(error);
 		}

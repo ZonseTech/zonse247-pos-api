@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { BaseController } from './base.controller';
 import { SupplierService } from '../services/supplier.service';
 import { AuthRequest } from '../lib/express.type';
+import { AuditService, getAuditContext } from '../services/audit.service';
 
 export class SupplierController extends BaseController {
     /**
@@ -10,6 +11,9 @@ export class SupplierController extends BaseController {
     static async createSupplier(req: Request & AuthRequest, res: Response): Promise<void> {
         try {
             const supplier = await SupplierService.createSupplier(req.body, req.auth.tenantId, req.auth.activeBranchId || req.auth.branchId);
+
+            AuditService.logCreate(getAuditContext(req), 'Supplier', (supplier as any).supplierId || '', (supplier as any).name || req.body.name || '', req.body);
+
             BaseController.sendResponse(res, 201, true, 'Supplier created successfully', supplier);
         } catch (error: any) {
             BaseController.sendResponse(res, 400, false, 'Failed to create supplier', undefined, error.message);
@@ -85,6 +89,8 @@ export class SupplierController extends BaseController {
                 req.body
             );
 
+            AuditService.logUpdate(getAuditContext(req), 'Supplier', supplierId as string, (supplier as any).name || supplierId as string, undefined, req.body);
+
             BaseController.sendResponse(res, 200, true, 'Supplier updated successfully', supplier);
         } catch (error: any) {
             BaseController.sendResponse(res, 400, false, 'Failed to update supplier', undefined, error.message);
@@ -103,6 +109,8 @@ export class SupplierController extends BaseController {
                 req.auth.tenantId,
                 req.auth.activeBranchId || req.auth.branchId
             );
+
+            AuditService.logDelete(getAuditContext(req), 'Supplier', supplierId as string, supplierId as string);
 
             BaseController.sendResponse(res, 200, true, 'Supplier deleted successfully');
         } catch (error: any) {

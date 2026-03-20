@@ -120,80 +120,37 @@ async function fetchStockMovementsWithInventory(
 }
 
 /**
- * Mark records as synced by updating their timestamp
+ * Mark records as synced.
+ *
+ * IMPORTANT: We intentionally do NOT touch `updatedAt` here.
+ * The old implementation set `updatedAt = now()` which caused every synced
+ * record to appear "changed" in the next cycle — an infinite resync loop.
+ *
+ * For users we set `lastSyncedAt`; for all other tables the sync timestamp
+ * is tracked on the Terminal model (`lastSyncAt`) so no per-row update is
+ * needed — the SyncJobService already calls `updateLastSyncTimestamp()`.
  */
 export async function markRecordsSynced(
     tableName: PushTableName,
     records: Array<{ id?: string; customerId?: string }>
 ): Promise<void> {
-    const ids = records.map((r) => r.id).filter(Boolean) as string[];
-    const now = new Date();
+    // Only users have a dedicated lastSyncedAt column
+    if (tableName === 'users') {
+        const userIds = records
+            .map((r: any) => r.userId || r.id)
+            .filter(Boolean) as string[];
 
-    switch (tableName) {
-        case 'sales':
-            await prisma.sale.updateMany({
-                where: { id: { in: ids } },
-                data: { updatedAt: now },
-            });
-            break;
-
-        case 'saleItems':
-            await prisma.saleItem.updateMany({
-                where: { id: { in: ids } },
-                data: { updatedAt: now },
-            });
-            break;
-
-        case 'salePayments':
-            await prisma.salePayment.updateMany({
-                where: { id: { in: ids } },
-                data: { updatedAt: now },
-            });
-            break;
-
-        case 'returns':
-            await prisma.return.updateMany({
-                where: { id: { in: ids } },
-                data: { updatedAt: now },
-            });
-            break;
-
-        case 'returnItems':
-            await prisma.returnItem.updateMany({
-                where: { id: { in: ids } },
-                data: { updatedAt: now },
-            });
-            break;
-
-        case 'customers': {
-            const customerIds = records
-                .map((r) => r.customerId || r.id)
-                .filter(Boolean) as string[];
-            await prisma.customer.updateMany({
-                where: { customerId: { in: customerIds } },
-                data: { updatedAt: now },
-            });
-            break;
-        }
-
-        case 'orders':
-            await prisma.order.updateMany({
-                where: { id: { in: ids } },
-                data: { updatedAt: now },
-            });
-            break;
-
-        case 'users': {
-            const userIds = records
-                .map((r: any) => r.userId || r.id)
-                .filter(Boolean) as string[];
+        if (userIds.length > 0) {
             await prisma.user.updateMany({
                 where: { userId: { in: userIds } },
-                data: { lastSyncedAt: now },
+                data: { lastSyncedAt: new Date() },
             });
-            break;
         }
     }
+
+    // For all other tables: no per-row update needed.
+    // The terminal's `lastSyncAt` timestamp already gates what gets fetched
+    // in the next push cycle (see `fetchPendingRecords`).
 }
 
 /**

@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { BaseController } from './base.controller';
 import { ParkedSalesService } from '../services/parked-sales.service';
 import { AuthRequest } from '../lib/express.type';
+import { AuditService, getAuditContext } from '../services/audit.service';
 
 // Valid ParkedSaleStatus values with common aliases
 // DB enum: 'PARKED', 'RESUMED', 'CANCELLED', 'COMPLETED', 'EXPIRED'
@@ -41,6 +42,9 @@ export class ParkedSalesController extends BaseController {
         try {
             const branchId = req.auth.activeBranchId || req.auth.branchId;
             const parkedSale = await ParkedSalesService.parkSale(req.body, req.auth.tenantId, branchId);
+
+            AuditService.logCreate(getAuditContext(req), 'ParkedSale', (parkedSale as any).parkedSaleId || '', (parkedSale as any).parkedSaleId || '', { itemCount: req.body.items?.length });
+
             BaseController.sendResponse(res, 201, true, 'Sale parked successfully', parkedSale);
         } catch (error: any) {
             BaseController.sendResponse(res, 400, false, 'Failed to park sale', undefined, error.message);
@@ -127,6 +131,8 @@ export class ParkedSalesController extends BaseController {
                 req.body
             );
 
+            AuditService.logUpdate(getAuditContext(req), 'ParkedSale', parkedSaleId as string, parkedSaleId as string, undefined, req.body);
+
             BaseController.sendResponse(res, 200, true, 'Parked sale updated successfully', parkedSale);
         } catch (error: any) {
             if (error.message === 'Parked sale not found') {
@@ -151,6 +157,8 @@ export class ParkedSalesController extends BaseController {
                 branchId
             );
 
+            AuditService.logStatusChange(getAuditContext(req), 'update', 'ParkedSale', parkedSaleId as string, parkedSaleId as string, 'parked', 'resumed');
+
             BaseController.sendResponse(res, 200, true, 'Parked sale resumed successfully', parkedSale);
         } catch (error: any) {
             if (error.message === 'Parked sale not found') {
@@ -174,6 +182,8 @@ export class ParkedSalesController extends BaseController {
                 req.auth.tenantId,
                 branchId
             );
+
+            AuditService.logDelete(getAuditContext(req), 'ParkedSale', parkedSaleId as string, parkedSaleId as string);
 
             BaseController.sendResponse(res, 200, true, 'Parked sale deleted successfully');
         } catch (error: any) {

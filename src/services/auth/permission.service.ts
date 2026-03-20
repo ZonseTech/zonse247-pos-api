@@ -3,6 +3,8 @@ import type { PermissionScopeType } from "../../utils/enums";
 import { PermissionModel } from "../../models/permission.model";
 import { CreatePermissionRequest, Permission } from "role-permission";
 import { RolePermissionModel } from "../../models/role-permission.model";
+import prisma from '../../databases/prisma/client';
+import { PaginationParams, buildPaginationMeta, PaginatedResult } from '../../utils/pagination.utils';
 
 export class PermissionService {
 
@@ -31,6 +33,36 @@ export class PermissionService {
             }
 
             return await PermissionModel.findAll(conditions);
+        } catch (error: any) {
+            throw new Error(`Failed to retrieve permissions: ${error.message}`);
+        }
+    }
+
+    static async listPermissions(
+        query: any = {},
+        pagination: PaginationParams,
+    ): Promise<PaginatedResult<Permission>> {
+        try {
+            const where: any = {};
+            if (query.category) where.category = query.category;
+            if (query.scope) where.scope = query.scope;
+            if (query.isSystemPermission !== undefined) where.isSystemPermission = query.isSystemPermission === 'true';
+            if (query.name) where.name = query.name;
+
+            const [permissions, total] = await Promise.all([
+                prisma.permission.findMany({
+                    where,
+                    skip: pagination.skip,
+                    take: pagination.limit,
+                    orderBy: { createdAt: 'desc' },
+                }),
+                prisma.permission.count({ where }),
+            ]);
+
+            return {
+                data: permissions as unknown as Permission[],
+                pagination: buildPaginationMeta(total, pagination.page, pagination.limit),
+            };
         } catch (error: any) {
             throw new Error(`Failed to retrieve permissions: ${error.message}`);
         }

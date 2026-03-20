@@ -3,6 +3,8 @@ import { BaseController } from './base.controller';
 import { DistrictService } from '../services/district.service';
 import { AuthRequest } from '../lib/express.type';
 import { UpdateDistrictDto } from 'district';
+import { parsePaginationParams } from '../utils/pagination.utils';
+import { AuditService, getAuditContext } from '../services/audit.service';
 
 export class DistrictController extends BaseController {
     /**
@@ -21,8 +23,9 @@ export class DistrictController extends BaseController {
                 filters.isActive = isActive === 'true';
             }
 
-            const districts = await DistrictService.getAllDistricts(filters);
-            DistrictController.sendResponse(res, 200, true, 'Districts fetched successfully', districts);
+            const pagination = parsePaginationParams(req.query);
+            const result = await DistrictService.listDistricts(filters, pagination);
+            BaseController.sendPaginated(res, 'Districts fetched successfully', result.data, result.pagination, 'districts');
         } catch (error) {
             console.error('Error in getAllDistricts:', error);
             DistrictController.sendResponse(res, 500, false, 'Failed to fetch districts', undefined, 'Internal Server Error');
@@ -115,6 +118,9 @@ export class DistrictController extends BaseController {
             }
 
             const updatedDistrict = await DistrictService.updateDistrict(districtId, updateData);
+
+            AuditService.logUpdate(getAuditContext(req), 'District', districtId, updateData.name || districtId, undefined, updateData as any);
+
             DistrictController.sendResponse(res, 200, true, 'District updated successfully', updatedDistrict);
         } catch (error: any) {
             console.error('Error in updateDistrict:', error);
