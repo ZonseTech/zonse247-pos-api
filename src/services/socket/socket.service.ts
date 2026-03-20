@@ -11,6 +11,7 @@ import { Server as SocketServer } from 'socket.io';
 import { getConfig } from '../../config/app.config';
 import { socketAuthMiddleware } from './socket-auth.middleware';
 import { TerminalPresenceManager } from './terminal-presence.manager';
+import { RemoteHealthMonitor } from './remote-health.monitor';
 import type {
     ClientToServerEvents,
     ServerToClientEvents,
@@ -41,14 +42,27 @@ const HEARTBEAT_INTERVAL = 30_000;
  *   - Rooms: `tenant:{id}`, `branch:{tenantId}:{branchId}`, `terminal:{id}`
  *   - Auth: JWT verified on handshake (same token as REST API)
  *   - Presence: TerminalPresenceManager tracks online/offline/idle state
+ *   - Remote Health: Monitors sync server reachability (Electron/offline mode only)
+ *
+ * Deployment modes:
+ *   - Cloud/Server: Remote health monitor is SKIPPED (clients connect directly to this server)
+ *   - Electron/Offline: Remote health monitor pings the cloud sync server
+ *
+ * Performance:
+ *   - WebSocket-first transport (skips polling upgrade overhead)
+ *   - Per-message deflate disabled (POS payloads are small, compression overhead > savings)
+ *   - Room-based targeting for all broadcasts (no socket iteration)
+ *   - Remote health only broadcasts on state change, not every interval
  */
 export class SocketService {
     private static instance: SocketService | null = null;
     private io: AppSocketServer | null = null;
     private presence: TerminalPresenceManager;
+    private remoteHealth: RemoteHealthMonitor;
 
     private constructor() {
         this.presence = TerminalPresenceManager.getInstance();
+        this.remoteHealth = RemoteHealthMonitor.getInstance();
     }
 
     /**
@@ -73,6 +87,13 @@ export class SocketService {
      */
     getPresence(): TerminalPresenceManager {
         return this.presence;
+    }
+
+    /**
+     * Get the remote health monitor for querying remote server status.
+     */
+    getRemoteHealth(): RemoteHealthMonitor {
+        return this.remoteHealth;
     }
 
     // ─── Lifecycle ──────────────────────────────────────────────
@@ -103,9 +124,13 @@ export class SocketService {
             // Performance & reliability
             pingInterval: HEARTBEAT_INTERVAL,
             pingTimeout: 10_000,
-            // Transport: start with polling, upgrade to websocket
-            transports: ['polling', 'websocket'],
-            // Allow Electron and mobile clients
+            // Prefer websocket — skip the polling→upgrade dance for modern clients
+            // Falls back to polling automatically if websocket fails
+            transports: ['websocket', 'polling'],
+            // Disable per-message deflate — POS payloads are small JSON,
+            // compression CPU cost > bandwidth savings
+            perMessageDeflate: false,
+            // Allow Electron EIO3 clients
             allowEIO3: true,
         });
 
@@ -187,7 +212,12 @@ export class SocketService {
                     callback(this.buildServerStatus());
                 }
             });
-
+            // ── Remote server status request ────────────────
+            socket.on('server:remote_status', (callback) => {
+                if (typeof callback === 'function') {
+                    callback(this.remoteHealth.getLastStatus());
+                }
+            });
             // ── Branch notification relay ───────────────────────
             socket.on('branch:notification', (payload) => {
                 const notification: BranchNotification = {
@@ -224,6 +254,21 @@ export class SocketService {
         });
 
         console.log('✓ WebSocket server initialized');
+
+        // ── Start remote server monitoring (Electron/offline mode only) ──
+        // On cloud: the client IS connected to this server — no point pinging ourselves.
+        // On Electron: the local server needs to check if the remote sync server is reachable.
+        if (config.databaseOfflineMode) {
+            this.remoteHealth.start((status) => {
+                if (this.io) {
+                    this.io.emit('server:remote_status', status);
+                }
+            });
+            console.log('✓ Remote server health monitor started (offline mode)');
+        } else {
+            console.log('ℹ Remote health monitor skipped (cloud mode — clients connect directly)');
+        }
+
         return this.io;
     }
 
@@ -233,6 +278,7 @@ export class SocketService {
     shutdown(): Promise<void> {
         return new Promise((resolve) => {
             this.presence.stopMonitoring();
+            this.remoteHealth.stop();
 
             if (this.io) {
                 // Notify all clients
@@ -289,15 +335,12 @@ export class SocketService {
             reconnectAllowed,
         });
 
-        // Disconnect the socket after a short delay to allow the message to be sent
-        setTimeout(() => {
+        // Disconnect via room fetch — O(1) room lookup instead of iterating all sockets
+        setTimeout(async () => {
             if (!this.io) return;
-            const sockets = this.io.sockets.sockets;
-            for (const [, socket] of sockets) {
-                if (socket.data.terminalId === terminalId) {
-                    socket.disconnect(true);
-                    break;
-                }
+            const sockets = await this.io.in(`terminal:${terminalId}`).fetchSockets();
+            for (const socket of sockets) {
+                socket.disconnect(true);
             }
         }, 500);
     }
