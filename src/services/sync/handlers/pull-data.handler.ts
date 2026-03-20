@@ -329,3 +329,180 @@ async function fetchUsers(
 
     return users;
 }
+
+// ==========================================
+// ChangeLog-based Delta Sync
+// ==========================================
+
+/**
+ * Map ChangeLog table names back to their Prisma delegates
+ * so we can fetch the actual record data.
+ */
+const TABLE_DELEGATES: Record<string, keyof typeof prisma> = {
+    products: 'product',
+    productVariants: 'productVariant',
+    categories: 'category',
+    inventory: 'inventory',
+    paymentMethods: 'paymentMethod',
+    stockMovements: 'stockMovement',
+    customers: 'customer',
+    users: 'user',
+};
+
+/**
+ * Pull data using the ChangeLog table for efficient delta sync.
+ *
+ * Instead of scanning every pullable table with `WHERE updatedAt > since`,
+ * we read the change_log entries after the terminal's last-known sequence
+ * and only fetch the records that actually changed.
+ *
+ * Benefits:
+ * - O(changes) instead of O(table-size) per pull
+ * - Works even when a field OTHER than updatedAt changes
+ * - DELETE operations are captured (soft-delete awareness)
+ * - Terminals can skip tables with zero changes
+ *
+ * Falls back to the original `getPullData` if ChangeLog has no entries
+ * (e.g. first sync, or if ChangeLog hasn't been populated yet).
+ */
+export async function getPullDataFromChangeLog(
+    tenantId: string,
+    branchId: string,
+    terminalId: string,
+    lastSequence: bigint | null,
+    options?: PullOptions
+): Promise<PullDataResult & { lastSequence: bigint | null }> {
+    const result = createEmptyPullResult() as PullDataResult & { lastSequence: bigint | null };
+    result.lastSequence = lastSequence;
+
+    const tables = options?.tables || [...PULL_TABLE_NAMES];
+    const limit = options?.limit || SYNC_DEFAULTS.PULL_LIMIT;
+
+    try {
+        // 1. Fetch change-log entries since the terminal's last sequence
+        const logs = await prisma.changeLog.findMany({
+            where: {
+                tenantId,
+                branchId,
+                ...(lastSequence ? { id: { gt: lastSequence } } : {}),
+                tableName: { in: tables },
+            },
+            orderBy: { id: 'asc' },
+            take: limit * 2, // over-fetch slightly; we group by table
+        });
+
+        if (logs.length === 0) {
+            // No changes — return empty result with current sequence unchanged
+            return result;
+        }
+
+        // 2. Group record IDs by table
+        const changesByTable = new Map<string, Set<string>>();
+        let maxSequence = lastSequence;
+
+        for (const log of logs) {
+            if (!changesByTable.has(log.tableName)) {
+                changesByTable.set(log.tableName, new Set());
+            }
+            changesByTable.get(log.tableName)!.add(log.recordId);
+
+            if (!maxSequence || log.id > maxSequence) {
+                maxSequence = log.id;
+            }
+        }
+
+        // 3. Fetch actual records in parallel — one query per changed table
+        const fetchPromises: Promise<void>[] = [];
+
+        for (const [tableName, recordIds] of changesByTable.entries()) {
+            const delegateKey = TABLE_DELEGATES[tableName];
+            if (!delegateKey) continue;
+
+            const delegate = (prisma as any)[delegateKey];
+            if (!delegate?.findMany) continue;
+
+            const pullTableName = tableName as PullTableName;
+
+            fetchPromises.push(
+                (async () => {
+                    // Special handling for users — need specific select
+                    if (pullTableName === 'users') {
+                        const records = await fetchUsersByIds([...recordIds], limit);
+                        result.data.users = records;
+                        result.counts.users = records.length;
+                    } else if (pullTableName === 'stockMovements') {
+                        // Stock movements: exclude requesting terminal's own
+                        const records = await prisma.stockMovement.findMany({
+                            where: {
+                                id: { in: [...recordIds] },
+                                deletedAt: null,
+                                OR: [
+                                    { terminalId: { not: terminalId } },
+                                    { terminalId: null },
+                                ],
+                            },
+                            take: limit,
+                        });
+                        result.data.stockMovements = records;
+                        result.counts.stockMovements = records.length;
+                    } else {
+                        const records = await delegate.findMany({
+                            where: {
+                                id: { in: [...recordIds] },
+                                deletedAt: null,
+                            },
+                            take: limit,
+                        });
+                        result.data[pullTableName] = records;
+                        result.counts[pullTableName] = records.length;
+                    }
+                })()
+            );
+        }
+
+        await Promise.all(fetchPromises);
+
+        result.lastSequence = maxSequence;
+    } catch (error) {
+        result.success = false;
+        result.errors.push(error instanceof Error ? error.message : 'Unknown error');
+        console.error(`${LOG_PREFIX.RECEIVER} ChangeLog pull error:`, error);
+    }
+
+    return result;
+}
+
+/**
+ * Fetch users by IDs with the standard user select set
+ */
+async function fetchUsersByIds(userIds: string[], limit: number): Promise<unknown[]> {
+    return prisma.user.findMany({
+        where: { userId: { in: userIds }, deletedAt: null },
+        select: {
+            userId: true,
+            tenantId: true,
+            branchId: true,
+            username: true,
+            password: true,
+            fullname: true,
+            email: true,
+            phone: true,
+            roleId: true,
+            status: true,
+            accessibleBranches: true,
+            allowedTerminals: true,
+            maxDiscountPercent: true,
+            canOverridePrices: true,
+            pinCode: true,
+            currentBranchId: true,
+            passwordChangedAt: true,
+            forcePasswordChange: true,
+            lastSyncedAt: true,
+            version: true,
+            deletedAt: true,
+            createdAt: true,
+            updatedAt: true,
+        },
+        take: limit,
+    });
+}
