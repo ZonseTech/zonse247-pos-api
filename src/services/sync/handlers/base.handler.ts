@@ -2,6 +2,10 @@ import type { SyncResult, SyncRecordBase } from '../types/sync.types';
 
 type SyncRecordWithId = { id: string } & Record<string, unknown>;
 
+// ==========================================
+// Result helpers
+// ==========================================
+
 /**
  * Create an empty sync result
  */
@@ -45,6 +49,10 @@ export function markAccepted(result: SyncResult): void {
     result.accepted++;
 }
 
+// ==========================================
+// Type guards & utilities
+// ==========================================
+
 /**
  * Type guard for sync record base
  */
@@ -76,6 +84,10 @@ export function getErrorMessage(error: unknown): string {
     return 'Unknown error';
 }
 
+// ==========================================
+// Record processing (single + batch)
+// ==========================================
+
 /**
  * Generic record processor for sync operations
  * Handles common try/catch and result tracking patterns
@@ -103,4 +115,90 @@ export async function processRecords<T extends SyncRecordWithId>(
     }
 
     return finalizeSyncResult(result);
+}
+
+// ==========================================
+// Batch helpers — eliminate N+1 queries
+// ==========================================
+
+/**
+ * Find existing IDs from a set of record IDs in one query.
+ * Returns a Set for O(1) lookup.
+ *
+ * @param model   - Prisma delegate (e.g. `prisma.sale`)
+ * @param ids     - Array of primary key values to check
+ * @param idField - Name of the primary key column (default `'id'`)
+ */
+export async function findExistingIds<T extends string = string>(
+    model: { findMany: (args: any) => Promise<any[]> },
+    ids: T[],
+    idField = 'id'
+): Promise<Set<T>> {
+    if (ids.length === 0) return new Set();
+
+    const existing = await model.findMany({
+        where: { [idField]: { in: ids } },
+        select: { [idField]: true },
+    });
+
+    return new Set(existing.map((r: Record<string, any>) => r[idField] as T));
+}
+
+/**
+ * Partition records into "new" and "existing" based on a pre-fetched
+ * set of existing IDs.
+ */
+export function partitionRecords<T extends Record<string, unknown>>(
+    records: T[],
+    existingIds: Set<string>,
+    idField = 'id'
+): { newRecords: T[]; existingRecords: T[] } {
+    const newRecords: T[] = [];
+    const existingRecords: T[] = [];
+
+    for (const record of records) {
+        if (existingIds.has(record[idField] as string)) {
+            existingRecords.push(record);
+        } else {
+            newRecords.push(record);
+        }
+    }
+
+    return { newRecords, existingRecords };
+}
+
+/**
+ * Chunk an array into smaller arrays of a given max size.
+ * Useful for batched createMany / updateMany to avoid DB payload limits.
+ */
+export function chunk<T>(arr: T[], size: number): T[][] {
+    const chunks: T[][] = [];
+    for (let i = 0; i < arr.length; i += size) {
+        chunks.push(arr.slice(i, i + size));
+    }
+    return chunks;
+}
+
+/**
+ * Safe batch insert using createMany with skipDuplicates.
+ * Returns the count of successfully inserted records.
+ */
+export async function batchInsert(
+    model: { createMany: (args: any) => Promise<{ count: number }> },
+    records: Record<string, unknown>[],
+    batchSize = 500
+): Promise<number> {
+    if (records.length === 0) return 0;
+
+    let totalInserted = 0;
+
+    for (const batch of chunk(records, batchSize)) {
+        const { count } = await model.createMany({
+            data: batch as any,
+            skipDuplicates: true,
+        });
+        totalInserted += count;
+    }
+
+    return totalInserted;
 }

@@ -1,65 +1,89 @@
 import { prisma } from '../../../databases/prisma/client';
 import type { SyncResult } from '../types/sync.types';
-import { processRecords } from './base.handler';
+import {
+    createEmptySyncResult,
+    finalizeSyncResult,
+    findExistingIds,
+    partitionRecords,
+    batchInsert,
+    addSyncError,
+    getErrorMessage,
+} from './base.handler';
 
 type SyncRecord = Record<string, unknown> & { id: string; returnId?: string; terminalId?: string };
 
 /**
- * Receive and upsert returns from terminal
- * Preserves original userId and terminalId from the record
+ * Receive and upsert returns from terminal.
+ *
+ * OPTIMISED: bulk existence check + createMany (eliminates N+1).
  */
 export async function receiveReturns(
     returns: SyncRecord[],
     terminalId: string
 ): Promise<SyncResult> {
-    return processRecords(returns, async (ret) => {
-        const existing = await prisma.return.findUnique({
-            where: { id: ret.id },
-        });
+    const result = createEmptySyncResult();
+    if (returns.length === 0) return result;
 
-        if (existing) {
-            return 'skipped';
-        }
+    try {
+        const ids = returns.map((r) => r.id);
+        const existingIds = await findExistingIds(prisma.return, ids);
+        const { newRecords } = partitionRecords(returns, existingIds);
 
-        await prisma.return.create({
-            data: {
-                ...ret,
-                terminalId: ret.terminalId || terminalId,
-            } as any,
-        });
+        result.skipped = existingIds.size;
 
-        return 'accepted';
-    });
+        const toInsert = newRecords.map((ret) => ({
+            ...ret,
+            terminalId: ret.terminalId || terminalId,
+        }));
+
+        result.accepted = await batchInsert(prisma.return, toInsert);
+    } catch (error) {
+        addSyncError(result, 'batch', getErrorMessage(error));
+    }
+
+    return finalizeSyncResult(result);
 }
 
 /**
- * Receive and upsert return items from terminal
- * Validates parent return exists before inserting
+ * Receive and upsert return items from terminal.
+ *
+ * OPTIMISED: 2 bulk queries (item existence + parent existence) instead of 2N.
  */
 export async function receiveReturnItems(
     items: SyncRecord[]
 ): Promise<SyncResult> {
-    return processRecords(items, async (item) => {
-        const existing = await prisma.returnItem.findUnique({
-            where: { id: item.id },
-        });
+    const result = createEmptySyncResult();
+    if (items.length === 0) return result;
 
-        if (existing) {
-            return 'skipped';
+    try {
+        const itemIds = items.map((i) => i.id);
+        const parentReturnIds = [...new Set(items.map((i) => i.returnId as string).filter(Boolean))];
+
+        const [existingItemIds, existingParentIds] = await Promise.all([
+            findExistingIds(prisma.returnItem, itemIds),
+            findExistingIds(prisma.return, parentReturnIds),
+        ]);
+
+        const toInsert: Record<string, unknown>[] = [];
+
+        for (const item of items) {
+            if (existingItemIds.has(item.id)) {
+                result.skipped++;
+                continue;
+            }
+
+            if (!existingParentIds.has(item.returnId as string)) {
+                addSyncError(result, item.id, 'Parent return not found');
+                continue;
+            }
+
+            toInsert.push(item);
         }
 
-        const parentReturn = await prisma.return.findUnique({
-            where: { id: item.returnId as string },
-        });
+        result.accepted = await batchInsert(prisma.returnItem, toInsert);
+    } catch (error) {
+        addSyncError(result, 'batch', getErrorMessage(error));
+    }
 
-        if (!parentReturn) {
-            return { rejected: 'Parent return not found' };
-        }
-
-        await prisma.returnItem.create({
-            data: item as any,
-        });
-
-        return 'accepted';
-    });
+    return finalizeSyncResult(result);
 }
