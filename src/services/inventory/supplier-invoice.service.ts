@@ -563,8 +563,8 @@ export class SupplierInvoiceService {
             limit?: number;
         }
     ): Promise<{ invoices: SupplierInvoiceWithItems[]; total: number; totalPages: number }> {
-        const page = options?.page || 1;
-        const limit = options?.limit || 50;
+        const page = Number(options?.page) || 1;
+        const limit = Number(options?.limit) || 50;
         const skip = (page - 1) * limit;
 
         const where: any = {

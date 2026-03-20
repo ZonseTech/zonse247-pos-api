@@ -581,8 +581,8 @@ export class SupplierReturnService {
             limit?: number;
         }
     ): Promise<{ data: SupplierReturnWithItems[]; total: number; page: number; limit: number }> {
-        const page = options?.page || 1;
-        const limit = options?.limit || 20;
+        const page = Number(options?.page) || 1;
+        const limit = Number(options?.limit) || 20;
         const offset = (page - 1) * limit;
 
         const where: any = { tenantId, branchId, deletedAt: null };
@@ -622,8 +622,8 @@ export class SupplierReturnService {
             limit?: number;
         }
     ): Promise<{ data: SupplierCreditNote[]; total: number; page: number; limit: number }> {
-        const page = options?.page || 1;
-        const limit = options?.limit || 20;
+        const page = Number(options?.page) || 1;
+        const limit = Number(options?.limit) || 20;
         const offset = (page - 1) * limit;
 
         const where: any = { tenantId, branchId, deletedAt: null };
