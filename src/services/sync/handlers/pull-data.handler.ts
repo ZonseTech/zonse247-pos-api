@@ -35,6 +35,7 @@ export async function getPullData(
             paymentMethods,
             stockMovements,
             customers,
+            users,
         ] = await Promise.all([
             fetchIfIncluded(tables, 'products', () =>
                 fetchProducts(whereBase, sinceFilter, limit)
@@ -57,6 +58,9 @@ export async function getPullData(
             fetchIfIncluded(tables, 'customers', () =>
                 fetchCustomers(whereBase, sinceFilter, limit)
             ),
+            fetchIfIncluded(tables, 'users', () =>
+                fetchUsers(whereBase, sinceFilter, limit)
+            ),
         ]);
 
         result.data = {
@@ -67,6 +71,7 @@ export async function getPullData(
             paymentMethods,
             stockMovements,
             customers,
+            users,
         };
 
         result.counts = {
@@ -77,6 +82,7 @@ export async function getPullData(
             paymentMethods: paymentMethods.length,
             stockMovements: stockMovements.length,
             customers: customers.length,
+            users: users.length,
         };
     } catch (error) {
         result.success = false;
@@ -127,6 +133,9 @@ export async function getTableDelta(
         case 'customers':
             records = await fetchCustomers(whereBase, sinceFilter, fetchLimit);
             break;
+        case 'users':
+            records = await fetchUsers(whereBase, sinceFilter, fetchLimit);
+            break;
     }
 
     const hasMore = records.length > limit;
@@ -148,6 +157,7 @@ function createEmptyPullResult(): PullDataResult {
             paymentMethods: [],
             stockMovements: [],
             customers: [],
+            users: [],
         },
         counts: {
             products: 0,
@@ -157,6 +167,7 @@ function createEmptyPullResult(): PullDataResult {
             paymentMethods: 0,
             stockMovements: 0,
             customers: 0,
+            users: 0,
         },
         serverTime: new Date(),
         errors: [],
@@ -244,6 +255,7 @@ async function fetchStockMovements(
     return prisma.stockMovement.findMany({
         where: {
             ...whereBase,
+            deletedAt: null,
             createdAt: sinceFilter.updatedAt ? { gt: sinceFilter.updatedAt.gt } : undefined,
             OR: [
                 { terminalId: { not: terminalId } },
@@ -265,4 +277,55 @@ async function fetchCustomers(
         orderBy: { updatedAt: 'asc' },
         take: limit,
     });
+}
+
+/**
+ * Fetch users for a branch/tenant that have changed since the last sync
+ * Includes credential changes (password, username) and profile updates
+ * Strips password hash when pulling to terminals - terminals get passwordChangedAt
+ * to know if their local copy is stale, but actual password verification
+ * happens via the server's saveUserOffline flow during re-login
+ */
+async function fetchUsers(
+    whereBase: WhereBaseFilter,
+    sinceFilter: SinceFilter,
+    limit: number
+): Promise<unknown[]> {
+    const users = await prisma.user.findMany({
+        where: {
+            tenantId: whereBase.tenantId,
+            branchId: whereBase.branchId,
+            ...sinceFilter,
+            deletedAt: null,
+        },
+        select: {
+            userId: true,
+            tenantId: true,
+            branchId: true,
+            username: true,
+            password: true,
+            fullname: true,
+            email: true,
+            phone: true,
+            roleId: true,
+            status: true,
+            accessibleBranches: true,
+            allowedTerminals: true,
+            maxDiscountPercent: true,
+            canOverridePrices: true,
+            pinCode: true,
+            currentBranchId: true,
+            passwordChangedAt: true,
+            forcePasswordChange: true,
+            lastSyncedAt: true,
+            version: true,
+            deletedAt: true,
+            createdAt: true,
+            updatedAt: true,
+        },
+        orderBy: { updatedAt: 'asc' },
+        take: limit,
+    });
+
+    return users;
 }

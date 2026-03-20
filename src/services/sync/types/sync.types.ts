@@ -31,7 +31,8 @@ export type PullTableName =
     | 'inventory'
     | 'paymentMethods'
     | 'stockMovements'
-    | 'customers';
+    | 'customers'
+    | 'users';
 
 export interface PullDataResult {
     success: boolean;
@@ -60,7 +61,8 @@ export type PushTableName =
     | 'returnItems'
     | 'stockMovements'
     | 'customers'
-    | 'orders';
+    | 'orders'
+    | 'users';
 
 export interface PushTableConfig {
     name: PushTableName;
@@ -99,6 +101,7 @@ export interface BatchSyncData {
     stockMovements?: import('../../../models/stock-movement.model').SyncMovementInput[];
     customers?: SyncRecord[];
     orders?: SyncRecord[];
+    users?: SyncRecord[];
 }
 
 export interface BatchSyncResult {

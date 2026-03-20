@@ -15,6 +15,7 @@
  *   POST /sync/stock-movements - Sync stock movements
  *   POST /sync/customers      - Sync customers
  *   POST /sync/orders         - Sync orders
+ *   POST /sync/users          - Sync user credential/profile changes
  * 
  * PULL (Server → Terminal):
  *   POST /sync/pull           - Pull all changed data
@@ -163,10 +164,11 @@ export class SyncController extends BaseController {
                 stockMovements,
                 customers,
                 orders,
+                users,
             } = req.body;
 
             const result = await SyncReceiverService.processSyncBatch(
-                { sales, saleItems, salePayments, returns, returnItems, stockMovements, customers, orders },
+                { sales, saleItems, salePayments, returns, returnItems, stockMovements, customers, orders, users },
                 terminalId
             );
 
@@ -281,6 +283,17 @@ export class SyncController extends BaseController {
         await handleSyncEndpoint(req, res, 'Orders sync', {
             handler: (records) =>
                 SyncReceiverService.receiveOrders(records as Parameters<typeof SyncReceiverService.receiveOrders>[0]),
+        });
+    }
+
+    /**
+     * Sync users (credential/profile changes from terminal)
+     * POST /api/v1/sync/users
+     */
+    static async syncUsers(req: SyncRequest, res: Response): Promise<void> {
+        await handleSyncEndpoint(req, res, 'Users sync', {
+            handler: (records) =>
+                SyncReceiverService.receiveUsers(records as Parameters<typeof SyncReceiverService.receiveUsers>[0]),
         });
     }
 

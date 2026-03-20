@@ -14,6 +14,7 @@ import {
     receiveCustomers,
     receiveOrders,
     receiveStockMovements,
+    receiveUsers,
     getPullData,
     getTableDelta,
 } from './handlers';
@@ -64,6 +65,11 @@ export class SyncReceiverService {
     static receiveOrders = receiveOrders;
 
     /**
+     * Receive and upsert user credential/profile changes from terminal
+     */
+    static receiveUsers = receiveUsers;
+
+    /**
      * Process a complete sync batch in the correct dependency order
      * Main entry point for bulk sync operations
      */
@@ -83,6 +89,7 @@ export class SyncReceiverService {
             ['stockMovements', () => receiveStockMovements(data.stockMovements || [])],
             ['customers', () => receiveCustomers(data.customers || [])],
             ['orders', () => receiveOrders(data.orders || [])],
+            ['users', () => receiveUsers(data.users || [])],
         ];
 
         for (const [table, operation] of operations) {

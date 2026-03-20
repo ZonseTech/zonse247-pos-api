@@ -24,6 +24,8 @@ export async function upsertPulledRecord(
             return upsertStockMovement(record);
         case 'customers':
             return upsertCustomer(record);
+        case 'users':
+            return upsertUser(record);
         default:
             return 'skipped';
     }
@@ -167,6 +169,97 @@ async function upsertCustomer(record: Record<string, unknown>): Promise<UpsertRe
 
     await prisma.customer.create({ data: record as never });
     return 'inserted';
+}
+
+/**
+ * Upsert a user record pulled from the server into the local/offline database
+ * 
+ * This handles server-side changes flowing to terminals:
+ * - Admin resets password → terminal gets the new hash
+ * - Admin changes role/status → terminal gets the update
+ * - Password conflict: latest passwordChangedAt wins
+ * - Profile conflict: latest updatedAt wins
+ */
+async function upsertUser(record: Record<string, unknown>): Promise<UpsertResult> {
+    const userId = record.userId as string;
+    const existing = await prisma.user.findUnique({ where: { userId } });
+
+    if (existing) {
+        const updateData: Record<string, unknown> = {};
+        let hasChanges = false;
+
+        // Password: latest passwordChangedAt wins
+        if (record.password && record.passwordChangedAt) {
+            const incomingPwdAt = new Date(record.passwordChangedAt as string);
+            const existingPwdAt = existing.passwordChangedAt
+                ? new Date(existing.passwordChangedAt as string)
+                : new Date(0);
+
+            if (incomingPwdAt > existingPwdAt) {
+                updateData.password = record.password;
+                updateData.passwordChangedAt = incomingPwdAt;
+                updateData.forcePasswordChange = record.forcePasswordChange ?? existing.forcePasswordChange;
+                hasChanges = true;
+            }
+        }
+
+        // All other fields: latest updatedAt wins
+        if (isNewerRecord(record, existing)) {
+            const syncFields = [
+                'username', 'fullname', 'email', 'phone', 'roleId', 'status',
+                'accessibleBranches', 'allowedTerminals', 'maxDiscountPercent',
+                'canOverridePrices', 'pinCode', 'currentBranchId',
+            ];
+
+            for (const field of syncFields) {
+                if (record[field] !== undefined) {
+                    updateData[field] = record[field];
+                    hasChanges = true;
+                }
+            }
+
+            if (hasChanges) {
+                updateData.updatedAt = record.updatedAt
+                    ? new Date(record.updatedAt as string)
+                    : new Date();
+            }
+        }
+
+        if (hasChanges) {
+            // Handle roleId with proper relation connect syntax
+            if (updateData.roleId) {
+                const roleId = updateData.roleId as string;
+                // Ensure role exists locally
+                const roleExists = await prisma.role.findUnique({ where: { roleId } });
+                if (!roleExists) {
+                    await prisma.role.create({
+                        data: {
+                            roleId,
+                            name: roleId,
+                            displayName: roleId,
+                            isSystemRole: false,
+                            isActive: true,
+                            createdAt: new Date(),
+                            updatedAt: new Date(),
+                        },
+                    });
+                }
+                updateData.role = { connect: { roleId } };
+                delete updateData.roleId;
+            }
+
+            await prisma.user.update({
+                where: { userId },
+                data: updateData as any,
+            });
+            return 'updated';
+        }
+
+        return 'skipped';
+    }
+
+    // Don't create new users via pull - they must arrive through login/saveUserOffline
+    return 'skipped';
 }
 
 /**
