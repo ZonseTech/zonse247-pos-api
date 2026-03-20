@@ -19,9 +19,15 @@ import RolePermissionRoutes from './role-permission.routes'
 import ProductsRoutes from './products.routes'
 import SuppliersRoutes from './suppliers.routes'
 import PurchaseOrdersRoutes from './purchase-orders.routes'
+import PurchaseRequisitionsRoutes from './purchase-requisitions.routes'
+import GoodsReceiptsRoutes from './goods-receipts.routes'
+import SupplierInvoicesRoutes from './supplier-invoices.routes'
+import SupplierPaymentsRoutes from './supplier-payments.routes'
+import SupplierReturnsRoutes from './supplier-returns.routes'
 import SalesRoutes from './sales.routes'
 import ParkedSalesRoutes from './parked-sales.routes'
 import StockMovementsRoutes from './stock-movements.routes'
+import InventoryValuationRoutes from './inventory-valuation.routes'
 import PrinterRoutes from './printer.routes'
 import DistrictRoutes from './district.routes'
 import { AuthMiddleware } from '../middlewares/auth.middleware'
@@ -80,9 +86,15 @@ router.use('/role-permissions', RolePermissionRoutes);
 router.use('/products', ProductsRoutes);
 router.use('/suppliers', SuppliersRoutes);
 router.use('/purchase-orders', PurchaseOrdersRoutes);
+router.use('/purchase-requisitions', PurchaseRequisitionsRoutes);
+router.use('/goods-receipts', GoodsReceiptsRoutes);
+router.use('/supplier-invoices', SupplierInvoicesRoutes);
+router.use('/supplier-payments', SupplierPaymentsRoutes);
+router.use('/supplier-returns', SupplierReturnsRoutes);
 router.use('/sales', SalesRoutes);
 router.use('/parked-sales', ParkedSalesRoutes);
 router.use('/stock-movements', StockMovementsRoutes);
+router.use('/inventory-valuation', InventoryValuationRoutes);
 router.use('/printers', PrinterRoutes);
 router.use('/reports', ReportsRoutes);
 router.use('/mra', MraRoutes);

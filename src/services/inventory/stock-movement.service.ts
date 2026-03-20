@@ -9,6 +9,8 @@ import {
     BulkSyncResult,
     RecordMovementAPIInput
 } from '../../models/stock-movement.model';
+import { InventoryValuationService } from './inventory-valuation.service';
+import { CostingMethod } from '../../models/inventory-valuation.model';
 
 /**
  * GOLDEN RULE: Never update inventory quantities directly.
@@ -32,6 +34,7 @@ export class StockMovementService {
         'RETURN',
         'ADJUSTMENT',
         'TRANSFER_IN',
+        'OPENING_BALANCE' as StockMovementType,
     ];
 
     /**
@@ -42,6 +45,7 @@ export class StockMovementService {
         'TRANSFER_OUT',
         'DAMAGE',
         'EXPIRY',
+        'RETURN_TO_SUPPLIER' as StockMovementType,
     ];
 
     /**
@@ -119,27 +123,73 @@ export class StockMovementService {
         // Update timestamps based on movement type
         if (data.movementType === 'SALE') {
             inventoryUpdate.lastSoldAt = new Date();
-        } else if (data.movementType === 'PURCHASE_RECEIPT') {
+        } else if (data.movementType === 'PURCHASE_RECEIPT' || data.movementType === ('OPENING_BALANCE' as StockMovementType)) {
             inventoryUpdate.lastRestockedAt = new Date();
-            // Update cost tracking for purchases
-            if (data.unitCost > 0) {
+        }
+
+        // Update cost tracking for all increase types that carry a unitCost
+        if (isIncrease && data.unitCost > 0) {
+            // Always track last purchase cost for purchases / opening balance
+            if (data.movementType === 'PURCHASE_RECEIPT' || data.movementType === ('OPENING_BALANCE' as StockMovementType)) {
                 inventoryUpdate.lastPurchaseCost = data.unitCost;
-                // Update average cost using weighted average
-                if (previousQuantity > 0) {
-                    const currentAvgCost = Number(inventory.averageCost);
-                    inventoryUpdate.averageCost =
-                        (currentAvgCost * previousQuantity + data.unitCost * data.quantity) /
-                        (previousQuantity + data.quantity);
-                } else {
-                    inventoryUpdate.averageCost = data.unitCost;
-                }
             }
+            // Weighted average cost — applicable to all increase types
+            if (previousQuantity > 0) {
+                const currentAvgCost = Number(inventory.averageCost);
+                inventoryUpdate.averageCost =
+                    (currentAvgCost * previousQuantity + data.unitCost * data.quantity) /
+                    (previousQuantity + data.quantity);
+            } else {
+                inventoryUpdate.averageCost = data.unitCost;
+            }
+        }
+
+        // ── Supplier Return: remove inventory value at actual purchase cost ──
+        // Unlike regular sales (which keep WAC unchanged), returning goods to a
+        // supplier removes value at the ORIGINAL purchase cost from the GRN.
+        // Formula: new_total_value = old_total_value - (return_qty * original_unit_cost)
+        //          new_avg = new_total_value / new_qty
+        if (data.movementType === ('RETURN_TO_SUPPLIER' as StockMovementType) && data.unitCost > 0 && newQuantity > 0) {
+            const currentAvgCost = Number(inventory.averageCost);
+            const oldTotalValue = currentAvgCost * previousQuantity;
+            const removedValue = data.unitCost * data.quantity;
+            const newTotalValue = Math.max(0, oldTotalValue - removedValue);
+            inventoryUpdate.averageCost = newTotalValue / newQuantity;
+        } else if (data.movementType === ('RETURN_TO_SUPPLIER' as StockMovementType) && newQuantity <= 0) {
+            // All stock returned — reset average cost
+            inventoryUpdate.averageCost = 0;
         }
 
         await db.inventory.update({
             where: { id: data.inventoryId },
             data: inventoryUpdate,
         });
+
+        // ── Cost-layer bookkeeping ──────────────────────────────
+        const costingMethod: CostingMethod = inventory.costingMethod || 'WEIGHTED_AVERAGE';
+
+        if (isIncrease && data.unitCost >= 0) {
+            // Create a cost layer for every inventory increase
+            await InventoryValuationService.addCostLayer({
+                tenantId: data.tenantId,
+                branchId: data.branchId,
+                inventoryId: data.inventoryId,
+                quantity: data.quantity,
+                unitCost: data.unitCost,
+                referenceType: data.referenceType as string ?? null,
+                referenceId: data.referenceId ?? null,
+                movementId: movementId,
+                layerDate: data.movementDate || new Date(),
+            }, db);
+        } else if (!isIncrease && (costingMethod === 'FIFO' || costingMethod === 'LIFO')) {
+            // Consume cost layers for FIFO/LIFO on decrease
+            await InventoryValuationService.consumeCostLayers(
+                data.inventoryId,
+                data.quantity,
+                costingMethod,
+                db
+            );
+        }
 
         return { movementId, previousQuantity, newQuantity };
     }
@@ -221,6 +271,45 @@ export class StockMovementService {
     }
 
     /**
+     * Record a return to supplier (decrements inventory)
+     * Uses the original purchase cost from the GRN to properly adjust WAC.
+     * 
+     * @param params.unitCost - MUST be the original purchase cost from the GRN, not the current average
+     * @param params.referenceId - ID of the SupplierReturn record
+     */
+    static async recordReturnToSupplier(
+        params: {
+            tenantId: string;
+            branchId: string;
+            terminalId?: string;
+            inventoryId: string;
+            quantity: number;
+            unitCost: number;
+            referenceId: string;
+            notes?: string;
+            movedBy: string;
+        },
+        prismaClient?: any
+    ): Promise<{ movementId: string; previousQuantity: number; newQuantity: number }> {
+        return this.recordMovement(
+            {
+                tenantId: params.tenantId,
+                branchId: params.branchId,
+                terminalId: params.terminalId,
+                inventoryId: params.inventoryId,
+                movementType: 'RETURN_TO_SUPPLIER' as StockMovementType,
+                quantity: params.quantity,
+                referenceType: 'SUPPLIER_RETURN' as any,
+                referenceId: params.referenceId,
+                unitCost: params.unitCost,
+                notes: params.notes,
+                movedBy: params.movedBy,
+            },
+            prismaClient
+        );
+    }
+
+    /**
      * Record a purchase receipt (increments inventory)
      * Convenience method that wraps recordMovement for purchases
      */
@@ -278,7 +367,20 @@ export class StockMovementService {
         },
         prismaClient?: any
     ): Promise<{ movementId: string; previousQuantity: number; newQuantity: number }> {
+        const db = prismaClient || prisma;
         const adjustmentQuantity = Math.abs(params.quantity);
+
+        // Auto-resolve cost from current average when not explicitly provided.
+        // Spec: "For adjustments, use the current average cost to adjust inventory value."
+        let resolvedUnitCost = params.unitCost;
+        if (resolvedUnitCost === undefined || resolvedUnitCost === null) {
+            const inventory = await db.inventory.findUnique({
+                where: { id: params.inventoryId },
+                select: { averageCost: true },
+            });
+            if (!inventory) throw new Error('Inventory not found');
+            resolvedUnitCost = Number(inventory.averageCost) || 0;
+        }
 
         // For negative adjustments, we use DAMAGE type since it's a decrease movement
         // For positive adjustments, we use ADJUSTMENT type which is treated as increase
@@ -298,7 +400,7 @@ export class StockMovementService {
                 quantity: adjustmentQuantity,
                 referenceType: 'ADJUSTMENT',
                 referenceId: params.referenceId,
-                unitCost: params.unitCost || 0,
+                unitCost: resolvedUnitCost,
                 notes: params.notes || defaultNotes,
                 movedBy: params.movedBy,
             },
@@ -391,6 +493,17 @@ export class StockMovementService {
     ): Promise<{ movementId: string; previousQuantity: number; newQuantity: number }> {
         const db = prismaClient || prisma;
 
+        // Auto-resolve cost from current average when not explicitly provided
+        let resolvedUnitCost = params.unitCost;
+        if (resolvedUnitCost === undefined || resolvedUnitCost === null) {
+            const inventory = await db.inventory.findUnique({
+                where: { id: params.inventoryId },
+                select: { averageCost: true },
+            });
+            if (!inventory) throw new Error('Inventory not found');
+            resolvedUnitCost = Number(inventory.averageCost) || 0;
+        }
+
         const result = await this.recordMovement(
             {
                 tenantId: params.tenantId,
@@ -401,7 +514,7 @@ export class StockMovementService {
                 quantity: params.quantity,
                 referenceType: 'ADJUSTMENT',
                 referenceId: params.referenceId,
-                unitCost: params.unitCost || 0,
+                unitCost: resolvedUnitCost,
                 notes: params.notes,
                 movedBy: params.movedBy,
             },
@@ -504,7 +617,7 @@ export class StockMovementService {
             destinationBranchId: string;
             destinationInventoryId: string;
             quantity: number;
-            unitCost: number;
+            unitCost?: number;
             transferId: string;
             terminalId?: string;
             notes?: string;
@@ -519,6 +632,18 @@ export class StockMovementService {
     }> {
         const db = prismaClient || prisma;
 
+        // Auto-resolve cost from source branch's current average when not provided.
+        // Spec: "TRANSFER_OUT at current avg cost; TRANSFER_IN at same cost per unit."
+        let resolvedUnitCost = params.unitCost;
+        if (resolvedUnitCost === undefined || resolvedUnitCost === null) {
+            const sourceInventory = await db.inventory.findUnique({
+                where: { id: params.sourceInventoryId },
+                select: { averageCost: true },
+            });
+            if (!sourceInventory) throw new Error('Source inventory not found');
+            resolvedUnitCost = Number(sourceInventory.averageCost) || 0;
+        }
+
         // Record transfer out from source branch
         const outResult = await this.recordTransferOut(
             {
@@ -527,7 +652,7 @@ export class StockMovementService {
                 terminalId: params.terminalId,
                 inventoryId: params.sourceInventoryId,
                 quantity: params.quantity,
-                unitCost: params.unitCost,
+                unitCost: resolvedUnitCost,
                 transferId: params.transferId,
                 notes: params.notes || `Transfer to branch ${params.destinationBranchId}`,
                 movedBy: params.movedBy,
@@ -542,7 +667,7 @@ export class StockMovementService {
                 branchId: params.destinationBranchId,
                 inventoryId: params.destinationInventoryId,
                 quantity: params.quantity,
-                unitCost: params.unitCost,
+                unitCost: resolvedUnitCost,
                 transferId: params.transferId,
                 notes: params.notes || `Transfer from branch ${params.sourceBranchId}`,
                 movedBy: params.movedBy,
@@ -576,6 +701,19 @@ export class StockMovementService {
         },
         prismaClient?: any
     ): Promise<{ movementId: string; previousQuantity: number; newQuantity: number }> {
+        const db = prismaClient || prisma;
+
+        // Auto-resolve cost from current average when not explicitly provided
+        let resolvedUnitCost = params.unitCost;
+        if (resolvedUnitCost === undefined || resolvedUnitCost === null) {
+            const inventory = await db.inventory.findUnique({
+                where: { id: params.inventoryId },
+                select: { averageCost: true },
+            });
+            if (!inventory) throw new Error('Inventory not found');
+            resolvedUnitCost = Number(inventory.averageCost) || 0;
+        }
+
         const expiryNotes = params.notes ||
             (params.expiryDate
                 ? `Expired items (expiry date: ${params.expiryDate.toISOString().split('T')[0]})`
@@ -591,7 +729,7 @@ export class StockMovementService {
                 quantity: params.quantity,
                 referenceType: 'ADJUSTMENT',
                 referenceId: params.referenceId,
-                unitCost: params.unitCost || 0,
+                unitCost: resolvedUnitCost,
                 notes: expiryNotes,
                 movedBy: params.movedBy,
             },
@@ -629,6 +767,46 @@ export class StockMovementService {
                 unitCost: params.unitCost,
                 notes: params.notes || 'Initial stock',
                 movedBy: params.movedBy,
+            },
+            prismaClient
+        );
+    }
+
+    /**
+     * Record opening stock balance.
+     *
+     * Uses the dedicated OPENING_BALANCE movement type so that opening balances
+     * are clearly distinguishable from adjustments in ledger reports.
+     * A cost layer is automatically created by recordMovement.
+     */
+    static async recordOpeningBalance(
+        params: {
+            tenantId: string;
+            branchId: string;
+            terminalId?: string;
+            inventoryId: string;
+            quantity: number;
+            unitCost: number;
+            notes?: string;
+            movedBy: string;
+            openingDate?: Date;
+        },
+        prismaClient?: any
+    ): Promise<{ movementId: string; previousQuantity: number; newQuantity: number }> {
+        return this.recordMovement(
+            {
+                tenantId: params.tenantId,
+                branchId: params.branchId,
+                terminalId: params.terminalId,
+                inventoryId: params.inventoryId,
+                movementType: 'OPENING_BALANCE' as StockMovementType,
+                quantity: params.quantity,
+                referenceType: 'OPENING_BALANCE' as any,
+                referenceId: null,
+                unitCost: params.unitCost,
+                notes: params.notes || 'Opening balance',
+                movedBy: params.movedBy,
+                movementDate: params.openingDate,
             },
             prismaClient
         );
@@ -1027,8 +1205,8 @@ export class StockMovementService {
             limit?: number;
         }
     ): Promise<{ movements: StockMovementWithProduct[]; total: number; totalPages: number }> {
-        const page = options?.page || 1;
-        const limit = options?.limit || 100;
+        const page = Number(options?.page) || 1;
+        const limit = Number(options?.limit) || 100;
         const skip = (page - 1) * limit;
 
         const where = {

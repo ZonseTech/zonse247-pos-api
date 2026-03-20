@@ -129,6 +129,10 @@ model ProductVariant {
 
   inventories Inventory[]
   purchaseOrderItems PurchaseOrderItem[]
+  purchaseRequisitionItems PurchaseRequisitionItem[]
+  goodsReceiptItems GoodsReceiptItem[]
+  supplierInvoiceItems SupplierInvoiceItem[]
+  supplierReturnItems SupplierReturnItem[]
   saleItems   SaleItem[]
   barcodes    VariantBarcode[]
 
@@ -224,6 +228,301 @@ enum BarcodeSource {
   CUSTOM // Custom/alternate barcode
 }
 
+// ==========================================
+// PROCUREMENT WORKFLOW MODELS
+// ==========================================
+
+model PurchaseRequisition {
+  id                String                    @id @default(cuid()) @map("requisition_id")
+  tenantId          String                    @map("tenant_id")
+  branchId          String                    @map("branch_id")
+  terminalId        String?                   @map("terminal_id")
+  requisitionNumber String                    @map("requisition_number")
+  requestedBy       String                    @map("requested_by")
+  status            RequisitionStatus         @default(PENDING) @map("status")
+  notes             String?                   @map("notes")
+  approvedAt        DateTime?                 @map("approved_at")
+  approvedBy        String?                   @map("approved_by")
+  rejectedAt        DateTime?                 @map("rejected_at")
+  rejectedBy        String?                   @map("rejected_by")
+  rejectedReason    String?                   @map("rejected_reason")
+  version           Int                       @default(1) @map("version")
+  deletedAt         DateTime?                 @map("deleted_at")
+  createdAt         DateTime                  @default(now()) @map("created_at")
+  updatedAt         DateTime                  @updatedAt @map("updated_at")
+
+  // Relations
+  tenant            Tenant                    @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade)
+  branch            Branch                    @relation(fields: [branchId], references: [branchId], onDelete: Cascade)
+  requestedByUser   User                      @relation("requisitions_requested_by", fields: [requestedBy], references: [userId], onDelete: Restrict)
+  approvedByUser    User?                     @relation("requisitions_approved_by", fields: [approvedBy], references: [userId], onDelete: SetNull)
+  rejectedByUser    User?                     @relation("requisitions_rejected_by", fields: [rejectedBy], references: [userId], onDelete: SetNull)
+  items             PurchaseRequisitionItem[]
+  purchaseOrders    PurchaseOrder[]
+
+  @@unique([tenantId, branchId, requisitionNumber])
+  @@index([tenantId])
+  @@index([branchId])
+  @@index([status])
+  @@index([requestedBy])
+  @@index([tenantId, branchId, updatedAt])
+  @@index([updatedAt])
+  @@index([deletedAt])
+  @@map("purchase_requisitions")
+}
+
+model PurchaseRequisitionItem {
+  id                String    @id @default(cuid()) @map("requisition_item_id")
+  requisitionId     String    @map("requisition_id")
+  variantId         String    @map("variant_id")
+  tenantId          String    @map("tenant_id")
+  branchId          String    @map("branch_id")
+  terminalId        String?   @map("terminal_id")
+  requestedQuantity Int       @map("requested_quantity")
+  approvedQuantity  Int?      @map("approved_quantity")
+  notes             String?   @map("notes")
+  version           Int       @default(1) @map("version")
+  deletedAt         DateTime? @map("deleted_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  tenant            Tenant            @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade)
+  branch            Branch            @relation(fields: [branchId], references: [branchId], onDelete: Cascade)
+  requisition       PurchaseRequisition @relation(fields: [requisitionId], references: [id], onDelete: Cascade)
+  variant           ProductVariant    @relation(fields: [variantId], references: [id], onDelete: Restrict)
+
+  @@unique([requisitionId, variantId])
+  @@index([tenantId])
+  @@index([branchId])
+  @@index([variantId])
+  @@index([tenantId, branchId, updatedAt])
+  @@index([updatedAt])
+  @@index([deletedAt])
+  @@map("purchase_requisition_items")
+}
+
+model GoodsReceipt {
+  id              String           @id @default(cuid()) @map("goods_receipt_id")
+  tenantId        String           @map("tenant_id")
+  branchId        String           @map("branch_id")
+  terminalId      String?          @map("terminal_id")
+  purchaseOrderId String           @map("purchase_order_id")
+  receiptNumber   String           @map("receipt_number")
+  status          GRNStatus        @default(DRAFT) @map("status")
+  receivedAt      DateTime         @default(now()) @map("received_at")
+  receivedBy      String           @map("received_by")
+  notes           String?          @map("notes")
+  version         Int              @default(1) @map("version")
+  deletedAt       DateTime?        @map("deleted_at")
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+
+  // Relations
+  tenant          Tenant           @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade)
+  branch          Branch           @relation(fields: [branchId], references: [branchId], onDelete: Cascade)
+  purchaseOrder   PurchaseOrder    @relation(fields: [purchaseOrderId], references: [id], onDelete: Restrict)
+  receivedByUser  User             @relation(fields: [receivedBy], references: [userId], onDelete: Restrict)
+  items           GoodsReceiptItem[]
+  supplierReturns SupplierReturn[]
+
+  @@unique([tenantId, branchId, receiptNumber])
+  @@index([tenantId])
+  @@index([branchId])
+  @@index([purchaseOrderId])
+  @@index([status])
+  @@index([tenantId, branchId, updatedAt])
+  @@index([updatedAt])
+  @@index([deletedAt])
+  @@map("goods_receipts")
+}
+
+model GoodsReceiptItem {
+  id                  String    @id @default(cuid()) @map("goods_receipt_item_id")
+  goodsReceiptId      String    @map("goods_receipt_id")
+  purchaseOrderItemId String    @map("purchase_order_item_id")
+  variantId           String    @map("variant_id")
+  tenantId            String    @map("tenant_id")
+  branchId            String    @map("branch_id")
+  terminalId          String?   @map("terminal_id")
+  receivedQuantity    Int       @map("received_quantity")
+  rejectedQuantity    Int       @default(0) @map("rejected_quantity")
+  rejectionReason     String?   @map("rejection_reason")
+  unitCost            Float     @map("unit_cost")
+  totalCost           Float     @map("total_cost")
+  notes               String?   @map("notes")
+  version             Int       @default(1) @map("version")
+  deletedAt           DateTime? @map("deleted_at")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  tenant              Tenant            @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade)
+  branch              Branch            @relation(fields: [branchId], references: [branchId], onDelete: Cascade)
+  goodsReceipt        GoodsReceipt      @relation(fields: [goodsReceiptId], references: [id], onDelete: Cascade)
+  purchaseOrderItem   PurchaseOrderItem @relation(fields: [purchaseOrderItemId], references: [id], onDelete: Restrict)
+  variant             ProductVariant    @relation(fields: [variantId], references: [id], onDelete: Restrict)
+
+  @@unique([goodsReceiptId, purchaseOrderItemId])
+  @@index([tenantId])
+  @@index([branchId])
+  @@index([purchaseOrderItemId])
+  @@index([variantId])
+  @@index([tenantId, branchId, updatedAt])
+  @@index([updatedAt])
+  @@index([deletedAt])
+  @@map("goods_receipt_items")
+}
+
+model SupplierInvoice {
+  id              String          @id @default(cuid()) @map("supplier_invoice_id")
+  tenantId        String          @map("tenant_id")
+  branchId        String          @map("branch_id")
+  terminalId      String?         @map("terminal_id")
+  supplierId      String          @map("supplier_id")
+  purchaseOrderId String?         @map("purchase_order_id")
+  invoiceNumber   String          @map("invoice_number")
+  invoiceDate     DateTime        @map("invoice_date")
+  dueDate         DateTime?       @map("due_date")
+  status          InvoiceStatus   @default(PENDING) @map("status")
+  subtotal        Float           @default(0.00) @map("subtotal")
+  taxAmount       Float           @default(0.00) @map("tax_amount")
+  discountAmount  Float           @default(0.00) @map("discount_amount")
+  totalAmount     Float           @default(0.00) @map("total_amount")
+  amountPaid      Float           @default(0.00) @map("amount_paid")
+  balanceDue      Float           @default(0.00) @map("balance_due")
+  notes           String?         @map("notes")
+  version         Int             @default(1) @map("version")
+  deletedAt       DateTime?       @map("deleted_at")
+  createdAt       DateTime        @default(now()) @map("created_at")
+  updatedAt       DateTime        @updatedAt @map("updated_at")
+
+  // Relations
+  tenant          Tenant          @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade)
+  branch          Branch          @relation(fields: [branchId], references: [branchId], onDelete: Cascade)
+  supplier        Supplier        @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  purchaseOrder   PurchaseOrder?  @relation(fields: [purchaseOrderId], references: [id], onDelete: SetNull)
+  items           SupplierInvoiceItem[]
+  allocations     SupplierPaymentAllocation[]
+  supplierCreditNotes SupplierCreditNote[]
+
+  @@unique([tenantId, branchId, invoiceNumber])
+  @@index([tenantId])
+  @@index([branchId])
+  @@index([supplierId])
+  @@index([purchaseOrderId])
+  @@index([status])
+  @@index([dueDate])
+  @@index([tenantId, branchId, updatedAt])
+  @@index([updatedAt])
+  @@index([deletedAt])
+  @@map("supplier_invoices")
+}
+
+model SupplierInvoiceItem {
+  id                  String    @id @default(cuid()) @map("supplier_invoice_item_id")
+  supplierInvoiceId   String    @map("supplier_invoice_id")
+  purchaseOrderItemId String?   @map("purchase_order_item_id")
+  variantId           String    @map("variant_id")
+  tenantId            String    @map("tenant_id")
+  branchId            String    @map("branch_id")
+  terminalId          String?   @map("terminal_id")
+  quantity            Int       @map("quantity")
+  unitPrice           Float     @map("unit_price")
+  taxRate             Float?    @default(0.00) @map("tax_rate")
+  taxAmount           Float     @default(0.00) @map("tax_amount")
+  discountAmount      Float     @default(0.00) @map("discount_amount")
+  totalPrice          Float     @map("total_price")
+  notes               String?   @map("notes")
+  version             Int       @default(1) @map("version")
+  deletedAt           DateTime? @map("deleted_at")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  tenant              Tenant             @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade)
+  branch              Branch             @relation(fields: [branchId], references: [branchId], onDelete: Cascade)
+  supplierInvoice     SupplierInvoice    @relation(fields: [supplierInvoiceId], references: [id], onDelete: Cascade)
+  purchaseOrderItem   PurchaseOrderItem? @relation(fields: [purchaseOrderItemId], references: [id], onDelete: SetNull)
+  variant             ProductVariant     @relation(fields: [variantId], references: [id], onDelete: Restrict)
+
+  @@unique([supplierInvoiceId, purchaseOrderItemId], map: "sup_inv_items_invoice_id_po_item_id_key")
+  @@index([tenantId])
+  @@index([branchId])
+  @@index([purchaseOrderItemId])
+  @@index([variantId])
+  @@index([tenantId, branchId, updatedAt])
+  @@index([updatedAt])
+  @@index([deletedAt])
+  @@map("supplier_invoice_items")
+}
+
+model SupplierPayment {
+  id                String        @id @default(cuid()) @map("supplier_payment_id")
+  tenantId          String        @map("tenant_id")
+  branchId          String        @map("branch_id")
+  terminalId        String?       @map("terminal_id")
+  supplierId        String        @map("supplier_id")
+  paymentNumber     String        @map("payment_number")
+  paymentDate       DateTime      @default(now()) @map("payment_date")
+  amount            Float         @map("amount")
+  paymentMethod     String?       @map("payment_method")
+  reference         String?       @map("reference")
+  status            PaymentStatus @default(COMPLETED) @map("status")
+  notes             String?       @map("notes")
+  version           Int           @default(1) @map("version")
+  deletedAt         DateTime?     @map("deleted_at")
+  createdAt         DateTime      @default(now()) @map("created_at")
+  updatedAt         DateTime      @updatedAt @map("updated_at")
+
+  // Relations
+  tenant            Tenant           @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade)
+  branch            Branch           @relation(fields: [branchId], references: [branchId], onDelete: Cascade)
+  supplier          Supplier         @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  allocations       SupplierPaymentAllocation[]
+
+  @@unique([tenantId, branchId, paymentNumber])
+  @@index([tenantId])
+  @@index([branchId])
+  @@index([supplierId])
+  @@index([tenantId, branchId, updatedAt])
+  @@index([updatedAt])
+  @@index([deletedAt])
+  @@map("supplier_payments")
+}
+
+model SupplierPaymentAllocation {
+  id              String   @id @default(cuid()) @map("allocation_id")
+  tenantId        String   @map("tenant_id")
+  branchId        String   @map("branch_id")
+  terminalId      String?  @map("terminal_id")
+  paymentId       String   @map("payment_id")
+  invoiceId       String   @map("invoice_id")
+  allocatedAmount Float    @map("allocated_amount")
+  allocatedDate   DateTime @default(now()) @map("allocated_date")
+  notes           String?  @map("notes")
+  version         Int      @default(1) @map("version")
+  deletedAt       DateTime? @map("deleted_at")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  tenant          Tenant          @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade)
+  branch          Branch          @relation(fields: [branchId], references: [branchId], onDelete: Cascade)
+  payment         SupplierPayment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  invoice         SupplierInvoice @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+
+  @@unique([paymentId, invoiceId], name: "unique_payment_invoice")
+  @@index([tenantId])
+  @@index([branchId])
+  @@index([paymentId])
+  @@index([invoiceId])
+  @@index([tenantId, branchId, updatedAt])
+  @@index([updatedAt])
+  @@index([deletedAt])
+  @@map("supplier_payment_allocations")
+}
+
 model Supplier {
   id            String         @id @default(cuid()) @map("supplier_id")
   tenantId      String         @map("tenant_id")
@@ -247,6 +546,10 @@ model Supplier {
   tenant         Tenant          @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade)
   branch         Branch          @relation(fields: [branchId], references: [branchId], onDelete: Cascade)
   purchaseOrders PurchaseOrder[]
+  supplierInvoices SupplierInvoice[]
+  supplierPayments SupplierPayment[]
+  supplierReturns SupplierReturn[]
+  supplierCreditNotes SupplierCreditNote[]
 
   @@index([branchId])
   @@index([tenantId])
@@ -262,6 +565,7 @@ model PurchaseOrder {
   branchId             String              @map("branch_id")
   terminalId           String?             @map("terminal_id")
   supplierId           String              @map("supplier_id")
+  requisitionId        String?             @map("requisition_id")
   poNumber             String              @map("po_number")
   status               PurchaseOrderStatus @default(PENDING) @map("status")
   orderDate            DateTime            @default(now()) @map("order_date")
@@ -279,7 +583,11 @@ model PurchaseOrder {
   tenant         Tenant              @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade)
   branch         Branch              @relation(fields: [branchId], references: [branchId], onDelete: Cascade)
   supplier       Supplier            @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  requisition    PurchaseRequisition? @relation(fields: [requisitionId], references: [id], onDelete: SetNull)
   items          PurchaseOrderItem[]
+  goodsReceipts  GoodsReceipt[]
+  supplierInvoices SupplierInvoice[]
+  supplierReturns SupplierReturn[]
   createdByUser  User                @relation("purchase_orders_created_by", fields: [createdBy], references: [userId], onDelete: Restrict)
   receivedByUser User?               @relation("purchase_orders_received_by", fields: [receivedBy], references: [userId], onDelete: SetNull)
 
@@ -287,6 +595,7 @@ model PurchaseOrder {
   @@unique([tenantId, poNumber], name: "unique_tenant_po_number")
   @@index([tenantId])
   @@index([supplierId])
+  @@index([requisitionId])
   @@index([status])
   @@index([poNumber])
   @@index([tenantId, branchId, updatedAt])
@@ -305,6 +614,7 @@ model PurchaseOrderItem {
   orderedQuantity  Int      @default(0) @map("ordered_quantity")
   receivedQuantity Int      @default(0) @map("received_quantity")
   damagedQuantity  Int      @default(0) @map("damaged_quantity")
+  invoicedQuantity Int      @default(0) @map("invoiced_quantity")
   unitPrice        Float    @default(0.00) @map("unit_price")
   totalPrice       Float    @default(0.00) @map("total_price")
   notes            String?  @map("notes")
@@ -317,6 +627,8 @@ model PurchaseOrderItem {
   branch        Branch         @relation(fields: [branchId], references: [branchId], onDelete: Cascade)
   purchaseOrder PurchaseOrder  @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
   variant       ProductVariant @relation(fields: [variantId], references: [id], onDelete: Restrict)
+  goodsReceiptItems GoodsReceiptItem[]
+  supplierInvoiceItems SupplierInvoiceItem[]
 
   @@unique([purchaseOrderId, variantId], name: "unique_po_variant")
   @@index([tenantId])
@@ -348,6 +660,7 @@ model Inventory {
   maxStock           Int?    @map("max_stock")
   trackInventory     Boolean @default(true) @map("track_inventory")
   allowNegativeStock Boolean @default(false) @map("allow_negative_stock")
+  costingMethod      CostingMethod @default(WEIGHTED_AVERAGE) @map("costing_method")
 
   lastRestockedAt DateTime? @map("last_restocked_at")
   lastSoldAt      DateTime? @map("last_sold_at")
@@ -360,6 +673,7 @@ model Inventory {
   branch         Branch          @relation(fields: [branchId], references: [branchId], onDelete: Cascade)
   variant        ProductVariant? @relation(fields: [variantId], references: [id], onDelete: Cascade)
   stockMovements StockMovement[]
+  costLayers     InventoryCostLayer[]
 
   @@unique([branchId, variantId], name: "unique_branch_variant")
   @@index([branchId])
@@ -413,6 +727,40 @@ model StockMovement {
   @@index([updatedAt])
   @@index([deletedAt])
   @@map("stock_movements")
+}
+
+model InventoryCostLayer {
+  id                String    @id @default(cuid()) @map("cost_layer_id")
+  tenantId          String    @map("tenant_id")
+  branchId          String    @map("branch_id")
+  inventoryId       String    @map("inventory_id")
+  
+  remainingQuantity Int       @default(0) @map("remaining_quantity")
+  originalQuantity  Int       @map("original_quantity")
+  unitCost          Float     @default(0.00) @map("unit_cost")
+  
+  referenceType     String?   @map("reference_type")
+  referenceId       String?   @map("reference_id")
+  movementId        String?   @map("movement_id")
+  
+  layerDate         DateTime  @default(now()) @map("layer_date")
+  depletedAt        DateTime? @map("depleted_at")
+  version           Int       @default(1) @map("version")
+  deletedAt         DateTime? @map("deleted_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+  
+  tenant            Tenant    @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade)
+  branch            Branch    @relation(fields: [branchId], references: [branchId], onDelete: Cascade)
+  inventory         Inventory @relation(fields: [inventoryId], references: [id], onDelete: Cascade)
+  
+  @@index([tenantId])
+  @@index([branchId])
+  @@index([inventoryId])
+  @@index([inventoryId, remainingQuantity])
+  @@index([inventoryId, layerDate])
+  @@index([deletedAt])
+  @@map("inventory_cost_layers")
 }
 
 model Sale {
@@ -731,8 +1079,20 @@ model Branch {
   suppliers       Supplier[]
   purchaseOrders  PurchaseOrder[]
   purchaseOrderItems PurchaseOrderItem[]
+  purchaseRequisitions       PurchaseRequisition[]
+  purchaseRequisitionItems   PurchaseRequisitionItem[]
+  goodsReceipts   GoodsReceipt[]
+  goodsReceiptItems GoodsReceiptItem[]
+  supplierInvoices   SupplierInvoice[]
+  supplierInvoiceItems SupplierInvoiceItem[]
+  supplierPayments SupplierPayment[]
+  supplierPaymentAllocations SupplierPaymentAllocation[]
+  supplierReturns          SupplierReturn[]
+  supplierReturnItems      SupplierReturnItem[]
+  supplierCreditNotes      SupplierCreditNote[]
   inventories     Inventory[]
   stockMovements  StockMovement[]
+  costLayers      InventoryCostLayer[]
   sales           Sale[]
   saleItems       SaleItem[]
   salePayments    SalePayment[]
@@ -1055,8 +1415,20 @@ model Tenant {
   suppliers       Supplier[]
   purchaseOrders  PurchaseOrder[]
   purchaseOrderItems PurchaseOrderItem[]
+  purchaseRequisitions       PurchaseRequisition[]
+  purchaseRequisitionItems   PurchaseRequisitionItem[]
+  goodsReceipts   GoodsReceipt[]
+  goodsReceiptItems GoodsReceiptItem[]
+  supplierInvoices   SupplierInvoice[]
+  supplierInvoiceItems SupplierInvoiceItem[]
+  supplierPayments SupplierPayment[]
+  supplierPaymentAllocations SupplierPaymentAllocation[]
+  supplierReturns          SupplierReturn[]
+  supplierReturnItems      SupplierReturnItem[]
+  supplierCreditNotes      SupplierCreditNote[]
   inventories     Inventory[]
   stockMovements  StockMovement[]
+  costLayers      InventoryCostLayer[]
   sales           Sale[]
   saleItems       SaleItem[]
   salePayments    SalePayment[]
@@ -1273,9 +1645,14 @@ model User {
   // ADDED: New inventory flow relations
   createdPurchaseOrders  PurchaseOrder[] @relation("purchase_orders_created_by")
   receivedPurchaseOrders PurchaseOrder[] @relation("purchase_orders_received_by")
+  requestedRequisitions  PurchaseRequisition[] @relation("requisitions_requested_by")
+  approvedRequisitions   PurchaseRequisition[] @relation("requisitions_approved_by")
+  rejectedRequisitions   PurchaseRequisition[] @relation("requisitions_rejected_by")
+  goodsReceipts          GoodsReceipt[]
   stockMovements         StockMovement[]
   sales                  Sale[]
   voidedSales            Sale[]          @relation("sales_voided_by")
+  supplierReturns        SupplierReturn[]
   staff                  Staff?
 
   @@unique([tenantId, username], name: "unique_tenant_username")
@@ -1574,6 +1951,30 @@ enum MraSaleStatus {
 }
 
 // NEW ENUMS for inventory flow
+enum RequisitionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+  PARTIALLY_APPROVED
+}
+
+enum GRNStatus {
+  DRAFT
+  VERIFIED
+  POSTED
+  CANCELLED
+}
+
+enum InvoiceStatus {
+  PENDING
+  PARTIALLY_PAID
+  PAID
+  OVERDUE
+  CANCELLED
+  DISPUTED
+}
+
 enum PaymentTerms {
   CASH_ON_DELIVERY
   NET_15
@@ -1589,11 +1990,19 @@ enum SupplierStatus {
 }
 
 enum PurchaseOrderStatus {
+  DRAFT
   PENDING
+  SENT
   SHIPPED
+  PARTIALLY_RECEIVED
   RECEIVED
   CANCELLED
-  PARTIALLY_RECEIVED
+}
+
+enum CostingMethod {
+  WEIGHTED_AVERAGE
+  FIFO
+  LIFO
 }
 
 enum StockMovementType {
@@ -1605,14 +2014,19 @@ enum StockMovementType {
   TRANSFER_OUT
   DAMAGE
   EXPIRY
+  OPENING_BALANCE
+  RETURN_TO_SUPPLIER
 }
 
 enum StockReferenceType {
   PURCHASE_ORDER
+  GOODS_RECEIPT
   SALE
   RETURN
   ADJUSTMENT
   TRANSFER
+  OPENING_BALANCE
+  SUPPLIER_RETURN
 }
 
 enum SaleStatus {
@@ -1660,6 +2074,16 @@ enum AuditLogActionType {
   import
   backup
   sync
+  approve
+  reject
+  send
+  receive
+  post
+  verify
+  cancel
+  void
+  dispute
+  pay
 }
 
 enum PermissionScope {
@@ -1979,4 +2403,130 @@ model OnboardingStep {
   @@index([progressId])
   @@index([status])
   @@map("onboarding_steps")
+}
+
+// ─── Supplier Returns ──────────────────────────────────────────────
+
+enum SupplierReturnStatus {
+  DRAFT
+  APPROVED
+  SHIPPED
+  COMPLETED
+  CANCELLED
+}
+
+enum CreditNoteStatus {
+  PENDING
+  APPLIED
+  CANCELLED
+}
+
+model SupplierReturn {
+  id              String               @id @default(cuid()) @map("supplier_return_id")
+  tenantId        String               @map("tenant_id")
+  branchId        String               @map("branch_id")
+  supplierId      String               @map("supplier_id")
+  purchaseOrderId String?              @map("purchase_order_id")
+  goodsReceiptId  String?              @map("goods_receipt_id")
+  returnNumber    String               @map("return_number")
+  status          SupplierReturnStatus @default(DRAFT) @map("status")
+  returnDate      DateTime             @default(now()) @map("return_date")
+  returnedBy      String               @map("returned_by")
+  reason          String?              @map("reason")
+  notes           String?              @map("notes")
+  totalAmount     Float                @default(0) @map("total_amount")
+  version         Int                  @default(1) @map("version")
+  deletedAt       DateTime?            @map("deleted_at")
+  createdAt       DateTime             @default(now()) @map("created_at")
+  updatedAt       DateTime             @updatedAt @map("updated_at")
+
+  // Relations
+  tenant          Tenant               @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade)
+  branch          Branch               @relation(fields: [branchId], references: [branchId], onDelete: Cascade)
+  supplier        Supplier             @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  purchaseOrder   PurchaseOrder?       @relation(fields: [purchaseOrderId], references: [id], onDelete: SetNull)
+  goodsReceipt    GoodsReceipt?        @relation(fields: [goodsReceiptId], references: [id], onDelete: SetNull)
+  returnedByUser  User                 @relation(fields: [returnedBy], references: [userId], onDelete: Restrict)
+  items           SupplierReturnItem[]
+  creditNotes     SupplierCreditNote[]
+
+  @@unique([tenantId, branchId, returnNumber])
+  @@index([tenantId])
+  @@index([branchId])
+  @@index([supplierId])
+  @@index([purchaseOrderId])
+  @@index([goodsReceiptId])
+  @@index([status])
+  @@index([deletedAt])
+  @@index([updatedAt])
+  @@index([tenantId, branchId, updatedAt])
+  @@map("supplier_returns")
+}
+
+model SupplierReturnItem {
+  id                  String    @id @default(cuid()) @map("supplier_return_item_id")
+  supplierReturnId    String    @map("supplier_return_id")
+  goodsReceiptItemId  String?   @map("goods_receipt_item_id")
+  variantId           String    @map("variant_id")
+  tenantId            String    @map("tenant_id")
+  branchId            String    @map("branch_id")
+  returnQuantity      Int       @map("return_quantity")
+  unitCost            Float     @default(0) @map("unit_cost")
+  totalCost           Float     @default(0) @map("total_cost")
+  reason              String?   @map("reason")
+  notes               String?   @map("notes")
+  version             Int       @default(1) @map("version")
+  deletedAt           DateTime? @map("deleted_at")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  supplierReturn      SupplierReturn   @relation(fields: [supplierReturnId], references: [id], onDelete: Cascade)
+  variant             ProductVariant   @relation(fields: [variantId], references: [id], onDelete: Restrict)
+  tenant              Tenant           @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade)
+  branch              Branch           @relation(fields: [branchId], references: [branchId], onDelete: Cascade)
+
+  @@index([supplierReturnId])
+  @@index([variantId])
+  @@index([tenantId])
+  @@index([branchId])
+  @@index([deletedAt])
+  @@index([tenantId, branchId, updatedAt])
+  @@map("supplier_return_items")
+}
+
+model SupplierCreditNote {
+  id                  String           @id @default(cuid()) @map("supplier_credit_note_id")
+  supplierReturnId    String           @map("supplier_return_id")
+  tenantId            String           @map("tenant_id")
+  branchId            String           @map("branch_id")
+  supplierId          String           @map("supplier_id")
+  creditNoteNumber    String           @map("credit_note_number")
+  creditNoteDate      DateTime         @default(now()) @map("credit_note_date")
+  amount              Float            @default(0) @map("amount")
+  status              CreditNoteStatus @default(PENDING) @map("status")
+  appliedToInvoiceId  String?          @map("applied_to_invoice_id")
+  notes               String?          @map("notes")
+  version             Int              @default(1) @map("version")
+  deletedAt           DateTime?        @map("deleted_at")
+  createdAt           DateTime         @default(now()) @map("created_at")
+  updatedAt           DateTime         @updatedAt @map("updated_at")
+
+  // Relations
+  supplierReturn      SupplierReturn   @relation(fields: [supplierReturnId], references: [id], onDelete: Cascade)
+  tenant              Tenant           @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade)
+  branch              Branch           @relation(fields: [branchId], references: [branchId], onDelete: Cascade)
+  supplier            Supplier         @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  appliedToInvoice    SupplierInvoice? @relation(fields: [appliedToInvoiceId], references: [id], onDelete: SetNull)
+
+  @@unique([tenantId, branchId, creditNoteNumber])
+  @@index([supplierReturnId])
+  @@index([tenantId])
+  @@index([branchId])
+  @@index([supplierId])
+  @@index([appliedToInvoiceId])
+  @@index([status])
+  @@index([deletedAt])
+  @@index([tenantId, branchId, updatedAt])
+  @@map("supplier_credit_notes")
 }

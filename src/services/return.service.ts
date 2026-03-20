@@ -281,13 +281,25 @@ export class ReturnService {
                 throw new Error(`Inventory not found for product ${returnItem.productId}`);
             }
 
+            // Look up the original sale item's unitCost (COGS at time of sale)
+            // so we restock at the original cost, not the refund price.
+            const originalSaleItem = await prisma.saleItem.findFirst({
+                where: {
+                    saleId: returnItem.originalOrderId,
+                    productId: returnItem.productId,
+                    deletedAt: null,
+                },
+                select: { unitCost: true },
+            });
+            const unitCost = originalSaleItem ? Number(originalSaleItem.unitCost) : 0;
+
             // GOLDEN RULE: Record stock movement to add items back to inventory
             await StockMovementService.recordReturn({
                 tenantId: auth.tenantId,
                 branchId: auth.branchId,
                 inventoryId: inventory.id,
                 quantity: item.restockQuantity,
-                unitCost: Number(returnItem.returnPrice || 0),
+                unitCost,
                 referenceType: 'SALE', // Reference the original sale
                 referenceId: saleId,
                 notes: `Restock from return item ${item.returnItemId}`,

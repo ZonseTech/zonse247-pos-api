@@ -55,6 +55,21 @@ import { migration as m20260307_01 } from './20260307_01_add_triggers_to_enforce
 import { migration as m20260311_01 } from './20260311_01_add_is_mra_enabled_to_tenants_for_mra_compliance_toggle';
 import { migration as m20260313_01 } from './20260313_01_change_mra_api_config_credentials_to_text_type';
 import { migration as m20260314_01 } from './20260314_01_drop_tenant_registration_details_table';
+import { migration as m20260318_01 } from './20260318_01_add_purchase_requisition_tables_for_procurement_workflow';
+import { migration as m20260318_02 } from './20260318_02_add_goods_receipt_tables_for_grn_workflow';
+import { migration as m20260318_03 } from './20260318_03_add_supplier_invoice_tables_for_billing';
+import { migration as m20260318_04 } from './20260318_04_add_supplier_payment_tables';
+import { migration as m20260318_05 } from './20260318_05_add_requisition_id_to_purchase_orders';
+import { migration as m20260318_06 } from './20260318_06_add_goods_receipt_to_stock_reference_type';
+import { migration as m20260318_07 } from './20260318_07_add_variant_id_index_to_requisition_items';
+import { migration as m20260318_08 } from './20260318_08_remove_invoice_id_from_supplier_payments';
+import { migration as m20260318_09 } from './20260318_09_add_supplier_payment_allocations_table';
+import { migration as m20260318_10 } from './20260318_10_add_invoiced_quantity_to_purchase_order_items';
+import { migration as m20260319_01 } from './20260319_01_add_procurement_audit_action_types';
+import { migration as m20260319_02 } from './20260319_02_add_costing_method_and_cost_layers_for_perpetual_inventory';
+import { migration as m20260319_03 } from './20260319_03_add_supplier_return_tables_and_return_to_supplier_enum';
+import { migration as m20260319_04 } from './20260319_04_add_draft_and_sent_to_purchase_order_status_enum';
+import { migration as m20260319_05 } from './20260319_05_drop_legacy_product_id_from_purchase_order_items';
 
 /**
  * All registered migrations, sorted by version
@@ -105,6 +120,21 @@ export const registeredMigrations: Migration[] = [
     m20260311_01,
     m20260313_01,
     m20260314_01,
+    m20260318_01,
+    m20260318_02,
+    m20260318_03,
+    m20260318_04,
+    m20260318_05,
+    m20260318_06,
+    m20260318_07,
+    m20260318_08,
+    m20260318_09,
+    m20260318_10,
+    m20260319_01,
+    m20260319_02,
+    m20260319_03,
+    m20260319_04,
+    m20260319_05,
 ].sort((a, b) => a.version.localeCompare(b.version));
 
 /**

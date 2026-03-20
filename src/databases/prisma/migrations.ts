@@ -31,7 +31,7 @@ export { Migration, DatabaseType, getSqlStatements };
  * Current schema version - INCREMENT THIS when schema changes
  * Format: YYYYMMDD_NN (date + sequence number)
  */
-export const CURRENT_DB_VERSION = '20260314_01';
+export const CURRENT_DB_VERSION = '20260319_05';
 
 /**
  * Minimum supported version for migration (older versions require fresh install)
