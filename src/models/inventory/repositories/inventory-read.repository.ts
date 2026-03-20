@@ -47,6 +47,8 @@ export class InventoryReadRepository {
                 id,
                 tenantId: auth.tenantId,
                 branchId: auth.branchId,
+                isActive: true,
+                deletedAt: null,
             },
             include: VARIANT_INCLUDE,
         });
@@ -60,6 +62,8 @@ export class InventoryReadRepository {
                 id,
                 tenantId: auth.tenantId,
                 branchId: auth.branchId,
+                isActive: true,
+                deletedAt: null,
             },
             include: PRODUCT_INCLUDE,
         });
@@ -393,6 +397,7 @@ export class InventoryReadRepository {
                 OR: [{ variantId }, { productId: variantId }],
                 branchId: auth.branchId,
                 tenantId: auth.tenantId,
+                deletedAt: null,
             },
         });
     }
