@@ -8,4 +8,5 @@
 
 export { SocketService } from './socket.service';
 export { TerminalPresenceManager } from './terminal-presence.manager';
+export { RemoteHealthMonitor } from './remote-health.monitor';
 export { socketAuthMiddleware } from './socket-auth.middleware';
