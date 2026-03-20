@@ -30,8 +30,7 @@ import type {
   ConnectedTerminal,
   TerminalOnlineStatus,
   TerminalListResponse,
-  ServerStatus,
-  BranchNotification,
+  ServerStatus,  RemoteServerStatus,  BranchNotification,
   HeartbeatPayload,
   HeartbeatAck,
   TerminalStatusChangePayload,
@@ -68,6 +67,15 @@ interface ServerStatus {
   environment: string;
 }
 
+interface RemoteServerStatus {
+  reachable: boolean;
+  url: string;
+  latencyMs: number;
+  statusCode: number | null;
+  lastChecked: string;
+  error?: string;
+}
+
 interface BranchNotification {
   type:
     | "sale"
@@ -99,6 +107,15 @@ interface TerminalStatusChangePayload {
   timestamp: string;
   branchId: string;
   tenantId: string;
+}
+
+interface RemoteServerStatus {
+  reachable: boolean;
+  url: string;
+  latencyMs: number;
+  statusCode: number | null;
+  lastChecked: string;
+  error?: string;
 }
 ```
 
@@ -148,6 +165,15 @@ interface ServerStatus {
   environment: string;
 }
 
+interface RemoteServerStatus {
+  reachable: boolean;
+  url: string;
+  latencyMs: number;
+  statusCode: number | null;
+  lastChecked: string;
+  error?: string;
+}
+
 interface BranchNotification {
   type:
     | "sale"
@@ -172,6 +198,7 @@ export function useSocket(options: UseSocketOptions) {
     [],
   );
   const [serverStatus, setServerStatus] = useState<ServerStatus | null>(null);
+  const [remoteServerStatus, setRemoteServerStatus] = useState<RemoteServerStatus | null>(null);
   const [notifications, setNotifications] = useState<BranchNotification[]>([]);
 
   // ─── Heartbeat ──────────────────────────────────────
@@ -270,6 +297,10 @@ export function useSocket(options: UseSocketOptions) {
       setServerStatus(status);
     });
 
+    socket.on("server:remote_status", (status: RemoteServerStatus) => {
+      setRemoteServerStatus(status);
+    });
+
     socket.on("server:maintenance", (info: { message: string }) => {
       console.warn("⚠️ Server maintenance:", info.message);
     });
@@ -307,6 +338,16 @@ export function useSocket(options: UseSocketOptions) {
       if (!socketRef.current) return reject(new Error("Socket not connected"));
       socketRef.current.emit("server:status", (status: ServerStatus) => {
         setServerStatus(status);
+        resolve(status);
+      });
+    });
+  }, []);
+
+  const getRemoteServerStatus = useCallback((): Promise<RemoteServerStatus> => {
+    return new Promise((resolve, reject) => {
+      if (!socketRef.current) return reject(new Error("Socket not connected"));
+      socketRef.current.emit("server:remote_status", (status: RemoteServerStatus) => {
+        setRemoteServerStatus(status);
         resolve(status);
       });
     });
@@ -351,11 +392,13 @@ export function useSocket(options: UseSocketOptions) {
     isConnected,
     onlineTerminals,
     serverStatus,
+    remoteServerStatus,
     notifications,
     connect,
     disconnect,
     refreshTerminalList,
     getServerStatus,
+    getRemoteServerStatus,
     sendBranchNotification,
     setTerminalIdle,
     setTerminalActive,
@@ -530,6 +573,49 @@ export function ServerStatusBadge() {
 }
 ```
 
+### Remote Server Status Badge
+
+```tsx
+// components/RemoteServerBadge.tsx
+import { useEffect } from "react";
+import { useSocketContext } from "../context/SocketContext";
+
+export function RemoteServerBadge() {
+  const { remoteServerStatus, getRemoteServerStatus, isConnected } = useSocketContext();
+
+  useEffect(() => {
+    if (isConnected) {
+      getRemoteServerStatus();
+    }
+  }, [isConnected, getRemoteServerStatus]);
+
+  if (!remoteServerStatus) return null;
+
+  return (
+    <div className="flex items-center gap-2 text-sm">
+      <span
+        className={`w-2 h-2 rounded-full ${
+          remoteServerStatus.reachable ? "bg-green-500" : "bg-red-500"
+        }`}
+      />
+      <span>
+        Cloud: {remoteServerStatus.reachable ? "Connected" : "Disconnected"}
+      </span>
+      {remoteServerStatus.reachable && (
+        <span className="text-gray-400">
+          {remoteServerStatus.latencyMs}ms
+        </span>
+      )}
+      {!remoteServerStatus.reachable && remoteServerStatus.error && (
+        <span className="text-red-400 text-xs">
+          {remoteServerStatus.error}
+        </span>
+      )}
+    </div>
+  );
+}
+```
+
 ### Notification Toast Handler
 
 ```tsx
@@ -683,6 +769,7 @@ async function kickTerminal(terminalId: string) {
 | `terminal:status_change` | `{ status: 'online' \| 'idle' }`            | —                    | Manually set terminal status              |
 | `terminal:list`          | `{ branchId? }`                             | `(response) => void` | Get list of online terminals              |
 | `server:status`          | —                                           | `(status) => void`   | Request current server status             |
+| `server:remote_status`   | —                                           | `(status) => void`   | Request remote cloud server status        |
 | `branch:notification`    | `BranchNotification`                        | —                    | Send notification to all branch terminals |
 
 ### Server → Client (you listen to these)
@@ -693,8 +780,9 @@ async function kickTerminal(terminalId: string) {
 | `terminal:offline`          | `TerminalStatusChangePayload`     | A terminal in your branch went offline |
 | `terminal:idle`             | `TerminalStatusChangePayload`     | A terminal in your branch went idle    |
 | `terminal:list_update`      | `TerminalListResponse`            | Updated terminal list for branch       |
-| `server:status`             | `ServerStatus`                    | Server health/status broadcast         |
-| `server:maintenance`        | `{ message, estimatedDowntime? }` | Server going into maintenance          |
+| `server:status`             | `ServerStatus`                    | Server health/status broadcast              |
+| `server:remote_status`      | `RemoteServerStatus`              | Remote cloud server reachability changed    |
+| `server:maintenance`        | `{ message, estimatedDowntime? }` | Server going into maintenance               |
 | `branch:notification`       | `BranchNotification`              | Notification from another terminal     |
 | `terminal:force_disconnect` | `{ reason, reconnectAllowed }`    | Server is forcing you to disconnect    |
 
