@@ -31,7 +31,6 @@
     "**/*.test.ts",
     "**/*.spec.ts",
     "**/test/**",
-    "**/*.old.ts",
-    "src/serializers/inventory-item.serializer.ts"
+    "**/*.old.ts"
   ]
 }
