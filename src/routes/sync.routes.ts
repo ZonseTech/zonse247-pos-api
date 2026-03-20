@@ -1,77 +1,91 @@
 import { Router } from 'express';
 import { SyncController } from '../controllers/sync.controller';
+import {
+    validateBatchSync,
+    validateTableSync,
+    validatePullRequest,
+    validateBidirectionalSync,
+} from '../services/sync/sync-validation.middleware';
 
 const router = Router();
+
+// ==========================================
+// PUSH (Terminal → Server)
+// ==========================================
 
 /**
  * @route   POST /api/v1/sync/batch
  * @desc    Bulk sync all tables in one request
- * @access  Terminal (should require auth in production)
+ * @access  Terminal
  */
-router.post('/batch', SyncController.batchSync);
+router.post('/batch', validateBatchSync, SyncController.batchSync);
 
 /**
  * @route   POST /api/v1/sync/sales
  * @desc    Sync sales from terminal
  * @access  Terminal
  */
-router.post('/sales', SyncController.syncSales);
+router.post('/sales', validateTableSync, SyncController.syncSales);
 
 /**
  * @route   POST /api/v1/sync/sale-items
  * @desc    Sync sale items from terminal
  * @access  Terminal
  */
-router.post('/sale-items', SyncController.syncSaleItems);
+router.post('/sale-items', validateTableSync, SyncController.syncSaleItems);
 
 /**
  * @route   POST /api/v1/sync/sale-payments
  * @desc    Sync sale payments from terminal
  * @access  Terminal
  */
-router.post('/sale-payments', SyncController.syncSalePayments);
+router.post('/sale-payments', validateTableSync, SyncController.syncSalePayments);
 
 /**
  * @route   POST /api/v1/sync/returns
  * @desc    Sync returns from terminal
  * @access  Terminal
  */
-router.post('/returns', SyncController.syncReturns);
+router.post('/returns', validateTableSync, SyncController.syncReturns);
 
 /**
  * @route   POST /api/v1/sync/return-items
  * @desc    Sync return items from terminal
  * @access  Terminal
  */
-router.post('/return-items', SyncController.syncReturnItems);
+router.post('/return-items', validateTableSync, SyncController.syncReturnItems);
 
 /**
  * @route   POST /api/v1/sync/stock-movements
  * @desc    Sync stock movements from terminal
  * @access  Terminal
  */
-router.post('/stock-movements', SyncController.syncStockMovements);
+router.post('/stock-movements', validateTableSync, SyncController.syncStockMovements);
 
 /**
  * @route   POST /api/v1/sync/customers
  * @desc    Sync customers from terminal
  * @access  Terminal
  */
-router.post('/customers', SyncController.syncCustomers);
+router.post('/customers', validateTableSync, SyncController.syncCustomers);
 
 /**
  * @route   POST /api/v1/sync/orders
  * @desc    Sync orders from terminal
  * @access  Terminal
  */
-router.post('/orders', SyncController.syncOrders);
+router.post('/orders', validateTableSync, SyncController.syncOrders);
 
 /**
  * @route   POST /api/v1/sync/users
  * @desc    Sync user credential/profile changes from terminal
  * @access  Terminal
  */
-router.post('/users', SyncController.syncUsers);
+router.post('/users', validateTableSync, SyncController.syncUsers);
+
+// ==========================================
+// STATUS
+// ==========================================
 
 /**
  * @route   GET /api/v1/sync/status
@@ -80,13 +94,17 @@ router.post('/users', SyncController.syncUsers);
  */
 router.get('/status', SyncController.getSyncStatus);
 
+// ==========================================
+// PULL (Server → Terminal)
+// ==========================================
+
 /**
  * @route   POST /api/v1/sync/pull
  * @desc    Pull all changed data from server since timestamp
  * @access  Terminal
  * @body    { since?: Date, tables?: string[], limit?: number }
  */
-router.post('/pull', SyncController.pullData);
+router.post('/pull', validatePullRequest, SyncController.pullData);
 
 /**
  * @route   POST /api/v1/sync/pull/:tableName
@@ -94,7 +112,11 @@ router.post('/pull', SyncController.pullData);
  * @access  Terminal
  * @body    { since?: Date, limit?: number }
  */
-router.post('/pull/:tableName', SyncController.pullTableData);
+router.post('/pull/:tableName', validatePullRequest, SyncController.pullTableData);
+
+// ==========================================
+// BIDIRECTIONAL
+// ==========================================
 
 /**
  * @route   POST /api/v1/sync/bidirectional
@@ -102,6 +124,6 @@ router.post('/pull/:tableName', SyncController.pullTableData);
  * @access  Terminal
  * @body    { push: {...}, pullSince?: Date, pullTables?: string[], pullLimit?: number }
  */
-router.post('/bidirectional', SyncController.bidirectionalSync);
+router.post('/bidirectional', validateBidirectionalSync, SyncController.bidirectionalSync);
 
 export default router;
