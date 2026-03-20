@@ -79,6 +79,9 @@ export async function fetchPendingRecords(
                 take: limit,
             });
 
+        case 'users':
+            return fetchUsersForPush(whereBase, since, limit);
+
         default:
             return [];
     }
@@ -179,5 +182,58 @@ export async function markRecordsSynced(
                 data: { updatedAt: now },
             });
             break;
+
+        case 'users': {
+            const userIds = records
+                .map((r: any) => r.userId || r.id)
+                .filter(Boolean) as string[];
+            await prisma.user.updateMany({
+                where: { userId: { in: userIds } },
+                data: { lastSyncedAt: now },
+            });
+            break;
+        }
     }
+}
+
+/**
+ * Fetch users with credential/profile changes for push to server
+ * Only fetches users whose updatedAt or passwordChangedAt is newer than last sync
+ */
+async function fetchUsersForPush(
+    whereBase: { tenantId: string; branchId: string },
+    since: Date | null,
+    limit: number
+): Promise<unknown[]> {
+    return prisma.user.findMany({
+        where: {
+            ...whereBase,
+            deletedAt: null,
+            ...(since && {
+                OR: [
+                    { updatedAt: { gt: since } },
+                    { passwordChangedAt: { gt: since } },
+                ],
+            }),
+        },
+        select: {
+            userId: true,
+            tenantId: true,
+            branchId: true,
+            username: true,
+            password: true,
+            fullname: true,
+            email: true,
+            phone: true,
+            pinCode: true,
+            currentBranchId: true,
+            passwordChangedAt: true,
+            forcePasswordChange: true,
+            version: true,
+            createdAt: true,
+            updatedAt: true,
+        },
+        orderBy: { updatedAt: 'asc' },
+        take: limit,
+    });
 }

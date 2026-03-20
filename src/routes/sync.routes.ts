@@ -67,6 +67,13 @@ router.post('/customers', SyncController.syncCustomers);
 router.post('/orders', SyncController.syncOrders);
 
 /**
+ * @route   POST /api/v1/sync/users
+ * @desc    Sync user credential/profile changes from terminal
+ * @access  Terminal
+ */
+router.post('/users', SyncController.syncUsers);
+
+/**
  * @route   GET /api/v1/sync/status
  * @desc    Get sync status for a terminal
  * @access  Terminal

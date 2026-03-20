@@ -94,12 +94,12 @@ export class ProductRepository {
 
     static async findVariantByName(productId: string, variantName: string, excludeVariantId?: string) {
         return prisma.productVariant.findFirst({
-            where: { productId, variantName, ...(excludeVariantId && { id: { not: excludeVariantId } }) },
+            where: { productId, variantName, isActive: true, deletedAt: null, ...(excludeVariantId && { id: { not: excludeVariantId } }) },
         });
     }
 
     static async findProductById(productId: string, scope: TenantBranchScope) {
-        return prisma.product.findFirst({ where: { id: productId, ...scope }, include: buildProductInclude() });
+        return prisma.product.findFirst({ where: { id: productId, ...scope, isActive: true, deletedAt: null }, include: buildProductInclude() });
     }
 
     static async findActiveProductById(productId: string, scope: TenantBranchScope) {
@@ -164,14 +164,27 @@ export class ProductRepository {
     }
 
     static async softDeleteProduct(productId: string, scope: TenantBranchScope) {
+        const now = new Date();
         return prisma.$transaction(async (tx) => {
-            await tx.productVariant.updateMany({ where: { productId, ...scope }, data: { isActive: false } });
-            await tx.product.update({ where: { id: productId, ...scope }, data: { isActive: false } });
+            // Get variant IDs so we can also soft-delete their inventory records
+            const variants = await tx.productVariant.findMany({
+                where: { productId, ...scope },
+                select: { id: true },
+            });
+            const variantIds = variants.map((v) => v.id);
+
+            await tx.productVariant.updateMany({ where: { productId, ...scope }, data: { isActive: false, deletedAt: now } });
+            await tx.product.update({ where: { id: productId, ...scope }, data: { isActive: false, deletedAt: now } });
+
+            // Mark associated inventory records as deleted
+            if (variantIds.length > 0) {
+                await tx.inventory.updateMany({ where: { variantId: { in: variantIds } }, data: { deletedAt: now } });
+            }
         });
     }
 
     static async findVariantById(variantId: string, scope: TenantBranchScope) {
-        return prisma.productVariant.findFirst({ where: { id: variantId, ...scope }, include: buildVariantInclude() });
+        return prisma.productVariant.findFirst({ where: { id: variantId, ...scope, isActive: true, deletedAt: null }, include: buildVariantInclude() });
     }
 
     static async createVariant(data: CreateVariantData, scope: TenantBranchScope, defaultUnit?: string) {
@@ -307,7 +320,24 @@ export class ProductRepository {
     }
 
     static async softDeleteVariant(variantId: string, scope: TenantBranchScope) {
-        return prisma.productVariant.update({ where: { id: variantId, ...scope }, data: { isActive: false } });
+        const now = new Date();
+        return prisma.$transaction(async (tx) => {
+            await tx.productVariant.update({ where: { id: variantId, ...scope }, data: { isActive: false, deletedAt: now } });
+
+            // Mark associated inventory records as deleted
+            await tx.inventory.updateMany({ where: { variantId }, data: { deletedAt: now } });
+
+            // If this was the last active variant, also soft-delete the parent product
+            const variant = await tx.productVariant.findUnique({ where: { id: variantId }, select: { productId: true } });
+            if (variant) {
+                const remainingActive = await tx.productVariant.count({
+                    where: { productId: variant.productId, isActive: true },
+                });
+                if (remainingActive === 0) {
+                    await tx.product.update({ where: { id: variant.productId }, data: { isActive: false, deletedAt: now } });
+                }
+            }
+        });
     }
 
     static async searchBySku(sku: string, scope: TenantBranchScope) {
@@ -509,9 +539,10 @@ export class ProductRepository {
             });
 
             if (remainingVariants === 0 && options.deleteOrphanedProduct !== false) {
-                // Delete the orphaned product
-                await tx.product.delete({
+                // Soft-delete the orphaned product to preserve sync tombstone
+                await tx.product.update({
                     where: { id: originalProductId },
+                    data: { isActive: false, deletedAt: new Date() },
                 });
                 orphanedProductDeleted = true;
                 deletedProductId = originalProductId;

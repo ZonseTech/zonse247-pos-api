@@ -1,0 +1,176 @@
+================================================================================
+              USER SYNC - FRONTEND (DESKTOP/TERMINAL) INTEGRATION GUIDE
+================================================================================
+
+OVERVIEW
+--------------------------------------------------------------------------------
+Users are now part of the bidirectional sync system. Username/password changes
+made offline will automatically sync to the server when connectivity returns.
+
+The same API code runs on both:
+  - SERVER   → MySQL  (online, central)
+  - TERMINAL → SQLite (offline, local)
+
+The SyncJobService (running on each terminal every 30s) now automatically
+pushes and pulls user changes. No custom sync logic is needed on the frontend.
+
+
+================================================================================
+1. WHAT CHANGED ON THE API (BACKEND — ALREADY DONE)
+================================================================================
+
+NEW:
+  - POST /api/v1/sync/users            — Receives user changes from terminals
+  - `users` added to push tables        — SyncJobService pushes user changes
+  - `users` added to pull tables        — SyncJobService pulls user changes
+  - Field-level conflict resolution      — passwordChangedAt for passwords,
+                                           updatedAt for profile fields
+
+ALREADY HANDLED AUTOMATICALLY BY THE SHARED API CODE:
+  - Password hashing (bcrypt)            — UserModel.update() does this
+  - Setting passwordChangedAt            — UserModel.update() does this
+  - Setting updatedAt                    — UserModel.update() does this
+  - Push to server                       — SyncJobService handles this
+  - Pull from server                     — SyncJobService handles this
+  - Conflict resolution                  — Handlers do this on both sides
+
+
+================================================================================
+2. WHAT THE FRONTEND DOES NOT NEED TO DO
+================================================================================
+
+Since the frontend calls the SAME local API endpoints (which run on the
+terminal), and the SyncJobService runs in the background, the frontend
+does NOT need to:
+
+  ✗ Manually push user changes to the server
+  ✗ Manually pull user changes from the server
+  ✗ Set passwordChangedAt manually (UserModel.update() already does this)
+  ✗ Set updatedAt manually (UserModel.update() already does this)
+  ✗ Hash passwords manually (UserModel.update() already does this)
+  ✗ Implement any custom sync or conflict resolution logic
+  ✗ Add `users` to any sync call — SyncJobService reads from constants
+
+The existing flows work as-is:
+  - User calls PUT /auth/change-password/:userId → local API → writes SQLite
+  - SyncJobService picks it up on next 30s cycle → pushes to server
+  - Done. No frontend code changes for the core sync.
+
+
+================================================================================
+3. WHAT THE FRONTEND SHOULD ADD (REACTIVE CHECKS ONLY)
+================================================================================
+
+3A. CHECK USER STATUS AFTER SYNC PULLS
+--------------------------------------------------------------------------------
+After each sync cycle completes (or on app resume from background),
+re-read the logged-in user from the LOCAL database and check for changes
+pushed down by the server:
+
+    // After sync pull completes, or on app resume / periodic check:
+    const currentUser = await api.get(`/users/${loggedInUserId}`);
+
+    // Admin deactivated this user on the server?
+    if (currentUser.data.status !== 'active') {
+      logout();
+      showMessage('Your account has been deactivated. Contact your admin.');
+      return;
+    }
+
+    // Admin force-reset this user's password on the server?
+    if (currentUser.data.forcePasswordChange) {
+      navigateTo('/change-password');
+      showMessage('Your password was reset by an admin. Please set a new one.');
+    }
+
+This is the MAIN and potentially ONLY frontend change needed.
+
+
+3B. HANDLE SYNC-TRIGGERED RE-LOGIN (INFORMATIONAL)
+--------------------------------------------------------------------------------
+If the server pushes a password change (admin reset), the user's local
+password hash gets updated by the sync pull. Their current JWT is still
+valid until expiry.
+
+On next token refresh or re-login, the user will need the NEW password.
+If they don't know it (admin reset), the `forcePasswordChange` flag
+ensures they're prompted to set one (see 3A above).
+
+NOTE: The terminal's local login works with the OLD password until the
+sync pull overwrites it. After pull, only the new password works.
+This is correct — server/admin changes take precedence.
+
+
+================================================================================
+4. CONFLICT RESOLUTION RULES (FOR REFERENCE)
+================================================================================
+
+  Field               | Resolution              | Notes
+  --------------------|-------------------------|-----------------------------
+  password            | Latest passwordChangedAt| Server reset at 3pm beats
+                      |                         | offline change at 2pm
+  username, fullname  | Latest updatedAt        | Last write wins
+  email, phone,       | Latest updatedAt        | Last write wins
+  pinCode             |                         |
+  roleId, status      | Server → Terminal only  | Admin-controlled, terminals
+  accessibleBranches  | Server → Terminal only  | CANNOT push these fields
+  allowedTerminals    | Server → Terminal only  | (prevents privilege escalation)
+
+
+================================================================================
+5. SCENARIOS
+================================================================================
+
+SCENARIO 1: User changes password offline
+  1. User calls PUT /auth/change-password/:userId on LOCAL API
+  2. UserModel.update() hashes password, sets passwordChangedAt + updatedAt
+  3. SyncJobService pushes to server on next cycle
+  4. Server accepts if passwordChangedAt is newer than its own
+  → No frontend changes needed.
+
+SCENARIO 2: Admin resets password on server while user is offline
+  1. Admin calls POST /auth/reset-password/:userId on SERVER API
+  2. Server sets new password hash, passwordChangedAt, forcePasswordChange=true
+  3. Terminal's SyncJobService pulls on next cycle
+  4. Local user record gets server's password + forcePasswordChange=true
+  → Frontend should check forcePasswordChange and redirect to change-password.
+
+SCENARIO 3: Admin deactivates user on server while user works offline
+  1. Admin sets user status to 'inactive' on SERVER
+  2. Terminal's SyncJobService pulls on next cycle
+  3. Local user record gets status='inactive'
+  → Frontend should check status and force logout.
+
+SCENARIO 4: Both user and admin change password at similar times
+  1. User changes password offline at 2:00pm (passwordChangedAt = 2:00pm)
+  2. Admin resets password on server at 2:05pm (passwordChangedAt = 2:05pm)
+  3. Terminal pushes at 2:10pm — server sees 2:00pm < 2:05pm → rejects user's
+  4. Terminal pulls at 2:10pm — gets server's 2:05pm password, overwrites local
+  → Admin's reset wins. User must use temp password or change again.
+
+SCENARIO 5: User changes username offline to one that already exists
+  1. User updates username on LOCAL API
+  2. UserModel.update() sets updatedAt
+  3. SyncJobService pushes to server
+  4. Server checks unique constraint (tenantId + username)
+     - If unique: accepted
+     - If duplicate: rejected, logged as sync error
+  → No frontend changes needed unless you want to surface the error.
+
+
+================================================================================
+6. CHECKLIST
+================================================================================
+
+  [x] Backend: users added to sync push/pull — DONE
+  [x] Backend: conflict resolution handlers — DONE
+  [x] Backend: POST /sync/users endpoint — DONE
+  [x] Backend: passwordChangedAt + updatedAt set automatically — DONE
+  [x] Backend: SyncJobService auto-pushes/pulls users — DONE
+  [ ] Frontend: Check user.status after sync pull, force logout if not active
+  [ ] Frontend: Check user.forcePasswordChange after sync, redirect if true
+  [ ] Test: change password offline → reconnect → login on server with new pwd
+  [ ] Test: admin reset password → terminal syncs → old password stops working
+  [ ] Test: admin deactivate user → terminal syncs → user gets logged out
+
+================================================================================
