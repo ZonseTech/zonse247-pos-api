@@ -3,6 +3,8 @@ import { BaseController } from './base.controller';
 import { CategoryService } from '../services/category.service';
 import { AuthRequest } from '../lib/express.type';
 import { CreateCategoryDto, UpdateCategoryDto } from 'categoty';
+import { parsePaginationParams } from '../utils/pagination.utils';
+import { AuditService, getAuditContext } from '../services/audit.service';
 
 export class CategoryController {
     static async selectAll(req: Request, res: Response): Promise<void> {
@@ -18,12 +20,13 @@ export class CategoryController {
 
     static getAllCategories = async (req: Request & AuthRequest, res: Response): Promise<void> => {
         try {
-            const categories = await CategoryService.getAllCategories({
+            const pagination = parsePaginationParams(req.query);
+            const result = await CategoryService.listCategories({
                 tenantId: req.auth.tenantId,
                 branchId: req.auth.activeBranchId || req.auth.branchId
-            });
+            }, pagination);
 
-            BaseController.sendResponse(res, 200, true, 'Categories fetched successfully', categories);
+            BaseController.sendPaginated(res, 'Categories fetched successfully', result.data, result.pagination, 'categories');
         } catch (error) {
             BaseController.sendResponse(res, 500, false, 'Failed to fetch categories', undefined, 'Internal Server Error');
         }
@@ -48,6 +51,8 @@ export class CategoryController {
                     branchId: req.auth.activeBranchId || req.auth.branchId,
                 }
             );
+
+            AuditService.logCreate(getAuditContext(req), 'Category', (newCategory as any).categoryId || '', categoryData.name, categoryData as any);
 
             BaseController.sendResponse(res, 201, true, 'Category created successfully', newCategory);
         } catch (error) {
@@ -77,6 +82,8 @@ export class CategoryController {
                 }
             );
 
+            AuditService.logUpdate(getAuditContext(req), 'Category', categoryId as string, updateData.name || categoryId as string, undefined, updateData as any);
+
             BaseController.sendResponse(res, 200, true, 'Category updated successfully');
         } catch (error) {
             if (error instanceof Error && error.message === 'Category not found or access denied') {
@@ -102,6 +109,8 @@ export class CategoryController {
                 tenantId: req.auth.tenantId,
                 branchId: req.auth.activeBranchId || req.auth.branchId,
             });
+
+            AuditService.logDelete(getAuditContext(req), 'Category', categoryId as string, categoryId as string);
 
             BaseController.sendResponse(res, 200, true, 'Category deleted successfully');
         } catch (error) {

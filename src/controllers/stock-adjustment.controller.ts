@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { BaseController } from './base.controller';
 import { StockMovementService } from '../services/inventory/stock-movement.service';
 import { AuthRequest } from '../lib/express.type';
+import { AuditService, getAuditContext } from '../services/audit.service';
 
 /**
  * Controller for specific stock adjustment operations
@@ -45,6 +46,8 @@ export class StockAdjustmentController extends BaseController {
                 ? 'Stock count matches system - no adjustment needed'
                 : `Stock count recorded. Variance: ${result.variance > 0 ? '+' : ''}${result.variance}`;
 
+            AuditService.logCreate(getAuditContext(req), 'StockCount', (result as any).movementId || inventoryId, inventoryId, { actualQuantity, variance: result.variance });
+
             BaseController.sendResponse(res, 200, true, message, result);
         } catch (error: any) {
             BaseController.sendResponse(res, 400, false, 'Failed to record stock count', undefined, error.message);
@@ -83,6 +86,8 @@ export class StockAdjustmentController extends BaseController {
             );
 
             BaseController.sendResponse(res, 201, true, `Recorded ${quantity} damaged items`, result);
+
+            AuditService.logCreate(getAuditContext(req), 'StockDamage', (result as any).movementId || inventoryId, inventoryId, { quantity, notes });
         } catch (error: any) {
             BaseController.sendResponse(res, 400, false, 'Failed to record damage', undefined, error.message);
         }
@@ -121,6 +126,8 @@ export class StockAdjustmentController extends BaseController {
             );
 
             BaseController.sendResponse(res, 201, true, `Recorded ${quantity} expired items`, result);
+
+            AuditService.logCreate(getAuditContext(req), 'StockExpiry', (result as any).movementId || inventoryId, inventoryId, { quantity, expiryDate });
         } catch (error: any) {
             BaseController.sendResponse(res, 400, false, 'Failed to record expiry', undefined, error.message);
         }
@@ -185,6 +192,8 @@ export class StockAdjustmentController extends BaseController {
                 `Transferred ${quantity} items successfully`,
                 result
             );
+
+            AuditService.logCreate(getAuditContext(req), 'StockTransfer', transferId, sourceInventoryId, { quantity, destinationBranchId, destinationInventoryId });
         } catch (error: any) {
             BaseController.sendResponse(res, 400, false, 'Failed to record transfer', undefined, error.message);
         }
@@ -229,6 +238,8 @@ export class StockAdjustmentController extends BaseController {
                 `Stock ${direction} by ${Math.abs(quantity)}`,
                 result
             );
+
+            AuditService.logCreate(getAuditContext(req), 'StockAdjustment', (result as any).movementId || inventoryId, inventoryId, { quantity, notes });
         } catch (error: any) {
             BaseController.sendResponse(res, 400, false, 'Failed to record adjustment', undefined, error.message);
         }
@@ -277,6 +288,8 @@ export class StockAdjustmentController extends BaseController {
                     newQuantity: result.newQuantity,
                 }
             );
+
+            AuditService.logCreate(getAuditContext(req), 'StockCorrection', result.movementId, originalMovementId, { correctionType: result.correctionType, reason, previousQuantity: result.previousQuantity, newQuantity: result.newQuantity });
         } catch (error: any) {
             BaseController.sendResponse(res, 400, false, 'Failed to record correction', undefined, error.message);
         }

@@ -10,6 +10,8 @@ import {
     BusinessSettings,
     SecurityDisplaySettings,
 } from '../types/terminal-settings';
+import prisma from '../databases/prisma/client';
+import { PaginationParams, buildPaginationMeta, PaginatedResult } from '../utils/pagination.utils';
 
 export class TerminalSettingsService {
     /**
@@ -66,6 +68,36 @@ export class TerminalSettingsService {
             }));
         } catch (error) {
             console.error('Error in terminal settings service - getAllSettings:', error);
+            throw error;
+        }
+    }
+
+    static async listSettings(
+        pagination: PaginationParams,
+    ): Promise<PaginatedResult<{ terminalId: string; settings: TerminalDisplaySettings }>> {
+        try {
+            const where = { isActive: true };
+
+            const [allSettings, total] = await Promise.all([
+                prisma.terminalSettings.findMany({
+                    where,
+                    skip: pagination.skip,
+                    take: pagination.limit,
+                }),
+                prisma.terminalSettings.count({ where }),
+            ]);
+
+            const data = allSettings.map((dbSettings: any) => ({
+                terminalId: dbSettings.terminalId,
+                settings: TerminalSettingsModel.toDisplayFormat(dbSettings),
+            }));
+
+            return {
+                data,
+                pagination: buildPaginationMeta(total, pagination.page, pagination.limit),
+            };
+        } catch (error) {
+            console.error('Error in terminal settings service - listSettings:', error);
             throw error;
         }
     }

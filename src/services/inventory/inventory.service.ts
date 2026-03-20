@@ -7,6 +7,7 @@ import { Category } from 'categoty';
 import { InventoryItem } from 'inventory-item';
 import prisma from '../../databases/prisma/client';
 import { ConvertToVariantInput, ConvertToVariantResult } from '../../types/product.types';
+import { PaginationParams, buildPaginationMeta, PaginatedResult } from '../../utils/pagination.utils';
 
 /**
  * InventoryService - Facade for all inventory-related operations
@@ -69,6 +70,20 @@ export class InventoryService {
 
     static async getActiveInventoryItems(auth: AuthenticatedUser): Promise<InventoryItem[]> {
         return await InventoryModel.findActive(auth);
+    }
+
+    static async listActiveInventoryItems(
+        auth: AuthenticatedUser,
+        pagination: PaginationParams,
+    ): Promise<PaginatedResult<InventoryItem>> {
+        const items = await InventoryModel.findActive(auth);
+        const total = items.length;
+        const paged = items.slice(pagination.skip, pagination.skip + pagination.limit);
+
+        return {
+            data: paged,
+            pagination: buildPaginationMeta(total, pagination.page, pagination.limit),
+        };
     }
 
     static async getInventoryItemsWithCategories(
@@ -276,9 +291,41 @@ export class InventoryService {
         return items.filter(item => item.categoryId === categoryId);
     }
 
+    static async listInventoryItemsByCategory(
+        categoryId: string,
+        auth: AuthenticatedUser,
+        pagination: PaginationParams,
+    ): Promise<PaginatedResult<InventoryItem>> {
+        const items = await InventoryModel.findActive(auth);
+        const filtered = items.filter(item => item.categoryId === categoryId);
+        const total = filtered.length;
+        const paged = filtered.slice(pagination.skip, pagination.skip + pagination.limit);
+
+        return {
+            data: paged,
+            pagination: buildPaginationMeta(total, pagination.page, pagination.limit),
+        };
+    }
+
     static async getInventoryItemsByStatus(status: string, auth: AuthenticatedUser): Promise<InventoryItem[]> {
         const items = await InventoryModel.findActive(auth);
         return items.filter(item => item.status === status);
+    }
+
+    static async listInventoryItemsByStatus(
+        status: string,
+        auth: AuthenticatedUser,
+        pagination: PaginationParams,
+    ): Promise<PaginatedResult<InventoryItem>> {
+        const items = await InventoryModel.findActive(auth);
+        const filtered = items.filter(item => item.status === status);
+        const total = filtered.length;
+        const paged = filtered.slice(pagination.skip, pagination.skip + pagination.limit);
+
+        return {
+            data: paged,
+            pagination: buildPaginationMeta(total, pagination.page, pagination.limit),
+        };
     }
 
     /**
@@ -338,6 +385,26 @@ export class InventoryService {
             item.quantity !== null &&
             parseInt(item.quantity.toString()) < threshold
         );
+    }
+
+    static async listLowStockItems(
+        threshold: number,
+        auth: AuthenticatedUser,
+        pagination: PaginationParams,
+    ): Promise<PaginatedResult<InventoryItem>> {
+        const inventoryItems = await InventoryModel.findActive(auth);
+        const filtered = inventoryItems.filter(item =>
+            item.quantity !== undefined &&
+            item.quantity !== null &&
+            parseInt(item.quantity.toString()) < threshold
+        );
+        const total = filtered.length;
+        const paged = filtered.slice(pagination.skip, pagination.skip + pagination.limit);
+
+        return {
+            data: paged,
+            pagination: buildPaginationMeta(total, pagination.page, pagination.limit),
+        };
     }
 
     /**

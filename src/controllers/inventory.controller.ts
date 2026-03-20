@@ -10,6 +10,8 @@ import {
     DatabaseError,
     TransactionError,
 } from '../utils/db-error-handler.util';
+import { parsePaginationParams } from '../utils/pagination.utils';
+import { AuditService, getAuditContext } from '../services/audit.service';
 
 export class InventoryController extends BaseController {
     private static getAuthContext(req: Request & AuthRequest) {
@@ -200,8 +202,9 @@ export class InventoryController extends BaseController {
     static async getInventoryItemsOnly(req: Request & AuthRequest, res: Response): Promise<void> {
         try {
             const auth = InventoryController.getAuthContext(req);
-            const inventoryItems = await InventoryService.getActiveInventoryItems(auth);
-            BaseController.sendSuccess(res, 'Inventory items retrieved successfully.', inventoryItems);
+            const pagination = parsePaginationParams(req.query);
+            const result = await InventoryService.listActiveInventoryItems(auth, pagination);
+            BaseController.sendPaginated(res, 'Inventory items retrieved successfully.', result.data, result.pagination, 'items');
         } catch (error) {
             InventoryController.handleError(res, error, 'getInventoryItemsOnly');
         }
@@ -335,8 +338,9 @@ export class InventoryController extends BaseController {
             }
 
             const auth = InventoryController.getAuthContext(req);
-            const inventoryItems = await InventoryService.getInventoryItemsByCategory(categoryId as string, auth);
-            BaseController.sendSuccess(res, 'Inventory items by category retrieved successfully.', inventoryItems);
+            const pagination = parsePaginationParams(req.query);
+            const result = await InventoryService.listInventoryItemsByCategory(categoryId as string, auth, pagination);
+            BaseController.sendPaginated(res, 'Inventory items by category retrieved successfully.', result.data, result.pagination, 'items');
         } catch (error) {
             InventoryController.handleError(res, error, 'getInventoryItemsByCategory');
         }
@@ -357,8 +361,9 @@ export class InventoryController extends BaseController {
             }
 
             const auth = InventoryController.getAuthContext(req);
-            const inventoryItems = await InventoryService.getInventoryItemsByStatus(status as string, auth);
-            BaseController.sendSuccess(res, 'Inventory items by status retrieved successfully.', inventoryItems);
+            const pagination = parsePaginationParams(req.query);
+            const result = await InventoryService.listInventoryItemsByStatus(status as string, auth, pagination);
+            BaseController.sendPaginated(res, 'Inventory items by status retrieved successfully.', result.data, result.pagination, 'items');
         } catch (error) {
             InventoryController.handleError(res, error, 'getInventoryItemsByStatus');
         }
@@ -374,12 +379,9 @@ export class InventoryController extends BaseController {
             }
 
             const auth = InventoryController.getAuthContext(req);
-            const inventoryItems = await InventoryService.getInventoryItemsWithLowStock(threshold, auth);
-            BaseController.sendSuccess(res, 'Low stock items retrieved successfully.', {
-                threshold,
-                count: inventoryItems.length,
-                items: inventoryItems
-            });
+            const pagination = parsePaginationParams(req.query);
+            const result = await InventoryService.listLowStockItems(threshold, auth, pagination);
+            BaseController.sendPaginated(res, 'Low stock items retrieved successfully.', result.data, result.pagination, 'items');
         } catch (error) {
             InventoryController.handleError(res, error, 'getLowStockItems');
         }
@@ -389,6 +391,9 @@ export class InventoryController extends BaseController {
         try {
             const auth = InventoryController.getAuthContext(req);
             const newInventoryItem = await InventoryService.createInventoryItem(req.body, auth);
+
+            AuditService.logCreate(getAuditContext(req), 'InventoryItem', (newInventoryItem as any).inventoryItemId || '', (newInventoryItem as any).name || req.body.name || '', req.body);
+
             BaseController.sendCreated(res, 'Inventory item created successfully.', newInventoryItem);
         } catch (error) {
             InventoryController.handleError(res, error, 'createInventoryItem');
@@ -413,6 +418,7 @@ export class InventoryController extends BaseController {
             if (numReplaced === 0) {
                 BaseController.sendNotFound(res, `Inventory item with ID "${itemId}" not found.`);
             } else {
+                AuditService.logUpdate(getAuditContext(req), 'InventoryItem', itemId as string, itemId as string, undefined, req.body);
                 BaseController.sendSuccess(res, 'Inventory item updated successfully.');
             }
         } catch (error) {
@@ -455,6 +461,7 @@ export class InventoryController extends BaseController {
             if (result === 0) {
                 BaseController.sendNotFound(res, `Inventory item with ID "${itemId}" not found.`);
             } else {
+                AuditService.logUpdate(getAuditContext(req), 'InventoryItem', itemId as string, itemId as string, undefined, { quantity: parsedQuantity });
                 BaseController.sendSuccess(res, 'Inventory quantity updated successfully.');
             }
         } catch (error) {
@@ -499,6 +506,7 @@ export class InventoryController extends BaseController {
                 BaseController.sendNotFound(res, `Inventory item with ID "${itemId}" not found.`);
             } else {
                 const direction = parsedAdjustment >= 0 ? 'increased' : 'decreased';
+                AuditService.logUpdate(getAuditContext(req), 'InventoryItem', itemId as string, itemId as string, undefined, { adjustment: parsedAdjustment, type });
                 BaseController.sendSuccess(res, `Inventory ${direction} by ${Math.abs(parsedAdjustment)} units.`);
             }
         } catch (error) {
@@ -533,6 +541,7 @@ export class InventoryController extends BaseController {
 
             const auth = InventoryController.getAuthContext(req);
             await InventoryService.bulkUpdateInventoryItems(updates, auth);
+            AuditService.logBulk(getAuditContext(req), 'update', 'InventoryItem', updates.length);
             BaseController.sendSuccess(res, `${updates.length} inventory items updated successfully.`);
         } catch (error) {
             InventoryController.handleError(res, error, 'bulkUpdateInventoryItems');
@@ -553,6 +562,7 @@ export class InventoryController extends BaseController {
 
             const auth = InventoryController.getAuthContext(req);
             await InventoryService.moveInventoryItemsToCategory(productIds, categoryId, auth);
+            AuditService.logBulk(getAuditContext(req), 'update', 'InventoryItem', productIds.length, `Moved ${productIds.length} items to category ${categoryId}`);
             BaseController.sendSuccess(res, `${productIds.length} items moved to category successfully.`);
         } catch (error) {
             InventoryController.handleError(res, error, 'moveToCategory');
@@ -573,6 +583,7 @@ export class InventoryController extends BaseController {
             if (numReplaced === 0) {
                 BaseController.sendNotFound(res, `Inventory item with ID "${itemId}" not found.`);
             } else {
+                AuditService.logStatusChange(getAuditContext(req), 'void', 'InventoryItem', itemId as string, itemId as string, 'active', 'void');
                 BaseController.sendSuccess(res, 'Inventory item voided successfully.');
             }
         } catch (error) {
@@ -594,6 +605,7 @@ export class InventoryController extends BaseController {
             if (numDeleted === 0) {
                 BaseController.sendNotFound(res, `Inventory item with ID "${itemId}" not found.`);
             } else {
+                AuditService.logDelete(getAuditContext(req), 'InventoryItem', itemId as string, itemId as string);
                 BaseController.sendSuccess(res, 'Inventory item deleted successfully.');
             }
         } catch (error) {

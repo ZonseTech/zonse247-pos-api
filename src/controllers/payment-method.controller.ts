@@ -2,6 +2,8 @@ import { Request, Response } from 'express';
 import { BaseController } from './base.controller';
 import { PaymentMethodService } from '../services/payment-method.service';
 import { CreatePaymentMethodDto, UpdatePaymentMethodDto } from 'payment-method';
+import { parsePaginationParams } from '../utils/pagination.utils';
+import { AuditService, getAuditContext } from '../services/audit.service';
 
 export class PaymentMethodController extends BaseController {
 
@@ -19,16 +21,14 @@ export class PaymentMethodController extends BaseController {
     static async list(req: Request, res: Response): Promise<void> {
         try {
             const { search } = req.query;
+            const pagination = parsePaginationParams(req.query);
 
-            let paymentMethods;
+            const result = await PaymentMethodService.listPaymentMethods(
+                pagination,
+                search && typeof search === 'string' ? { search } : undefined,
+            );
 
-            if (search && typeof search === 'string') {
-                paymentMethods = await PaymentMethodService.searchPaymentMethods(search);
-            } else {
-                paymentMethods = await PaymentMethodService.getAllPaymentMethods();
-            }
-
-            PaymentMethodController.sendSuccess(res, 'Payment methods retrieved successfully', paymentMethods);
+            BaseController.sendPaginated(res, 'Payment methods retrieved successfully', result.data, result.pagination, 'paymentMethods');
         } catch (error) {
             console.error('Controller: Error listing payment methods:', error);
             PaymentMethodController.sendServerError(
@@ -80,6 +80,8 @@ export class PaymentMethodController extends BaseController {
 
             const newPaymentMethod = await PaymentMethodService.createPaymentMethod(paymentMethodData);
 
+            AuditService.logCreate(getAuditContext(req), 'PaymentMethod', (newPaymentMethod as any).paymentMethodId || '', (newPaymentMethod as any).name || (paymentMethodData as any).name || '', paymentMethodData as any);
+
             PaymentMethodController.sendCreated(res, 'Payment method created successfully', newPaymentMethod);
         } catch (error) {
             console.error('Controller: Error creating payment method:', error);
@@ -120,6 +122,8 @@ export class PaymentMethodController extends BaseController {
                 return;
             }
 
+            AuditService.logUpdate(getAuditContext(req), 'PaymentMethod', paymentMethodId as string, paymentMethodId as string, undefined, updateData as any);
+
             PaymentMethodController.sendSuccess(res, 'Payment method updated successfully', updatedPaymentMethod);
         } catch (error) {
             console.error('Controller: Error updating payment method:', error);
@@ -158,6 +162,8 @@ export class PaymentMethodController extends BaseController {
                 PaymentMethodController.sendNotFound(res, 'Payment method not found');
                 return;
             }
+
+            AuditService.logDelete(getAuditContext(req), 'PaymentMethod', paymentMethodId as string, paymentMethodId as string);
 
             PaymentMethodController.sendSuccess(res, 'Payment method deleted successfully');
         } catch (error) {

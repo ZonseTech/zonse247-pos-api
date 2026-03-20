@@ -5,7 +5,7 @@ import { BaseController } from "./base.controller";
 import { Branch, CreateBranchRequest } from "branch";
 import { BranchService } from "../services/branch.service";
 import { TerminalModel } from "../models/terminal.model";
-
+import { parsePaginationParams } from "../utils/pagination.utils"; import { AuditService, getAuditContext } from '../services/audit.service';
 /**
  * @class   BranchController
  * @desc    Handles all branch-related HTTP requests
@@ -24,8 +24,9 @@ export class BranchController {
     static async list(req: Request & AuthRequest, res: Response): Promise<void> {
         try {
             const query = req.query;
-            const branches = await BranchService.getAllBranches(query, req.auth.tenantId);
-            BaseController.sendResponse(res, 200, true, 'Branches retrieved successfully', branches);
+            const pagination = parsePaginationParams(req.query);
+            const result = await BranchService.listBranches(query, req.auth.tenantId, pagination);
+            BaseController.sendPaginated(res, 'Branches retrieved successfully', result.data, result.pagination, 'branches');
         } catch (error: any) {
             console.error('Error fetching branches:', error);
             BaseController.sendResponse(res, 500, false, error.message, undefined, error.message);
@@ -52,6 +53,9 @@ export class BranchController {
                 tenantId: req.body.tenantId || req.auth.tenantId,
             };
             const newBranch = await BranchService.createBranch(branchData, req.auth.userId);
+
+            AuditService.logCreate(getAuditContext(req), 'Branch', (newBranch as any).branchId || '', (newBranch as any).branchName || branchData.branchName || '', branchData);
+
             BaseController.sendResponse(res, 201, true, 'Branch created successfully', newBranch);
         } catch (error: any) {
             console.error('Error creating branch:', error);
@@ -86,6 +90,9 @@ export class BranchController {
         try {
             const { branchId } = req.params;
             const updatedBranch = await BranchService.updateBranch(branchId, req.body);
+
+            AuditService.logUpdate(getAuditContext(req), 'Branch', branchId, (updatedBranch as any).branchName || branchId, undefined, req.body as any);
+
             BaseController.sendResponse(res, 200, true, 'Branch updated successfully', updatedBranch);
         } catch (error: any) {
             console.error('Error updating branch:', error);
@@ -143,6 +150,9 @@ export class BranchController {
         try {
             const { branchId } = req.params;
             const result = await BranchService.deleteBranch(branchId);
+
+            AuditService.logDelete(getAuditContext(req), 'Branch', branchId, branchId);
+
             BaseController.sendResponse(res, 200, true, 'Branch deleted successfully', result);
         } catch (error: any) {
             console.error('Error deleting branch:', error);

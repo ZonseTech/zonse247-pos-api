@@ -2,6 +2,8 @@ import { Request, Response } from 'express';
 import { TerminalSettingsService } from '../services/terminal-settings.service';
 import { BaseController } from './base.controller';
 import { SettingsGroupName } from '../types/terminal-settings';
+import { parsePaginationParams } from '../utils/pagination.utils';
+import { AuditService, getAuditContext } from '../services/audit.service';
 
 export class TerminalSettingsController extends BaseController {
     /**
@@ -43,9 +45,10 @@ export class TerminalSettingsController extends BaseController {
      */
     static async getAllSettings(req: Request, res: Response): Promise<void> {
         try {
-            const result = await TerminalSettingsService.getAllSettings();
+            const pagination = parsePaginationParams(req.query);
+            const result = await TerminalSettingsService.listSettings(pagination);
 
-            BaseController.sendResponse(res, 200, true, 'All terminal settings retrieved successfully', result);
+            BaseController.sendPaginated(res, 'All terminal settings retrieved successfully', result.data, result.pagination, 'settings');
         } catch (error) {
             console.error('Error in terminal settings controller - getAllSettings:', error);
             BaseController.sendResponse(
@@ -75,6 +78,8 @@ export class TerminalSettingsController extends BaseController {
                 terminalId,
                 ...settingsData,
             });
+
+            AuditService.logCreate(getAuditContext(req), 'TerminalSettings', terminalId, terminalId, settingsData);
 
             BaseController.sendResponse(res, 201, true, 'Terminal settings created successfully', result);
         } catch (error) {
@@ -114,6 +119,8 @@ export class TerminalSettingsController extends BaseController {
                 BaseController.sendResponse(res, 404, false, 'Terminal settings not found or update failed');
                 return;
             }
+
+            AuditService.logUpdate(getAuditContext(req), 'TerminalSettings', terminalId as string, terminalId as string, undefined, updateData);
 
             BaseController.sendResponse(res, 200, true, 'Terminal settings updated successfully', result);
         } catch (error) {
@@ -249,6 +256,8 @@ export class TerminalSettingsController extends BaseController {
                 BaseController.sendResponse(res, 404, false, 'Terminal settings not found or deletion failed');
                 return;
             }
+
+            AuditService.logDelete(getAuditContext(req), 'TerminalSettings', terminalId as string, terminalId as string);
 
             BaseController.sendResponse(res, 200, true, 'Terminal settings deleted successfully');
         } catch (error) {

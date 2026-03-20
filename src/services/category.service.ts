@@ -3,6 +3,8 @@ import { CategoryModel } from "../models/category.model";
 import { InventoryModel } from "../models/inventory.model";
 import { AuthenticatedUser } from "auth";
 import { CategoryUncheckedCreateInput } from "src/databases/prisma/generated/prisma/models";
+import prisma from '../databases/prisma/client';
+import { PaginationParams, buildPaginationMeta, PaginatedResult } from '../utils/pagination.utils';
 
 export class CategoryService {
 
@@ -14,6 +16,40 @@ export class CategoryService {
         try {
             const categories = await CategoryModel.findByTenantIdAndBranchId(filters.tenantId, filters.branchId);
             return await this.enrichCategoriesWithItemCount(categories, { tenantId: filters.tenantId, branchId: filters.branchId });
+        } catch (error) {
+            throw new Error(error instanceof Error ? error.message : 'Failed to fetch categories');
+        }
+    }
+
+    static async listCategories(
+        filters: CategoryFilters,
+        pagination: PaginationParams,
+    ): Promise<PaginatedResult<Category>> {
+        try {
+            const where: any = {
+                tenantId: filters.tenantId,
+                branchId: filters.branchId,
+            };
+
+            const [categories, total] = await Promise.all([
+                prisma.category.findMany({
+                    where,
+                    skip: pagination.skip,
+                    take: pagination.limit,
+                    orderBy: { createdAt: 'desc' },
+                }),
+                prisma.category.count({ where }),
+            ]);
+
+            const enriched = await this.enrichCategoriesWithItemCount(
+                categories as unknown as Category[],
+                { tenantId: filters.tenantId, branchId: filters.branchId },
+            );
+
+            return {
+                data: enriched,
+                pagination: buildPaginationMeta(total, pagination.page, pagination.limit),
+            };
         } catch (error) {
             throw new Error(error instanceof Error ? error.message : 'Failed to fetch categories');
         }

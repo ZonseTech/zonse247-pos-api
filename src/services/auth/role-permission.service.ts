@@ -3,6 +3,8 @@ import { ValidationError } from '../../utils/errors';
 import { PermissionModel } from "../../models/permission.model";
 import { RolePermissionModel } from "../../models/role-permission.model";
 import { BulkRolePermissionRequest, CreateRolePermissionRequest, Permission, Role, RolePermission } from "role-permission";
+import prisma from '../../databases/prisma/client';
+import { PaginationParams, buildPaginationMeta, PaginatedResult } from '../../utils/pagination.utils';
 
 export class RolePermissionService {
 
@@ -23,6 +25,34 @@ export class RolePermissionService {
             }
 
             return await RolePermissionModel.findAll(conditions);
+        } catch (error: any) {
+            throw new Error(`Failed to retrieve role permissions: ${error.message}`);
+        }
+    }
+
+    static async listRolePermissions(
+        query: any = {},
+        pagination: PaginationParams,
+    ): Promise<PaginatedResult<RolePermission>> {
+        try {
+            const where: any = {};
+            if (query.roleId) where.roleId = query.roleId;
+            if (query.permissionId) where.permissionId = query.permissionId;
+
+            const [rolePermissions, total] = await Promise.all([
+                prisma.rolePermission.findMany({
+                    where,
+                    skip: pagination.skip,
+                    take: pagination.limit,
+                    orderBy: { createdAt: 'desc' },
+                }),
+                prisma.rolePermission.count({ where }),
+            ]);
+
+            return {
+                data: rolePermissions as unknown as RolePermission[],
+                pagination: buildPaginationMeta(total, pagination.page, pagination.limit),
+            };
         } catch (error: any) {
             throw new Error(`Failed to retrieve role permissions: ${error.message}`);
         }
@@ -148,12 +178,62 @@ export class RolePermissionService {
         return await RolePermissionModel.findByRoleId(roleUuid);
     }
 
+    static async listRolePermissionsByRoleUuid(
+        roleUuid: string,
+        pagination: PaginationParams,
+    ): Promise<PaginatedResult<RolePermission>> {
+        if (!roleUuid) {
+            throw new Error('Role UUID is required');
+        }
+
+        const where = { roleId: roleUuid };
+        const [items, total] = await Promise.all([
+            prisma.rolePermission.findMany({
+                where,
+                skip: pagination.skip,
+                take: pagination.limit,
+                orderBy: { createdAt: 'desc' },
+            }),
+            prisma.rolePermission.count({ where }),
+        ]);
+
+        return {
+            data: items as unknown as RolePermission[],
+            pagination: buildPaginationMeta(total, pagination.page, pagination.limit),
+        };
+    }
+
     static async getRolePermissionsByPermissionUuid(permissionUuid: string): Promise<RolePermission[]> {
         if (!permissionUuid) {
             throw new Error('Permission UUID is required');
         }
 
         return await RolePermissionModel.findByPermissionId(permissionUuid);
+    }
+
+    static async listRolePermissionsByPermissionUuid(
+        permissionUuid: string,
+        pagination: PaginationParams,
+    ): Promise<PaginatedResult<RolePermission>> {
+        if (!permissionUuid) {
+            throw new Error('Permission UUID is required');
+        }
+
+        const where = { permissionId: permissionUuid };
+        const [items, total] = await Promise.all([
+            prisma.rolePermission.findMany({
+                where,
+                skip: pagination.skip,
+                take: pagination.limit,
+                orderBy: { createdAt: 'desc' },
+            }),
+            prisma.rolePermission.count({ where }),
+        ]);
+
+        return {
+            data: items as unknown as RolePermission[],
+            pagination: buildPaginationMeta(total, pagination.page, pagination.limit),
+        };
     }
 
     static async checkRolePermissionExists(roleUuid: string, permissionUuid: string): Promise<boolean> {

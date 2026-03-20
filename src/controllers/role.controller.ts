@@ -3,7 +3,7 @@ import { BaseController } from "./base.controller";
 import { RoleService } from "../services/auth/role.service";
 import { ApiResponse } from "network";
 import { CreateRoleRequest, Role } from "role-permission";
-
+import { parsePaginationParams } from "../utils/pagination.utils"; import { AuditService, getAuditContext } from '../services/audit.service';
 export class RoleController extends BaseController {
 
     static async selectAll(req: Request, res: Response): Promise<void> {
@@ -19,8 +19,9 @@ export class RoleController extends BaseController {
     static async list(req: Request, res: Response): Promise<void> {
         try {
             const query = req.query;
-            const roles = await RoleService.getAllRoles(query);
-            BaseController.sendResponse(res, 200, true, 'Roles retrieved successfully', roles);
+            const pagination = parsePaginationParams(req.query);
+            const result = await RoleService.listRoles(query, pagination);
+            BaseController.sendPaginated(res, 'Roles retrieved successfully', result.data, result.pagination, 'roles');
         } catch (error: any) {
             console.error('Error fetching roles:', error);
             BaseController.sendResponse(res, 500, false, error.message, undefined, error.message);
@@ -30,6 +31,9 @@ export class RoleController extends BaseController {
     static async create(req: Request<ApiResponse<Role>, CreateRoleRequest>, res: Response): Promise<void> {
         try {
             const newRole = await RoleService.createRole(req.body);
+
+            AuditService.logCreate(getAuditContext(req), 'Role', (newRole as any).roleId || '', (newRole as any).name || (req.body as any).name || '', req.body as any);
+
             BaseController.sendResponse(res, 201, true, 'Role created successfully', newRole);
         } catch (error: any) {
             console.error('Error creating role:', error);
@@ -53,6 +57,9 @@ export class RoleController extends BaseController {
         try {
             const { id } = req.params;
             const updatedRole = await RoleService.updateRole(id, req.body);
+
+            AuditService.logUpdate(getAuditContext(req), 'Role', id, (updatedRole as any).name || id, undefined, req.body as any);
+
             BaseController.sendResponse(res, 200, true, 'Role updated successfully', updatedRole);
         } catch (error: any) {
             console.error('Error updating role:', error);
@@ -93,6 +100,9 @@ export class RoleController extends BaseController {
         try {
             const { id } = req.params;
             const result = await RoleService.deleteRole(id);
+
+            AuditService.logDelete(getAuditContext(req), 'Role', id, id);
+
             BaseController.sendResponse(res, 200, true, 'Role deleted successfully', result);
         } catch (error: any) {
             console.error('Error deleting role:', error);
@@ -132,6 +142,9 @@ export class RoleController extends BaseController {
         try {
             const { id } = req.params;
             const role = await RoleService.updateRoleStatus(id, true);
+
+            AuditService.logStatusChange(getAuditContext(req), 'update', 'Role', id, (role as any).name || id, 'inactive', 'active');
+
             BaseController.sendResponse(res, 200, true, 'Role activated successfully', role);
         } catch (error: any) {
             console.error('Error activating role:', error);
@@ -149,6 +162,9 @@ export class RoleController extends BaseController {
         try {
             const { id } = req.params;
             const role = await RoleService.updateRoleStatus(id, false);
+
+            AuditService.logStatusChange(getAuditContext(req), 'update', 'Role', id, (role as any).name || id, 'active', 'inactive');
+
             BaseController.sendResponse(res, 200, true, 'Role deactivated successfully', role);
         } catch (error: any) {
             console.error('Error deactivating role:', error);

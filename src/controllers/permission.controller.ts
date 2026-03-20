@@ -3,7 +3,7 @@ import { BaseController } from "./base.controller";
 import { PermissionService } from "../services/auth/permission.service";
 import { CreatePermissionRequest, Permission } from "role-permission";
 import { ApiResponse } from "network";
-
+import { parsePaginationParams } from "../utils/pagination.utils"; import { AuditService, getAuditContext } from '../services/audit.service';
 export class PermissionController extends BaseController {
 
     static async selectAll(req: Request, res: Response): Promise<void> {
@@ -20,8 +20,9 @@ export class PermissionController extends BaseController {
     static async list(req: Request, res: Response): Promise<void> {
         try {
             const query = req.query;
-            const permissions = await PermissionService.getAllPermissions(query);
-            BaseController.sendResponse(res, 200, true, 'Permissions retrieved successfully', permissions);
+            const pagination = parsePaginationParams(req.query);
+            const result = await PermissionService.listPermissions(query, pagination);
+            BaseController.sendPaginated(res, 'Permissions retrieved successfully', result.data, result.pagination, 'permissions');
         } catch (error: any) {
             console.error('Error fetching permissions:', error);
             BaseController.sendResponse(res, 500, false, error.message, undefined, error.message);
@@ -31,6 +32,9 @@ export class PermissionController extends BaseController {
     static async create(req: Request<ApiResponse<Permission>, CreatePermissionRequest>, res: Response): Promise<void> {
         try {
             const newPermission = await PermissionService.createPermission(req.body);
+
+            AuditService.logCreate(getAuditContext(req), 'Permission', (newPermission as any).permissionId || '', (newPermission as any).name || (req.body as any).name || '', req.body as any);
+
             BaseController.sendResponse(res, 201, true, 'Permission created successfully', newPermission);
         } catch (error: any) {
             console.error('Error creating permission:', error);
@@ -50,6 +54,9 @@ export class PermissionController extends BaseController {
         try {
             const { id } = req.params;
             const updatedPermission = await PermissionService.updatePermission(id, req.body);
+
+            AuditService.logUpdate(getAuditContext(req), 'Permission', id, (updatedPermission as any).name || id, undefined, req.body as any);
+
             BaseController.sendResponse(res, 200, true, 'Permission updated successfully', updatedPermission);
         } catch (error: any) {
             console.error('Error updating permission:', error);
@@ -90,6 +97,9 @@ export class PermissionController extends BaseController {
         try {
             const { id } = req.params;
             const result = await PermissionService.deletePermission(id);
+
+            AuditService.logDelete(getAuditContext(req), 'Permission', id, id);
+
             BaseController.sendResponse(res, 200, true, 'Permission deleted successfully', result);
         } catch (error: any) {
             console.error('Error deleting permission:', error);

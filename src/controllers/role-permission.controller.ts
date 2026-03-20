@@ -3,7 +3,7 @@ import { BaseController } from "./base.controller";
 import { RolePermissionService } from "../services/auth/role-permission.service";
 import { ApiResponse } from "network";
 import { BulkRolePermissionRequest, CreateRolePermissionRequest, RolePermission } from "role-permission";
-
+import { parsePaginationParams } from "../utils/pagination.utils"; import { AuditService, getAuditContext } from '../services/audit.service';
 export class RolePermissionController extends BaseController {
 
     static async selectAll(req: Request, res: Response): Promise<void> {
@@ -20,8 +20,9 @@ export class RolePermissionController extends BaseController {
     static async list(req: Request, res: Response): Promise<void> {
         try {
             const query = req.query;
-            const rolePermissions = await RolePermissionService.getAllRolePermissions(query);
-            BaseController.sendResponse(res, 200, true, 'Role permissions retrieved successfully', rolePermissions);
+            const pagination = parsePaginationParams(req.query);
+            const result = await RolePermissionService.listRolePermissions(query, pagination);
+            BaseController.sendPaginated(res, 'Role permissions retrieved successfully', result.data, result.pagination, 'rolePermissions');
         } catch (error: any) {
             console.error('Error fetching role permissions:', error);
             BaseController.sendResponse(res, 500, false, error.message, undefined, error.message);
@@ -31,6 +32,9 @@ export class RolePermissionController extends BaseController {
     static async create(req: Request<ApiResponse<RolePermission>, CreateRolePermissionRequest>, res: Response): Promise<void> {
         try {
             const newRolePermission = await RolePermissionService.createRolePermission(req.body);
+
+            AuditService.logCreate(getAuditContext(req), 'RolePermission', (newRolePermission as any).rolePermissionId || '', `${(req.body as any).roleId}:${(req.body as any).permissionId}`, req.body as any);
+
             BaseController.sendResponse(res, 201, true, 'Role permission created successfully', newRolePermission);
         } catch (error: any) {
             console.error('Error creating role permission:', error);
@@ -52,6 +56,9 @@ export class RolePermissionController extends BaseController {
         try {
             const { id } = req.params;
             const result = await RolePermissionService.deleteRolePermission(id);
+
+            AuditService.logDelete(getAuditContext(req), 'RolePermission', id, id);
+
             BaseController.sendResponse(res, 200, true, 'Role permission deleted successfully', result);
         } catch (error: any) {
             console.error('Error deleting role permission:', error);
@@ -68,6 +75,9 @@ export class RolePermissionController extends BaseController {
     static async bulkAssign(req: Request<ApiResponse<any>, BulkRolePermissionRequest>, res: Response): Promise<void> {
         try {
             const result = await RolePermissionService.bulkAssignPermissions(req.body);
+
+            AuditService.logBulk(getAuditContext(req), 'create', 'RolePermission', (req.body as any).permissionUuids?.length || 0, `Bulk assigned permissions to role ${(req.body as any).roleUuid}`);
+
             BaseController.sendResponse(res, 201, true, 'Permissions assigned successfully', result);
         } catch (error: any) {
             console.error('Error bulk assigning permissions:', error);
@@ -86,6 +96,9 @@ export class RolePermissionController extends BaseController {
     static async bulkRemove(req: Request<ApiResponse<any>, BulkRolePermissionRequest>, res: Response): Promise<void> {
         try {
             const result = await RolePermissionService.bulkRemovePermissions(req.body);
+
+            AuditService.logBulk(getAuditContext(req), 'delete', 'RolePermission', (req.body as any).permissionUuids?.length || 0, `Bulk removed permissions from role ${(req.body as any).roleUuid}`);
+
             BaseController.sendResponse(res, 200, true, 'Permissions removed successfully', result);
         } catch (error: any) {
             console.error('Error bulk removing permissions:', error);
@@ -104,8 +117,9 @@ export class RolePermissionController extends BaseController {
     static async getByRoleUuid(req: Request<{ roleUuid: string }>, res: Response): Promise<void> {
         try {
             const { roleUuid } = req.params;
-            const rolePermissions = await RolePermissionService.getRolePermissionsByRoleUuid(roleUuid);
-            BaseController.sendResponse(res, 200, true, 'Role permissions retrieved successfully', rolePermissions);
+            const pagination = parsePaginationParams(req.query as Record<string, any>);
+            const result = await RolePermissionService.listRolePermissionsByRoleUuid(roleUuid, pagination);
+            BaseController.sendPaginated(res, 'Role permissions retrieved successfully', result.data, result.pagination, 'rolePermissions');
         } catch (error: any) {
             console.error('Error fetching role permissions by role UUID:', error);
             BaseController.sendResponse(res, 500, false, error.message, undefined, error.message);
@@ -115,8 +129,9 @@ export class RolePermissionController extends BaseController {
     static async getByPermissionUuid(req: Request<{ permissionUuid: string }>, res: Response): Promise<void> {
         try {
             const { permissionUuid } = req.params;
-            const rolePermissions = await RolePermissionService.getRolePermissionsByPermissionUuid(permissionUuid);
-            BaseController.sendResponse(res, 200, true, 'Role permissions retrieved successfully', rolePermissions);
+            const pagination = parsePaginationParams(req.query as Record<string, any>);
+            const result = await RolePermissionService.listRolePermissionsByPermissionUuid(permissionUuid, pagination);
+            BaseController.sendPaginated(res, 'Role permissions retrieved successfully', result.data, result.pagination, 'rolePermissions');
         } catch (error: any) {
             console.error('Error fetching role permissions by permission UUID:', error);
             BaseController.sendResponse(res, 500, false, error.message, undefined, error.message);

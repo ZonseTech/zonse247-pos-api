@@ -6,6 +6,8 @@ import { BranchModel } from "../models/branch.model";
 import { TerminalModel } from "../models/terminal.model";
 import { CreateTerminalRequest, Terminal, TerminalWithRelations } from "terminal";
 import { SecureSettingsService } from './secure-settings.service';
+import prisma from '../databases/prisma/client';
+import { PaginationParams, buildPaginationMeta, PaginatedResult } from '../utils/pagination.utils';
 
 /**
  * @class   TerminalService
@@ -30,6 +32,39 @@ export class TerminalService {
                 ...terminal,
                 activationCode: terminal.activationStatus === 'PENDING' ? terminal.activationCode : null,
             }));
+        } catch (error) {
+            throw new Error(`Failed to retrieve terminals: ${error}`);
+        }
+    }
+
+    static async listTerminals(
+        scope: AuthScopeParams = {},
+        pagination: PaginationParams,
+    ): Promise<PaginatedResult<Terminal>> {
+        try {
+            const where: any = {};
+            if (scope.tenantId) where.tenantId = scope.tenantId;
+            if (scope.branchId) where.branchId = scope.branchId;
+
+            const [terminals, total] = await Promise.all([
+                prisma.terminal.findMany({
+                    where,
+                    skip: pagination.skip,
+                    take: pagination.limit,
+                    orderBy: { createdAt: 'desc' },
+                }),
+                prisma.terminal.count({ where }),
+            ]);
+
+            const mapped = (terminals as unknown as Terminal[]).map(terminal => ({
+                ...terminal,
+                activationCode: terminal.activationStatus === 'PENDING' ? terminal.activationCode : null,
+            }));
+
+            return {
+                data: mapped,
+                pagination: buildPaginationMeta(total, pagination.page, pagination.limit),
+            };
         } catch (error) {
             throw new Error(`Failed to retrieve terminals: ${error}`);
         }

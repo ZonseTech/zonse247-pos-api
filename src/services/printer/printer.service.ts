@@ -4,6 +4,8 @@ import { TerminalModel } from '../../models/terminal.model';
 import { ValidationError } from '../../utils/errors';
 import { PrintJobService } from './print-job.service';
 import { PrinterDiscoveryService } from './printer-discovery.service';
+import prisma from '../../databases/prisma/client';
+import { PaginationParams, buildPaginationMeta, PaginatedResult } from '../../utils/pagination.utils';
 import {
     Printer,
     CreatePrinterRequest,
@@ -94,6 +96,45 @@ export class PrinterService {
         if (query.isReportPrinter !== undefined) conditions.isReportPrinter = query.isReportPrinter;
 
         return PrinterModel.findAll(conditions);
+    }
+
+    static async listPrinters(
+        query: PrinterQueryParams = {},
+        tenantId: string,
+        branchId: string | undefined,
+        pagination: PaginationParams,
+    ): Promise<PaginatedResult<Printer>> {
+        const where: any = { tenantId, isActive: true };
+
+        if (branchId) {
+            where.branchId = branchId;
+        } else if (query.branchId) {
+            where.branchId = query.branchId;
+        }
+
+        if (query.terminalId) where.terminalId = query.terminalId;
+        if (query.printerType) where.printerType = query.printerType;
+        if (query.connectionType) where.connectionType = query.connectionType;
+        if (query.status) where.status = query.status;
+        if (query.isReceiptPrinter !== undefined) where.isReceiptPrinter = query.isReceiptPrinter;
+        if (query.isLabelPrinter !== undefined) where.isLabelPrinter = query.isLabelPrinter;
+        if (query.isKitchenPrinter !== undefined) where.isKitchenPrinter = query.isKitchenPrinter;
+        if (query.isReportPrinter !== undefined) where.isReportPrinter = query.isReportPrinter;
+
+        const [printers, total] = await Promise.all([
+            prisma.printer.findMany({
+                where,
+                skip: pagination.skip,
+                take: pagination.limit,
+                orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }],
+            }),
+            prisma.printer.count({ where }),
+        ]);
+
+        return {
+            data: printers as unknown as Printer[],
+            pagination: buildPaginationMeta(total, pagination.page, pagination.limit),
+        };
     }
 
     /**

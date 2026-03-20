@@ -2,6 +2,8 @@ import { Request, Response } from 'express';
 import { BaseController } from './base.controller';
 import { CustomerService } from '../services/customer.service';
 import { CreateCustomerData, SearchConditions, UpdateCustomerData } from 'customer';
+import { parsePaginationParams } from '../utils/pagination.utils';
+import { AuditService, getAuditContext } from '../services/audit.service';
 
 export class CustomerController extends BaseController {
 
@@ -38,8 +40,9 @@ export class CustomerController extends BaseController {
 
     static async list(req: Request, res: Response): Promise<void> {
         try {
-            const customers = await CustomerService.getAllCustomers();
-            BaseController.sendSuccess(res, 'Customers retrieved successfully', customers);
+            const pagination = parsePaginationParams(req.query);
+            const result = await CustomerService.listCustomers(pagination);
+            BaseController.sendPaginated(res, 'Customers retrieved successfully', result.data, result.pagination, 'customers');
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred';
             BaseController.sendServerError(res, 'Failed to retrieve customers', errorMessage);
@@ -71,6 +74,8 @@ export class CustomerController extends BaseController {
 
             const newCustomer = await CustomerService.createCustomer(customerData);
 
+            AuditService.logCreate(getAuditContext(req), 'Customer', (newCustomer as any).customerId || '', customerData.name, customerData as any);
+
             BaseController.sendCreated(res, 'Customer created successfully', newCustomer);
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred';
@@ -98,6 +103,8 @@ export class CustomerController extends BaseController {
                 return BaseController.sendNotFound(res, 'Customer not found');
             }
 
+            AuditService.logUpdate(getAuditContext(req), 'Customer', customerId as string, customerId as string, undefined, updateData as Record<string, unknown>);
+
             BaseController.sendSuccess(res, 'Customer updated successfully');
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred';
@@ -123,6 +130,8 @@ export class CustomerController extends BaseController {
             if (!success) {
                 return BaseController.sendNotFound(res, 'Customer not found');
             }
+
+            AuditService.logDelete(getAuditContext(req), 'Customer', customerId as string, customerId as string);
 
             BaseController.sendSuccess(res, 'Customer deleted successfully');
         } catch (error) {

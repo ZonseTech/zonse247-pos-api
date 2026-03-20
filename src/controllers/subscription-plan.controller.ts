@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import { BaseController } from "./base.controller";
 import { SubscriptionPlanService } from "../services/subscription-plan.service";
-
+import { parsePaginationParams } from "../utils/pagination.utils"; import { AuditService, getAuditContext } from '../services/audit.service';
 export class SubscriptionPlanController extends BaseController {
 
     static async selectAll(req: Request, res: Response): Promise<void> {
@@ -17,18 +17,13 @@ export class SubscriptionPlanController extends BaseController {
     static async list(req: Request, res: Response): Promise<void> {
         try {
             const { isActive } = req.query;
-            let plans;
+            const pagination = parsePaginationParams(req.query);
+            const result = await SubscriptionPlanService.listPlans(
+                pagination,
+                isActive !== undefined ? { isActive: isActive === 'true' } : undefined,
+            );
 
-            if (isActive !== undefined) {
-                const allPlans = await SubscriptionPlanService.getAll();
-                plans = allPlans.filter(plan =>
-                    isActive === 'true' ? plan.isActive : !plan.isActive
-                );
-            } else {
-                plans = await SubscriptionPlanService.getAll();
-            }
-
-            BaseController.sendResponse(res, 200, true, 'Subscription plans retrieved successfully', plans);
+            BaseController.sendPaginated(res, 'Subscription plans retrieved successfully', result.data, result.pagination, 'plans');
         } catch (error: any) {
             console.error('Error fetching subscription plans:', error);
             BaseController.sendResponse(res, 500, false, 'Failed to fetch subscription plans', undefined, error.message);
@@ -55,6 +50,9 @@ export class SubscriptionPlanController extends BaseController {
     static async store(req: Request, res: Response): Promise<void> {
         try {
             const newPlan = await SubscriptionPlanService.create(req.body);
+
+            AuditService.logCreate(getAuditContext(req), 'SubscriptionPlan', (newPlan as any).planId || '', (newPlan as any).name || req.body.name || '', req.body);
+
             BaseController.sendResponse(res, 201, true, 'Subscription plan created successfully', newPlan);
         } catch (error: any) {
             console.error('Error creating subscription plan:', error);
@@ -77,6 +75,8 @@ export class SubscriptionPlanController extends BaseController {
                 BaseController.sendResponse(res, 404, false, 'Subscription plan not found');
                 return;
             }
+
+            AuditService.logUpdate(getAuditContext(req), 'SubscriptionPlan', id as string, (updatedPlan as any).name || id as string, undefined, req.body);
 
             BaseController.sendResponse(res, 200, true, 'Subscription plan updated successfully', updatedPlan);
         } catch (error: any) {
@@ -102,6 +102,8 @@ export class SubscriptionPlanController extends BaseController {
                 BaseController.sendResponse(res, 404, false, 'Subscription plan not found');
                 return;
             }
+
+            AuditService.logDelete(getAuditContext(req), 'SubscriptionPlan', id as string, id as string);
 
             BaseController.sendResponse(res, 200, true, 'Subscription plan deleted successfully');
         } catch (error: any) {

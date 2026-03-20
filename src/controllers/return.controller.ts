@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import { BaseController } from "./base.controller";
 import { ReturnService, ReturnRequest } from "../services/return.service";
 import { AuthRequest } from "../lib/express.type";
-
+import { parsePaginationParams } from "../utils/pagination.utils"; import { AuditService, getAuditContext } from '../services/audit.service';
 export class ReturnController extends BaseController {
 
     /**
@@ -11,15 +11,14 @@ export class ReturnController extends BaseController {
      */
     static async getAllReturns(req: Request & AuthRequest, res: Response): Promise<void> {
         try {
-            const returns = await ReturnService.getAllReturns(req.auth.tenantId, req.auth.activeBranchId || req.auth.branchId);
-
-            BaseController.sendResponse(
-                res,
-                200,
-                true,
-                'Returns retrieved successfully',
-                returns
+            const pagination = parsePaginationParams(req.query);
+            const result = await ReturnService.listReturns(
+                req.auth.tenantId,
+                req.auth.activeBranchId || req.auth.branchId,
+                pagination,
             );
+
+            BaseController.sendPaginated(res, 'Returns retrieved successfully', result.data, result.pagination, 'returns');
         } catch (error: any) {
             console.error('Error getting all returns:', error);
             BaseController.sendResponse(
@@ -56,6 +55,8 @@ export class ReturnController extends BaseController {
                 branchId: req.auth.activeBranchId || req.auth.branchId,
                 userId: req.auth.userId,
             });
+
+            AuditService.logCreate(getAuditContext(req), 'Return', (result as any).returnId || returnRequest.originalSaleId, returnRequest.originalSaleId, { items: returnRequest.items?.length, reason: (returnRequest as any).reason });
 
             BaseController.sendResponse(
                 res,
@@ -199,6 +200,8 @@ export class ReturnController extends BaseController {
                 userId: req.auth.userId,
             });
 
+            AuditService.logStatusChange(getAuditContext(req), 'cancel', 'Return', saleId as string, saleId as string, 'active', 'cancelled');
+
             BaseController.sendResponse(
                 res,
                 200,
@@ -245,6 +248,8 @@ export class ReturnController extends BaseController {
             }
 
             await ReturnService.restockReturnedItems(saleId, restockItems, req.auth);
+
+            AuditService.logUpdate(getAuditContext(req), 'Return', saleId, saleId, undefined, { restockItems: restockItems.length });
 
             BaseController.sendResponse(
                 res,

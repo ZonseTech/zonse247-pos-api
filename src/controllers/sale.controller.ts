@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { BaseController } from './base.controller';
 import { SaleService } from '../services/sale.service';
 import { AuthRequest } from '../lib/express.type';
+import { AuditService, getAuditContext } from '../services/audit.service';
 
 const VALID_SALE_STATUSES: Record<string, string> = {
     'PENDING': 'PENDING',
@@ -60,6 +61,9 @@ export class SaleController extends BaseController {
             const userId = SaleController.getValue(req.body.userId, req.auth.userId);
 
             const sale = await SaleService.createSale(req.body, tenantId, branchId, userId);
+
+            AuditService.logCreate(getAuditContext(req), 'Sale', (sale as any).saleId || '', (sale as any).receiptNumber || 'Sale', { totalAmount: (sale as any).totalAmount });
+
             BaseController.sendResponse(res, 201, true, 'Sale completed successfully', sale);
         } catch (error: any) {
             BaseController.sendResponse(res, 400, false, 'Failed to complete sale', undefined, error.message);
@@ -177,6 +181,8 @@ export class SaleController extends BaseController {
             const { tenantId, branchId } = SaleController.getAuthValues(req.auth);
 
             const sale = await SaleService.voidSale(saleId as string, tenantId, branchId, req.body);
+
+            AuditService.logStatusChange(getAuditContext(req), 'void', 'Sale', saleId as string, saleId as string, 'COMPLETED', 'VOIDED', { reason: req.body.reason });
 
             BaseController.sendResponse(res, 200, true, 'Sale voided successfully', sale);
         } catch (error: any) {

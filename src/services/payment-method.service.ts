@@ -2,6 +2,8 @@ import { v4 as uuidv4 } from 'uuid';
 import { PaymentMethodModel } from '../models/payment-methods.model';
 import { CreatePaymentMethodDto, PaymentMethod, UpdatePaymentMethodDto } from 'payment-method';
 import { PaymentMethodUncheckedCreateInput } from '../databases/prisma/generated/prisma/models';
+import prisma from '../databases/prisma/client';
+import { PaginationParams, buildPaginationMeta, PaginatedResult } from '../utils/pagination.utils';
 
 export class PaymentMethodService {
 
@@ -14,6 +16,39 @@ export class PaymentMethodService {
             return await PaymentMethodModel.findAll();
         } catch (error) {
             console.error('Service: Error getting all payment methods:', error);
+            throw new Error('Failed to retrieve payment methods');
+        }
+    }
+
+    static async listPaymentMethods(
+        pagination: PaginationParams,
+        options?: { search?: string },
+    ): Promise<PaginatedResult<PaymentMethod>> {
+        try {
+            const where: any = {};
+            if (options?.search) {
+                where.OR = [
+                    { name: { contains: options.search } },
+                    { code: { contains: options.search } },
+                ];
+            }
+
+            const [methods, total] = await Promise.all([
+                prisma.paymentMethod.findMany({
+                    where,
+                    skip: pagination.skip,
+                    take: pagination.limit,
+                    orderBy: { sortOrder: 'asc' },
+                }),
+                prisma.paymentMethod.count({ where }),
+            ]);
+
+            return {
+                data: methods as unknown as PaymentMethod[],
+                pagination: buildPaginationMeta(total, pagination.page, pagination.limit),
+            };
+        } catch (error) {
+            console.error('Service: Error listing payment methods:', error);
             throw new Error('Failed to retrieve payment methods');
         }
     }

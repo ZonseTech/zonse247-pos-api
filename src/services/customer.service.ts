@@ -2,6 +2,8 @@ import { v4 as uuidv4 } from 'uuid';
 import validator from 'validator';
 import { CustomerModel } from '../models/customer.model';
 import { CreateCustomerData, Customer, SearchConditions, UpdateCustomerData } from 'customer';
+import prisma from '../databases/prisma/client';
+import { PaginationParams, buildPaginationMeta, PaginatedResult } from '../utils/pagination.utils';
 
 export class CustomerService {
 
@@ -20,6 +22,22 @@ export class CustomerService {
 
     static async getAllCustomers(): Promise<Customer[]> {
         return await CustomerModel.findAll();
+    }
+
+    static async listCustomers(pagination: PaginationParams): Promise<PaginatedResult<Customer>> {
+        const [customers, total] = await Promise.all([
+            prisma.customer.findMany({
+                skip: pagination.skip,
+                take: pagination.limit,
+                orderBy: { createdAt: 'desc' },
+            }),
+            prisma.customer.count(),
+        ]);
+
+        return {
+            data: customers as unknown as Customer[],
+            pagination: buildPaginationMeta(total, pagination.page, pagination.limit),
+        };
     }
 
     static async createCustomer(customerData: CreateCustomerData): Promise<Customer> {
