@@ -100,6 +100,29 @@ export const stockMovementSchemas = {
         perPage: Joi.number().integer().min(1).max(500).optional(),
     }),
 
+    /**
+     * Inventory valuation summary query params
+     */
+    valuationSummaryQuery: Joi.object({
+        page: Joi.number().integer().min(1).optional(),
+        perPage: Joi.number().integer().min(1).max(500).optional(),
+        limit: Joi.number().integer().min(1).max(500).optional(),
+        search: Joi.string().trim().max(100).allow('').optional(),
+        costingMethod: Joi.string().valid('WEIGHTED_AVERAGE', 'FIFO', 'LIFO').optional(),
+    }),
+
+    /**
+     * Gross profit by product query params
+     */
+    grossProfitQuery: Joi.object({
+        startDate: Joi.date().iso().required(),
+        endDate: Joi.date().iso().required(),
+        page: Joi.number().integer().min(1).optional(),
+        perPage: Joi.number().integer().min(1).max(500).optional(),
+        limit: Joi.number().integer().min(1).max(500).optional(),
+        search: Joi.string().trim().max(100).allow('').optional(),
+    }),
+
     // ==========================================================================
     // Stock Adjustment Schemas
     // ==========================================================================
