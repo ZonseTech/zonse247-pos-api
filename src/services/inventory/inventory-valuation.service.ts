@@ -6,6 +6,9 @@ import {
     CreateCostLayerInput,
     InventoryValuationItem,
     InventoryValuationSummary,
+    ValuationSummaryFilters,
+    GrossProfitFilters,
+    GrossProfitByProductItem,
     ChangeCostingMethodInput,
     ChangeCostingMethodResult,
     PeriodCOGSResult,
@@ -15,6 +18,11 @@ import {
     InventoryAgingBucket,
     InventoryAgingItem,
 } from '../../models/inventory-valuation.model';
+import {
+    PaginationParams,
+    PaginatedResult,
+    buildPaginationMeta,
+} from '../../utils/pagination.utils';
 
 /**
  * InventoryValuationService
@@ -279,61 +287,89 @@ export class InventoryValuationService {
     // ──────────────────────────────────────────────────────────────
 
     /**
-     * Compute the full inventory valuation for a branch.
+     * Compute the paginated inventory valuation for a branch.
+     *
+     * Aggregates (totalValue, totalQuantity, etc.) reflect ALL matching
+     * items (not just the current page), while `items` is the paginated slice.
      */
     static async getValuationSummary(
         tenantId: string,
-        branchId: string
-    ): Promise<InventoryValuationSummary> {
-        const inventories = await prisma.inventory.findMany({
-            where: { tenantId, branchId, deletedAt: null },
-            include: {
-                variant: {
-                    include: {
-                        product: {
-                            select: { id: true, name: true },
-                        },
+        branchId: string,
+        pagination: PaginationParams,
+        filters?: ValuationSummaryFilters,
+    ): Promise<PaginatedResult<InventoryValuationItem> & { summary: Omit<InventoryValuationSummary, 'items'> }> {
+        // Build the base where clause
+        const where: any = { tenantId, branchId, deletedAt: null };
+
+        if (filters?.costingMethod) {
+            where.costingMethod = filters.costingMethod;
+        }
+
+        if (filters?.search) {
+            where.OR = [
+                { variant: { sku: { contains: filters.search } } },
+                { variant: { product: { name: { contains: filters.search } } } },
+            ];
+        }
+
+        const include = {
+            variant: {
+                select: {
+                    id: true,
+                    sku: true,
+                    variantName: true,
+                    primaryBarcode: true,
+                    unit: true,
+                    sellingPrice: true,
+                    product: {
+                        select: { id: true, name: true },
                     },
                 },
-                costLayers: {
-                    where: { remainingQuantity: { gt: 0 }, deletedAt: null },
-                    orderBy: { layerDate: 'asc' },
-                },
             },
-        });
+            costLayers: {
+                where: { remainingQuantity: { gt: 0 }, deletedAt: null },
+                orderBy: { layerDate: 'asc' as const },
+            },
+        };
 
+        // Run count + paginated fetch + full aggregate fetch in parallel
+        const [total, inventories, allInventories] = await Promise.all([
+            prisma.inventory.count({ where }),
+            prisma.inventory.findMany({
+                where,
+                include,
+                skip: pagination.skip,
+                take: pagination.limit,
+                orderBy: { createdAt: 'desc' },
+            }),
+            // Fetch all matching rows (without pagination) for aggregate totals
+            prisma.inventory.findMany({
+                where,
+                include,
+            }),
+        ]);
+
+        // Compute aggregate totals from ALL matching items
         let totalQuantity = 0;
         let totalValue = 0;
         let totalWeightedAverageValue = 0;
         let totalFIFOValue = 0;
         let totalLIFOValue = 0;
 
-        const items: InventoryValuationItem[] = inventories.map((inv: any) => {
+        for (const inv of allInventories as any[]) {
             const qty = inv.availableQuantity;
             const avgCost = Number(inv.averageCost) || 0;
             const costingMethod: CostingMethod = inv.costingMethod || 'WEIGHTED_AVERAGE';
 
-            // Weighted Average valuation
             const wacValue = qty * avgCost;
-
-            // FIFO valuation: consume layers oldest-first
             const fifoValue = this.valuateFromLayers(inv.costLayers, qty, 'FIFO');
-
-            // LIFO valuation: consume layers newest-first
             const lifoValue = this.valuateFromLayers(inv.costLayers, qty, 'LIFO');
 
-            // Active value per the item's costing method
             let activeValue: number;
             switch (costingMethod) {
-                case 'FIFO':
-                    activeValue = fifoValue;
-                    break;
-                case 'LIFO':
-                    activeValue = lifoValue;
-                    break;
-                default:
-                    activeValue = wacValue;
-                    break;
+                case 'FIFO': activeValue = fifoValue; break;
+                case 'LIFO': activeValue = lifoValue; break;
+                default: activeValue = wacValue; break;
             }
 
             totalQuantity += qty;
@@ -341,13 +377,35 @@ export class InventoryValuationService {
             totalWeightedAverageValue += wacValue;
             totalFIFOValue += fifoValue;
             totalLIFOValue += lifoValue;
+        }
+
+        // Build paginated item list
+        const items: InventoryValuationItem[] = (inventories as any[]).map((inv) => {
+            const qty = inv.availableQuantity;
+            const avgCost = Number(inv.averageCost) || 0;
+            const costingMethod: CostingMethod = inv.costingMethod || 'WEIGHTED_AVERAGE';
+
+            const wacValue = qty * avgCost;
+            const fifoValue = this.valuateFromLayers(inv.costLayers, qty, 'FIFO');
+            const lifoValue = this.valuateFromLayers(inv.costLayers, qty, 'LIFO');
+
+            let activeValue: number;
+            switch (costingMethod) {
+                case 'FIFO': activeValue = fifoValue; break;
+                case 'LIFO': activeValue = lifoValue; break;
+                default: activeValue = wacValue; break;
+            }
 
             return {
                 inventoryId: inv.id,
                 productId: inv.productId,
                 variantId: inv.variantId,
                 productName: inv.variant?.product?.name ?? 'Unknown',
+                variantName: inv.variant?.variantName ?? null,
                 sku: inv.variant?.sku ?? null,
+                primaryBarcode: inv.variant?.primaryBarcode ?? null,
+                unit: inv.variant?.unit ?? null,
+                sellingPrice: inv.variant?.sellingPrice ? Number(inv.variant.sellingPrice) : null,
                 costingMethod,
                 availableQuantity: qty,
                 totalValue: activeValue,
@@ -358,16 +416,19 @@ export class InventoryValuationService {
         });
 
         return {
-            tenantId,
-            branchId,
-            totalItems: items.length,
-            totalQuantity,
-            totalValue,
-            totalWeightedAverageValue,
-            totalFIFOValue,
-            totalLIFOValue,
-            items,
-            valuationDate: new Date(),
+            data: items,
+            pagination: buildPaginationMeta(total, pagination.page, pagination.limit),
+            summary: {
+                tenantId,
+                branchId,
+                totalItems: total,
+                totalQuantity,
+                totalValue,
+                totalWeightedAverageValue,
+                totalFIFOValue,
+                totalLIFOValue,
+                valuationDate: new Date(),
+            },
         };
     }
 
@@ -658,8 +719,10 @@ export class InventoryValuationService {
         tenantId: string,
         branchId: string,
         startDate: Date,
-        endDate: Date
-    ): Promise<GrossProfitByProductResult> {
+        endDate: Date,
+        pagination: PaginationParams,
+        filters?: GrossProfitFilters,
+    ): Promise<PaginatedResult<GrossProfitByProductItem> & { summary: Omit<GrossProfitByProductResult, 'byProduct'> }> {
         const saleItems = await prisma.saleItem.findMany({
             where: {
                 tenantId,
@@ -679,6 +742,7 @@ export class InventoryValuationService {
                 variant: {
                     select: {
                         sku: true,
+                        variantName: true,
                         product: { select: { name: true } },
                     },
                 },
@@ -693,6 +757,7 @@ export class InventoryValuationService {
             productId: string;
             productName: string;
             variantId: string;
+            variantName: string | null;
             sku: string | null;
             unitsSold: number;
             revenue: number;
@@ -717,6 +782,7 @@ export class InventoryValuationService {
                     productId: item.productId,
                     productName: item.variant?.product?.name ?? 'Unknown',
                     variantId: item.variantId,
+                    variantName: item.variant?.variantName ?? null,
                     sku: item.variant?.sku ?? null,
                     unitsSold: item.quantity,
                     revenue: itemRevenue,
@@ -725,7 +791,7 @@ export class InventoryValuationService {
             }
         }
 
-        const byProduct = Array.from(productMap.values())
+        let allProducts = Array.from(productMap.values())
             .map(p => ({
                 ...p,
                 grossProfit: p.revenue - p.cogs,
@@ -735,21 +801,38 @@ export class InventoryValuationService {
             }))
             .sort((a, b) => b.grossProfit - a.grossProfit);
 
+        // Apply search filter on the aggregated results
+        if (filters?.search) {
+            const term = filters.search.toLowerCase();
+            allProducts = allProducts.filter(p =>
+                p.productName.toLowerCase().includes(term) ||
+                p.variantName?.toLowerCase().includes(term) ||
+                p.sku?.toLowerCase().includes(term)
+            );
+        }
+
         const totalGrossProfit = totalRevenue - totalCOGS;
+        const filteredTotal = allProducts.length;
+
+        // Paginate
+        const paginatedProducts = allProducts.slice(pagination.skip, pagination.skip + pagination.limit);
 
         return {
-            tenantId,
-            branchId,
-            startDate,
-            endDate,
-            totalRevenue,
-            totalCOGS,
-            totalGrossProfit,
-            overallMarginPercent: totalRevenue > 0
-                ? Math.round((totalGrossProfit / totalRevenue) * 10000) / 100
-                : 0,
-            totalUnitsSold,
-            byProduct,
+            data: paginatedProducts,
+            pagination: buildPaginationMeta(filteredTotal, pagination.page, pagination.limit),
+            summary: {
+                tenantId,
+                branchId,
+                startDate,
+                endDate,
+                totalRevenue,
+                totalCOGS,
+                totalGrossProfit,
+                overallMarginPercent: totalRevenue > 0
+                    ? Math.round((totalGrossProfit / totalRevenue) * 10000) / 100
+                    : 0,
+                totalUnitsSold,
+            },
         };
     }
 
