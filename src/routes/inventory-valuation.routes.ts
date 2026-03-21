@@ -65,11 +65,18 @@ router.get(
 
 /**
  * GET /aging
- * Inventory aging analysis — days since last sale, slow/dead stock identification
- * @query [thresholdDays] - Days without sale to flag as slow mover (default 90)
- * @query [branchId]      - Optional branch override
+ * Paginated inventory aging analysis — days since last sale, slow/dead stock
+ * @query [thresholdDays]  - Days without sale to flag as slow mover (default 90)
+ * @query [page]           - Page number (default 1)
+ * @query [perPage|limit]  - Items per page (default 50, max 500)
+ * @query [search]         - Search by product name, variant name, or SKU
+ * @query [statusFilter]   - Filter: active | slow | dead
  */
-router.get('/aging', InventoryValuationController.getInventoryAging);
+router.get(
+    '/aging',
+    validateQuery(stockMovementSchemas.agingQuery),
+    InventoryValuationController.getInventoryAging,
+);
 
 // ──────────────────────────────────────────────────────────────
 // Single-item valuation (must come AFTER literal routes like /aging, /cogs/*)
