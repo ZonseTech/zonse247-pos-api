@@ -9,6 +9,7 @@ import {
     ValuationSummaryFilters,
     GrossProfitFilters,
     GrossProfitByProductItem,
+    InventoryAgingFilters,
     ChangeCostingMethodInput,
     ChangeCostingMethodResult,
     PeriodCOGSResult,
@@ -852,8 +853,10 @@ export class InventoryValuationService {
     static async getInventoryAging(
         tenantId: string,
         branchId: string,
-        thresholdDays = 90
-    ): Promise<InventoryAgingResult> {
+        thresholdDays: number,
+        pagination: PaginationParams,
+        filters?: InventoryAgingFilters,
+    ): Promise<PaginatedResult<InventoryAgingItem> & { summary: InventoryAgingResult }> {
         const inventories = await prisma.inventory.findMany({
             where: {
                 tenantId,
@@ -872,6 +875,7 @@ export class InventoryValuationService {
                 variant: {
                     select: {
                         sku: true,
+                        variantName: true,
                         product: { select: { name: true } },
                     },
                 },
@@ -892,7 +896,7 @@ export class InventoryValuationService {
             never: emptyBucket(),
         };
 
-        const items: InventoryAgingItem[] = [];
+        const allItems: InventoryAgingItem[] = [];
         let totalSlowMovers = 0;
         let totalNeverSold = 0;
         let slowMoverValue = 0;
@@ -943,11 +947,12 @@ export class InventoryValuationService {
                 status = 'active';
             }
 
-            items.push({
+            allItems.push({
                 inventoryId: inv.id,
                 productId: inv.productId,
                 productName: (inv as any).variant?.product?.name ?? 'Unknown',
                 variantId: inv.variantId,
+                variantName: (inv as any).variant?.variantName ?? null,
                 sku: (inv as any).variant?.sku ?? null,
                 availableQuantity: inv.availableQuantity,
                 averageCost: avgCost,
@@ -960,24 +965,45 @@ export class InventoryValuationService {
         }
 
         // Sort: dead first, then slow by most days, then active
-        items.sort((a, b) => {
+        allItems.sort((a, b) => {
             const order = { dead: 0, slow: 1, active: 2 };
             if (order[a.status] !== order[b.status]) return order[a.status] - order[b.status];
-            // Within same status, sort by days desc (most stale first)
             return (b.daysSinceLastSale ?? Infinity) - (a.daysSinceLastSale ?? Infinity);
         });
 
+        // Apply filters
+        let filteredItems = allItems;
+
+        if (filters?.statusFilter) {
+            filteredItems = filteredItems.filter(item => item.status === filters.statusFilter);
+        }
+
+        if (filters?.search) {
+            const term = filters.search.toLowerCase();
+            filteredItems = filteredItems.filter(item =>
+                item.productName.toLowerCase().includes(term) ||
+                item.variantName?.toLowerCase().includes(term) ||
+                item.sku?.toLowerCase().includes(term)
+            );
+        }
+
+        const filteredTotal = filteredItems.length;
+        const paginatedItems = filteredItems.slice(pagination.skip, pagination.skip + pagination.limit);
+
         return {
-            tenantId,
-            branchId,
-            thresholdDays,
-            totalItems: inventories.length,
-            totalSlowMovers,
-            totalNeverSold,
-            slowMoverValue,
-            neverSoldValue,
-            buckets,
-            items,
+            data: paginatedItems,
+            pagination: buildPaginationMeta(filteredTotal, pagination.page, pagination.limit),
+            summary: {
+                tenantId,
+                branchId,
+                thresholdDays,
+                totalItems: inventories.length,
+                totalSlowMovers,
+                totalNeverSold,
+                slowMoverValue,
+                neverSoldValue,
+                buckets,
+            },
         };
     }
 
