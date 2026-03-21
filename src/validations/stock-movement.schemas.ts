@@ -124,6 +124,18 @@ export const stockMovementSchemas = {
     }),
 
     /**
+     * Period COGS query params
+     */
+    periodCOGSQuery: Joi.object({
+        startDate: Joi.date().iso().required(),
+        endDate: Joi.date().iso().required(),
+        page: Joi.number().integer().min(1).optional(),
+        perPage: Joi.number().integer().min(1).max(500).optional(),
+        limit: Joi.number().integer().min(1).max(500).optional(),
+        search: Joi.string().trim().max(100).allow('').optional(),
+    }),
+
+    /**
      * Inventory aging query params
      */
     agingQuery: Joi.object({
