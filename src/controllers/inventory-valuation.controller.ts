@@ -90,30 +90,38 @@ export class InventoryValuationController extends BaseController {
 
     /**
      * GET /inventory-valuation/cogs/period
-     * COGS for a date range, aggregated from the stock movement ledger (SALE movements).
-     * @query startDate - ISO date string (required)
-     * @query endDate   - ISO date string (required)
+     * Paginated COGS for a date range, aggregated from the stock movement ledger (SALE movements).
+     * @query startDate      - ISO date string (required)
+     * @query endDate        - ISO date string (required)
+     * @query page           - Page number (default 1)
+     * @query perPage|limit  - Items per page (default 50, max 500)
+     * @query search         - Search by product name, variant name, or SKU
      */
     static async getPeriodCOGS(req: Request & AuthRequest, res: Response): Promise<void> {
         try {
             const tenantId = req.auth.tenantId;
-            const branchId = (req.query.branchId as string) || req.auth.activeBranchId || req.auth.branchId;
+            const branchId = req.auth.activeBranchId || req.auth.branchId;
             const startDate = req.query.startDate as string;
             const endDate = req.query.endDate as string;
+            const pagination = parsePaginationParams(req.query);
 
-            if (!startDate || !endDate) {
-                BaseController.sendResponse(res, 400, false, 'startDate and endDate query parameters are required');
-                return;
-            }
+            const filters: { search?: string } = {};
+            if (req.query.search) filters.search = req.query.search as string;
 
             const result = await InventoryValuationService.getPeriodCOGS(
                 tenantId,
                 branchId,
                 new Date(startDate),
-                new Date(endDate)
+                new Date(endDate),
+                pagination,
+                filters,
             );
 
-            BaseController.sendResponse(res, 200, true, 'Period COGS retrieved', result);
+            BaseController.sendResponse(res, 200, true, 'Period COGS retrieved', {
+                items: result.data,
+                pagination: result.pagination,
+                summary: result.summary,
+            });
         } catch (error: any) {
             BaseController.sendResponse(res, 500, false, 'Failed to get period COGS', undefined, error.message);
         }
