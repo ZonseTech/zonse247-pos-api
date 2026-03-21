@@ -115,6 +115,21 @@ export interface RecordOpeningBalanceInput {
     openingDate?: Date;
 }
 
+export interface PeriodCOGSProductItem {
+    productId: string;
+    productName: string;
+    variantId: string | null;
+    variantName: string | null;
+    sku: string | null;
+    unitsSold: number;
+    cogs: number;
+}
+
+/** Filters accepted by the period COGS endpoint */
+export interface PeriodCOGSFilters {
+    search?: string;
+}
+
 // ─── Period COGS (from stock movement ledger) ──────────────────
 export interface PeriodCOGSResult {
     tenantId: string;
@@ -128,14 +143,7 @@ export interface PeriodCOGSResult {
     /** Total units sold in the period */
     totalUnitsSold: number;
     /** Per-product breakdown */
-    byProduct: Array<{
-        productId: string;
-        productName: string;
-        variantId: string | null;
-        sku: string | null;
-        unitsSold: number;
-        cogs: number;
-    }>;
+    byProduct: PeriodCOGSProductItem[];
 }
 
 /**
