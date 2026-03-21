@@ -10,6 +10,8 @@ import {
     GrossProfitFilters,
     GrossProfitByProductItem,
     InventoryAgingFilters,
+    PeriodCOGSFilters,
+    PeriodCOGSProductItem,
     ChangeCostingMethodInput,
     ChangeCostingMethodResult,
     PeriodCOGSResult,
@@ -509,8 +511,10 @@ export class InventoryValuationService {
         tenantId: string,
         branchId: string,
         startDate: Date,
-        endDate: Date
-    ): Promise<PeriodCOGSResult> {
+        endDate: Date,
+        pagination: PaginationParams,
+        filters?: PeriodCOGSFilters,
+    ): Promise<PaginatedResult<PeriodCOGSProductItem> & { summary: Omit<PeriodCOGSResult, 'byProduct'> }> {
         // Fetch all SALE movements in the period
         const movements = await prisma.stockMovement.findMany({
             where: {
@@ -562,6 +566,7 @@ export class InventoryValuationService {
                     variant: {
                         select: {
                             sku: true,
+                            variantName: true,
                             product: { select: { name: true } },
                         },
                     },
@@ -571,15 +576,8 @@ export class InventoryValuationService {
 
         const invLookup = new Map(inventories.map((inv: any) => [inv.id, inv]));
 
-        // Merge into per-product breakdown (aggregate by productId)
-        const productMap = new Map<string, {
-            productId: string;
-            productName: string;
-            variantId: string | null;
-            sku: string | null;
-            unitsSold: number;
-            cogs: number;
-        }>();
+        // Merge into per-product breakdown (aggregate by productId + variantId)
+        const productMap = new Map<string, PeriodCOGSProductItem>();
 
         for (const [invId, agg] of inventoryMap) {
             const inv = invLookup.get(invId) as any;
@@ -595,6 +593,7 @@ export class InventoryValuationService {
                     productId,
                     productName: inv?.variant?.product?.name ?? 'Unknown',
                     variantId: inv?.variantId ?? null,
+                    variantName: inv?.variant?.variantName ?? null,
                     sku: inv?.variant?.sku ?? null,
                     unitsSold: agg.unitsSold,
                     cogs: agg.cogs,
@@ -602,17 +601,33 @@ export class InventoryValuationService {
             }
         }
 
-        const byProduct = Array.from(productMap.values()).sort((a, b) => b.cogs - a.cogs);
+        let allProducts = Array.from(productMap.values()).sort((a, b) => b.cogs - a.cogs);
+
+        // Apply search filter
+        if (filters?.search) {
+            const term = filters.search.toLowerCase();
+            allProducts = allProducts.filter(p =>
+                p.productName.toLowerCase().includes(term) ||
+                p.variantName?.toLowerCase().includes(term) ||
+                p.sku?.toLowerCase().includes(term)
+            );
+        }
+
+        const filteredTotal = allProducts.length;
+        const paginatedProducts = allProducts.slice(pagination.skip, pagination.skip + pagination.limit);
 
         return {
-            tenantId,
-            branchId,
-            startDate,
-            endDate,
-            totalCOGS,
-            saleMovementCount: movements.length,
-            totalUnitsSold,
-            byProduct,
+            data: paginatedProducts,
+            pagination: buildPaginationMeta(filteredTotal, pagination.page, pagination.limit),
+            summary: {
+                tenantId,
+                branchId,
+                startDate,
+                endDate,
+                totalCOGS,
+                saleMovementCount: movements.length,
+                totalUnitsSold,
+            },
         };
     }
 
