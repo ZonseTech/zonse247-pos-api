@@ -29,12 +29,18 @@ router.get(
 
 /**
  * GET /cogs/period
- * COGS for a date range from the stock-movement ledger (SALE movements)
- * @query startDate - ISO date (required)
- * @query endDate   - ISO date (required)
- * @query [branchId] - Optional branch override
+ * Paginated COGS for a date range from the stock-movement ledger (SALE movements)
+ * @query startDate      - ISO date (required)
+ * @query endDate        - ISO date (required)
+ * @query [page]         - Page number (default 1)
+ * @query [perPage|limit] - Items per page (default 50, max 500)
+ * @query [search]       - Search by product name, variant name, or SKU
  */
-router.get('/cogs/period', InventoryValuationController.getPeriodCOGS);
+router.get(
+    '/cogs/period',
+    validateQuery(stockMovementSchemas.periodCOGSQuery),
+    InventoryValuationController.getPeriodCOGS,
+);
 
 /**
  * GET /cogs/period-from-sales
