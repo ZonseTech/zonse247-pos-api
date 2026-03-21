@@ -192,24 +192,37 @@ export class InventoryValuationController extends BaseController {
 
     /**
      * GET /inventory-valuation/aging
-     * Inventory aging analysis — buckets by days since last sale, slow/dead stock flags.
-     * @query [thresholdDays] - Days without a sale to flag as slow mover (default 90)
-     * @query [branchId]      - Optional branch override
+     * Paginated inventory aging analysis — buckets by days since last sale, slow/dead stock flags.
+     * @query [thresholdDays]  - Days without a sale to flag as slow mover (default 90)
+     * @query page             - Page number (default 1)
+     * @query perPage|limit    - Items per page (default 50, max 500)
+     * @query [search]         - Search by product name, variant name, or SKU
+     * @query [statusFilter]   - Filter by status: active, slow, or dead
      */
     static async getInventoryAging(req: Request & AuthRequest, res: Response): Promise<void> {
         try {
             const tenantId = req.auth.tenantId;
-            const branchId = (req.query.branchId as string) || req.auth.activeBranchId || req.auth.branchId;
+            const branchId = req.auth.activeBranchId || req.auth.branchId;
             const thresholdDays = req.query.thresholdDays ? parseInt(req.query.thresholdDays as string, 10) : 90;
+            const pagination = parsePaginationParams(req.query);
 
-            if (isNaN(thresholdDays) || thresholdDays < 1) {
-                BaseController.sendResponse(res, 400, false, 'thresholdDays must be a positive integer');
-                return;
-            }
+            const filters: { search?: string; statusFilter?: 'active' | 'slow' | 'dead' } = {};
+            if (req.query.search) filters.search = req.query.search as string;
+            if (req.query.statusFilter) filters.statusFilter = req.query.statusFilter as 'active' | 'slow' | 'dead';
 
-            const result = await InventoryValuationService.getInventoryAging(tenantId, branchId, thresholdDays);
+            const result = await InventoryValuationService.getInventoryAging(
+                tenantId,
+                branchId,
+                thresholdDays,
+                pagination,
+                filters,
+            );
 
-            BaseController.sendResponse(res, 200, true, 'Inventory aging analysis retrieved', result);
+            BaseController.sendResponse(res, 200, true, 'Inventory aging analysis retrieved', {
+                items: result.data,
+                pagination: result.pagination,
+                summary: result.summary,
+            });
         } catch (error: any) {
             BaseController.sendResponse(res, 500, false, 'Failed to get inventory aging', undefined, error.message);
         }
