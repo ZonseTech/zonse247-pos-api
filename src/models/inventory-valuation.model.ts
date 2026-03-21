@@ -205,6 +205,12 @@ export interface GrossProfitByProductResult {
     byProduct: GrossProfitByProductItem[];
 }
 
+/** Filters accepted by the aging endpoint */
+export interface InventoryAgingFilters {
+    search?: string;
+    statusFilter?: 'active' | 'slow' | 'dead';
+}
+
 /**
  * Inventory aging / slow-mover analysis.
  * Groups inventory by days since last sale, with stock-value-at-risk.
@@ -231,8 +237,6 @@ export interface InventoryAgingResult {
         '365+': InventoryAgingBucket;
         never: InventoryAgingBucket;
     };
-    /** Detailed items flagged as slow movers (> thresholdDays since last sale or never sold) */
-    items: InventoryAgingItem[];
 }
 
 export interface InventoryAgingBucket {
@@ -246,6 +250,7 @@ export interface InventoryAgingItem {
     productId: string;
     productName: string;
     variantId: string | null;
+    variantName: string | null;
     sku: string | null;
     availableQuantity: number;
     averageCost: number;
