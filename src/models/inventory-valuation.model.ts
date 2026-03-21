@@ -61,7 +61,11 @@ export interface InventoryValuationItem {
     productId: string;
     variantId: string | null;
     productName: string;
+    variantName: string | null;
     sku: string | null;
+    primaryBarcode: string | null;
+    unit: string | null;
+    sellingPrice: number | null;
     costingMethod: CostingMethod;
     availableQuantity: number;
     /** Value per the item's costing method */
@@ -89,6 +93,12 @@ export interface InventoryValuationSummary {
     totalLIFOValue: number;
     items: InventoryValuationItem[];
     valuationDate: Date;
+}
+
+/** Filters accepted by the valuation summary endpoint */
+export interface ValuationSummaryFilters {
+    search?: string;
+    costingMethod?: CostingMethod;
 }
 
 // ─── Opening Balance Input ────────────────────────────────────────
@@ -154,6 +164,24 @@ export interface PeriodCOGSFromSalesResult {
     }>;
 }
 
+/** Filters accepted by the gross-profit/by-product endpoint */
+export interface GrossProfitFilters {
+    search?: string;
+}
+
+export interface GrossProfitByProductItem {
+    productId: string;
+    productName: string;
+    variantId: string;
+    variantName: string | null;
+    sku: string | null;
+    unitsSold: number;
+    revenue: number;
+    cogs: number;
+    grossProfit: number;
+    marginPercent: number;
+}
+
 /**
  * Gross Profit by Product for a date range.
  * Revenue and COGS sourced from sale_items; profit = revenue - COGS.
@@ -174,17 +202,7 @@ export interface GrossProfitByProductResult {
     /** Total units sold */
     totalUnitsSold: number;
     /** Per-product breakdown sorted by gross profit descending */
-    byProduct: Array<{
-        productId: string;
-        productName: string;
-        variantId: string;
-        sku: string | null;
-        unitsSold: number;
-        revenue: number;
-        cogs: number;
-        grossProfit: number;
-        marginPercent: number;
-    }>;
+    byProduct: GrossProfitByProductItem[];
 }
 
 /**
