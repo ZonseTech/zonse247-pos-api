@@ -56,6 +56,18 @@ export const inventoryValidationSchemas = {
         isActive: Joi.boolean().optional(),
     }),
 
+    /**
+     * List suppliers query params
+     */
+    listSuppliersQuery: Joi.object({
+        page: Joi.number().integer().min(1).optional(),
+        perPage: Joi.number().integer().min(1).max(500).optional(),
+        limit: Joi.number().integer().min(1).max(500).optional(),
+        search: Joi.string().trim().max(100).allow('').optional(),
+        status: Joi.string().valid('ACTIVE', 'INACTIVE', 'SUSPENDED').optional(),
+        includeInactive: Joi.string().valid('true', 'false').optional(),
+    }),
+
     // Purchase Order schemas
     createPurchaseOrder: Joi.object({
         tenantId: Joi.string().uuid().required(),
