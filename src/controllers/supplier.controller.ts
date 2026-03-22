@@ -3,6 +3,7 @@ import { BaseController } from './base.controller';
 import { SupplierService } from '../services/supplier.service';
 import { AuthRequest } from '../lib/express.type';
 import { AuditService, getAuditContext } from '../services/audit.service';
+import { parsePaginationParams, buildPaginationMeta } from '../utils/pagination.utils';
 
 export class SupplierController extends BaseController {
     /**
@@ -46,30 +47,38 @@ export class SupplierController extends BaseController {
 
     /**
      * List all suppliers
+     * @query page            - Page number (default 1)
+     * @query perPage|limit   - Items per page (default 50, max 500)
+     * @query search          - Search by name, contact person, email, or phone
+     * @query status          - Filter by status: ACTIVE, INACTIVE, SUSPENDED
+     * @query includeInactive - Include inactive suppliers (true/false)
      */
     static async listSuppliers(req: Request & AuthRequest, res: Response): Promise<void> {
         try {
-            const { includeInactive } = req.query;
-            const page = parseInt(req.query.page as string) || 1;
-            const perPage = parseInt(req.query.perPage as string) || 50;
+            const pagination = parsePaginationParams(req.query);
+            const includeInactive = req.query.includeInactive === 'true';
+            const search = req.query.search as string | undefined;
+            const status = req.query.status as string | undefined;
 
-            const { suppliers, total, totalPages } = await SupplierService.listSuppliers(
+            const { suppliers, total } = await SupplierService.listSuppliers(
                 req.auth.tenantId,
                 req.auth.activeBranchId || req.auth.branchId,
-                includeInactive === 'true',
-                page,
-                perPage
+                {
+                    includeInactive,
+                    search,
+                    status,
+                    skip: pagination.skip,
+                    limit: pagination.limit,
+                },
             );
 
-            BaseController.sendResponse(res, 200, true, 'Suppliers retrieved successfully', {
+            BaseController.sendPaginated(
+                res,
+                'Suppliers retrieved successfully',
                 suppliers,
-                pagination: {
-                    currentPage: page,
-                    totalPages,
-                    totalItems: total,
-                    itemsPerPage: perPage
-                }
-            });
+                buildPaginationMeta(total, pagination.page, pagination.limit),
+                'suppliers',
+            );
         } catch (error: any) {
             BaseController.sendResponse(res, 400, false, 'Failed to list suppliers', undefined, error.message);
         }
