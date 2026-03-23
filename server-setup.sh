@@ -52,7 +52,7 @@ echo "🔧 Configuring Nginx..."
 sudo tee /etc/nginx/sites-available/api > /dev/null <<EOF
 server {
     listen 80;
-    server_name api.zonse247.com;
+    server_name your-domain.com; # Replace with your domain
 
     # Security headers
     add_header X-Frame-Options "SAMEORIGIN" always;
@@ -64,7 +64,7 @@ server {
     gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
 
     location / {
-        proxy_pass http://localhost:3000;
+        proxy_pass http://localhost:3001;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
         proxy_set_header Connection 'upgrade';
@@ -104,6 +104,7 @@ sudo apt install -y fail2ban
 
 echo "✓ Server setup completed!"
 echo "📝 Next steps:"
-echo "   1. Setup SSL with Certbot: sudo certbot --nginx -d api.zonse247.com"
+echo "   1. Update /etc/nginx/sites-available/api with your domain"
+echo "   2. Setup SSL with Certbot: sudo certbot --nginx"
 echo "   3. Deploy your application using deploy.sh"
 echo "   4. Configure /var/www/api/.env with DATABASE_URL=mysql://root:Ccera-2017@localhost:3306/pos"
