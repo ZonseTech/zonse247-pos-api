@@ -8,8 +8,8 @@ echo "🚀 Starting deployment..."
 
 # Environment variables
 APP_NAME="api"
-APP_DIR="/var/www/$APP_NAME"
-BACKUP_DIR="/var/backups/$APP_NAME"
+APP_DIR="/var/www/api"
+BACKUP_DIR="/var/backups/api"
 NODE_ENV=${1:-production}
 
 echo "📦 Deploying $APP_NAME to $APP_DIR"

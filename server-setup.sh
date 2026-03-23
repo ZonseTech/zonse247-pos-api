@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Digital Ocean Server Setup Script
+# Ubuntu Server Setup Script
 
 set -e
 
@@ -23,24 +23,36 @@ sudo npm install -g pm2
 echo "📥 Installing Nginx..."
 sudo apt install -y nginx
 
+# Install MySQL
+echo "📥 Installing MySQL..."
+sudo apt install -y mysql-server
+sudo systemctl start mysql
+sudo systemctl enable mysql
+
+# Setup MySQL database
+echo "🗃️ Setting up MySQL database..."
+sudo mysql -e "CREATE DATABASE IF NOT EXISTS pos;"
+sudo mysql -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY 'Ccera-2017';"
+sudo mysql -e "FLUSH PRIVILEGES;"
+
 # Create application directory
 echo "📁 Creating application directories..."
-sudo mkdir -p /var/www/zonse247-pos-api
-sudo mkdir -p /var/backups/zonse247-pos-api
-sudo mkdir -p /var/www/zonse247-pos-api/logs
+sudo mkdir -p /var/www/api
+sudo mkdir -p /var/backups/api
+sudo mkdir -p /var/www/api/logs
 
 # Set permissions
 echo "🔐 Setting permissions..."
-sudo chown -R $USER:www-data /var/www/zonse247-pos-api
-sudo chmod -R 755 /var/www/zonse247-pos-api
-sudo chmod -R 775 /var/www/zonse247-pos-api/logs
+sudo chown -R $USER:www-data /var/www/api
+sudo chmod -R 755 /var/www/api
+sudo chmod -R 775 /var/www/api/logs
 
 # Setup Nginx
 echo "🔧 Configuring Nginx..."
-sudo tee /etc/nginx/sites-available/zonse247-pos-api > /dev/null <<EOF
+sudo tee /etc/nginx/sites-available/api > /dev/null <<EOF
 server {
     listen 80;
-    server_name your-domain.com; # Replace with your domain
+    server_name api.zonse247.com;
 
     # Security headers
     add_header X-Frame-Options "SAMEORIGIN" always;
@@ -68,7 +80,7 @@ server {
 
     # Static files (if needed)
     location /static/ {
-        alias /var/www/zonse247-pos-api/dist/static/;
+        alias /var/www/api/dist/static/;
         expires 1y;
         add_header Cache-Control "public, immutable";
     }
@@ -76,7 +88,7 @@ server {
 EOF
 
 # Enable site
-sudo ln -sf /etc/nginx/sites-available/zonse247-pos-api /etc/nginx/sites-enabled/
+sudo ln -sf /etc/nginx/sites-available/api /etc/nginx/sites-enabled/
 sudo nginx -t
 sudo systemctl reload nginx
 
@@ -92,6 +104,6 @@ sudo apt install -y fail2ban
 
 echo "✓ Server setup completed!"
 echo "📝 Next steps:"
-echo "   1. Update /etc/nginx/sites-available/zonse247-pos-api with your domain"
-echo "   2. Setup SSL with Certbot: sudo certbot --nginx"
+echo "   1. Setup SSL with Certbot: sudo certbot --nginx -d api.zonse247.com"
 echo "   3. Deploy your application using deploy.sh"
+echo "   4. Configure /var/www/api/.env with DATABASE_URL=mysql://root:Ccera-2017@localhost:3306/pos"
