@@ -80,15 +80,17 @@ sudo chmod 600 $APP_DIR/.env  # Ensure .env is protected
 
 # Install dependencies
 echo "📦 Installing dependencies..."
-npm ci --only=production
+npm ci
 
 # Build the application
 echo "🔨 Building application..."
-npm run build
+npm run build:mysql
 
-# Run database migrations (if any)
+# Run database migrations
 echo "🗃️ Running database migrations..."
-# npm run migrate
+chmod +x ./scripts/db.sh
+./scripts/db.sh generate mysql
+./scripts/db.sh deploy mysql
 
 # Restart application with PM2
 echo "🔄 Restarting application..."
