@@ -52,7 +52,7 @@ echo "🔧 Configuring Nginx..."
 sudo tee /etc/nginx/sites-available/api > /dev/null <<EOF
 server {
     listen 80;
-    server_name your-domain.com; # Replace with your domain
+    server_name api.zonse.com; # Replace with your domain
 
     # Security headers
     add_header X-Frame-Options "SAMEORIGIN" always;
