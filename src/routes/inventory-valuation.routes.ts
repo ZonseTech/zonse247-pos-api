@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { InventoryValuationController } from '../controllers/inventory-valuation.controller';
-import { validateBody } from '../middlewares/validation.middleware';
+import { validateBody, validateQuery } from '../middlewares/validation.middleware';
 import { stockMovementSchemas } from '../validations/stock-movement.schemas';
 
 const router = Router();
@@ -10,10 +10,18 @@ const router = Router();
 // ──────────────────────────────────────────────────────────────
 
 /**
- * GET /
- * Full branch inventory valuation summary (WAC, FIFO, LIFO)
+ * GET /summary
+ * Paginated branch inventory valuation summary (WAC, FIFO, LIFO)
+ * @query page           - Page number (default 1)
+ * @query perPage|limit  - Items per page (default 50, max 500)
+ * @query search         - Search by product name or SKU
+ * @query costingMethod  - Filter: WEIGHTED_AVERAGE | FIFO | LIFO
  */
-router.get('/summary', InventoryValuationController.getValuationSummary);
+router.get(
+    '/summary',
+    validateQuery(stockMovementSchemas.valuationSummaryQuery),
+    InventoryValuationController.getValuationSummary,
+);
 
 // ──────────────────────────────────────────────────────────────
 // COGS
@@ -21,12 +29,18 @@ router.get('/summary', InventoryValuationController.getValuationSummary);
 
 /**
  * GET /cogs/period
- * COGS for a date range from the stock-movement ledger (SALE movements)
- * @query startDate - ISO date (required)
- * @query endDate   - ISO date (required)
- * @query [branchId] - Optional branch override
+ * Paginated COGS for a date range from the stock-movement ledger (SALE movements)
+ * @query startDate      - ISO date (required)
+ * @query endDate        - ISO date (required)
+ * @query [page]         - Page number (default 1)
+ * @query [perPage|limit] - Items per page (default 50, max 500)
+ * @query [search]       - Search by product name, variant name, or SKU
  */
-router.get('/cogs/period', InventoryValuationController.getPeriodCOGS);
+router.get(
+    '/cogs/period',
+    validateQuery(stockMovementSchemas.periodCOGSQuery),
+    InventoryValuationController.getPeriodCOGS,
+);
 
 /**
  * GET /cogs/period-from-sales
@@ -40,21 +54,35 @@ router.get('/cogs/period-from-sales', InventoryValuationController.getPeriodCOGS
 
 /**
  * GET /gross-profit/by-product
- * Gross profit per product/variant for a date range
+ * Paginated gross profit per product/variant for a date range
  * Revenue from sale_items.totalAmount, COGS from sale_items.unitCost × quantity
- * @query startDate  - ISO date (required)
- * @query endDate    - ISO date (required)
- * @query [branchId] - Optional branch override
+ * @query startDate      - ISO date (required)
+ * @query endDate        - ISO date (required)
+ * @query [branchId]     - Optional branch override
+ * @query [page]         - Page number (default 1)
+ * @query [perPage|limit] - Items per page (default 50, max 500)
+ * @query [search]       - Search by product name, variant name, or SKU
  */
-router.get('/gross-profit/by-product', InventoryValuationController.getGrossProfitByProduct);
+router.get(
+    '/gross-profit/by-product',
+    validateQuery(stockMovementSchemas.grossProfitQuery),
+    InventoryValuationController.getGrossProfitByProduct,
+);
 
 /**
  * GET /aging
- * Inventory aging analysis — days since last sale, slow/dead stock identification
- * @query [thresholdDays] - Days without sale to flag as slow mover (default 90)
- * @query [branchId]      - Optional branch override
+ * Paginated inventory aging analysis — days since last sale, slow/dead stock
+ * @query [thresholdDays]  - Days without sale to flag as slow mover (default 90)
+ * @query [page]           - Page number (default 1)
+ * @query [perPage|limit]  - Items per page (default 50, max 500)
+ * @query [search]         - Search by product name, variant name, or SKU
+ * @query [statusFilter]   - Filter: active | slow | dead
  */
-router.get('/aging', InventoryValuationController.getInventoryAging);
+router.get(
+    '/aging',
+    validateQuery(stockMovementSchemas.agingQuery),
+    InventoryValuationController.getInventoryAging,
+);
 
 // ──────────────────────────────────────────────────────────────
 // Single-item valuation (must come AFTER literal routes like /aging, /cogs/*)

@@ -41,6 +41,15 @@ export interface ServerStatus {
     environment: string;
 }
 
+export interface RemoteServerStatus {
+    reachable: boolean;
+    url: string;
+    latencyMs: number;
+    statusCode: number | null;
+    lastChecked: string;
+    error?: string;
+}
+
 // ─── Socket Auth ────────────────────────────────────────────────────
 
 export interface SocketAuthPayload {
@@ -123,6 +132,7 @@ export interface ClientToServerEvents {
     'terminal:status_change': (payload: { status: TerminalOnlineStatus }) => void;
     'terminal:list': (payload: TerminalListRequest, callback: (response: TerminalListResponse) => void) => void;
     'server:status': (callback: (status: ServerStatus) => void) => void;
+    'server:remote_status': (callback: (status: RemoteServerStatus) => void) => void;
     'branch:notification': (payload: BranchNotification) => void;
 }
 
@@ -135,6 +145,7 @@ export interface ServerToClientEvents {
     'terminal:idle': (payload: TerminalStatusChangePayload) => void;
     'terminal:list_update': (payload: TerminalListResponse) => void;
     'server:status': (payload: ServerStatus) => void;
+    'server:remote_status': (payload: RemoteServerStatus) => void;
     'server:maintenance': (payload: { message: string; estimatedDowntime?: number }) => void;
     'branch:notification': (payload: BranchNotification) => void;
     'terminal:force_disconnect': (payload: ForceDisconnectPayload) => void;

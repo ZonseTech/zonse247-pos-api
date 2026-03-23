@@ -60,6 +60,7 @@ export {
 export {
     SocketService,
     TerminalPresenceManager,
+    RemoteHealthMonitor,
 } from './services/socket';
 
 export type {
@@ -69,6 +70,7 @@ export type {
     TerminalListResponse,
     TerminalStatusChangePayload,
     ServerStatus,
+    RemoteServerStatus,
     SocketAuthPayload,
     HeartbeatPayload,
     HeartbeatAck,

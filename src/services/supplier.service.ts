@@ -54,34 +54,49 @@ export class SupplierService {
     static async listSuppliers(
         tenantId: string,
         branchId: string,
-        includeInactive = false,
-        page = 1,
-        perPage = 50
-    ): Promise<{ suppliers: Supplier[]; total: number; totalPages: number }> {
-        const skip = (page - 1) * perPage;
-
-        const where = {
+        options: {
+            includeInactive?: boolean;
+            search?: string;
+            status?: string;
+            skip: number;
+            limit: number;
+        },
+    ): Promise<{ suppliers: Supplier[]; total: number }> {
+        const where: any = {
             tenantId,
             branchId,
-            isActive: includeInactive ? undefined : true,
         };
+
+        if (!options.includeInactive) {
+            where.isActive = true;
+        }
+
+        if (options.status) {
+            where.status = options.status;
+        }
+
+        if (options.search) {
+            where.OR = [
+                { name: { contains: options.search } },
+                { contactPerson: { contains: options.search } },
+                { email: { contains: options.search } },
+                { phone: { contains: options.search } },
+            ];
+        }
 
         const [suppliers, total] = await Promise.all([
             prisma.supplier.findMany({
                 where,
                 orderBy: { name: 'asc' },
-                skip,
-                take: perPage,
+                skip: options.skip,
+                take: options.limit,
             }),
             prisma.supplier.count({ where }),
         ]);
 
-        const totalPages = Math.ceil(total / perPage);
-
         return {
             suppliers: suppliers.map((s) => this.mapSupplier(s)),
             total,
-            totalPages,
         };
     }
 

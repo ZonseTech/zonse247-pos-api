@@ -61,7 +61,11 @@ export interface InventoryValuationItem {
     productId: string;
     variantId: string | null;
     productName: string;
+    variantName: string | null;
     sku: string | null;
+    primaryBarcode: string | null;
+    unit: string | null;
+    sellingPrice: number | null;
     costingMethod: CostingMethod;
     availableQuantity: number;
     /** Value per the item's costing method */
@@ -91,6 +95,12 @@ export interface InventoryValuationSummary {
     valuationDate: Date;
 }
 
+/** Filters accepted by the valuation summary endpoint */
+export interface ValuationSummaryFilters {
+    search?: string;
+    costingMethod?: CostingMethod;
+}
+
 // ─── Opening Balance Input ────────────────────────────────────────
 export interface RecordOpeningBalanceInput {
     tenantId: string;
@@ -103,6 +113,21 @@ export interface RecordOpeningBalanceInput {
     movedBy: string;
     /** Optional date for the opening balance (defaults to now) */
     openingDate?: Date;
+}
+
+export interface PeriodCOGSProductItem {
+    productId: string;
+    productName: string;
+    variantId: string | null;
+    variantName: string | null;
+    sku: string | null;
+    unitsSold: number;
+    cogs: number;
+}
+
+/** Filters accepted by the period COGS endpoint */
+export interface PeriodCOGSFilters {
+    search?: string;
 }
 
 // ─── Period COGS (from stock movement ledger) ──────────────────
@@ -118,14 +143,7 @@ export interface PeriodCOGSResult {
     /** Total units sold in the period */
     totalUnitsSold: number;
     /** Per-product breakdown */
-    byProduct: Array<{
-        productId: string;
-        productName: string;
-        variantId: string | null;
-        sku: string | null;
-        unitsSold: number;
-        cogs: number;
-    }>;
+    byProduct: PeriodCOGSProductItem[];
 }
 
 /**
@@ -154,6 +172,24 @@ export interface PeriodCOGSFromSalesResult {
     }>;
 }
 
+/** Filters accepted by the gross-profit/by-product endpoint */
+export interface GrossProfitFilters {
+    search?: string;
+}
+
+export interface GrossProfitByProductItem {
+    productId: string;
+    productName: string;
+    variantId: string;
+    variantName: string | null;
+    sku: string | null;
+    unitsSold: number;
+    revenue: number;
+    cogs: number;
+    grossProfit: number;
+    marginPercent: number;
+}
+
 /**
  * Gross Profit by Product for a date range.
  * Revenue and COGS sourced from sale_items; profit = revenue - COGS.
@@ -174,17 +210,13 @@ export interface GrossProfitByProductResult {
     /** Total units sold */
     totalUnitsSold: number;
     /** Per-product breakdown sorted by gross profit descending */
-    byProduct: Array<{
-        productId: string;
-        productName: string;
-        variantId: string;
-        sku: string | null;
-        unitsSold: number;
-        revenue: number;
-        cogs: number;
-        grossProfit: number;
-        marginPercent: number;
-    }>;
+    byProduct: GrossProfitByProductItem[];
+}
+
+/** Filters accepted by the aging endpoint */
+export interface InventoryAgingFilters {
+    search?: string;
+    statusFilter?: 'active' | 'slow' | 'dead';
 }
 
 /**
@@ -213,8 +245,6 @@ export interface InventoryAgingResult {
         '365+': InventoryAgingBucket;
         never: InventoryAgingBucket;
     };
-    /** Detailed items flagged as slow movers (> thresholdDays since last sale or never sold) */
-    items: InventoryAgingItem[];
 }
 
 export interface InventoryAgingBucket {
@@ -228,6 +258,7 @@ export interface InventoryAgingItem {
     productId: string;
     productName: string;
     variantId: string | null;
+    variantName: string | null;
     sku: string | null;
     availableQuantity: number;
     averageCost: number;

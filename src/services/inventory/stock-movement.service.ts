@@ -1279,6 +1279,7 @@ export class StockMovementService {
             inventory: {
                 variant: movement.inventory?.variant ? {
                     id: movement.inventory.variant.id,
+                    variantName: movement.inventory.variant.variantName,
                     sku: movement.inventory.variant.sku,
                 } : null,
                 product: product ? {

@@ -2,6 +2,12 @@
  * @file    Terminal presence manager
  * @desc    Tracks connected terminals in-memory with heartbeat monitoring.
  *          Provides real-time terminal online/offline status across branches.
+ *
+ * Performance:
+ *   - O(1) lookup by terminalId (primary Map)
+ *   - O(1) lookup by branch via secondary index (Set per branch)
+ *   - Numeric timestamps (Date.now()) for internal comparisons — no Date allocations
+ *   - Incremental online count — no full scans on every query
  */
 
 import type {
@@ -21,19 +27,42 @@ const IDLE_THRESHOLD = 60_000;
 /** Terminal is "offline" after this many ms without a heartbeat */
 const OFFLINE_THRESHOLD = 120_000;
 
+/** Internal terminal record — uses numeric timestamps for perf */
+interface InternalTerminal {
+    terminalId: string;
+    tenantId: string;
+    branchId: string;
+    userId: string;
+    username: string;
+    terminalLabel: string;
+    status: TerminalOnlineStatus;
+    connectedAt: number;
+    lastHeartbeat: number;
+    socketId: string;
+    metadata?: TerminalMetadata;
+}
+
 /**
  * @class   TerminalPresenceManager
  * @desc    Singleton that manages the in-memory registry of connected terminals.
- *          Indexed by terminalId for O(1) lookups.
  *
- * Usage:
- *   const presence = TerminalPresenceManager.getInstance();
- *   presence.register({ terminalId, ... });
- *   presence.getOnlineTerminals(branchId);
+ * Indexes:
+ *   - terminals:      Map<terminalId, InternalTerminal>  — primary
+ *   - branchIndex:    Map<"tenantId:branchId", Set<terminalId>>  — secondary
+ *   - tenantIndex:    Map<tenantId, Set<terminalId>>  — secondary
  */
 export class TerminalPresenceManager {
     private static instance: TerminalPresenceManager;
-    private terminals: Map<string, ConnectedTerminal> = new Map();
+
+    /** Primary index: terminalId → terminal data */
+    private terminals: Map<string, InternalTerminal> = new Map();
+
+    /** Secondary index: "tenantId:branchId" → Set of terminalIds */
+    private branchIndex: Map<string, Set<string>> = new Map();
+
+    /** Secondary index: tenantId → Set of terminalIds */
+    private tenantIndex: Map<string, Set<string>> = new Map();
+
     private staleCheckTimer: ReturnType<typeof setInterval> | null = null;
     private onStatusChange?: (payload: TerminalStatusChangePayload) => void;
 
@@ -50,42 +79,31 @@ export class TerminalPresenceManager {
 
     // ─── Lifecycle ──────────────────────────────────────────────
 
-    /**
-     * Start periodic stale-terminal detection.
-     * Call this once when the socket server initializes.
-     */
     startMonitoring(onStatusChange: (payload: TerminalStatusChangePayload) => void): void {
         this.onStatusChange = onStatusChange;
-
         if (this.staleCheckTimer) return;
 
         this.staleCheckTimer = setInterval(() => {
             this.checkStaleTerminals();
         }, STALE_CHECK_INTERVAL);
 
-        // Don't prevent Node from exiting
         if (this.staleCheckTimer.unref) {
             this.staleCheckTimer.unref();
         }
     }
 
-    /**
-     * Stop monitoring and clear all terminals.
-     * Call this on server shutdown.
-     */
     stopMonitoring(): void {
         if (this.staleCheckTimer) {
             clearInterval(this.staleCheckTimer);
             this.staleCheckTimer = null;
         }
         this.terminals.clear();
+        this.branchIndex.clear();
+        this.tenantIndex.clear();
     }
 
     // ─── Registration ───────────────────────────────────────────
 
-    /**
-     * Register a terminal as online.
-     */
     register(params: {
         terminalId: string;
         tenantId: string;
@@ -95,8 +113,10 @@ export class TerminalPresenceManager {
         terminalLabel: string;
         socketId: string;
         metadata?: TerminalMetadata;
-    }): ConnectedTerminal {
-        const terminal: ConnectedTerminal = {
+    }): void {
+        const now = Date.now();
+
+        const terminal: InternalTerminal = {
             terminalId: params.terminalId,
             tenantId: params.tenantId,
             branchId: params.branchId,
@@ -104,43 +124,35 @@ export class TerminalPresenceManager {
             username: params.username,
             terminalLabel: params.terminalLabel,
             status: 'online',
-            connectedAt: new Date(),
-            lastHeartbeat: new Date(),
+            connectedAt: now,
+            lastHeartbeat: now,
             socketId: params.socketId,
             metadata: params.metadata,
         };
 
         this.terminals.set(params.terminalId, terminal);
-        return terminal;
+        this.addToIndex(params.tenantId, params.branchId, params.terminalId);
     }
 
-    /**
-     * Unregister a terminal (disconnected).
-     * Returns the terminal data before removal, or null if not found.
-     */
-    unregister(terminalId: string): ConnectedTerminal | null {
+    unregister(terminalId: string): InternalTerminal | null {
         const terminal = this.terminals.get(terminalId);
-        if (terminal) {
-            this.terminals.delete(terminalId);
-        }
-        return terminal || null;
+        if (!terminal) return null;
+
+        this.terminals.delete(terminalId);
+        this.removeFromIndex(terminal.tenantId, terminal.branchId, terminalId);
+        return terminal;
     }
 
     // ─── Heartbeat ──────────────────────────────────────────────
 
-    /**
-     * Update heartbeat timestamp for a terminal.
-     * Resets status to 'online' if it was 'idle'.
-     */
     heartbeat(terminalId: string): boolean {
         const terminal = this.terminals.get(terminalId);
         if (!terminal) return false;
 
         const previousStatus = terminal.status;
-        terminal.lastHeartbeat = new Date();
+        terminal.lastHeartbeat = Date.now();
         terminal.status = 'online';
 
-        // If status changed from idle → online, notify
         if (previousStatus !== 'online' && this.onStatusChange) {
             this.onStatusChange(this.buildStatusPayload(terminal));
         }
@@ -148,15 +160,12 @@ export class TerminalPresenceManager {
         return true;
     }
 
-    /**
-     * Update terminal status explicitly (e.g. user sets idle).
-     */
     updateStatus(terminalId: string, status: TerminalOnlineStatus): boolean {
         const terminal = this.terminals.get(terminalId);
         if (!terminal) return false;
 
         terminal.status = status;
-        terminal.lastHeartbeat = new Date();
+        terminal.lastHeartbeat = Date.now();
 
         if (this.onStatusChange) {
             this.onStatusChange(this.buildStatusPayload(terminal));
@@ -165,88 +174,110 @@ export class TerminalPresenceManager {
         return true;
     }
 
-    // ─── Queries ────────────────────────────────────────────────
+    // ─── Queries (O(branch size), not O(total terminals)) ───────
 
-    /**
-     * Get a specific terminal's status.
-     */
     getTerminal(terminalId: string): ConnectedTerminal | undefined {
-        return this.terminals.get(terminalId);
+        const t = this.terminals.get(terminalId);
+        return t ? this.toPublic(t) : undefined;
     }
 
-    /**
-     * Check if a terminal is connected.
-     */
     isOnline(terminalId: string): boolean {
         const terminal = this.terminals.get(terminalId);
         return !!terminal && terminal.status !== 'offline';
     }
 
-    /**
-     * Get all connected terminals for a branch.
-     */
     getByBranch(tenantId: string, branchId: string): ConnectedTerminal[] {
+        const key = `${tenantId}:${branchId}`;
+        const ids = this.branchIndex.get(key);
+        if (!ids || ids.size === 0) return [];
+
         const result: ConnectedTerminal[] = [];
-        for (const terminal of this.terminals.values()) {
-            if (terminal.tenantId === tenantId && terminal.branchId === branchId) {
-                result.push(terminal);
-            }
+        for (const id of ids) {
+            const t = this.terminals.get(id);
+            if (t) result.push(this.toPublic(t));
         }
         return result;
     }
 
-    /**
-     * Get all connected terminals for a tenant.
-     */
     getByTenant(tenantId: string): ConnectedTerminal[] {
+        const ids = this.tenantIndex.get(tenantId);
+        if (!ids || ids.size === 0) return [];
+
         const result: ConnectedTerminal[] = [];
-        for (const terminal of this.terminals.values()) {
-            if (terminal.tenantId === tenantId) {
-                result.push(terminal);
-            }
+        for (const id of ids) {
+            const t = this.terminals.get(id);
+            if (t) result.push(this.toPublic(t));
         }
         return result;
     }
 
-    /**
-     * Build a TerminalListResponse for a branch scope.
-     */
     getTerminalList(tenantId: string, branchId?: string): TerminalListResponse {
         const terminals = branchId
             ? this.getByBranch(tenantId, branchId)
             : this.getByTenant(tenantId);
 
-        const online = terminals.filter(t => t.status === 'online' || t.status === 'idle');
+        let onlineCount = 0;
+        for (let i = 0; i < terminals.length; i++) {
+            const s = terminals[i].status;
+            if (s === 'online' || s === 'idle') onlineCount++;
+        }
 
         return {
             terminals,
-            totalOnline: online.length,
-            totalOffline: terminals.length - online.length,
+            totalOnline: onlineCount,
+            totalOffline: terminals.length - onlineCount,
         };
     }
 
-    /**
-     * Get total connected count.
-     */
     get totalConnected(): number {
         return this.terminals.size;
     }
 
+    // ─── Index Management ───────────────────────────────────────
+
+    private addToIndex(tenantId: string, branchId: string, terminalId: string): void {
+        // Branch index
+        const branchKey = `${tenantId}:${branchId}`;
+        let branchSet = this.branchIndex.get(branchKey);
+        if (!branchSet) {
+            branchSet = new Set();
+            this.branchIndex.set(branchKey, branchSet);
+        }
+        branchSet.add(terminalId);
+
+        // Tenant index
+        let tenantSet = this.tenantIndex.get(tenantId);
+        if (!tenantSet) {
+            tenantSet = new Set();
+            this.tenantIndex.set(tenantId, tenantSet);
+        }
+        tenantSet.add(terminalId);
+    }
+
+    private removeFromIndex(tenantId: string, branchId: string, terminalId: string): void {
+        const branchKey = `${tenantId}:${branchId}`;
+        const branchSet = this.branchIndex.get(branchKey);
+        if (branchSet) {
+            branchSet.delete(terminalId);
+            if (branchSet.size === 0) this.branchIndex.delete(branchKey);
+        }
+
+        const tenantSet = this.tenantIndex.get(tenantId);
+        if (tenantSet) {
+            tenantSet.delete(terminalId);
+            if (tenantSet.size === 0) this.tenantIndex.delete(tenantId);
+        }
+    }
+
     // ─── Internal ───────────────────────────────────────────────
 
-    /**
-     * Check for terminals that haven't sent a heartbeat recently.
-     * Transitions: online → idle → offline (removed).
-     */
     private checkStaleTerminals(): void {
         const now = Date.now();
 
-        for (const [_terminalId, terminal] of this.terminals) {
-            const elapsed = now - terminal.lastHeartbeat.getTime();
+        for (const terminal of this.terminals.values()) {
+            const elapsed = now - terminal.lastHeartbeat;
 
             if (elapsed >= OFFLINE_THRESHOLD) {
-                // Terminal is presumed offline — will be cleaned up on actual disconnect
-                // but mark it so queries reflect the state
                 if (terminal.status !== 'offline') {
                     terminal.status = 'offline';
                     if (this.onStatusChange) {
@@ -262,7 +293,24 @@ export class TerminalPresenceManager {
         }
     }
 
-    private buildStatusPayload(terminal: ConnectedTerminal): TerminalStatusChangePayload {
+    /** Convert internal numeric-timestamp record to public Date-based type */
+    private toPublic(t: InternalTerminal): ConnectedTerminal {
+        return {
+            terminalId: t.terminalId,
+            tenantId: t.tenantId,
+            branchId: t.branchId,
+            userId: t.userId,
+            username: t.username,
+            terminalLabel: t.terminalLabel,
+            status: t.status,
+            connectedAt: new Date(t.connectedAt),
+            lastHeartbeat: new Date(t.lastHeartbeat),
+            socketId: t.socketId,
+            metadata: t.metadata,
+        };
+    }
+
+    private buildStatusPayload(terminal: InternalTerminal): TerminalStatusChangePayload {
         return {
             terminalId: terminal.terminalId,
             terminalLabel: terminal.terminalLabel,

@@ -40,6 +40,7 @@ export interface StockMovementWithProduct extends StockMovement {
     inventory: {
         variant: {
             id: string;
+            variantName: string;
             sku: string;
         } | null;
         product: {
