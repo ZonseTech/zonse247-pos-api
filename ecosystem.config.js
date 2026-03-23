@@ -5,13 +5,14 @@ module.exports = {
       script: "dist/main.js",
       instances: "max",
       exec_mode: "cluster",
+      cwd: "/var/www/api",
       env: {
         NODE_ENV: "development",
-        PORT: 3000,
+        PORT: 3001,
       },
       env_production: {
         NODE_ENV: "production",
-        PORT: parseInt(process.env.SERVER_PORT) || 3000,
+        PORT: parseInt(process.env.SERVER_PORT) || 3001,
       },
       node_args: "--max-old-space-size=1024",
       error_file: "./logs/err.log",

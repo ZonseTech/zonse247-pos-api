@@ -90,7 +90,7 @@ export class Server {
 			res.status(200).end();
 		});
 
-		this.app.get('/api/v1/health', (req: Request, res: Response) => {
+		this.app.get('/v1/health', (req: Request, res: Response) => {
 			res.json({
 				success: true,
 				status: 'healthy',
@@ -102,7 +102,7 @@ export class Server {
 			});
 		});
 
-		this.app.use('/api/v1', ApiRoutes);
+		this.app.use('/v1', ApiRoutes);
 
 		this.app.use((req: Request, res: Response) => {
 			res.status(404).json({
@@ -147,7 +147,6 @@ export class Server {
 			initializeMraServices();
 			console.log('✓ MRA services initialized');
 
-			// Initialize WebSocket server (attaches to the same HTTP server)
 			this.socketService.initialize(this.server);
 
 			const port = parseInt(this.config.serverPort);

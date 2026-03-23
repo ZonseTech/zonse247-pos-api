@@ -1,4 +1,4 @@
-name: Deploy to Ubuntu Server (MySQL)
+name: Deploy to Ubuntu Server
 
 on:
   push:
@@ -17,15 +17,15 @@ on:
 
 jobs:
   build:
-    name: Build & Test (MySQL)
+    name: Build & Test
     runs-on: ubuntu-latest
 
     services:
       mysql:
         image: mysql:8.0
         env:
-          MYSQL_ROOT_PASSWORD: testpassword
-          MYSQL_DATABASE: pos_test
+          MYSQL_ROOT_PASSWORD: Ccera-2017
+          MYSQL_DATABASE: pos
         ports:
           - 3306:3306
         options: >-
@@ -35,7 +35,7 @@ jobs:
           --health-retries=5
 
     env:
-      DATABASE_URL: "mysql://root:testpassword@localhost:3306/pos_test"
+      DATABASE_URL: "mysql://root:Ccera-2017@localhost:3306/pos"
 
     steps:
       - name: 📥 Checkout code
@@ -62,7 +62,7 @@ jobs:
       - name: 🧪 Run tests
         run: npm test
 
-      - name: 🏗️ Build project (MySQL)
+      - name: 🏗️ Build project
         run: npm run build:mysql
 
       - name: 📤 Upload build artifacts
@@ -100,9 +100,9 @@ jobs:
           script: |
             set -e
 
-            APP_DIR="/var/www/pos-api"
+            APP_DIR="/var/www/api"
 
-            echo "🚀 Starting MySQL deployment..."
+            echo "🚀 Starting deployment..."
 
             # Create directory if it doesn't exist
             mkdir -p $APP_DIR
@@ -111,10 +111,10 @@ jobs:
             # Check if it's a git repository
             if [ ! -d .git ]; then
               echo "🔄 Initial clone..."
-              git clone https://github.com/ZonseTech/zonse247-pos-api.git /var/www/pos-api-temp
-              mv /var/www/pos-api-temp/* $APP_DIR/
-              mv /var/www/pos-api-temp/.* $APP_DIR/ 2>/dev/null || true
-              rm -rf /var/www/pos-api-temp
+              git clone https://github.com/ZonseTech/zonse247-pos-api.git /var/www/api-temp
+              mv /var/www/api-temp/* $APP_DIR/
+              mv /var/www/api-temp/.* $APP_DIR/ 2>/dev/null || true
+              rm -rf /var/www/api-temp
             else
               echo "🔄 Resetting local changes and pulling..."
               git reset --hard HEAD
@@ -144,5 +144,8 @@ jobs:
 
             pm2 save
 
-            echo "✅ MySQL deployment completed successfully!"
+            # Reload Nginx
+            sudo nginx -t && sudo systemctl reload nginx
+
+            echo "✅ Deployment completed successfully!"
             pm2 status

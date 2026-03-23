@@ -6,33 +6,22 @@ export const APP_NAME = process.env.APP_NAME || "Zonse247 POS";
 export const isProduction = NODE_ENV === "production";
 
 export interface RuntimeConfig {
-    // API/External config
     liveApiUrl: string;
     apiHost: string;
     apiPort: string;
     apiTimeout: number;
-
-    // Server config
     serverPort: string;
     serverHost: string;
     serverTimeout: number;
     trustProxy: boolean;
     nodeEnv: string;
-
-    // Security/CORS config
     corsRequestSizeLimit: string;
     corsAllowedOrigins: string;
-
-    // JWT config
     jwtSecret: string;
     jwtExpiresIn: string;
     jwtRefreshSecret: string;
     jwtRefreshExpiresIn: string;
-
-    // Security config
     bcryptSaltRounds: number;
-
-    // Database config
     databaseProvider: string;
     databaseUrl: string;
     mysqlUrl: string;
@@ -42,36 +31,25 @@ export interface RuntimeConfig {
     databasePassword: string;
     databaseName: string;
     databasePort: number;
-
-    // Email config
     smtpHost: string;
     smtpPort: number;
     smtpSecure: boolean;
     smtpUser: string;
     smtpPass: string;
     smtpFrom: string;
-
-    // External URLs
     clientPortalUrl: string;
-
-    // Feature flags
     enableAnalytics: boolean;
-
-    // Sync config (for offline terminals)
     syncEnabled: boolean;
     syncIntervalMs: number;
     syncBatchSize: number;
     syncMaxRetries: number;
     syncServerUrl: string;
-
-    // App info
     appName: string;
     appVersion: string;
 }
 
-// Default configuration values - used when env vars are not available
 const DEFAULT_CONFIG: RuntimeConfig = {
-    liveApiUrl: 'http://139.59.103.109:2025/api/v1',
+    liveApiUrl: 'https://api.zonse247.com/v1',
     apiHost: '127.0.0.1',
     apiPort: '3000',
     apiTimeout: 30000,
@@ -81,7 +59,7 @@ const DEFAULT_CONFIG: RuntimeConfig = {
     trustProxy: false,
     nodeEnv: 'production',
     corsRequestSizeLimit: '10mb',
-    corsAllowedOrigins: 'http://localhost:5173,http://localhost:3000,http://localhost:3001,http://pos.vitalitymw.com,http://127.0.0.1:3000',
+    corsAllowedOrigins: 'http://localhost:5173,http://localhost:3000,http://localhost:3001,https://pos.zonse247.com,https://api.zonse247.com,http://127.0.0.1:3000',
     jwtSecret: 'b206c54227610532d1ddb46c207c7fb9f5d181d662eec89fa228fa2ca20dd2a4',
     jwtExpiresIn: '7d',
     jwtRefreshSecret: 'refresh-b206c54227610532d1ddb46c207c7fb9f5d181d662eec89fa228fa2ca20dd2a4',
@@ -108,7 +86,7 @@ const DEFAULT_CONFIG: RuntimeConfig = {
     syncIntervalMs: 30000, // 30 seconds
     syncBatchSize: 100,
     syncMaxRetries: 3,
-    syncServerUrl: 'http://139.59.103.109:2025/api/v1',
+    syncServerUrl: 'https://api.zonse247.com/v1',
     appName: 'Zonse247 POS',
     appVersion: '1.0.0',
 };
