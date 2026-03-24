@@ -11,10 +11,10 @@ export const migration: Migration = {
     version: '20260216_01',
     description: 'Simplify terminal_settings table to use 4 JSON settings groups',
     up: {
-            sqlite: [
-                `ALTER TABLE "terminal_settings" ADD COLUMN "general_settings" TEXT`,
-                `ALTER TABLE "terminal_settings" ADD COLUMN "business_settings" TEXT`,
-                `UPDATE "terminal_settings" SET 
+        sqlite: [
+            `ALTER TABLE "terminal_settings" ADD COLUMN "general_settings" TEXT`,
+            `ALTER TABLE "terminal_settings" ADD COLUMN "business_settings" TEXT`,
+            `UPDATE "terminal_settings" SET 
                     "general_settings" = json_object(
                         'dateFormat', 'DD/MM/YYYY',
                         'showProductImages', 1,
@@ -28,7 +28,7 @@ export const migration: Migration = {
                         'virtualKeyboardHaptic', 0
                     )
                 WHERE "general_settings" IS NULL`,
-                `UPDATE "terminal_settings" SET 
+            `UPDATE "terminal_settings" SET 
                     "receipt_settings" = json_object(
                         'storeName', 'My Store',
                         'storePhone', '',
@@ -60,7 +60,7 @@ export const migration: Migration = {
                         'whatsappShareApp', 'whatsapp'
                     )
                 WHERE "receipt_settings" IS NULL`,
-                `UPDATE "terminal_settings" SET 
+            `UPDATE "terminal_settings" SET 
                     "business_settings" = json_object(
                         'receiptNumberPrefix', 'RCP',
                         'autoApplyTax', 1,
@@ -74,21 +74,21 @@ export const migration: Migration = {
                         'inventoryHealthScoreEnabled', 1
                     )
                 WHERE "business_settings" IS NULL`,
-                `UPDATE "terminal_settings" SET 
+            `UPDATE "terminal_settings" SET 
                     "security_settings" = json_object(
                         'autoSyncOnReconnect', 1,
                         'requirePinForVoid', 1,
                         'requirePinForReturn', 1,
                         'enableNotifications', 1,
-                        'apiBaseUrl', 'http://127.0.0.1:3000/api/v1'
+                        'apiBaseUrl', 'http://127.0.0.1:3000/v1'
                     )
                 WHERE "security_settings" IS NULL`,
-                `UPDATE "terminal_settings" SET "settings_version" = '3.0.0' WHERE "settings_version" IS NULL OR "settings_version" = ''`,
-                `CREATE INDEX IF NOT EXISTS "idx_terminal_settings_terminal_id" ON "terminal_settings" ("terminal_id")`,
-            ],
-            mysql: [
-                `DROP PROCEDURE IF EXISTS add_terminal_settings_cols`,
-                `CREATE PROCEDURE add_terminal_settings_cols()
+            `UPDATE "terminal_settings" SET "settings_version" = '3.0.0' WHERE "settings_version" IS NULL OR "settings_version" = ''`,
+            `CREATE INDEX IF NOT EXISTS "idx_terminal_settings_terminal_id" ON "terminal_settings" ("terminal_id")`,
+        ],
+        mysql: [
+            `DROP PROCEDURE IF EXISTS add_terminal_settings_cols`,
+            `CREATE PROCEDURE add_terminal_settings_cols()
                 BEGIN
                     IF NOT EXISTS (
                         SELECT * FROM INFORMATION_SCHEMA.COLUMNS 
@@ -103,9 +103,9 @@ export const migration: Migration = {
                         ALTER TABLE terminal_settings ADD COLUMN business_settings JSON AFTER receipt_settings;
                     END IF;
                 END`,
-                `CALL add_terminal_settings_cols()`,
-                `DROP PROCEDURE IF EXISTS add_terminal_settings_cols`,
-                `UPDATE terminal_settings SET 
+            `CALL add_terminal_settings_cols()`,
+            `DROP PROCEDURE IF EXISTS add_terminal_settings_cols`,
+            `UPDATE terminal_settings SET 
                     general_settings = JSON_OBJECT(
                         'dateFormat', 'DD/MM/YYYY',
                         'showProductImages', true,
@@ -165,12 +165,12 @@ export const migration: Migration = {
                         'requirePinForVoid', true,
                         'requirePinForReturn', true,
                         'enableNotifications', true,
-                        'apiBaseUrl', 'http://127.0.0.1:3001/api/v1'
+                        'apiBaseUrl', 'http://127.0.0.1:3001/v1'
                     ),
                     settings_version = '3.0.0'
                 WHERE general_settings IS NULL`,
-                `DROP PROCEDURE IF EXISTS drop_terminal_settings_old_cols`,
-                `CREATE PROCEDURE drop_terminal_settings_old_cols()
+            `DROP PROCEDURE IF EXISTS drop_terminal_settings_old_cols`,
+            `CREATE PROCEDURE drop_terminal_settings_old_cols()
                 BEGIN
                     IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'terminal_settings' AND COLUMN_NAME = 'store_name') THEN
                         ALTER TABLE terminal_settings DROP COLUMN store_name;
@@ -275,12 +275,12 @@ export const migration: Migration = {
                         ALTER TABLE terminal_settings DROP COLUMN configuration_date;
                     END IF;
                 END`,
-                `CALL drop_terminal_settings_old_cols()`,
-                `DROP PROCEDURE IF EXISTS drop_terminal_settings_old_cols`,
-            ],
-        },
+            `CALL drop_terminal_settings_old_cols()`,
+            `DROP PROCEDURE IF EXISTS drop_terminal_settings_old_cols`,
+        ],
+    },
     down: {
-            sqlite: [],
-            mysql: [],
-        },
+        sqlite: [],
+        mysql: [],
+    },
 };
