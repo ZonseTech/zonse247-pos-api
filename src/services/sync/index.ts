@@ -20,7 +20,7 @@
  * │         │                                                  │
  * └─────────│──────────────────────────────────────────────────┘
  *           │
- *           │ PUSH (POST /api/v1/sync/batch)
+ *           │ PUSH (POST /v1/sync/batch)
  *           │ ↕ Parallel for independent tables ↕
  *           │ Sequential for dependent: Sales → Items → Payments
  *           ▼
@@ -40,7 +40,7 @@
  * │  └──────────────────┘                                      │
  * └─────────────────────────────────────────────────────────────┘
  *           │
- *           │ PULL (POST /api/v1/sync/pull)
+ *           │ PULL (POST /v1/sync/pull)
  *           │ ChangeLog-based delta when available,
  *           │ timestamp-scan as fallback
  *           ▼
@@ -62,7 +62,7 @@
  *    import { initSyncJob } from './services/sync';
  *    
  *    initSyncJob({
- *      serverUrl: 'https://api.example.com/api/v1',
+ *      serverUrl: 'https://api.example.com/v1',
  *      apiKey: 'terminal-jwt-token',
  *      terminalId: 'term-001',
  *      tenantId: 'tenant-001',
@@ -74,9 +74,9 @@
  * 2. ON SERVER:
  * 
  *    Server exposes sync endpoints via SyncController:
- *    - POST /api/v1/sync/batch        (validated, batch-optimised)
- *    - POST /api/v1/sync/pull         (ChangeLog-based delta)
- *    - POST /api/v1/sync/bidirectional
+ *    - POST /v1/sync/batch        (validated, batch-optimised)
+ *    - POST /v1/sync/pull         (ChangeLog-based delta)
+ *    - POST /v1/sync/bidirectional
  * 
  * 3. MANUAL SYNC TRIGGER:
  * 
