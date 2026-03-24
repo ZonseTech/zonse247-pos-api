@@ -73,7 +73,7 @@ function formatSaveResultMessage(saveResult: Record<string, { saved: boolean; ex
 export class OnboardingController {
     /**
      * Activate a terminal using an activation code
-     * @route POST /api/v1/onboarding/terminal/activate
+     * @route POST /v1/onboarding/terminal/activate
      */
     static async activateTerminal(req: Request, res: Response): Promise<void> {
         try {
@@ -87,7 +87,7 @@ export class OnboardingController {
 
     /**
      * Set terminal activation status to ACTIVATED
-     * @route POST /api/v1/onboarding/terminal/set-activated
+     * @route POST /v1/onboarding/terminal/set-activated
      */
     static async setTerminalActivated(req: Request, res: Response): Promise<void> {
         try {
@@ -109,7 +109,7 @@ export class OnboardingController {
     /**
      * Save terminal details after user verification
      * Uses "exists skip" pattern - if record exists, skip creation
-     * @route POST /api/v1/onboarding/terminal/save
+     * @route POST /v1/onboarding/terminal/save
      */
     static async saveTerminalDetails(req: Request, res: Response): Promise<void> {
         try {
@@ -125,7 +125,7 @@ export class OnboardingController {
     /**
      * Get onboarding steps configuration for a tenant
      * Returns customized steps based on tenant's MRA compliance setting
-     * @route GET /api/v1/onboarding/steps/:tenantId
+     * @route GET /v1/onboarding/steps/:tenantId
      */
     static async getOnboardingStepsConfig(req: Request, res: Response): Promise<void> {
         try {
@@ -169,7 +169,7 @@ export class OnboardingController {
     /**
      * Check MRA setup requirements for a tenant
      * Returns whether MRA setup should be part of onboarding
-     * @route GET /api/v1/onboarding/mra-check/:tenantId
+     * @route GET /v1/onboarding/mra-check/:tenantId
      */
     static async checkMraSetupRequirements(req: Request, res: Response): Promise<void> {
         try {
