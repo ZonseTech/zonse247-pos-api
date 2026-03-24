@@ -432,7 +432,7 @@ export class AuthService {
             throw new Error('Current password is incorrect');
         }
 
-        await UserModel.update(userId, { password: newPassword });
+        await UserModel.update(userId, { password: newPassword, forcePasswordChange: false });
     }
 
     /**
