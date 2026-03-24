@@ -147,7 +147,7 @@ export class SyncController extends BaseController {
 
     /**
      * Batch sync - process all tables in one request
-     * POST /api/v1/sync/batch
+     * POST /v1/sync/batch
      *
      * Now passes tenantId/branchId for TerminalSyncState tracking
      * and ChangeLog recording.
@@ -224,7 +224,7 @@ export class SyncController extends BaseController {
 
     /**
      * Sync sales
-     * POST /api/v1/sync/sales
+     * POST /v1/sync/sales
      */
     static async syncSales(req: SyncRequest, res: Response): Promise<void> {
         await handleSyncEndpoint(req, res, 'Sales sync', {
@@ -236,7 +236,7 @@ export class SyncController extends BaseController {
 
     /**
      * Sync sale items
-     * POST /api/v1/sync/sale-items
+     * POST /v1/sync/sale-items
      */
     static async syncSaleItems(req: SyncRequest, res: Response): Promise<void> {
         await handleSyncEndpoint(req, res, 'Sale items sync', {
@@ -248,7 +248,7 @@ export class SyncController extends BaseController {
 
     /**
      * Sync sale payments
-     * POST /api/v1/sync/sale-payments
+     * POST /v1/sync/sale-payments
      */
     static async syncSalePayments(req: SyncRequest, res: Response): Promise<void> {
         await handleSyncEndpoint(req, res, 'Sale payments sync', {
@@ -259,7 +259,7 @@ export class SyncController extends BaseController {
 
     /**
      * Sync returns
-     * POST /api/v1/sync/returns
+     * POST /v1/sync/returns
      */
     static async syncReturns(req: SyncRequest, res: Response): Promise<void> {
         await handleSyncEndpoint(req, res, 'Returns sync', {
@@ -271,7 +271,7 @@ export class SyncController extends BaseController {
 
     /**
      * Sync return items
-     * POST /api/v1/sync/return-items
+     * POST /v1/sync/return-items
      */
     static async syncReturnItems(req: SyncRequest, res: Response): Promise<void> {
         await handleSyncEndpoint(req, res, 'Return items sync', {
@@ -282,7 +282,7 @@ export class SyncController extends BaseController {
 
     /**
      * Sync stock movements
-     * POST /api/v1/sync/stock-movements
+     * POST /v1/sync/stock-movements
      */
     static async syncStockMovements(req: SyncRequest, res: Response): Promise<void> {
         await handleSyncEndpoint(req, res, 'Stock movements sync', {
@@ -293,7 +293,7 @@ export class SyncController extends BaseController {
 
     /**
      * Sync customers
-     * POST /api/v1/sync/customers
+     * POST /v1/sync/customers
      */
     static async syncCustomers(req: SyncRequest, res: Response): Promise<void> {
         await handleSyncEndpoint(req, res, 'Customers sync', {
@@ -304,7 +304,7 @@ export class SyncController extends BaseController {
 
     /**
      * Sync orders
-     * POST /api/v1/sync/orders
+     * POST /v1/sync/orders
      */
     static async syncOrders(req: SyncRequest, res: Response): Promise<void> {
         await handleSyncEndpoint(req, res, 'Orders sync', {
@@ -315,7 +315,7 @@ export class SyncController extends BaseController {
 
     /**
      * Sync users (credential/profile changes from terminal)
-     * POST /api/v1/sync/users
+     * POST /v1/sync/users
      */
     static async syncUsers(req: SyncRequest, res: Response): Promise<void> {
         await handleSyncEndpoint(req, res, 'Users sync', {
@@ -330,7 +330,7 @@ export class SyncController extends BaseController {
 
     /**
      * Get sync status for a terminal
-     * GET /api/v1/sync/status
+     * GET /v1/sync/status
      *
      * Now includes TerminalSyncState data (separate push/pull timestamps
      * and ChangeLog sequence).
@@ -417,7 +417,7 @@ export class SyncController extends BaseController {
 
     /**
      * Pull all changed data from server
-     * POST /api/v1/sync/pull
+     * POST /v1/sync/pull
      *
      * Now auto-routes to ChangeLog-based delta when available.
      */
@@ -471,7 +471,7 @@ export class SyncController extends BaseController {
 
     /**
      * Pull data for a specific table
-     * POST /api/v1/sync/pull/:tableName
+     * POST /v1/sync/pull/:tableName
      */
     static async pullTableData(req: SyncRequest, res: Response): Promise<void> {
         try {
@@ -532,7 +532,7 @@ export class SyncController extends BaseController {
 
     /**
      * Bidirectional sync - push then pull in one request
-     * POST /api/v1/sync/bidirectional
+     * POST /v1/sync/bidirectional
      */
     static async bidirectionalSync(req: SyncRequest, res: Response): Promise<void> {
         try {
