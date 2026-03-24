@@ -331,64 +331,148 @@ const customersSync: TableSyncHandler = {
 
 const productsSync: TableSyncHandler = {
     async sync(records: unknown[], params: OnboardingParams): Promise<TableSyncResult> {
-        return syncTableRecords(
-            records as RecordAny[],
-            {
-                getId: (r) => (r.id || r.productId) as string,
-                findExisting: (id) => prisma.product.findUnique({ where: { id } }),
-                transformForCreate: (r, p) => ({
-                    id: r.id || r.productId,
-                    tenantId: p?.tenantId,
-                    branchId: p?.branchId,
-                    categoryId: r.categoryId || null,
-                    name: r.name,
-                    description: r.description || null,
-                    brand: r.brand || null,
-                    isTaxable: parseBoolean(r.isTaxable, true),
-                    supplierName: r.supplierName || null,
-                    supplierCode: r.supplierCode || null,
-                    defaultUnit: r.defaultUnit || r.unit || DEFAULTS.UNIT,
-                    imageUrl: r.imageUrl || null,
-                    isActive: parseBoolean(r.isActive, true),
-                }),
-                create: (data: any) => prisma.product.create({ data }),
-            },
-            'products',
-            params
-        );
+        const result = createEmptyTableSyncResult('products');
+
+        for (const record of records as RecordAny[]) {
+            try {
+                const productId = (record.id || record.productId) as string;
+                if (!productId) {
+                    result.failed++;
+                    result.errors.push('Product: Missing required ID field');
+                    continue;
+                }
+
+                // Check by primary key first
+                const existingById = await prisma.product.findUnique({ where: { id: productId } });
+                if (existingById) {
+                    result.skipped++;
+                    continue;
+                }
+
+                // Check by unique constraint (branchId, name) to avoid duplicate errors
+                const name = record.name as string;
+                if (name && params.branchId) {
+                    const existingByName = await prisma.product.findUnique({
+                        where: {
+                            unique_branch_product_name: {
+                                branchId: params.branchId,
+                                name,
+                            },
+                        },
+                    });
+                    if (existingByName) {
+                        result.skipped++;
+                        continue;
+                    }
+                }
+
+                await prisma.product.create({
+                    data: {
+                        id: productId,
+                        tenantId: params.tenantId,
+                        branchId: params.branchId,
+                        categoryId: (record.categoryId as string) || null,
+                        name,
+                        description: (record.description as string) || null,
+                        brand: (record.brand as string) || null,
+                        isTaxable: parseBoolean(record.isTaxable, true),
+                        supplierName: (record.supplierName as string) || null,
+                        supplierCode: (record.supplierCode as string) || null,
+                        defaultUnit: (record.defaultUnit || record.unit || DEFAULTS.UNIT) as string,
+                        imageUrl: (record.imageUrl as string) || null,
+                        isActive: parseBoolean(record.isActive, true),
+                    },
+                });
+                result.inserted++;
+            } catch (error) {
+                result.failed++;
+                result.errors.push(`Product: ${(error as Error).message}`);
+            }
+        }
+
+        result.success = result.failed === 0;
+        return result;
     },
 };
 
 const productVariantsSync: TableSyncHandler = {
     async sync(records: unknown[], params: OnboardingParams): Promise<TableSyncResult> {
-        return syncTableRecords(
-            records as RecordAny[],
-            {
-                getId: (r) => (r.id || r.variantId) as string,
-                findExisting: (id) => prisma.productVariant.findUnique({ where: { id } }),
-                transformForCreate: (r, p) => ({
-                    id: r.id || r.variantId,
-                    tenantId: p?.tenantId,
-                    branchId: p?.branchId,
-                    productId: r.productId,
-                    sku: r.sku || null,
-                    variantName: r.variantName || r.name || 'Default',
-                    primaryBarcode: r.primaryBarcode || null,
-                    sellingPrice: parseNumeric(r.sellingPrice || r.price),
-                    costPrice: parseNumeric(r.costPrice),
-                    unit: r.unit || DEFAULTS.UNIT,
-                    description: r.description || null,
-                    brand: r.brand || null,
-                    imageUrl: r.imageUrl || null,
-                    isTaxable: r.isTaxable !== undefined ? parseBoolean(r.isTaxable) : null,
-                    isDefault: parseBoolean(r.isDefault),
-                    isActive: parseBoolean(r.isActive, true),
-                }),
-                create: (data: any) => prisma.productVariant.create({ data }),
-            },
-            'productVariants',
-            params
-        );
+        const result = createEmptyTableSyncResult('productVariants');
+
+        for (const record of records as RecordAny[]) {
+            try {
+                const variantId = (record.id || record.variantId) as string;
+                if (!variantId) {
+                    result.failed++;
+                    result.errors.push('ProductVariant: Missing required ID field');
+                    continue;
+                }
+
+                // Check by primary key first
+                const existingById = await prisma.productVariant.findUnique({ where: { id: variantId } });
+                if (existingById) {
+                    result.skipped++;
+                    continue;
+                }
+
+                // Verify parent product exists before creating
+                const productId = record.productId as string;
+                if (!productId) {
+                    result.failed++;
+                    result.errors.push('ProductVariant: Missing required productId field');
+                    continue;
+                }
+
+                const parentProduct = await prisma.product.findUnique({ where: { id: productId } });
+                if (!parentProduct) {
+                    result.skipped++;
+                    continue;
+                }
+
+                // Check by unique constraint (productId, variantName)
+                const variantName = (record.variantName || record.name || 'Default') as string;
+                const existingByConstraint = await prisma.productVariant.findUnique({
+                    where: {
+                        unique_product_variant: {
+                            productId,
+                            variantName,
+                        },
+                    },
+                });
+                if (existingByConstraint) {
+                    result.skipped++;
+                    continue;
+                }
+
+                await prisma.productVariant.create({
+                    data: {
+                        id: variantId,
+                        tenantId: params.tenantId,
+                        branchId: params.branchId,
+                        productId,
+                        sku: (record.sku as string) || null,
+                        variantName,
+                        primaryBarcode: (record.primaryBarcode as string) || null,
+                        sellingPrice: parseNumeric(record.sellingPrice || record.price),
+                        costPrice: parseNumeric(record.costPrice),
+                        unit: (record.unit as string) || DEFAULTS.UNIT,
+                        description: (record.description as string) || null,
+                        brand: (record.brand as string) || null,
+                        imageUrl: (record.imageUrl as string) || null,
+                        isTaxable: record.isTaxable !== undefined ? parseBoolean(record.isTaxable) : null,
+                        isDefault: parseBoolean(record.isDefault),
+                        isActive: parseBoolean(record.isActive, true),
+                    },
+                });
+                result.inserted++;
+            } catch (error) {
+                result.failed++;
+                result.errors.push(`ProductVariant: ${(error as Error).message}`);
+            }
+        }
+
+        result.success = result.failed === 0;
+        return result;
     },
 };
 
@@ -485,6 +569,42 @@ const inventorySync: TableSyncHandler = {
                     });
                     result.updated++;
                 } else {
+                    // Verify parent product exists before creating
+                    const productId = record.productId as string;
+                    if (productId) {
+                        const parentProduct = await prisma.product.findUnique({ where: { id: productId } });
+                        if (!parentProduct) {
+                            result.skipped++;
+                            continue;
+                        }
+                    }
+
+                    // Verify parent variant exists before creating
+                    const variantId = (record.variantId as string) || null;
+                    if (variantId) {
+                        const parentVariant = await prisma.productVariant.findUnique({ where: { id: variantId } });
+                        if (!parentVariant) {
+                            result.skipped++;
+                            continue;
+                        }
+                    }
+
+                    // Check by unique constraint (branchId, variantId)
+                    if (variantId && params.branchId) {
+                        const existingByConstraint = await prisma.inventory.findUnique({
+                            where: {
+                                unique_branch_variant: {
+                                    branchId: params.branchId,
+                                    variantId,
+                                },
+                            },
+                        });
+                        if (existingByConstraint) {
+                            result.skipped++;
+                            continue;
+                        }
+                    }
+
                     await prisma.inventory.create({
                         data: {
                             id: inventoryId,
