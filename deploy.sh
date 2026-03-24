@@ -84,6 +84,8 @@ npm ci
 
 # Build the application
 echo "🔨 Building application..."
+# Generate both SQLite and MySQL Prisma clients (code imports from both)
+./scripts/db.sh generate sqlite
 npm run build:mysql
 
 # Run database migrations

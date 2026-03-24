@@ -298,8 +298,8 @@ export class MigrationManager {
 
             // "no such column" errors - these occur on fresh installations where
             // template.db has the final schema, so old columns never existed.
-            // Safe to skip UPDATE/INSERT statements that reference non-existent columns
-            // since there's no data to migrate.
+            // Safe to skip UPDATE/INSERT/INDEX statements that reference non-existent columns
+            // since there's no data to migrate and indexes on removed columns are unnecessary.
             if (errorMsg.includes('no such column')) {
                 // Skip all UPDATE statements - they're data migrations for columns that
                 // don't exist in fresh installs (already have correct schema)
@@ -307,6 +307,11 @@ export class MigrationManager {
 
                 // Skip INSERT data migrations (e.g., migrating products to product_variants)
                 if (sql.includes('INSERT')) return true;
+
+                // Skip CREATE INDEX / CREATE UNIQUE INDEX on columns that were added
+                // in one migration and removed in a later one (e.g., supplier_invoice_id
+                // added in 20260318_04 and removed in 20260318_08)
+                if (sql.includes('INDEX')) return true;
             }
 
             // "no such table" errors - these occur on fresh installations where

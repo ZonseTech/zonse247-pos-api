@@ -20,7 +20,7 @@ pushes and pulls user changes. No custom sync logic is needed on the frontend.
 ================================================================================
 
 NEW:
-  - POST /api/v1/sync/users            — Receives user changes from terminals
+  - POST /v1/sync/users            — Receives user changes from terminals
   - `users` added to push tables        — SyncJobService pushes user changes
   - `users` added to pull tables        — SyncJobService pulls user changes
   - Field-level conflict resolution      — passwordChangedAt for passwords,

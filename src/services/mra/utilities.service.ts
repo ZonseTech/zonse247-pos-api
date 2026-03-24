@@ -329,7 +329,7 @@ export class MraUtilitiesService {
      * Downloads all approved and registered products/services from MRA servers.
      * Ensures that only approved items are listed for sale.
      * 
-     * @route GET /api/v1/utilities/get-terminal-site-products
+     * @route GET /v1/utilities/get-terminal-site-products
      */
     static async getTerminalSiteProducts(
         tenantId: string,

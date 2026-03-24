@@ -14,70 +14,70 @@ const router = Router();
 // ==========================================
 
 /**
- * @route   POST /api/v1/sync/batch
+ * @route   POST /v1/sync/batch
  * @desc    Bulk sync all tables in one request
  * @access  Terminal
  */
 router.post('/batch', validateBatchSync, SyncController.batchSync);
 
 /**
- * @route   POST /api/v1/sync/sales
+ * @route   POST /v1/sync/sales
  * @desc    Sync sales from terminal
  * @access  Terminal
  */
 router.post('/sales', validateTableSync, SyncController.syncSales);
 
 /**
- * @route   POST /api/v1/sync/sale-items
+ * @route   POST /v1/sync/sale-items
  * @desc    Sync sale items from terminal
  * @access  Terminal
  */
 router.post('/sale-items', validateTableSync, SyncController.syncSaleItems);
 
 /**
- * @route   POST /api/v1/sync/sale-payments
+ * @route   POST /v1/sync/sale-payments
  * @desc    Sync sale payments from terminal
  * @access  Terminal
  */
 router.post('/sale-payments', validateTableSync, SyncController.syncSalePayments);
 
 /**
- * @route   POST /api/v1/sync/returns
+ * @route   POST /v1/sync/returns
  * @desc    Sync returns from terminal
  * @access  Terminal
  */
 router.post('/returns', validateTableSync, SyncController.syncReturns);
 
 /**
- * @route   POST /api/v1/sync/return-items
+ * @route   POST /v1/sync/return-items
  * @desc    Sync return items from terminal
  * @access  Terminal
  */
 router.post('/return-items', validateTableSync, SyncController.syncReturnItems);
 
 /**
- * @route   POST /api/v1/sync/stock-movements
+ * @route   POST /v1/sync/stock-movements
  * @desc    Sync stock movements from terminal
  * @access  Terminal
  */
 router.post('/stock-movements', validateTableSync, SyncController.syncStockMovements);
 
 /**
- * @route   POST /api/v1/sync/customers
+ * @route   POST /v1/sync/customers
  * @desc    Sync customers from terminal
  * @access  Terminal
  */
 router.post('/customers', validateTableSync, SyncController.syncCustomers);
 
 /**
- * @route   POST /api/v1/sync/orders
+ * @route   POST /v1/sync/orders
  * @desc    Sync orders from terminal
  * @access  Terminal
  */
 router.post('/orders', validateTableSync, SyncController.syncOrders);
 
 /**
- * @route   POST /api/v1/sync/users
+ * @route   POST /v1/sync/users
  * @desc    Sync user credential/profile changes from terminal
  * @access  Terminal
  */
@@ -88,7 +88,7 @@ router.post('/users', validateTableSync, SyncController.syncUsers);
 // ==========================================
 
 /**
- * @route   GET /api/v1/sync/status
+ * @route   GET /v1/sync/status
  * @desc    Get sync status for a terminal
  * @access  Terminal
  */
@@ -99,7 +99,7 @@ router.get('/status', SyncController.getSyncStatus);
 // ==========================================
 
 /**
- * @route   POST /api/v1/sync/pull
+ * @route   POST /v1/sync/pull
  * @desc    Pull all changed data from server since timestamp
  * @access  Terminal
  * @body    { since?: Date, tables?: string[], limit?: number }
@@ -107,7 +107,7 @@ router.get('/status', SyncController.getSyncStatus);
 router.post('/pull', validatePullRequest, SyncController.pullData);
 
 /**
- * @route   POST /api/v1/sync/pull/:tableName
+ * @route   POST /v1/sync/pull/:tableName
  * @desc    Pull data for a specific table
  * @access  Terminal
  * @body    { since?: Date, limit?: number }
@@ -119,7 +119,7 @@ router.post('/pull/:tableName', validatePullRequest, SyncController.pullTableDat
 // ==========================================
 
 /**
- * @route   POST /api/v1/sync/bidirectional
+ * @route   POST /v1/sync/bidirectional
  * @desc    Push then pull in one request
  * @access  Terminal
  * @body    { push: {...}, pullSince?: Date, pullTables?: string[], pullLimit?: number }

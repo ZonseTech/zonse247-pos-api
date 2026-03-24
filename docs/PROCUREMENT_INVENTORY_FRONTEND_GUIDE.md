@@ -1,6 +1,6 @@
 # Procurement & Inventory System — Frontend Integration Guide
 
-> **Base URL:** `/api/v1` (e.g. `http://localhost:3000/api/v1`)
+> **Base URL:** `/v1` (e.g. `http://localhost:3000/v1`)
 >
 > **Auth:** All endpoints require `Authorization: Bearer <token>` plus headers `x-tenant-id`, `x-branch-id`, `x-client-type`.
 >
@@ -24,7 +24,7 @@
 
 The procurement workflow follows: **Requisition → Purchase Order → Goods Receipt → Supplier Invoice → Supplier Payment**.
 
-### 1.1 Purchase Requisitions — `/api/v1/purchase-requisitions`
+### 1.1 Purchase Requisitions — `/v1/purchase-requisitions`
 
 **Statuses:** `PENDING` → `APPROVED` | `PARTIALLY_APPROVED` | `REJECTED` | `CANCELLED`
 
@@ -39,7 +39,7 @@ The procurement workflow follows: **Requisition → Purchase Order → Goods Rec
 | `POST`   | `/:requisitionId/cancel`  | Cancel                | —                                                                                     |
 | `DELETE` | `/:requisitionId`         | Delete                | —                                                                                     |
 
-### 1.2 Purchase Orders — `/api/v1/purchase-orders`
+### 1.2 Purchase Orders — `/v1/purchase-orders`
 
 **Statuses:** `DRAFT` → `SENT` → `PARTIALLY_RECEIVED` | `RECEIVED` | `CANCELLED`
 
@@ -55,7 +55,7 @@ The procurement workflow follows: **Requisition → Purchase Order → Goods Rec
 | `POST`   | `/:purchaseOrderId/cancel`  | Cancel                           | —                                                                                                                                                       |
 | `DELETE` | `/:purchaseOrderId`         | Delete                           | —                                                                                                                                                       |
 
-### 1.3 Goods Receipts (GRN) — `/api/v1/goods-receipts`
+### 1.3 Goods Receipts (GRN) — `/v1/goods-receipts`
 
 **Statuses:** `DRAFT` → `VERIFIED` → `POSTED` | `CANCELLED`
 
@@ -72,7 +72,7 @@ The procurement workflow follows: **Requisition → Purchase Order → Goods Rec
 | `POST`   | `/:goodsReceiptId/cancel` | Cancel GRN                                 | —                                                                                                                                                                                  |
 | `DELETE` | `/:goodsReceiptId`        | Delete                                     | —                                                                                                                                                                                  |
 
-### 1.4 Supplier Invoices — `/api/v1/supplier-invoices`
+### 1.4 Supplier Invoices — `/v1/supplier-invoices`
 
 **Statuses:** `PENDING` → `PARTIALLY_PAID` → `PAID` | `OVERDUE` | `CANCELLED` | `DISPUTED`
 
@@ -88,7 +88,7 @@ The procurement workflow follows: **Requisition → Purchase Order → Goods Rec
 | `POST`   | `/:invoiceId/dispute`     | Flag as disputed                         | **Body:** `reason?`                                                                                                                                                                                                                                                                        |
 | `DELETE` | `/:invoiceId`             | Delete                                   | —                                                                                                                                                                                                                                                                                          |
 
-### 1.5 Supplier Payments — `/api/v1/supplier-payments`
+### 1.5 Supplier Payments — `/v1/supplier-payments`
 
 **Statuses:** `PENDING` | `COMPLETED` | `FAILED` | `REFUNDED` | `CANCELLED`
 
@@ -104,7 +104,7 @@ The procurement workflow follows: **Requisition → Purchase Order → Goods Rec
 
 ## 2. Supplier Returns & Credit Notes
 
-### 2.1 Supplier Returns — `/api/v1/supplier-returns`
+### 2.1 Supplier Returns — `/v1/supplier-returns`
 
 **Statuses:** `DRAFT` → `APPROVED` → `SHIPPED` → `COMPLETED` | `CANCELLED`
 
@@ -122,7 +122,7 @@ The procurement workflow follows: **Requisition → Purchase Order → Goods Rec
 | `POST`   | `/:supplierReturnId/cancel`   | → CANCELLED (from DRAFT or APPROVED) | **Body:** `notes?`                                                                                                                                                                             |
 | `DELETE` | `/:supplierReturnId`          | Delete (DRAFT only)                  | —                                                                                                                                                                                              |
 
-### 2.2 Credit Notes — Sub-routes on `/api/v1/supplier-returns`
+### 2.2 Credit Notes — Sub-routes on `/v1/supplier-returns`
 
 | Method | Path                                | Description                | Key Fields                                                                           |
 | ------ | ----------------------------------- | -------------------------- | ------------------------------------------------------------------------------------ |
@@ -133,7 +133,7 @@ The procurement workflow follows: **Requisition → Purchase Order → Goods Rec
 
 ## 3. Stock Movements & Adjustments
 
-### Base path: `/api/v1/stock-movements`
+### Base path: `/v1/stock-movements`
 
 > **Golden rule:** Never update inventory quantities directly. Always record a stock movement — the inventory cache is updated atomically by the backend.
 
@@ -171,7 +171,7 @@ The procurement workflow follows: **Requisition → Purchase Order → Goods Rec
 
 ## 4. Inventory Valuation & Reports
 
-### Base path: `/api/v1/inventory-valuation`
+### Base path: `/v1/inventory-valuation`
 
 **Costing methods:** `WEIGHTED_AVERAGE` | `FIFO` | `LIFO` (configurable per item)
 
@@ -245,8 +245,8 @@ Then: POST /supplier-returns/credit-notes/:id/apply  →  reduces invoice balanc
 ### Physical Count Reconciliation
 
 ```
-1. GET  /api/v1/inventory/:id           →  Read system quantity
-2. POST /api/v1/stock-movements/stock-count
+1. GET  /v1/inventory/:id           →  Read system quantity
+2. POST /v1/stock-movements/stock-count
      { inventoryId, actualQuantity }
                     ↓
      Backend computes variance = actual − system
