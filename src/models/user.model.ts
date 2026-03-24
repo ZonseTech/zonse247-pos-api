@@ -392,8 +392,12 @@ export class UserModel {
 
     static async delete(id: string): Promise<number> {
         try {
-            await prisma.user.delete({
-                where: { userId: id }
+            await prisma.user.update({
+                where: { userId: id },
+                data: {
+                    status: 'inactive',
+                    deletedAt: new Date(),
+                },
             });
 
             return 1;

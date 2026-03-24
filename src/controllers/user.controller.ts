@@ -96,7 +96,7 @@ export class UserController {
 
 			AuditService.logDelete(getAuditContext(req), 'User', userId, userId);
 
-			BaseController.sendResponse(res, 200, true, 'User deleted successfully', { status: true });
+			BaseController.sendResponse(res, 200, true, 'User deactivated successfully', { status: true });
 		} catch (error) {
 			ValidationError.handleError(res, error);
 		}
