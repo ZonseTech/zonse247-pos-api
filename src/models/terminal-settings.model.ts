@@ -295,7 +295,7 @@ export class TerminalSettingsModel {
                 requirePinForVoid: securitySettings.requirePinForVoid ?? true,
                 requirePinForReturn: securitySettings.requirePinForReturn ?? true,
                 enableNotifications: securitySettings.enableNotifications ?? true,
-                apiBaseUrl: securitySettings.apiBaseUrl || 'http://127.0.0.1:3001/api/v1',
+                apiBaseUrl: securitySettings.apiBaseUrl || 'http://127.0.0.1:3001/v1',
             },
         };
     }
@@ -369,7 +369,7 @@ export class TerminalSettingsModel {
             requirePinForVoid: true,
             requirePinForReturn: true,
             enableNotifications: true,
-            apiBaseUrl: 'http://127.0.0.1:3001/api/v1',
+            apiBaseUrl: 'http://127.0.0.1:3001/v1',
         };
     }
 
