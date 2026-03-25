@@ -154,8 +154,8 @@ export class InventoryService {
         };
     }
 
-    static async createInventoryItem(inventoryData: Record<string, any>, auth: AuthenticatedUser): Promise<void> {
-        await InventoryModel.create(inventoryData, auth);
+    static async createInventoryItem(inventoryData: Record<string, any>, auth: AuthenticatedUser): Promise<{ productId: string; product: any }> {
+        const productId = await InventoryModel.create(inventoryData, auth);
 
         if (inventoryData.categoryId) {
             try {
@@ -164,6 +164,10 @@ export class InventoryService {
                 console.warn('Failed to sync category item counts after inventory item creation:', error);
             }
         }
+
+        const product = await InventoryModel.findById(productId, auth);
+
+        return { productId, product };
     }
 
     static async updateInventoryItem(productId: string, inventoryData: Record<string, any>, auth: AuthenticatedUser): Promise<number> {
