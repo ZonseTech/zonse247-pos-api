@@ -3,6 +3,7 @@ version: "3"
 
 vars:
   SCRIPT: ./scripts/db.sh
+  BASH: '{{if eq OS "windows"}}C:/Program Files/Git/bin/bash.exe{{else}}bash{{end}}'
 
 tasks:
   # Help and info
@@ -14,120 +15,120 @@ tasks:
   help:
     desc: Show detailed help from db script
     cmds:
-      - bash {{.SCRIPT}} help mysql
+      - '"{{.BASH}}" {{.SCRIPT}} help mysql'
 
   # MySQL tasks
   gen:mysql:
     desc: Generate Prisma client for MySQL
     cmds:
-      - bash {{.SCRIPT}} generate mysql
+      - '"{{.BASH}}" {{.SCRIPT}} generate mysql'
 
   migrate:mysql:
     desc: Create and apply migration for MySQL
     cmds:
-      - bash {{.SCRIPT}} migrate mysql {{.CLI_ARGS}}
+      - '"{{.BASH}}" {{.SCRIPT}} migrate mysql {{.CLI_ARGS}}'
 
   create:mysql:
     desc: Create migration without applying (MySQL)
     cmds:
-      - bash {{.SCRIPT}} create mysql {{.CLI_ARGS}}
+      - '"{{.BASH}}" {{.SCRIPT}} create mysql {{.CLI_ARGS}}'
 
   push:mysql:
     desc: Push schema changes to MySQL (no migration)
     cmds:
-      - bash {{.SCRIPT}} push mysql
+      - '"{{.BASH}}" {{.SCRIPT}} push mysql'
 
   studio:mysql:
     desc: Open Prisma Studio for MySQL
     cmds:
-      - bash {{.SCRIPT}} studio mysql
+      - '"{{.BASH}}" {{.SCRIPT}} studio mysql'
 
   deploy:mysql:
     desc: Deploy pending migrations to MySQL (production)
     cmds:
-      - bash {{.SCRIPT}} deploy mysql
+      - '"{{.BASH}}" {{.SCRIPT}} deploy mysql'
 
   status:mysql:
     desc: Check migration status for MySQL
     cmds:
-      - bash {{.SCRIPT}} status mysql
+      - '"{{.BASH}}" {{.SCRIPT}} status mysql'
 
   format:mysql:
     desc: Format MySQL schema file
     cmds:
-      - bash {{.SCRIPT}} format mysql
+      - '"{{.BASH}}" {{.SCRIPT}} format mysql'
 
   validate:mysql:
     desc: Validate MySQL schema
     cmds:
-      - bash {{.SCRIPT}} validate mysql
+      - '"{{.BASH}}" {{.SCRIPT}} validate mysql'
 
   reset:mysql:
     desc: Reset MySQL database (DESTRUCTIVE!)
     cmds:
-      - bash {{.SCRIPT}} reset mysql
+      - '"{{.BASH}}" {{.SCRIPT}} reset mysql'
 
   # SQLite tasks
   gen:sqlite:
     desc: Generate Prisma client for SQLite
     cmds:
-      - bash {{.SCRIPT}} generate sqlite
+      - '"{{.BASH}}" {{.SCRIPT}} generate sqlite'
 
   migrate:sqlite:
     desc: Create and apply migration for SQLite
     cmds:
-      - bash {{.SCRIPT}} migrate sqlite {{.CLI_ARGS}}
+      - '"{{.BASH}}" {{.SCRIPT}} migrate sqlite {{.CLI_ARGS}}'
 
   create:sqlite:
     desc: Create migration without applying (SQLite)
     cmds:
-      - bash {{.SCRIPT}} create sqlite {{.CLI_ARGS}}
+      - '"{{.BASH}}" {{.SCRIPT}} create sqlite {{.CLI_ARGS}}'
 
   push:sqlite:
     desc: Push schema changes to SQLite (no migration)
     cmds:
-      - bash {{.SCRIPT}} push sqlite
+      - '"{{.BASH}}" {{.SCRIPT}} push sqlite'
 
   studio:sqlite:
     desc: Open Prisma Studio for SQLite
     cmds:
-      - bash {{.SCRIPT}} studio sqlite
+      - '"{{.BASH}}" {{.SCRIPT}} studio sqlite'
 
   deploy:sqlite:
     desc: Deploy pending migrations to SQLite (production)
     cmds:
-      - bash {{.SCRIPT}} deploy sqlite
+      - '"{{.BASH}}" {{.SCRIPT}} deploy sqlite'
 
   status:sqlite:
     desc: Check migration status for SQLite
     cmds:
-      - bash {{.SCRIPT}} status sqlite
+      - '"{{.BASH}}" {{.SCRIPT}} status sqlite'
 
   format:sqlite:
     desc: Format SQLite schema file
     cmds:
-      - bash {{.SCRIPT}} format sqlite
+      - '"{{.BASH}}" {{.SCRIPT}} format sqlite'
 
   validate:sqlite:
     desc: Validate SQLite schema
     cmds:
-      - bash {{.SCRIPT}} validate sqlite
+      - '"{{.BASH}}" {{.SCRIPT}} validate sqlite'
 
   reset:sqlite:
     desc: Reset SQLite database (DESTRUCTIVE!)
     cmds:
-      - bash {{.SCRIPT}} reset sqlite
+      - '"{{.BASH}}" {{.SCRIPT}} reset sqlite'
 
   # Initialize separate migration directories
   init:mysql:
     desc: Initialize separate migration directory for MySQL
     cmds:
-      - bash {{.SCRIPT}} init mysql
+      - '"{{.BASH}}" {{.SCRIPT}} init mysql'
 
   init:sqlite:
     desc: Initialize separate migration directory for SQLite
     cmds:
-      - bash {{.SCRIPT}} init sqlite
+      - '"{{.BASH}}" {{.SCRIPT}} init sqlite'
 
   # Convenience tasks for both databases
   gen:all:

@@ -96,6 +96,7 @@
     "node": ">=18.0.0"
   },
   "devDependencies": {
+    "@go-task/cli": "^3.49.1",
     "@types/async": "^3.2.24",
     "@types/better-sqlite3": "^7.6.13",
     "@types/bonjour": "^3.5.13",
