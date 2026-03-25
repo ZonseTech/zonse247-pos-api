@@ -83,8 +83,8 @@ export class StockMovementService {
         const quantityChange = isIncrease ? data.quantity : -data.quantity;
         const newQuantity = previousQuantity + quantityChange;
 
-        // Validate negative stock if not allowed
-        if (newQuantity < 0 && !inventory.allowNegativeStock) {
+        // Validate negative stock only on decrease operations
+        if (!isIncrease && newQuantity < 0 && !inventory.allowNegativeStock) {
             throw new Error(
                 `Insufficient stock. Available: ${previousQuantity}, Requested: ${data.quantity}`
             );
