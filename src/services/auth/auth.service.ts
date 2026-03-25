@@ -51,6 +51,11 @@ export class AuthService {
 
             await UserModel.updateLastLogin(user.userId);
 
+            if (!user.currentBranchId && user.branchId) {
+                await UserModel.updateCurrentBranch(user.userId, user.branchId);
+                user.currentBranchId = user.branchId;
+            }
+
             const completeUser: any = UserModel.getPublicUser(user);
 
             const { permissions } = await this.verifyUserPrivileges(user.roleId);
