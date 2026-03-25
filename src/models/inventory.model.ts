@@ -147,9 +147,9 @@ export class InventoryModel {
     /**
      * Create a new product with variants
      */
-    static async create(inventoryData: Record<string, any>, auth: AuthenticatedUser): Promise<void> {
+    static async create(inventoryData: Record<string, any>, auth: AuthenticatedUser): Promise<string> {
         try {
-            await InventoryWriteRepository.createProductWithVariants(inventoryData as any, auth);
+            return await InventoryWriteRepository.createProductWithVariants(inventoryData as any, auth);
         } catch (error) {
             if (
                 error instanceof ValidationError ||

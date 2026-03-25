@@ -390,11 +390,11 @@ export class InventoryController extends BaseController {
     static async createInventoryItem(req: Request & AuthRequest, res: Response): Promise<void> {
         try {
             const auth = InventoryController.getAuthContext(req);
-            const newInventoryItem = await InventoryService.createInventoryItem(req.body, auth);
+            const { productId, product } = await InventoryService.createInventoryItem(req.body, auth);
 
-            AuditService.logCreate(getAuditContext(req), 'InventoryItem', (newInventoryItem as any).inventoryItemId || '', (newInventoryItem as any).name || req.body.name || '', req.body);
+            AuditService.logCreate(getAuditContext(req), 'InventoryItem', productId, req.body.name || '', req.body);
 
-            BaseController.sendCreated(res, 'Inventory item created successfully.', newInventoryItem);
+            BaseController.sendCreated(res, 'Inventory item created successfully.', product);
         } catch (error) {
             InventoryController.handleError(res, error, 'createInventoryItem');
         }
