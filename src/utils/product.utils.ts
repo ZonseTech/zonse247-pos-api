@@ -138,6 +138,7 @@ export function mapInventory(inventory: any): InventoryInfo | undefined {
     if (!inventory) return undefined;
 
     return {
+        inventoryId: inventory.id,
         availableQuantity: inventory.availableQuantity,
         reservedQuantity: inventory.reservedQuantity,
         damagedQuantity: inventory.damagedQuantity,
