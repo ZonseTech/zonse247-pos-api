@@ -92,6 +92,7 @@ export interface VariantBarcode {
  * Inventory data for a variant
  */
 export interface InventoryInfo {
+    inventoryId: string;
     availableQuantity: number;
     reservedQuantity: number;
     damagedQuantity: number;

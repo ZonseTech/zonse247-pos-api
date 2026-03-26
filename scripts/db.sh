@@ -24,6 +24,14 @@ print_success() { echo -e "${GREEN}✓${NC} $1"; }
 print_error() { echo -e "${RED}✗${NC} $1"; }
 print_warning() { echo -e "${YELLOW}⚠${NC} $1"; }
 
+# Portable alternative to rsync -a --delete (works on Windows)
+sync_dir() {
+    local src="$1"
+    local dst="$2"
+    rm -rf "$dst"/*
+    cp -r "$src"/* "$dst/"
+}
+
 switch_schema() {
     local db=$1
     if [ "$db" = "mysql" ]; then
@@ -80,9 +88,9 @@ cmd_migrate() {
     
     # Backup migrations to the correct directory after migration
     if [ "$db" = "mysql" ] && [ -d "$MIGRATIONS_DIR" ]; then
-        rsync -a --delete "$MIGRATIONS_DIR/" "$MYSQL_MIGRATIONS/"
+        sync_dir "$MIGRATIONS_DIR" "$MYSQL_MIGRATIONS"
     elif [ "$db" = "sqlite" ] && [ -d "$MIGRATIONS_DIR" ]; then
-        rsync -a --delete "$MIGRATIONS_DIR/" "$SQLITE_MIGRATIONS/"
+        sync_dir "$MIGRATIONS_DIR" "$SQLITE_MIGRATIONS"
     fi
     
     print_success "Migration completed for $db"
@@ -110,9 +118,9 @@ cmd_migrate_create() {
     
     # Backup migrations to the correct directory after migration
     if [ "$db" = "mysql" ] && [ -d "$MIGRATIONS_DIR" ]; then
-        rsync -a --delete "$MIGRATIONS_DIR/" "$MYSQL_MIGRATIONS/"
+        sync_dir "$MIGRATIONS_DIR" "$MYSQL_MIGRATIONS"
     elif [ "$db" = "sqlite" ] && [ -d "$MIGRATIONS_DIR" ]; then
-        rsync -a --delete "$MIGRATIONS_DIR/" "$SQLITE_MIGRATIONS/"
+        sync_dir "$MIGRATIONS_DIR" "$SQLITE_MIGRATIONS"
     fi
     
     print_success "Migration created for $db"
@@ -216,9 +224,9 @@ cmd_init_migrations() {
     
     # Save to correct directory
     if [ "$db" = "mysql" ]; then
-        rsync -a --delete "$MIGRATIONS_DIR/" "$MYSQL_MIGRATIONS/"
+        sync_dir "$MIGRATIONS_DIR" "$MYSQL_MIGRATIONS"
     elif [ "$db" = "sqlite" ]; then
-        rsync -a --delete "$MIGRATIONS_DIR/" "$SQLITE_MIGRATIONS/"
+        sync_dir "$MIGRATIONS_DIR" "$SQLITE_MIGRATIONS"
     fi
     
     print_success "Migration directories initialized for $db"

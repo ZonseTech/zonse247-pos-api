@@ -322,6 +322,43 @@ export class MigrationManager {
                 return true;
             }
         }
+
+        if (this.dbType === 'mysql') {
+            // MySQL error 1050: Table already exists (from CREATE TABLE IF NOT EXISTS race conditions or prisma db push)
+            if (errorMsg.includes('already exists')) return true;
+
+            // MySQL error 1060: Duplicate column name (column was already added by prisma db push)
+            if (errorMsg.includes('Duplicate column name')) return true;
+
+            // MySQL error 1061: Duplicate key name (index already exists)
+            if (errorMsg.includes('Duplicate key name')) return true;
+
+            // MySQL error 1824: Failed to open the referenced table (FK target already exists
+            // with correct schema from prisma db push, so CREATE TABLE with FK fails)
+            // Also covers error 1005/1215 for FK constraint issues on tables that already exist
+            if (errorMsg.includes('Failed to open the referenced table')) return true;
+
+            // MySQL error 1054: Unknown column - occurs when prisma db push created the final
+            // schema and intermediate migration columns never existed (same as SQLite "no such column")
+            if (errorMsg.includes('Unknown column')) {
+                if (sql.includes('UPDATE')) return true;
+                if (sql.includes('INSERT')) return true;
+                if (sql.includes('INDEX')) return true;
+            }
+
+            // MySQL error 1146: Table doesn't exist - occurs when a table was removed/renamed
+            // in the final schema (same as SQLite "no such table")
+            if (errorMsg.includes("doesn't exist") || errorMsg.includes('Table') && errorMsg.includes('not exist')) {
+                return true;
+            }
+
+            // MySQL error 1091: Can't DROP - column/key doesn't exist (already dropped)
+            if (errorMsg.includes("Can't DROP")) return true;
+
+            // MySQL error 1826: Duplicate foreign key constraint name (FK already exists from prisma db push)
+            if (errorMsg.includes('Duplicate foreign key constraint name')) return true;
+        }
+
         return false;
     }
 

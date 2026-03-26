@@ -132,6 +132,16 @@ async function handleExistingUser(
     }
 
     if (hasChanges) {
+        // Handle currentBranchId with proper relation syntax
+        if ('currentBranchId' in updateData) {
+            if (updateData.currentBranchId) {
+                updateData.currentBranch = { connect: { branchId: updateData.currentBranchId as string } };
+            } else {
+                updateData.currentBranch = { disconnect: true };
+            }
+            delete updateData.currentBranchId;
+        }
+
         await prisma.user.update({
             where: { userId },
             data: updateData as any,
