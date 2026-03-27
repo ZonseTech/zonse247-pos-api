@@ -213,7 +213,9 @@ async function upsertUser(record: Record<string, unknown>): Promise<UpsertResult
 
             for (const field of syncFields) {
                 if (record[field] !== undefined) {
-                    updateData[field] = record[field];
+                    updateData[field] = field === 'maxDiscountPercent'
+                        ? toNumber(record[field])
+                        : record[field];
                     hasChanges = true;
                 }
             }
