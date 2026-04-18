@@ -70,6 +70,22 @@ import { migration as m20260319_02 } from './20260319_02_add_costing_method_and_
 import { migration as m20260319_03 } from './20260319_03_add_supplier_return_tables_and_return_to_supplier_enum';
 import { migration as m20260319_04 } from './20260319_04_add_draft_and_sent_to_purchase_order_status_enum';
 import { migration as m20260319_05 } from './20260319_05_drop_legacy_product_id_from_purchase_order_items';
+import { migration as m20260402_01 } from './20260402_01_create_services_table_and_service_pricing_type_enum';
+import { migration as m20260402_02 } from './20260402_02_create_service_orders_table_for_job_card_tracking';
+import { migration as m20260402_03 } from './20260402_03_create_service_order_items_table';
+import { migration as m20260402_04 } from './20260402_04_create_service_consumptions_table_and_stock_enum_values';
+import { migration as m20260402_05 } from './20260402_05_extend_sale_payments_for_service_orders';
+import { migration as m20260402_06 } from './20260402_06_create_staff_assignments_table_and_commission_type_enum';
+import { migration as m20260402_07 } from './20260402_07_remove_staff_id_from_service_order_items';
+import { migration as m20260402_08 } from './20260402_08_create_appointments_table_and_appointment_status_enum';
+import { migration as m20260402_09 } from './20260402_09_expand_business_type_enum_for_multi_industry_support';
+import { migration as m20260407_01 } from './20260407_01_expand_service_pricing_type_enum_with_variable_flat_rate_tiered_subscription_custom';
+import { migration as m20260409_01 } from './20260409_01_expand_appointment_status_enum_and_add_priority_enum';
+import { migration as m20260409_02 } from './20260409_02_create_resources_and_appointment_resources_tables';
+import { migration as m20260410_01 } from './20260410_01_add_order_type_and_product_items_to_service_orders';
+import { migration as m20260410_02 } from './20260410_02_create_loyalty_program_tables';
+import { migration as m20260410_03 } from './20260410_03_refactor_loyalty_tables_from_branch_to_tenant_scope';
+import { migration as m20260418_01 } from './20260418_01_drop_branch_settings_table';
 
 /**
  * All registered migrations, sorted by version
@@ -135,6 +151,22 @@ export const registeredMigrations: Migration[] = [
     m20260319_03,
     m20260319_04,
     m20260319_05,
+    m20260402_01,
+    m20260402_02,
+    m20260402_03,
+    m20260402_04,
+    m20260402_05,
+    m20260402_06,
+    m20260402_07,
+    m20260402_08,
+    m20260402_09,
+    m20260407_01,
+    m20260409_01,
+    m20260409_02,
+    m20260410_01,
+    m20260410_02,
+    m20260410_03,
+    m20260418_01,
 ].sort((a, b) => a.version.localeCompare(b.version));
 
 /**
