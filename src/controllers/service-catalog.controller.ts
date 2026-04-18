@@ -12,7 +12,6 @@ export class ServiceCatalogController extends BaseController {
     };
   }
 
-  // ── Create ────────────────────────────────────────────────
   static async createService(req: Request, res: Response) {
     try {
       const { tenantId, branchId } = ServiceCatalogController.getAuth(req);
@@ -26,7 +25,6 @@ export class ServiceCatalogController extends BaseController {
     }
   }
 
-  // ── List ──────────────────────────────────────────────────
   static async listServices(req: Request, res: Response) {
     try {
       const { tenantId, branchId } = ServiceCatalogController.getAuth(req);
@@ -51,7 +49,6 @@ export class ServiceCatalogController extends BaseController {
     }
   }
 
-  // ── Get by ID ─────────────────────────────────────────────
   static async getService(req: Request, res: Response) {
     try {
       const { tenantId, branchId } = ServiceCatalogController.getAuth(req);
@@ -70,7 +67,6 @@ export class ServiceCatalogController extends BaseController {
     }
   }
 
-  // ── Update ────────────────────────────────────────────────
   static async updateService(req: Request, res: Response) {
     try {
       const { tenantId, branchId } = ServiceCatalogController.getAuth(req);
@@ -86,7 +82,6 @@ export class ServiceCatalogController extends BaseController {
     }
   }
 
-  // ── Summary ───────────────────────────────────────────────
   static async getSummary(req: Request, res: Response) {
     try {
       const { tenantId, branchId } = ServiceCatalogController.getAuth(req);
@@ -105,7 +100,6 @@ export class ServiceCatalogController extends BaseController {
     }
   }
 
-  // ── Delete ────────────────────────────────────────────────
   static async deleteService(req: Request, res: Response) {
     try {
       const { tenantId, branchId } = ServiceCatalogController.getAuth(req);
