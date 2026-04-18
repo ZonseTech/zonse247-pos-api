@@ -1,7 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import prisma from '../databases/prisma/client';
 import { Category, CategoryFilters } from 'categoty';
-import { CategoryUncheckedCreateInput } from 'src/databases/prisma/generated/prisma/models';
+import { CategoryUncheckedCreateInput } from '../databases/prisma/generated/prisma/models';
 
 export class CategoryModel {
 

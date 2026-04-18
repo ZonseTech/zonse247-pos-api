@@ -6,7 +6,7 @@ import { PermissionModel } from '../models/permission.model';
 import { StaffModel } from '../models/staff.model';
 import type { PublicUser, User } from 'users';
 import type { Permission } from 'role-permission';
-import { UserUncheckedCreateInput } from 'src/databases/prisma/generated/prisma/models';
+import { UserUncheckedCreateInput } from '../databases/prisma/generated/prisma/models';
 import {
 	DbErrorHandler,
 	ValidationError,
