@@ -84,7 +84,10 @@ export const serviceOrderSchemas = {
   }),
 
   listQuery: Joi.object({
-    status: Joi.string().valid('PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED', 'PARTIALLY_PAID', 'PAID').optional(),
+    status: Joi.alternatives().try(
+      Joi.string().valid('PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED', 'PARTIALLY_PAID', 'PAID'),
+      Joi.array().items(Joi.string().valid('PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED', 'PARTIALLY_PAID', 'PAID'))
+    ).optional(),
     customerId: Joi.string().optional(),
     search: Joi.string().optional(),
     page: Joi.number().integer().min(1).optional(),

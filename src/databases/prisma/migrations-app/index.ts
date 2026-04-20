@@ -86,6 +86,13 @@ import { migration as m20260410_01 } from './20260410_01_add_order_type_and_prod
 import { migration as m20260410_02 } from './20260410_02_create_loyalty_program_tables';
 import { migration as m20260410_03 } from './20260410_03_refactor_loyalty_tables_from_branch_to_tenant_scope';
 import { migration as m20260418_01 } from './20260418_01_drop_branch_settings_table';
+import { migration as m20260418_02 } from './20260418_02_add_service_fields';
+import { migration as m20260418_03 } from './20260418_03_add_balance_due_to_service_orders';
+import { migration as m20260418_04 } from './20260418_04_add_started_completed_at_to_service_orders';
+import { migration as m20260419_01 } from './20260419_01_change_service_order_status_enum';
+import { migration as m20260419_02 } from './20260419_02_drop_transactions_table';
+import { migration as m20260419_03 } from './20260419_03_drop_syncstatus_table';
+import { migration as m20260419_04 } from './20260419_04_drop_tenant_subscriptions_table';
 
 /**
  * All registered migrations, sorted by version
@@ -167,6 +174,13 @@ export const registeredMigrations: Migration[] = [
     m20260410_02,
     m20260410_03,
     m20260418_01,
+    m20260418_02,
+    m20260418_03,
+    m20260418_04,
+    m20260419_01,
+    m20260419_02,
+    m20260419_03,
+    m20260419_04,
 ].sort((a, b) => a.version.localeCompare(b.version));
 
 /**

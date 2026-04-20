@@ -20,11 +20,12 @@ interface CreateServiceData {
   sku?: string | null;
   pricingType?: string;
   basePrice?: number | null;
-  durationMin?: number | null;
+  durationMinutes?: number | null;
   categoryId?: string | null;
   isTaxable?: boolean;
   taxRate?: number | null;
   imageUrl?: string | null;
+  sortOrder?: number;
   isActive?: boolean;
 }
 
@@ -34,11 +35,12 @@ interface UpdateServiceData {
   sku?: string | null;
   pricingType?: string;
   basePrice?: number | null;
-  durationMin?: number | null;
+  durationMinutes?: number | null;
   categoryId?: string | null;
   isTaxable?: boolean;
   taxRate?: number | null;
   imageUrl?: string | null;
+  sortOrder?: number;
   isActive?: boolean;
 }
 
@@ -66,13 +68,14 @@ export class ServiceCatalogService {
         name: data.name,
         description: data.description ?? null,
         sku: data.sku ?? null,
-        pricingType: data.pricingType ?? 'FIXED',
-        basePrice: data.basePrice ?? null,
-        durationMin: data.durationMin ?? null,
+        pricingType: (data.pricingType as any) ?? 'FIXED',
+        basePrice: data.basePrice ?? 0,
+        durationMinutes: data.durationMinutes ?? null,
         categoryId: data.categoryId ?? null,
         isTaxable: data.isTaxable ?? true,
         taxRate: data.taxRate ?? 0,
         imageUrl: data.imageUrl ?? null,
+        sortOrder: data.sortOrder ?? 0,
         isActive: data.isActive ?? true,
       },
     });
@@ -143,13 +146,14 @@ export class ServiceCatalogService {
         ...(data.name !== undefined && { name: data.name }),
         ...(data.description !== undefined && { description: data.description }),
         ...(data.sku !== undefined && { sku: data.sku }),
-        ...(data.pricingType !== undefined && { pricingType: data.pricingType }),
+        ...(data.pricingType !== undefined && { pricingType: data.pricingType as any }),
         ...(data.basePrice !== undefined && { basePrice: data.basePrice }),
-        ...(data.durationMin !== undefined && { durationMin: data.durationMin }),
+        ...(data.durationMinutes !== undefined && { durationMinutes: data.durationMinutes }),
         ...(data.categoryId !== undefined && { categoryId: data.categoryId }),
         ...(data.isTaxable !== undefined && { isTaxable: data.isTaxable }),
         ...(data.taxRate !== undefined && { taxRate: data.taxRate }),
         ...(data.imageUrl !== undefined && { imageUrl: data.imageUrl }),
+        ...(data.sortOrder !== undefined && { sortOrder: data.sortOrder }),
         ...(data.isActive !== undefined && { isActive: data.isActive }),
         version: { increment: 1 },
       },
@@ -181,19 +185,19 @@ export class ServiceCatalogService {
       prisma.service.count({ where: { ...where, isActive: true } }),
       // Inactive count
       prisma.service.count({ where: { ...where, isActive: false } }),
-      // Price aggregation
+      // Price aggregation (basePrice has default 0, so no null check needed)
       prisma.service.aggregate({
-        where: { ...where, basePrice: { not: null } },
+        where,
         _avg: { basePrice: true },
         _max: { basePrice: true },
         _min: { basePrice: true },
       }),
-      // Duration aggregation
+      // Duration aggregation (only for services with duration set)
       prisma.service.aggregate({
-        where: { ...where, durationMin: { not: null } },
-        _avg: { durationMin: true },
-        _max: { durationMin: true },
-        _min: { durationMin: true },
+        where: { ...where, NOT: { durationMinutes: null } },
+        _avg: { durationMinutes: true },
+        _max: { durationMinutes: true },
+        _min: { durationMinutes: true },
       }),
       // Group by pricing type
       prisma.service.groupBy({
@@ -223,8 +227,9 @@ export class ServiceCatalogService {
 
     const categoryMap = new Map(categories.map((c) => [c.categoryId, c.name]));
 
-    const servicesWithNoPrice = await prisma.service.count({ where: { ...where, basePrice: null } });
-    const servicesWithNoDuration = await prisma.service.count({ where: { ...where, durationMin: null } });
+    // Count services with zero price (basePrice defaults to 0, so null check not applicable)
+    const servicesWithNoPrice = await prisma.service.count({ where: { ...where, basePrice: 0 } });
+    const servicesWithNoDuration = await prisma.service.count({ where: { ...where, durationMinutes: null } });
 
     return {
       totalServices: services,
@@ -246,9 +251,9 @@ export class ServiceCatalogService {
         count: g._count.id,
       })),
       duration: {
-        averageDurationMin: durationAgg._avg.durationMin ? Math.round(durationAgg._avg.durationMin) : 0,
-        shortestDurationMin: durationAgg._min.durationMin ?? 0,
-        longestDurationMin: durationAgg._max.durationMin ?? 0,
+        averageDurationMin: durationAgg._avg.durationMinutes ? Math.round(durationAgg._avg.durationMinutes) : 0,
+        shortestDurationMin: durationAgg._min.durationMinutes ?? 0,
+        longestDurationMin: durationAgg._max.durationMinutes ?? 0,
         servicesWithNoDuration,
       },
     };

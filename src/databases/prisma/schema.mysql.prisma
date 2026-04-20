@@ -144,6 +144,7 @@ model ProductVariant {
   saleItems   SaleItem[]
   barcodes    VariantBarcode[]
   serviceConsumptions ServiceConsumption[]
+  serviceOrderProductItems ServiceOrderProductItem[]
   
   @@unique([productId, variantName], name: "unique_product_variant")
   @@unique([tenantId, branchId, primaryBarcode], name: "unique_tenant_branch_barcode")
@@ -895,7 +896,9 @@ model SalePayment {
   id              String        @id @default(uuid()) @map("sale_payment_id")
   tenantId        String        @map("tenant_id")
   branchId        String        @map("branch_id")
-  saleId          String        @map("sale_id")
+  saleId          String?       @map("sale_id")
+  serviceOrderId  String?       @map("service_order_id")
+  paymentEntity   PaymentEntity @default(SALE) @map("payment_entity")
   paymentMethodId String        @map("payment_method_id")
   terminalId      String?       @map("terminal_id")
   
@@ -918,13 +921,15 @@ model SalePayment {
   
   tenant          Tenant        @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade)
   branch          Branch        @relation(fields: [branchId], references: [branchId], onDelete: Cascade)
-  sale            Sale          @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  sale            Sale?         @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  serviceOrder    ServiceOrder? @relation(fields: [serviceOrderId], references: [id], onDelete: Cascade)
   paymentMethod   PaymentMethod @relation(fields: [paymentMethodId], references: [methodId], onDelete: Restrict)
   
   @@index([tenantId])
   @@index([branchId])
   @@index([tenantId, branchId, updatedAt])
   @@index([saleId])
+  @@index([serviceOrderId])
   @@index([paymentMethodId])
   @@index([status])
   @@index([processedAt])
@@ -1189,6 +1194,7 @@ model Customer {
   deletedAt    DateTime?     @map("deleted_at")
   createdAt    DateTime?     @default(now()) @map("created_at")
   updatedAt    DateTime?     @default(now()) @map("updated_at")
+  tenant       Tenant        @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade, onUpdate: NoAction)
   branch       Branch        @relation(fields: [branchId], references: [branchId], onDelete: Cascade, onUpdate: NoAction)
   transactions Transaction[]
   sales        Sale[]
@@ -1196,6 +1202,7 @@ model Customer {
   appointments  Appointment[]
   loyaltyMembers LoyaltyMember[]
 
+  @@index([tenantId])
   @@index([branchId])
   @@index([isDefault])
   @@index([tenantId, branchId, updatedAt])
@@ -1440,6 +1447,7 @@ model Tenant {
   branches            Branch[]
   terminals           Terminal[]
   users               User[]
+  customers           Customer[]
   
   // ADDED: New inventory flow relations
   products           Product[]
@@ -2356,6 +2364,11 @@ enum PaymentStatus {
   CANCELLED
 }
 
+enum PaymentEntity {
+  SALE
+  SERVICE_ORDER
+}
+
 // Staff model for employee/staff management with attendance tracking
 enum CalculateAs {
   HOURLY
@@ -2677,13 +2690,12 @@ enum ServicePricingType {
 }
 
 enum ServiceOrderStatus {
-  DRAFT
-  OPEN
+  PENDING
   IN_PROGRESS
   COMPLETED
-  INVOICED
   CANCELLED
-  ON_HOLD
+  PARTIALLY_PAID
+  PAID
 }
 
 enum ServiceOrderItemStatus {
@@ -2746,9 +2758,13 @@ model Service {
   categoryId      String?            @map("category_id")
   name            String             @map("name")
   description     String?            @map("description") @db.Text
+  sku             String?            @map("sku")
   pricingType     ServicePricingType @default(FIXED) @map("pricing_type")
   basePrice       Decimal            @default(0.00) @map("base_price") @db.Decimal(10, 2)
   durationMinutes Int?               @map("duration_minutes")
+  isTaxable       Boolean            @default(true) @map("is_taxable")
+  taxRate         Decimal            @default(0.00) @map("tax_rate") @db.Decimal(5, 2)
+  imageUrl        String?            @map("image_url")
   isActive        Boolean            @default(true) @map("is_active")
   sortOrder       Int                @default(0) @map("sort_order")
   version         Int                @default(1) @map("version")
@@ -2787,16 +2803,19 @@ model ServiceOrder {
   assignedStaffId String?            @map("assigned_staff_id")
   orderNumber     String             @map("order_number")
   orderType       ServiceOrderType   @default(SERVICE_ONLY) @map("order_type")
-  status          ServiceOrderStatus @default(DRAFT) @map("status")
+  status          ServiceOrderStatus @default(PENDING) @map("status")
   scheduledStart  DateTime?          @map("scheduled_start")
   scheduledEnd    DateTime?          @map("scheduled_end")
   actualStart     DateTime?          @map("actual_start")
   actualEnd       DateTime?          @map("actual_end")
+  startedAt       DateTime?          @map("started_at")
+  completedAt     DateTime?          @map("completed_at")
   subtotal        Decimal            @default(0.00) @map("subtotal") @db.Decimal(10, 2)
   taxAmount       Decimal            @default(0.00) @map("tax_amount") @db.Decimal(10, 2)
   discountAmount  Decimal            @default(0.00) @map("discount_amount") @db.Decimal(10, 2)
   totalAmount     Decimal            @default(0.00) @map("total_amount") @db.Decimal(10, 2)
   amountPaid      Decimal            @default(0.00) @map("amount_paid") @db.Decimal(10, 2)
+  balanceDue      Decimal            @default(0.00) @map("balance_due") @db.Decimal(10, 2)
   notes           String?            @map("notes") @db.Text
   internalNotes   String?            @map("internal_notes") @db.Text
   vehicleInfo     String?            @map("vehicle_info") @db.LongText
@@ -2815,6 +2834,7 @@ model ServiceOrder {
 
   serviceOrderItems    ServiceOrderItem[]
   productItems         ServiceOrderProductItem[]
+  payments             SalePayment[]
   appointments         Appointment[]
 
   @@unique([tenantId, branchId, orderNumber], name: "unique_service_order_number")
@@ -2936,6 +2956,7 @@ model ServiceOrderProductItem {
   serviceOrder    ServiceOrder  @relation(fields: [serviceOrderId], references: [id], onDelete: Cascade)
   tenant          Tenant        @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade)
   branch          Branch        @relation(fields: [branchId], references: [branchId], onDelete: Cascade)
+  variant         ProductVariant @relation(fields: [variantId], references: [id], onDelete: Restrict)
 
   @@index([serviceOrderId])
   @@index([tenantId])

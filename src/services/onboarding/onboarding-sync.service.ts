@@ -265,7 +265,7 @@ export class OnboardingSyncService {
                     continue;
                 }
 
-                const existingCustomer = await CustomerModel.findById(customerId);
+                const existingCustomer = await CustomerModel.findById(customerId, customerFields.tenantId);
 
                 if (existingCustomer) {
                     result.skipped.push(existingCustomer);

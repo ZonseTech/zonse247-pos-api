@@ -2,7 +2,7 @@
  * Service Order Types
  *
  * TypeScript interfaces for the service-order lifecycle:
- * PENDING → IN_PROGRESS → COMPLETED (or CANCELLED)
+ * PENDING → IN_PROGRESS → COMPLETED → PAID (or CANCELLED)
  */
 
 export type ServiceOrderStatus = 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED' | 'PARTIALLY_PAID' | 'PAID';
@@ -72,7 +72,7 @@ export interface ServiceOrderPaymentInput {
 }
 
 export interface ListServiceOrdersOptions {
-  status?: ServiceOrderStatus;
+  status?: ServiceOrderStatus | ServiceOrderStatus[];
   customerId?: string;
   search?: string;
   page?: number;

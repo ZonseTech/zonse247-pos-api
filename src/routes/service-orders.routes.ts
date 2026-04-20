@@ -5,7 +5,6 @@ import { serviceOrderSchemas } from '../validations/service-order.schemas';
 
 const router = Router();
 
-// CRUD
 router.post(
   '/',
   validateBody(serviceOrderSchemas.createServiceOrder),
@@ -31,7 +30,6 @@ router.put(
   ServiceOrderController.updateServiceOrder
 );
 
-// Order-level transitions
 router.post(
   '/:serviceOrderId/start',
   validateParams(serviceOrderSchemas.idParam),
@@ -44,7 +42,6 @@ router.post(
   ServiceOrderController.cancelOrder
 );
 
-// Item-level transitions
 router.post(
   '/:serviceOrderId/items/:itemId/start',
   validateParams(serviceOrderSchemas.itemIdParam),
@@ -64,7 +61,6 @@ router.post(
   ServiceOrderController.cancelItem
 );
 
-// Consumptions (post-completion)
 router.post(
   '/:serviceOrderId/items/:itemId/consumptions',
   validateParams(serviceOrderSchemas.itemIdParam),
@@ -72,7 +68,6 @@ router.post(
   ServiceOrderController.addConsumptions
 );
 
-// Payments
 router.post(
   '/:serviceOrderId/payments',
   validateParams(serviceOrderSchemas.idParam),
