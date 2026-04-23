@@ -30,6 +30,11 @@ import StockMovementsRoutes from './stock-movements.routes'
 import InventoryValuationRoutes from './inventory-valuation.routes'
 import PrinterRoutes from './printer.routes'
 import DistrictRoutes from './district.routes'
+import LoyaltyRoutes from './loyalty.routes'
+import ResourcesRoutes from './resources.routes'
+import StaffRoutes from './staff.routes'
+import ServicesRoutes from './services.routes'
+import ServiceOrdersRoutes from './service-orders.routes'
 import { AuthMiddleware } from '../middlewares/auth.middleware'
 import { apiMiddleware } from '../middlewares/api.middleware'
 import { preventSQLInjection, preventXSS, sanitizeInput } from '../middlewares/security.middleware'
@@ -99,5 +104,10 @@ router.use('/printers', PrinterRoutes);
 router.use('/reports', ReportsRoutes);
 router.use('/mra', MraRoutes);
 router.use('/sync', SyncRoutes);
+router.use('/loyalty', LoyaltyRoutes);
+router.use('/resources', ResourcesRoutes);
+router.use('/staff', StaffRoutes);
+router.use('/services', ServicesRoutes);
+router.use('/service-orders', ServiceOrdersRoutes);
 
 export default router

@@ -2,7 +2,7 @@ import { Category, CategoryFilters, UpdateCategoryDto } from "categoty";
 import { CategoryModel } from "../models/category.model";
 import { InventoryModel } from "../models/inventory.model";
 import { AuthenticatedUser } from "auth";
-import { CategoryUncheckedCreateInput } from "src/databases/prisma/generated/prisma/models";
+import { CategoryUncheckedCreateInput } from "../databases/prisma/generated/prisma/models";
 import prisma from '../databases/prisma/client';
 import { PaginationParams, buildPaginationMeta, PaginatedResult } from '../utils/pagination.utils';
 

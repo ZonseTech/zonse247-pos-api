@@ -143,6 +143,8 @@ model ProductVariant {
   supplierReturnItems SupplierReturnItem[]
   saleItems   SaleItem[]
   barcodes    VariantBarcode[]
+  serviceConsumptions ServiceConsumption[]
+  serviceOrderProductItems ServiceOrderProductItem[]
   
   @@unique([productId, variantName], name: "unique_product_variant")
   @@unique([tenantId, branchId, primaryBarcode], name: "unique_tenant_branch_barcode")
@@ -724,6 +726,7 @@ model StockMovement {
   branch          Branch            @relation(fields: [branchId], references: [branchId], onDelete: Cascade)
   inventory       Inventory         @relation(fields: [inventoryId], references: [id], onDelete: Cascade)
   movedByUser     User              @relation(fields: [movedBy], references: [userId], onDelete: Restrict)
+  serviceConsumptions ServiceConsumption[]
   
   @@index([branchId])
   @@index([tenantId])
@@ -825,6 +828,7 @@ model Sale {
   transactions    Transaction[]
   payments        SalePayment[] // NEW: Support for multiple payment methods
   mraSubmission   MraSubmission? // Central server MRA submission tracking
+  loyaltyTransactions LoyaltyTransaction[]
   
   @@unique([tenantId, branchId, saleNumber], name: "unique_tenant_branch_sale_number")
   @@index([branchId])
@@ -892,7 +896,9 @@ model SalePayment {
   id              String        @id @default(uuid()) @map("sale_payment_id")
   tenantId        String        @map("tenant_id")
   branchId        String        @map("branch_id")
-  saleId          String        @map("sale_id")
+  saleId          String?       @map("sale_id")
+  serviceOrderId  String?       @map("service_order_id")
+  paymentEntity   PaymentEntity @default(SALE) @map("payment_entity")
   paymentMethodId String        @map("payment_method_id")
   terminalId      String?       @map("terminal_id")
   
@@ -915,13 +921,15 @@ model SalePayment {
   
   tenant          Tenant        @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade)
   branch          Branch        @relation(fields: [branchId], references: [branchId], onDelete: Cascade)
-  sale            Sale          @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  sale            Sale?         @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  serviceOrder    ServiceOrder? @relation(fields: [serviceOrderId], references: [id], onDelete: Cascade)
   paymentMethod   PaymentMethod @relation(fields: [paymentMethodId], references: [methodId], onDelete: Restrict)
   
   @@index([tenantId])
   @@index([branchId])
   @@index([tenantId, branchId, updatedAt])
   @@index([saleId])
+  @@index([serviceOrderId])
   @@index([paymentMethodId])
   @@index([status])
   @@index([processedAt])
@@ -1033,31 +1041,6 @@ model District {
   @@map("districts")
 }
 
-model BranchSetting {
-  id              Int                  @id @default(autoincrement())
-  branchSettingId String               @unique @map("branch_setting_id")
-  tenantId        String               @map("tenant_id")
-  branchId        String               @unique @map("branch_id")
-  terminalId      String               @map("terminal_id")
-  app             String?              @map("app")
-  store           String?              @map("store")
-  addressLine1    String?              @map("address_line1")
-  addressLine2    String?              @map("address_line2")
-  country         String?              @map("country")
-  city            String?              @map("city")
-  contact         String?              @map("contact")
-  tax             String?              @map("tax")
-  symbol          String?              @map("symbol")
-  footer          String?              @map("footer")
-  status          BranchSettingStatus? @default(inactive) @map("status")
-  createdAt       DateTime?            @default(now()) @map("created_at")
-  updatedAt       DateTime?            @default(now()) @map("updated_at")
-  branch          Branch               @relation(fields: [branchId], references: [branchId], onDelete: Cascade, onUpdate: NoAction)
-
-  @@index([branchId])
-  @@map("branch_settings")
-}
-
 model Branch {
   id                 Int                      @id @default(autoincrement())
   branchId           String                   @unique @map("branch_id")
@@ -1096,7 +1079,6 @@ model Branch {
   deletedAt              DateTime?                @map("deleted_at")
 
   auditLogs          AuditLog[]
-  branchSetting      BranchSetting?
   tenant             Tenant                   @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade, onUpdate: NoAction)
   districtRef        District?                @relation(fields: [districtId], references: [districtId], onUpdate: NoAction)
   branchSubscription BranchSubscription?      @relation(fields: [branchSubscriptionId], references: [branchSubscriptionId], onUpdate: NoAction)
@@ -1140,6 +1122,17 @@ model Branch {
   mraSubmissions     MraSubmission[] // Central server only
   terminalSyncStates TerminalSyncState[] // Server-only: sync state tracking
   changeLogs         ChangeLog[] // Server-only: change log for delta sync
+  
+  // Service & Loyalty relations
+  services                   Service[]
+  serviceOrders              ServiceOrder[]
+  serviceOrderItems          ServiceOrderItem[]
+  serviceConsumptions        ServiceConsumption[]
+  serviceOrderProductItems   ServiceOrderProductItem[]
+  staffAssignments           StaffAssignment[]
+  appointments               Appointment[]
+  resources                  Resource[]
+  loyaltyTransactions        LoyaltyTransaction[]
 
   @@unique([tenantId, branchCode], name: "unique_tenant_branch_code")
   @@index([branchCode])
@@ -1172,6 +1165,7 @@ model Category {
   branch      Branch      @relation(fields: [branchId], references: [branchId], onDelete: Cascade, onUpdate: NoAction)
   terminal    Terminal?   @relation(fields: [terminalId], references: [terminalId], onDelete: Cascade, onUpdate: NoAction)
   products    Product[]
+  services    Service[]
 
   @@unique([branchId, name], name: "unique_branch_category")
   @@index([branchId])
@@ -1200,10 +1194,15 @@ model Customer {
   deletedAt    DateTime?     @map("deleted_at")
   createdAt    DateTime?     @default(now()) @map("created_at")
   updatedAt    DateTime?     @default(now()) @map("updated_at")
+  tenant       Tenant        @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade, onUpdate: NoAction)
   branch       Branch        @relation(fields: [branchId], references: [branchId], onDelete: Cascade, onUpdate: NoAction)
   transactions Transaction[]
   sales        Sale[]
+  serviceOrders ServiceOrder[]
+  appointments  Appointment[]
+  loyaltyMembers LoyaltyMember[]
 
+  @@index([tenantId])
   @@index([branchId])
   @@index([isDefault])
   @@index([tenantId, branchId, updatedAt])
@@ -1448,6 +1447,7 @@ model Tenant {
   branches            Branch[]
   terminals           Terminal[]
   users               User[]
+  customers           Customer[]
   
   // ADDED: New inventory flow relations
   products           Product[]
@@ -1480,6 +1480,20 @@ model Tenant {
   mraSubmissions     MraSubmission[] // Central server only
   terminalSyncStates TerminalSyncState[] // Server-only: sync state tracking
   changeLogs         ChangeLog[] // Server-only: change log for delta sync
+  
+  // Service & Loyalty relations
+  services                   Service[]
+  serviceOrders              ServiceOrder[]
+  serviceOrderItems          ServiceOrderItem[]
+  serviceConsumptions        ServiceConsumption[]
+  serviceOrderProductItems   ServiceOrderProductItem[]
+  staffAssignments           StaffAssignment[]
+  appointments               Appointment[]
+  resources                  Resource[]
+  loyaltyPrograms            LoyaltyProgram[]
+  loyaltyTiers               LoyaltyTier[]
+  loyaltyMembers             LoyaltyMember[]
+  loyaltyTransactions        LoyaltyTransaction[]
 
   @@index([email])
   @@index([tenantCode])
@@ -1699,6 +1713,12 @@ model User {
   voidedSales              Sale[]           @relation("sales_voided_by")
   supplierReturns          SupplierReturn[]
   staff                    Staff?
+  
+  // Service & Loyalty relations
+  createdServiceOrders     ServiceOrder[]   @relation("ServiceOrderCreatedBy")
+  createdAppointments      Appointment[]    @relation("AppointmentCreatedBy")
+  settledStaffAssignments  StaffAssignment[]
+  createdLoyaltyTxns       LoyaltyTransaction[] @relation("LoyaltyTransactionCreatedBy")
 
   @@unique([tenantId, username], name: "unique_tenant_username")
   @@index([branchId])
@@ -2238,12 +2258,6 @@ enum TenantSubscriptionPlanStatus {
   TRIAL
 }
 
-enum BranchSettingStatus {
-  active
-  inactive
-  suspended
-}
-
 enum AuditLogSeverity {
   low
   medium
@@ -2350,6 +2364,11 @@ enum PaymentStatus {
   CANCELLED
 }
 
+enum PaymentEntity {
+  SALE
+  SERVICE_ORDER
+}
+
 // Staff model for employee/staff management with attendance tracking
 enum CalculateAs {
   HOURLY
@@ -2433,6 +2452,10 @@ model Staff {
   user                     User              @relation(fields: [userId], references: [userId], onDelete: Cascade, onUpdate: NoAction)
   tenant                   Tenant            @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade, onUpdate: NoAction)
   branch                   Branch            @relation(fields: [branchId], references: [branchId], onDelete: Cascade, onUpdate: NoAction)
+  
+  // Service relations
+  staffAssignments         StaffAssignment[]
+  appointments             Appointment[]
 
   @@unique([tenantId, employeeCode], name: "unique_tenant_employee_code")
   @@index([userId], name: "idx_staff_user_id")
@@ -2648,4 +2671,570 @@ model SupplierCreditNote {
   @@index([deletedAt])
   @@index([tenantId, branchId, updatedAt])
   @@map("supplier_credit_notes")
+}
+
+// ==========================================
+// SERVICE CATALOG & SERVICE ORDERS
+// ==========================================
+
+enum ServicePricingType {
+  FIXED
+  VARIABLE
+  HOURLY
+  PER_UNIT
+  PACKAGE
+  FLAT_RATE
+  TIERED
+  SUBSCRIPTION
+  CUSTOM
+}
+
+enum ServiceOrderStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  PARTIALLY_PAID
+  PAID
+}
+
+enum ServiceOrderItemStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum ServiceOrderType {
+  SERVICE_ONLY
+  PRODUCT_ONLY
+  HYBRID
+}
+
+enum CommissionType {
+  PERCENTAGE
+  FIXED_AMOUNT
+}
+
+enum AppointmentStatus {
+  SCHEDULED
+  CONFIRMED
+  DISPATCHED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+  RESCHEDULED
+}
+
+enum AppointmentPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum ResourceType {
+  STAFF
+  VEHICLE
+  TOOL
+  TEST_EQUIPMENT
+  OTHER
+}
+
+enum LoyaltyTransactionType {
+  EARN
+  REDEEM
+  ADJUST
+  EXPIRE
+}
+
+// Service catalog item
+model Service {
+  id              String             @id @default(uuid()) @map("service_id")
+  tenantId        String             @map("tenant_id")
+  branchId        String             @map("branch_id")
+  terminalId      String?            @map("terminal_id")
+  categoryId      String?            @map("category_id")
+  name            String             @map("name")
+  description     String?            @map("description") @db.Text
+  sku             String?            @map("sku")
+  pricingType     ServicePricingType @default(FIXED) @map("pricing_type")
+  basePrice       Decimal            @default(0.00) @map("base_price") @db.Decimal(10, 2)
+  durationMinutes Int?               @map("duration_minutes")
+  isTaxable       Boolean            @default(true) @map("is_taxable")
+  taxRate         Decimal            @default(0.00) @map("tax_rate") @db.Decimal(5, 2)
+  imageUrl        String?            @map("image_url")
+  isActive        Boolean            @default(true) @map("is_active")
+  sortOrder       Int                @default(0) @map("sort_order")
+  version         Int                @default(1) @map("version")
+  deletedAt       DateTime?          @map("deleted_at")
+  createdAt       DateTime           @default(now()) @map("created_at")
+  updatedAt       DateTime           @updatedAt @map("updated_at")
+  lastSyncedAt    DateTime?          @map("last_synced_at")
+
+  // Relations
+  tenant          Tenant             @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade)
+  branch          Branch             @relation(fields: [branchId], references: [branchId], onDelete: Cascade)
+  category        Category?          @relation(fields: [categoryId], references: [categoryId], onDelete: SetNull)
+
+  serviceOrderItems ServiceOrderItem[]
+  appointments      Appointment[]
+
+  @@unique([tenantId, branchId, name], name: "unique_service_name")
+  @@index([tenantId])
+  @@index([branchId])
+  @@index([categoryId])
+  @@index([name])
+  @@index([isActive])
+  @@index([deletedAt])
+  @@index([updatedAt])
+  @@index([tenantId, branchId, updatedAt])
+  @@map("services")
+}
+
+// Service order (job card)
+model ServiceOrder {
+  id              String             @id @default(uuid()) @map("service_order_id")
+  tenantId        String             @map("tenant_id")
+  branchId        String             @map("branch_id")
+  terminalId      String?            @map("terminal_id")
+  customerId      String?            @map("customer_id")
+  assignedStaffId String?            @map("assigned_staff_id")
+  orderNumber     String             @map("order_number")
+  orderType       ServiceOrderType   @default(SERVICE_ONLY) @map("order_type")
+  status          ServiceOrderStatus @default(PENDING) @map("status")
+  scheduledStart  DateTime?          @map("scheduled_start")
+  scheduledEnd    DateTime?          @map("scheduled_end")
+  actualStart     DateTime?          @map("actual_start")
+  actualEnd       DateTime?          @map("actual_end")
+  startedAt       DateTime?          @map("started_at")
+  completedAt     DateTime?          @map("completed_at")
+  subtotal        Decimal            @default(0.00) @map("subtotal") @db.Decimal(10, 2)
+  taxAmount       Decimal            @default(0.00) @map("tax_amount") @db.Decimal(10, 2)
+  discountAmount  Decimal            @default(0.00) @map("discount_amount") @db.Decimal(10, 2)
+  totalAmount     Decimal            @default(0.00) @map("total_amount") @db.Decimal(10, 2)
+  amountPaid      Decimal            @default(0.00) @map("amount_paid") @db.Decimal(10, 2)
+  balanceDue      Decimal            @default(0.00) @map("balance_due") @db.Decimal(10, 2)
+  notes           String?            @map("notes") @db.Text
+  internalNotes   String?            @map("internal_notes") @db.Text
+  vehicleInfo     String?            @map("vehicle_info") @db.LongText
+  createdBy       String?            @map("created_by")
+  version         Int                @default(1) @map("version")
+  deletedAt       DateTime?          @map("deleted_at")
+  createdAt       DateTime           @default(now()) @map("created_at")
+  updatedAt       DateTime           @updatedAt @map("updated_at")
+  lastSyncedAt    DateTime?          @map("last_synced_at")
+
+  // Relations
+  tenant          Tenant             @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade)
+  branch          Branch             @relation(fields: [branchId], references: [branchId], onDelete: Cascade)
+  customer        Customer?          @relation(fields: [customerId], references: [customerId], onDelete: SetNull)
+  createdByUser   User?              @relation("ServiceOrderCreatedBy", fields: [createdBy], references: [userId], onDelete: SetNull)
+
+  serviceOrderItems    ServiceOrderItem[]
+  productItems         ServiceOrderProductItem[]
+  payments             SalePayment[]
+  appointments         Appointment[]
+
+  @@unique([tenantId, branchId, orderNumber], name: "unique_service_order_number")
+  @@index([tenantId])
+  @@index([branchId])
+  @@index([customerId])
+  @@index([assignedStaffId])
+  @@index([createdBy])
+  @@index([status])
+  @@index([scheduledStart])
+  @@index([deletedAt])
+  @@index([updatedAt])
+  @@index([tenantId, branchId, updatedAt])
+  @@map("service_orders")
+}
+
+// Service order line item
+model ServiceOrderItem {
+  id              String                 @id @default(uuid()) @map("service_order_item_id")
+  serviceOrderId  String                 @map("service_order_id")
+  serviceId       String                 @map("service_id")
+  tenantId        String                 @map("tenant_id")
+  branchId        String                 @map("branch_id")
+  terminalId      String?                @map("terminal_id")
+  quantity        Int                    @default(1) @map("quantity")
+  unitPrice       Decimal                @map("unit_price") @db.Decimal(10, 2)
+  discountAmount  Decimal                @default(0.00) @map("discount_amount") @db.Decimal(10, 2)
+  subtotal        Decimal                @map("subtotal") @db.Decimal(10, 2)
+  taxAmount       Decimal                @default(0.00) @map("tax_amount") @db.Decimal(10, 2)
+  totalPrice      Decimal                @map("total_price") @db.Decimal(10, 2)
+  status          ServiceOrderItemStatus @default(PENDING) @map("status")
+  notes           String?                @map("notes") @db.Text
+  startedAt       DateTime?              @map("started_at")
+  completedAt     DateTime?              @map("completed_at")
+  version         Int                    @default(1) @map("version")
+  deletedAt       DateTime?              @map("deleted_at")
+  createdAt       DateTime               @default(now()) @map("created_at")
+  updatedAt       DateTime               @updatedAt @map("updated_at")
+  lastSyncedAt    DateTime?              @map("last_synced_at")
+
+  // Relations
+  serviceOrder    ServiceOrder           @relation(fields: [serviceOrderId], references: [id], onDelete: Cascade)
+  service         Service                @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+  tenant          Tenant                 @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade)
+  branch          Branch                 @relation(fields: [branchId], references: [branchId], onDelete: Cascade)
+
+  consumptions    ServiceConsumption[]
+  staffAssignments StaffAssignment[]
+
+  @@index([serviceOrderId])
+  @@index([serviceId])
+  @@index([tenantId])
+  @@index([branchId])
+  @@index([status])
+  @@index([deletedAt])
+  @@index([updatedAt])
+  @@index([tenantId, branchId, updatedAt])
+  @@map("service_order_items")
+}
+
+// Inventory consumption for service
+model ServiceConsumption {
+  id                  String           @id @default(uuid()) @map("service_consumption_id")
+  serviceOrderItemId  String           @map("service_order_item_id")
+  productVariantId    String           @map("product_variant_id")
+  tenantId            String           @map("tenant_id")
+  branchId            String           @map("branch_id")
+  terminalId          String?          @map("terminal_id")
+  quantity            Decimal          @default(1.00) @map("quantity") @db.Decimal(10, 2)
+  unitCostAtTime      Decimal          @map("unit_cost_at_time") @db.Decimal(10, 2)
+  totalCost           Decimal          @map("total_cost") @db.Decimal(10, 2)
+  stockMovementId     String?          @map("stock_movement_id")
+  notes               String?          @map("notes") @db.Text
+  version             Int              @default(1) @map("version")
+  deletedAt           DateTime?        @map("deleted_at")
+  createdAt           DateTime         @default(now()) @map("created_at")
+  updatedAt           DateTime         @updatedAt @map("updated_at")
+
+  // Relations
+  serviceOrderItem    ServiceOrderItem @relation(fields: [serviceOrderItemId], references: [id], onDelete: Cascade)
+  productVariant      ProductVariant   @relation(fields: [productVariantId], references: [id], onDelete: Restrict)
+  tenant              Tenant           @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade)
+  branch              Branch           @relation(fields: [branchId], references: [branchId], onDelete: Cascade)
+  stockMovement       StockMovement?   @relation(fields: [stockMovementId], references: [id], onDelete: SetNull)
+
+  @@index([serviceOrderItemId])
+  @@index([productVariantId])
+  @@index([tenantId])
+  @@index([branchId])
+  @@index([stockMovementId])
+  @@index([deletedAt])
+  @@index([updatedAt])
+  @@index([tenantId, branchId, updatedAt])
+  @@map("service_consumptions")
+}
+
+// Product items sold with service order
+model ServiceOrderProductItem {
+  id              String        @id @default(uuid()) @map("service_order_product_item_id")
+  serviceOrderId  String        @map("service_order_id")
+  tenantId        String        @map("tenant_id")
+  branchId        String        @map("branch_id")
+  productId       String        @map("product_id")
+  variantId       String        @map("variant_id")
+  terminalId      String?       @map("terminal_id")
+  quantity        Int           @default(1) @map("quantity")
+  unitPrice       Decimal       @default(0.00) @map("unit_price") @db.Decimal(10, 2)
+  unitCost        Decimal       @default(0.00) @map("unit_cost") @db.Decimal(10, 2)
+  subtotal        Decimal       @default(0.00) @map("subtotal") @db.Decimal(10, 2)
+  taxAmount       Decimal       @default(0.00) @map("tax_amount") @db.Decimal(10, 2)
+  discountAmount  Decimal       @default(0.00) @map("discount_amount") @db.Decimal(10, 2)
+  totalAmount     Decimal       @default(0.00) @map("total_amount") @db.Decimal(10, 2)
+  version         Int           @default(1) @map("version")
+  deletedAt       DateTime?     @map("deleted_at")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+
+  // Relations
+  serviceOrder    ServiceOrder  @relation(fields: [serviceOrderId], references: [id], onDelete: Cascade)
+  tenant          Tenant        @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade)
+  branch          Branch        @relation(fields: [branchId], references: [branchId], onDelete: Cascade)
+  variant         ProductVariant @relation(fields: [variantId], references: [id], onDelete: Restrict)
+
+  @@index([serviceOrderId])
+  @@index([tenantId])
+  @@index([branchId])
+  @@index([variantId])
+  @@index([deletedAt])
+  @@index([updatedAt])
+  @@index([tenantId, branchId, updatedAt])
+  @@map("service_order_product_items")
+}
+
+// Staff assignment to service item
+model StaffAssignment {
+  id                  String           @id @default(uuid()) @map("staff_assignment_id")
+  serviceOrderItemId  String           @map("service_order_item_id")
+  staffId             String           @map("staff_id")
+  tenantId            String           @map("tenant_id")
+  branchId            String           @map("branch_id")
+  terminalId          String?          @map("terminal_id")
+  role                String?          @map("role")
+  commissionType      CommissionType   @default(PERCENTAGE) @map("commission_type")
+  commissionValue     Decimal?         @default(0.00) @map("commission_value") @db.Decimal(10, 2)
+  commissionAmount    Decimal?         @default(0.00) @map("commission_amount") @db.Decimal(10, 2)
+  isSettled           Boolean          @default(false) @map("is_settled")
+  settledAt           DateTime?        @map("settled_at")
+  settledBy           String?          @map("settled_by")
+  version             Int              @default(1) @map("version")
+  deletedAt           DateTime?        @map("deleted_at")
+  createdAt           DateTime         @default(now()) @map("created_at")
+  updatedAt           DateTime         @updatedAt @map("updated_at")
+
+  // Relations
+  serviceOrderItem    ServiceOrderItem @relation(fields: [serviceOrderItemId], references: [id], onDelete: Cascade)
+  staff               Staff            @relation(fields: [staffId], references: [staffId], onDelete: Restrict)
+  tenant              Tenant           @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade)
+  branch              Branch           @relation(fields: [branchId], references: [branchId], onDelete: Cascade)
+  settledByUser       User?            @relation(fields: [settledBy], references: [userId], onDelete: SetNull)
+
+  @@index([serviceOrderItemId])
+  @@index([staffId])
+  @@index([tenantId])
+  @@index([branchId])
+  @@index([isSettled])
+  @@index([settledBy])
+  @@index([deletedAt])
+  @@index([updatedAt])
+  @@index([tenantId, branchId, updatedAt])
+  @@map("staff_assignments")
+}
+
+// Appointment scheduling
+model Appointment {
+  id              String              @id @default(uuid()) @map("appointment_id")
+  tenantId        String              @map("tenant_id")
+  branchId        String              @map("branch_id")
+  terminalId      String?             @map("terminal_id")
+  customerId      String              @map("customer_id")
+  staffId         String?             @map("staff_id")
+  serviceId       String              @map("service_id")
+  startTime       DateTime            @map("start_time")
+  endTime         DateTime            @map("end_time")
+  status          AppointmentStatus   @default(SCHEDULED) @map("status")
+  priority        AppointmentPriority @default(NORMAL) @map("priority")
+  serviceOrderId  String?             @unique @map("service_order_id")
+  notes           String?             @map("notes") @db.Text
+  createdBy       String?             @map("created_by")
+  version         Int                 @default(1) @map("version")
+  deletedAt       DateTime?           @map("deleted_at")
+  createdAt       DateTime            @default(now()) @map("created_at")
+  updatedAt       DateTime            @updatedAt @map("updated_at")
+
+  // Relations
+  tenant          Tenant              @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade)
+  branch          Branch              @relation(fields: [branchId], references: [branchId], onDelete: Cascade)
+  customer        Customer            @relation(fields: [customerId], references: [customerId], onDelete: Cascade)
+  staff           Staff?              @relation(fields: [staffId], references: [staffId], onDelete: SetNull)
+  service         Service             @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+  serviceOrder    ServiceOrder?       @relation(fields: [serviceOrderId], references: [id], onDelete: SetNull)
+  createdByUser   User?               @relation("AppointmentCreatedBy", fields: [createdBy], references: [userId], onDelete: SetNull)
+
+  resources       AppointmentResource[]
+
+  @@index([tenantId])
+  @@index([branchId])
+  @@index([customerId])
+  @@index([staffId])
+  @@index([serviceId])
+  @@index([status])
+  @@index([priority])
+  @@index([createdBy])
+  @@index([deletedAt])
+  @@index([updatedAt])
+  @@index([tenantId, branchId, updatedAt])
+  @@map("appointments")
+}
+
+// Resource for appointments
+model Resource {
+  id          String       @id @default(uuid()) @map("resource_id")
+  tenantId    String       @map("tenant_id")
+  branchId    String       @map("branch_id")
+  name        String       @map("name") @db.VarChar(255)
+  type        ResourceType @map("type")
+  isAvailable Boolean      @default(true) @map("is_available")
+  version     Int          @default(1) @map("version")
+  deletedAt   DateTime?    @map("deleted_at")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  // Relations
+  tenant      Tenant       @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade)
+  branch      Branch       @relation(fields: [branchId], references: [branchId], onDelete: Cascade)
+
+  appointments AppointmentResource[]
+
+  @@index([tenantId])
+  @@index([branchId])
+  @@index([type])
+  @@index([isAvailable])
+  @@index([deletedAt])
+  @@index([updatedAt])
+  @@index([tenantId, branchId, updatedAt])
+  @@map("resources")
+}
+
+// Junction table for appointment resources
+model AppointmentResource {
+  appointmentId String      @map("appointment_id")
+  resourceId    String      @map("resource_id")
+  quantityUsed  Int         @default(1) @map("quantity_used")
+  createdAt     DateTime    @default(now()) @map("created_at")
+
+  // Relations
+  appointment   Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  resource      Resource    @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+
+  @@id([appointmentId, resourceId])
+  @@map("appointment_resources")
+}
+
+// ==========================================
+// LOYALTY PROGRAM
+// ==========================================
+
+// Loyalty program configuration
+model LoyaltyProgram {
+  id                String          @id @default(uuid()) @map("loyalty_program_id")
+  tenantId          String          @unique @map("tenant_id")
+  name              String          @map("name")
+  description       String?         @map("description") @db.Text
+  pointsPerCurrency Decimal         @default(1.00) @map("points_per_currency") @db.Decimal(10, 2)
+  currencyPerPoint  Decimal         @default(0.0100) @map("currency_per_point") @db.Decimal(10, 4)
+  minRedeemPoints   Int             @default(100) @map("min_redeem_points")
+  pointsExpiryDays  Int?            @map("points_expiry_days")
+  autoEnroll        Boolean         @default(false) @map("auto_enroll")
+  isActive          Boolean         @default(true) @map("is_active")
+  version           Int             @default(1) @map("version")
+  deletedAt         DateTime?       @map("deleted_at")
+  createdAt         DateTime        @default(now()) @map("created_at")
+  updatedAt         DateTime        @updatedAt @map("updated_at")
+
+  // Relations
+  tenant            Tenant          @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade)
+
+  tiers             LoyaltyTier[]
+  members           LoyaltyMember[]
+
+  @@index([isActive])
+  @@index([deletedAt])
+  @@index([updatedAt])
+  @@map("loyalty_programs")
+}
+
+// Loyalty tier levels
+model LoyaltyTier {
+  id                  String         @id @default(uuid()) @map("loyalty_tier_id")
+  loyaltyProgramId    String         @map("loyalty_program_id")
+  tenantId            String         @map("tenant_id")
+  name                String         @map("name")
+  minPoints           Int            @default(0) @map("min_points")
+  pointsMultiplier    Decimal        @default(1.00) @map("points_multiplier") @db.Decimal(5, 2)
+  discountPercentage  Decimal        @default(0.00) @map("discount_percentage") @db.Decimal(5, 2)
+  benefits            String?        @map("benefits") @db.Text
+  sortOrder           Int            @default(0) @map("sort_order")
+  version             Int            @default(1) @map("version")
+  deletedAt           DateTime?      @map("deleted_at")
+  createdAt           DateTime       @default(now()) @map("created_at")
+  updatedAt           DateTime       @updatedAt @map("updated_at")
+
+  // Relations
+  loyaltyProgram      LoyaltyProgram @relation(fields: [loyaltyProgramId], references: [id], onDelete: Cascade)
+  tenant              Tenant         @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade)
+
+  members             LoyaltyMember[]
+
+  @@index([loyaltyProgramId])
+  @@index([tenantId])
+  @@index([minPoints])
+  @@index([deletedAt])
+  @@index([updatedAt])
+  @@index([tenantId, updatedAt])
+  @@map("loyalty_tiers")
+}
+
+// Loyalty member (customer enrollment)
+model LoyaltyMember {
+  id               String         @id @default(uuid()) @map("loyalty_member_id")
+  loyaltyProgramId String         @map("loyalty_program_id")
+  customerId       String         @map("customer_id")
+  loyaltyTierId    String?        @map("loyalty_tier_id")
+  tenantId         String         @map("tenant_id")
+  membershipNumber String         @map("membership_number")
+  availablePoints  Int            @default(0) @map("available_points")
+  lifetimePoints   Int            @default(0) @map("lifetime_points")
+  redeemedPoints   Int            @default(0) @map("redeemed_points")
+  isActive         Boolean        @default(true) @map("is_active")
+  enrolledAt       DateTime       @default(now()) @map("enrolled_at")
+  lastActivityAt   DateTime?      @map("last_activity_at")
+  version          Int            @default(1) @map("version")
+  deletedAt        DateTime?      @map("deleted_at")
+  createdAt        DateTime       @default(now()) @map("created_at")
+  updatedAt        DateTime       @updatedAt @map("updated_at")
+
+  // Relations
+  loyaltyProgram   LoyaltyProgram @relation(fields: [loyaltyProgramId], references: [id], onDelete: Cascade)
+  customer         Customer       @relation(fields: [customerId], references: [customerId], onDelete: Cascade)
+  loyaltyTier      LoyaltyTier?   @relation(fields: [loyaltyTierId], references: [id], onDelete: SetNull)
+  tenant           Tenant         @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade)
+
+  transactions     LoyaltyTransaction[]
+
+  @@unique([loyaltyProgramId, customerId], name: "unique_program_customer")
+  @@unique([tenantId, membershipNumber], name: "unique_tenant_membership_number")
+  @@index([loyaltyProgramId])
+  @@index([customerId])
+  @@index([loyaltyTierId])
+  @@index([tenantId])
+  @@index([isActive])
+  @@index([deletedAt])
+  @@index([updatedAt])
+  @@index([tenantId, updatedAt])
+  @@map("loyalty_members")
+}
+
+// Loyalty points transactions
+model LoyaltyTransaction {
+  id              String                 @id @default(uuid()) @map("loyalty_transaction_id")
+  loyaltyMemberId String                 @map("loyalty_member_id")
+  tenantId        String                 @map("tenant_id")
+  branchId        String                 @map("branch_id")
+  type            LoyaltyTransactionType @default(EARN) @map("type")
+  points          Int                    @map("points")
+  balanceAfter    Int                    @map("balance_after")
+  saleId          String?                @map("sale_id")
+  description     String?                @map("description") @db.Text
+  expiresAt       DateTime?              @map("expires_at")
+  createdBy       String?                @map("created_by")
+  version         Int                    @default(1) @map("version")
+  deletedAt       DateTime?              @map("deleted_at")
+  createdAt       DateTime               @default(now()) @map("created_at")
+  updatedAt       DateTime               @updatedAt @map("updated_at")
+
+  // Relations
+  loyaltyMember   LoyaltyMember          @relation(fields: [loyaltyMemberId], references: [id], onDelete: Cascade)
+  tenant          Tenant                 @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade)
+  branch          Branch                 @relation(fields: [branchId], references: [branchId], onDelete: Cascade)
+  sale            Sale?                  @relation(fields: [saleId], references: [id], onDelete: SetNull)
+  createdByUser   User?                  @relation("LoyaltyTransactionCreatedBy", fields: [createdBy], references: [userId], onDelete: SetNull)
+
+  @@index([loyaltyMemberId])
+  @@index([tenantId])
+  @@index([branchId])
+  @@index([type])
+  @@index([saleId])
+  @@index([expiresAt])
+  @@index([createdBy])
+  @@index([deletedAt])
+  @@index([updatedAt])
+  @@index([tenantId, branchId, updatedAt])
+  @@map("loyalty_transactions")
 }

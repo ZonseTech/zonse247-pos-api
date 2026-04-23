@@ -18,10 +18,10 @@ export class CustomerModel {
         }
     }
 
-    static async findById(customerId: string): Promise<Customer | null> {
+    static async findById(customerId: string, tenantId: string): Promise<Customer | null> {
         try {
-            return await prisma.customer.findUnique({
-                where: { customerId },
+            return await prisma.customer.findFirst({
+                where: { customerId, tenantId, deletedAt: null },
             });
         } catch (error) {
             throw new Error(
@@ -30,9 +30,11 @@ export class CustomerModel {
         }
     }
 
-    static async findAll(): Promise<Customer[]> {
+    static async findAll(tenantId: string): Promise<Customer[]> {
         try {
-            return await prisma.customer.findMany();
+            return await prisma.customer.findMany({
+                where: { tenantId, deletedAt: null },
+            });
         } catch (error) {
             throw new Error(
                 `Error finding all customers: ${error instanceof Error ? error.message : 'Unknown error'}`
@@ -40,10 +42,10 @@ export class CustomerModel {
         }
     }
 
-    static async find(conditions: any = {}): Promise<Customer[]> {
+    static async find(tenantId: string, conditions: any = {}): Promise<Customer[]> {
         try {
             return await prisma.customer.findMany({
-                where: conditions,
+                where: { tenantId, deletedAt: null, ...conditions },
             });
         } catch (error) {
             throw new Error(
@@ -66,8 +68,14 @@ export class CustomerModel {
         }
     }
 
-    static async update(customerId: string, updateData: Partial<Customer>): Promise<Customer> {
+    static async update(customerId: string, tenantId: string, updateData: Partial<Customer>): Promise<Customer> {
         try {
+            const customer = await prisma.customer.findFirst({
+                where: { customerId, tenantId, deletedAt: null },
+            });
+            if (!customer) {
+                throw new Error('Customer not found');
+            }
             return await prisma.customer.update({
                 where: { customerId },
                 data: updateData,
@@ -79,10 +87,17 @@ export class CustomerModel {
         }
     }
 
-    static async delete(customerId: string): Promise<Customer> {
+    static async delete(customerId: string, tenantId: string): Promise<Customer> {
         try {
-            return await prisma.customer.delete({
+            const customer = await prisma.customer.findFirst({
+                where: { customerId, tenantId, deletedAt: null },
+            });
+            if (!customer) {
+                throw new Error('Customer not found');
+            }
+            return await prisma.customer.update({
                 where: { customerId },
+                data: { deletedAt: new Date() },
             });
         } catch (error) {
             throw new Error(
@@ -91,10 +106,10 @@ export class CustomerModel {
         }
     }
 
-    static async count(conditions: any = {}): Promise<number> {
+    static async count(tenantId: string, conditions: any = {}): Promise<number> {
         try {
             return await prisma.customer.count({
-                where: conditions,
+                where: { tenantId, deletedAt: null, ...conditions },
             });
         } catch (error) {
             throw new Error(
@@ -103,10 +118,10 @@ export class CustomerModel {
         }
     }
 
-    static async getUnsyncedRecords(): Promise<Customer[]> {
+    static async getUnsyncedRecords(tenantId: string): Promise<Customer[]> {
         try {
             return await prisma.customer.findMany({
-                where: { lastSyncedAt: null },
+                where: { tenantId, lastSyncedAt: null, deletedAt: null },
             });
         } catch (error) {
             throw new Error(

@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import cors from 'cors';
 import compression from 'compression';
+import qs from 'qs';
 import { createServer, Server as HttpServer } from 'http';
 import express, { Request, Response, Application } from 'express';
 import { corsOptions } from './config/cors.config';
@@ -47,6 +48,7 @@ export class Server {
 
 	private setupMiddleware() {
 		this.app.set('trust proxy', this.config.trustProxy);
+		this.app.set('query parser', (str: string) => qs.parse(str, { allowDots: true, arrayLimit: 100 }));
 		this.app.use(timeoutHandler(this.config.serverTimeout));
 		this.app.use(requestTracker);
 		this.app.use(apiAnalytics);

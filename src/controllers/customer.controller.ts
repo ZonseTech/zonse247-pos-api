@@ -7,6 +7,14 @@ import { AuditService, getAuditContext } from '../services/audit.service';
 
 export class CustomerController extends BaseController {
 
+    private static getTenantId(req: Request): string {
+        const tenantId = (req as any).auth?.tenantId;
+        if (!tenantId) {
+            throw new Error('Tenant context is required');
+        }
+        return tenantId;
+    }
+
     static async selectAll(req: Request, res: Response): Promise<void> {
         try {
             const params = req.body;
@@ -19,13 +27,14 @@ export class CustomerController extends BaseController {
 
     static async getById(req: Request, res: Response): Promise<void> {
         try {
+            const tenantId = CustomerController.getTenantId(req);
             const { customerId } = req.params;
 
             if (!customerId) {
                 return BaseController.sendBadRequest(res, 'Customer ID is required');
             }
 
-            const customer = await CustomerService.getCustomerById(customerId as string);
+            const customer = await CustomerService.getCustomerById(customerId as string, tenantId);
 
             if (!customer) {
                 return BaseController.sendNotFound(res, 'Customer not found');
@@ -40,8 +49,9 @@ export class CustomerController extends BaseController {
 
     static async list(req: Request, res: Response): Promise<void> {
         try {
+            const tenantId = CustomerController.getTenantId(req);
             const pagination = parsePaginationParams(req.query);
-            const result = await CustomerService.listCustomers(pagination);
+            const result = await CustomerService.listCustomers(tenantId, pagination);
             BaseController.sendPaginated(res, 'Customers retrieved successfully', result.data, result.pagination, 'customers');
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred';
@@ -52,9 +62,9 @@ export class CustomerController extends BaseController {
     static async create(req: Request, res: Response): Promise<void> {
         try {
             const auth = (req as any).auth;
+            const tenantId = CustomerController.getTenantId(req);
             const { name, email, phone, address, isDefault } = req.body;
 
-            const tenantId = auth?.tenantId;
             const branchId = auth?.activeBranchId || auth?.currentBranchId || auth?.branchId;
 
             const customerData: CreateCustomerData = {
@@ -90,6 +100,7 @@ export class CustomerController extends BaseController {
 
     static async update(req: Request, res: Response): Promise<void> {
         try {
+            const tenantId = CustomerController.getTenantId(req);
             const updateData: UpdateCustomerData = req.body;
             const { customerId } = req.params;
 
@@ -97,7 +108,7 @@ export class CustomerController extends BaseController {
                 return BaseController.sendBadRequest(res, 'Customer ID is required for update');
             }
 
-            const success = await CustomerService.updateCustomer(customerId as string, updateData);
+            const success = await CustomerService.updateCustomer(customerId as string, tenantId, updateData);
 
             if (!success) {
                 return BaseController.sendNotFound(res, 'Customer not found');
@@ -119,13 +130,14 @@ export class CustomerController extends BaseController {
 
     static async delete(req: Request, res: Response): Promise<void> {
         try {
+            const tenantId = CustomerController.getTenantId(req);
             const { customerId } = req.params;
 
             if (!customerId) {
                 return BaseController.sendBadRequest(res, 'Customer ID is required');
             }
 
-            const success = await CustomerService.deleteCustomer(customerId as string);
+            const success = await CustomerService.deleteCustomer(customerId as string, tenantId);
 
             if (!success) {
                 return BaseController.sendNotFound(res, 'Customer not found');
@@ -142,7 +154,8 @@ export class CustomerController extends BaseController {
 
     static async count(req: Request, res: Response): Promise<void> {
         try {
-            const count = await CustomerService.getCustomersCount();
+            const tenantId = CustomerController.getTenantId(req);
+            const count = await CustomerService.getCustomersCount(tenantId);
             BaseController.sendSuccess(res, 'Customer count retrieved successfully', { count });
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred';
@@ -152,8 +165,9 @@ export class CustomerController extends BaseController {
 
     static async search(req: Request, res: Response): Promise<void> {
         try {
+            const tenantId = CustomerController.getTenantId(req);
             const conditions: SearchConditions = req.body.conditions || {};
-            const customers = await CustomerService.searchCustomers(conditions);
+            const customers = await CustomerService.searchCustomers(tenantId, conditions);
             BaseController.sendSuccess(res, 'Customer search completed successfully', customers);
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred';

@@ -30,8 +30,18 @@ export interface UpdateCustomerData {
 }
 
 export interface SearchConditions {
+    tenantId?: string;
     name?: string;
     email?: string;
     phone?: string;
     [key: string]: any;
+}
+
+/** Tenant + branch scope used by all tenant-aware operations */
+export interface TenantScope {
+    tenantId: string;
+}
+
+export interface TenantBranchScope extends TenantScope {
+    branchId: string;
 }

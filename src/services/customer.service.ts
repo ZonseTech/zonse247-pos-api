@@ -11,27 +11,30 @@ export class CustomerService {
         return await CustomerModel.findAllByRDBMS(params);
     }
 
-    static async getCustomerById(customerId: string): Promise<Customer | null> {
+    static async getCustomerById(customerId: string, tenantId: string): Promise<Customer | null> {
         if (!customerId) {
             throw new Error('Customer ID is required');
         }
 
         const sanitizedId = validator.escape(customerId.toString());
-        return await CustomerModel.findById(sanitizedId);
+        return await CustomerModel.findById(sanitizedId, tenantId);
     }
 
-    static async getAllCustomers(): Promise<Customer[]> {
-        return await CustomerModel.findAll();
+    static async getAllCustomers(tenantId: string): Promise<Customer[]> {
+        return await CustomerModel.findAll(tenantId);
     }
 
-    static async listCustomers(pagination: PaginationParams): Promise<PaginatedResult<Customer>> {
+    static async listCustomers(tenantId: string, pagination: PaginationParams): Promise<PaginatedResult<Customer>> {
+        const where = { tenantId, deletedAt: null };
+
         const [customers, total] = await Promise.all([
             prisma.customer.findMany({
+                where,
                 skip: pagination.skip,
                 take: pagination.limit,
                 orderBy: { createdAt: 'desc' },
             }),
-            prisma.customer.count(),
+            prisma.customer.count({ where }),
         ]);
 
         return {
@@ -43,6 +46,10 @@ export class CustomerService {
     static async createCustomer(customerData: CreateCustomerData): Promise<Customer> {
         if (!customerData.name || customerData.name.trim() === '') {
             throw new Error('Customer name is required');
+        }
+
+        if (!customerData.tenantId) {
+            throw new Error('Tenant ID is required');
         }
 
         if (customerData.email && !validator.isEmail(customerData.email)) {
@@ -76,7 +83,7 @@ export class CustomerService {
         return await CustomerModel.create(newCustomer);
     }
 
-    static async updateCustomer(customerId: string, updateData: UpdateCustomerData): Promise<boolean> {
+    static async updateCustomer(customerId: string, tenantId: string, updateData: UpdateCustomerData): Promise<boolean> {
         if (!customerId) {
             throw new Error('Customer ID is required for update');
         }
@@ -112,28 +119,30 @@ export class CustomerService {
             sanitizedUpdateData.isDefault = updateData.isDefault;
         }
 
-        await CustomerModel.update(sanitizedId, sanitizedUpdateData);
+        await CustomerModel.update(sanitizedId, tenantId, sanitizedUpdateData);
         return true;
     }
 
-    static async deleteCustomer(customerId: string): Promise<boolean> {
+    static async deleteCustomer(customerId: string, tenantId: string): Promise<boolean> {
         if (!customerId) {
             throw new Error('Customer ID is required');
         }
 
         const sanitizedId = validator.escape(customerId.toString());
-        await CustomerModel.delete(sanitizedId);
+        await CustomerModel.delete(sanitizedId, tenantId);
         return true;
     }
 
-    static async getCustomersCount(): Promise<number> {
-        return await CustomerModel.count();
+    static async getCustomersCount(tenantId: string): Promise<number> {
+        return await CustomerModel.count(tenantId);
     }
 
-    static async searchCustomers(conditions: SearchConditions): Promise<Customer[]> {
+    static async searchCustomers(tenantId: string, conditions: SearchConditions): Promise<Customer[]> {
         const sanitizedConditions: any = {};
 
         Object.keys(conditions).forEach(key => {
+            // Never allow callers to override tenantId via search conditions
+            if (key === 'tenantId') return;
             if (conditions[key] !== undefined && conditions[key] !== null) {
                 if (typeof conditions[key] === 'string') {
                     sanitizedConditions[key] = validator.escape(conditions[key].toString());
@@ -143,6 +152,6 @@ export class CustomerService {
             }
         });
 
-        return await CustomerModel.find(sanitizedConditions);
+        return await CustomerModel.find(tenantId, sanitizedConditions);
     }
 }
