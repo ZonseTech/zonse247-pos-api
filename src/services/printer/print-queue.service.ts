@@ -412,6 +412,8 @@ export class PrintQueueService extends EventEmitter {
             case 'USB':
             case 'SERIAL':
                 return this.checkSerialPrinter(printer);
+            case 'BLUETOOTH':
+                return this.checkBluetoothPrinter(printer);
             default:
                 return false;
         }
@@ -471,6 +473,20 @@ export class PrintQueueService extends EventEmitter {
     }
 
     /**
+     * Check Bluetooth printer connection
+     */
+    private async checkBluetoothPrinter(printer: Printer): Promise<boolean> {
+        try {
+            const { BluetoothPrintStrategy } = await import('./strategies/bluetooth.strategy');
+            const strategy = new BluetoothPrintStrategy();
+            const result = await strategy.testConnection(printer);
+            return result.online;
+        } catch {
+            return false;
+        }
+    }
+
+    /**
      * Send data to printer
      */
     private async sendToPrinter(printer: Printer, printJob: PrintJob): Promise<boolean> {
@@ -492,6 +508,9 @@ export class PrintQueueService extends EventEmitter {
                 case 'USB':
                 case 'SERIAL':
                     success = await this.sendToSerialPrinter(printer, data);
+                    break;
+                case 'BLUETOOTH':
+                    success = await this.sendToBluetoothPrinter(printer, data);
                     break;
                 default:
                     throw new Error(`Unsupported connection type: ${printer.connectionType}`);
@@ -601,6 +620,27 @@ export class PrintQueueService extends EventEmitter {
 
             port.on('error', reject);
         });
+    }
+
+    /**
+     * Send to Bluetooth printer via COM port (Windows) or native module fallback
+     */
+    private async sendToBluetoothPrinter(printer: Printer, data: Buffer): Promise<boolean> {
+        const address = printer.connectionAddress;
+        if (!address) {
+            throw new Error('Bluetooth printer has no address configured');
+        }
+
+        const { BluetoothPrintStrategy } = await import('./strategies/bluetooth.strategy');
+        const strategy = new BluetoothPrintStrategy();
+        const content = data.toString('binary');
+        const result = await strategy.print(printer, content);
+
+        if (!result.success) {
+            throw new Error(result.errorDetails || 'Bluetooth print failed');
+        }
+
+        return true;
     }
 
     /**

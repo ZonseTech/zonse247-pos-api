@@ -293,11 +293,7 @@ export class PrintJobService {
 					success = await this.sendToSerialPrinter(printer, data);
 					break;
 				case 'BLUETOOTH':
-					// Bluetooth printing is typically handled by client apps
-					console.warn(
-						'Bluetooth printing should be handled by client applications'
-					);
-					success = false;
+					success = await this.sendToBluetoothPrinter(printer, data);
 					break;
 				default:
 					throw new Error(
@@ -316,6 +312,45 @@ export class PrintJobService {
 		}
 
 		return true;
+	}
+
+	/**
+	 * Send data to Bluetooth printer via COM port (Windows) or bluetooth-serial-port fallback
+	 */
+	private static async sendToBluetoothPrinter(
+		printer: Printer,
+		data: Buffer
+	): Promise<boolean> {
+		const address = printer.connectionAddress;
+		if (!address) {
+			throw new Error(
+				'Bluetooth printer has no address configured. Set connectionAddress to a MAC address or COM port.'
+			);
+		}
+
+		try {
+			const { BluetoothPrintStrategy } = await import(
+				'./strategies/bluetooth.strategy'
+			);
+			const strategy = new BluetoothPrintStrategy();
+			const content = data.toString('binary');
+			const result = await strategy.print(printer, content);
+
+			if (result.success) {
+				console.log(
+					`[Bluetooth Printer] Successfully sent ${data.length} bytes to ${printer.printerName}`
+				);
+				return true;
+			} else {
+				console.error(
+					`[Bluetooth Printer] Print failed: ${result.errorDetails || 'Unknown error'}`
+				);
+				return false;
+			}
+		} catch (error) {
+			console.error('[Bluetooth Printer] Error:', error);
+			throw error;
+		}
 	}
 
 	/**

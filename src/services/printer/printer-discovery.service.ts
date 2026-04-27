@@ -35,7 +35,7 @@ const PRINTER_VENDOR_IDS = [
     0x0dd4, // Bixolon
     0x2730, // Citizen Systems
     0x2e6a, // TSC
-    
+
     // POS/Thermal Receipt Printers (Chinese/Generic)
     0x0416, // Winbond (common in receipt printers)
     0x0fe6, // ICS Electronics (receipt printers)
@@ -53,7 +53,7 @@ const PRINTER_VENDOR_IDS = [
     0x2341, // Generic POS/Arduino-based
     0x1003, // Generic thermal (used by many Chinese brands)
     0x0aa7, // Costar/Thermal printers
-    
+
     // USB-Serial Adapters (for serial printers)
     0x067b, // Prolific (USB-Serial)
     0x10c4, // Silicon Labs CP210x
@@ -257,11 +257,9 @@ export class PrinterDiscoveryService {
 
     /**
      * Check Bluetooth printer connection
-     * Note: Bluetooth support is limited on server-side Node.js
+     * Uses bluetooth-serial-port to verify the device is reachable
      */
     private static async checkBluetoothPrinter(printer: Printer): Promise<boolean> {
-        // Bluetooth on server-side requires platform-specific implementations
-        // For now, we can check if it's configured and assume it might be available
         const address = printer.connectionAddress;
 
         if (!address) {
@@ -274,10 +272,15 @@ export class PrinterDiscoveryService {
             return false;
         }
 
-        // For Bluetooth, we'll return true if configured
-        // Actual Bluetooth connectivity should be handled by client applications
-        console.log(`Bluetooth printer ${printer.printerName} is configured with address: ${address}`);
-        return true;
+        try {
+            const { BluetoothPrintStrategy } = await import('./strategies/bluetooth.strategy');
+            const strategy = new BluetoothPrintStrategy();
+            const result = await strategy.testConnection(printer);
+            return result.online;
+        } catch (error) {
+            console.error(`Bluetooth connectivity check failed for ${printer.printerName}:`, error);
+            return false;
+        }
     }
 
     /**
@@ -657,17 +660,50 @@ export class PrinterDiscoveryService {
     }
 
     /**
-     * Discover Bluetooth printers
-     * Note: Full Bluetooth support requires platform-specific implementations
+     * Discover Bluetooth printers via bluetooth-serial-port.
+     * Scans for nearby Bluetooth devices and also lists paired devices.
      */
     private static async discoverBluetoothPrinters(): Promise<DiscoveredPrinter[]> {
-        // Bluetooth discovery on Node.js server-side is limited
-        // This would typically be handled by client applications
-        // For server-side, we can return printers that were previously paired/configured
+        const printers: DiscoveredPrinter[] = [];
+        const seenAddresses = new Set<string>();
 
-        console.log('Bluetooth discovery: Limited support on server-side. Use client applications for Bluetooth printer discovery.');
+        try {
+            const { BluetoothPrintStrategy } = await import('./strategies/bluetooth.strategy');
 
-        return [];
+            const paired = await BluetoothPrintStrategy.listPairedDevices();
+            for (const device of paired) {
+                if (!seenAddresses.has(device.address)) {
+                    seenAddresses.add(device.address);
+                    printers.push({
+                        name: device.name,
+                        address: device.address,
+                        connectionType: PrinterConnectionType.BLUETOOTH,
+                        type: this.inferPrinterType(device.name),
+                        isOnline: true
+                    });
+                }
+            }
+
+            const scanned = await BluetoothPrintStrategy.scanForPrinters();
+            for (const device of scanned) {
+                if (!seenAddresses.has(device.address)) {
+                    seenAddresses.add(device.address);
+                    printers.push({
+                        name: device.name,
+                        address: device.address,
+                        connectionType: PrinterConnectionType.BLUETOOTH,
+                        type: this.inferPrinterType(device.name),
+                        isOnline: true
+                    });
+                }
+            }
+
+            console.log(`[Bluetooth] Discovered ${printers.length} devices (${paired.length} paired, ${scanned.length} scanned)`);
+        } catch (error) {
+            console.warn('[Bluetooth] Discovery failed — bluetooth-serial-port may not be installed:', error);
+        }
+
+        return printers;
     }
 
     /**
@@ -717,13 +753,25 @@ export class PrinterDiscoveryService {
     private static inferPrinterType(name: string): PrinterType | undefined {
         const lowerName = name.toLowerCase();
 
+        // Thermal / receipt printers (ESC/POS)
         if (lowerName.includes('thermal') || lowerName.includes('receipt') ||
-            lowerName.includes('pos') || lowerName.includes('tm-')) {
+            lowerName.includes('pos') || lowerName.includes('tm-') ||
+            // Common Bluetooth thermal printer model prefixes
+            /\b(mp|mpt|mtp|spp|rpp|hm|ht|ts)[-\s]?\d/i.test(name) ||
+            lowerName.includes('xprinter') || lowerName.includes('munbyn') ||
+            lowerName.includes('goojprt') || lowerName.includes('rongta')) {
             return PrinterType.THERMAL;
         }
 
+        // Label printers (ZPL, CPCL, Brother raster, etc.)
         if (lowerName.includes('label') || lowerName.includes('zebra') ||
-            lowerName.includes('dymo') || lowerName.includes('brother ql')) {
+            lowerName.includes('dymo') || lowerName.includes('brother ql') ||
+            // Brother P-Touch series (PT-280, PT-E550W, PT-P900, etc.)
+            /\bpt[-\s]?\d/i.test(name) ||
+            lowerName.includes('p-touch') || lowerName.includes('ptouch') ||
+            // TSC / Godex / SATO label printers
+            lowerName.includes('tsc') || lowerName.includes('godex') ||
+            lowerName.includes('sato') || lowerName.includes('niimbot')) {
             return PrinterType.LABEL;
         }
 

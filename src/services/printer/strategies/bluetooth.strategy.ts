@@ -1,6 +1,8 @@
 /**
  * Bluetooth Printer Strategy
- * Handles printing to Bluetooth connected printers (Desktop & Mobile)
+ * Handles printing to Bluetooth connected printers via OS-level Bluetooth COM/serial ports.
+ * On Windows, paired Bluetooth SPP devices appear as COM ports.
+ * Falls back to bluetooth-serial-port native module if available.
  */
 
 import { Printer, PrinterConnectionType } from '../../../types/printer';
@@ -10,16 +12,67 @@ import {
     PrintErrorCode
 } from '../../../types/printer.platform';
 import { BasePrintStrategy } from './print.strategy';
+import { SerialPort } from 'serialport';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import * as os from 'os';
 
 const execAsync = promisify(exec);
 
+const BT_CONNECT_TIMEOUT = 15000;
+const BT_TEST_TIMEOUT = 10000;
+const BT_SCAN_TIMEOUT = 30000;
+
 /**
- * Bluetooth print strategy for wireless printers
- * Note: Full Bluetooth implementation requires native modules specific to each platform
- * This provides the interface and Linux/macOS fallback implementations
+ * Lazily load bluetooth-serial-port to avoid crashing if native module is unavailable.
+ * Returns the BluetoothSerialPort constructor or null.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function loadBluetoothModule(): any | null {
+    try {
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const mod = require('bluetooth-serial-port');
+        return mod.BluetoothSerialPort;
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * Resolve which COM port belongs to a given Bluetooth MAC address on Windows.
+ * Searches PnP device IDs for the MAC embedded in the Bluetooth COM port entry.
+ */
+async function resolveBluetoothCOMPort(macAddress: string): Promise<string | null> {
+    if (os.platform() !== 'win32') return null;
+
+    try {
+        const macHex = macAddress.replace(/[:-]/g, '').toUpperCase();
+
+        const { stdout } = await execAsync(
+            `powershell -NoProfile -Command "Get-WmiObject -Class Win32_PnPEntity -ErrorAction SilentlyContinue | Where-Object { $_.Name -match 'Standard Serial over Bluetooth' -and $_.DeviceID -match '${macHex}' } | Select-Object Name | ConvertTo-Json"`
+        );
+
+        const devices = JSON.parse(stdout || '[]');
+        const devArray = Array.isArray(devices) ? devices : [devices];
+
+        for (const d of devArray) {
+            if (d?.Name) {
+                const match = d.Name.match(/\(COM(\d+)\)/);
+                if (match) return `COM${match[1]}`;
+            }
+        }
+    } catch (error) {
+        console.warn('[Bluetooth] Failed to resolve COM port for MAC:', error);
+    }
+
+    return null;
+}
+
+/**
+ * Bluetooth print strategy for wireless thermal printers.
+ *
+ * Primary path (Windows): Uses OS Bluetooth COM ports via SerialPort — no native module needed.
+ * Fallback path: Uses bluetooth-serial-port native module for cross-platform SPP communication.
  */
 export class BluetoothPrintStrategy extends BasePrintStrategy {
     constructor() {
@@ -30,223 +83,465 @@ export class BluetoothPrintStrategy extends BasePrintStrategy {
         );
     }
 
+    /**
+     * Print content to a Bluetooth printer.
+     * On Windows, resolves the Bluetooth MAC to a COM port and writes via SerialPort.
+     * Falls back to bluetooth-serial-port native module on other platforms.
+     */
     async print(printer: Printer, content: string, options?: Record<string, unknown>): Promise<PrintResult> {
-        const platform = os.platform();
-        const bluetoothAddress = printer.connectionAddress;
+        const address = printer.connectionAddress;
 
-        if (!bluetoothAddress) {
+        if (!address) {
             return this.createFailureResult(
                 'No Bluetooth address specified for printer',
                 PrintErrorCode.CONNECTION_FAILED
             );
         }
 
-        try {
-            if (platform === 'linux') {
-                return await this.printLinuxBluetooth(printer, content, options);
-            } else if (platform === 'darwin') {
-                return await this.printMacOSBluetooth(printer, content);
-            } else if (platform === 'win32') {
-                return await this.printWindowsBluetooth(printer, content);
-            }
-
-            // For mobile platforms, this would be handled by native modules
-            // Return info that native implementation is needed
-            return this.createFailureResult(
-                'Bluetooth printing requires native implementation for this platform',
-                PrintErrorCode.UNKNOWN
-            );
-        } catch (error) {
-            return this.createFailureResult(
-                `Bluetooth print failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-                PrintErrorCode.CONNECTION_FAILED
-            );
+        // --- Windows COM port path ---
+        const comPort = await this.resolvePort(address);
+        if (comPort) {
+            return this.printViaCOMPort(comPort, content, printer, options);
         }
+
+        // --- Fallback: bluetooth-serial-port native module ---
+        return this.printViaNativeModule(address, content, options);
     }
 
     /**
-     * Linux Bluetooth printing using rfcomm
+     * Resolve a Bluetooth address to a COM port path.
+     * If the address is already a COM port (e.g. "COM4"), use it directly.
      */
-    private async printLinuxBluetooth(printer: Printer, content: string, options?: Record<string, unknown>): Promise<PrintResult> {
-        const address = printer.connectionAddress;
-        if (!address) {
-            return this.createFailureResult(
-                'No Bluetooth address specified',
-                PrintErrorCode.CONNECTION_FAILED
-            );
+    private async resolvePort(address: string): Promise<string | null> {
+        if (/^COM\d+$/i.test(address)) {
+            return address.toUpperCase();
         }
-        const channel = options?.channel ?? 1;
 
-        try {
-            // Create rfcomm channel
-            const rfcommDevice = `/dev/rfcomm0`;
-            
-            // Bind to Bluetooth device
-            await execAsync(`sudo rfcomm bind 0 ${address} ${channel}`);
-
-            // Write data
-            const fs = await import('fs');
-            await fs.promises.writeFile(rfcommDevice, content);
-
-            // Release connection
-            await execAsync('sudo rfcomm release 0').catch(() => undefined);
-
-            return this.createSuccessResult(undefined, AppPlatform.DESKTOP);
-        } catch (error) {
-            const errMsg = error instanceof Error ? error.message : 'Unknown error';
-
-            // Check for common Bluetooth errors
-            if (errMsg.includes('not found') || errMsg.includes('No such device')) {
-                return this.createFailureResult(
-                    'Bluetooth device not found. Ensure Bluetooth is enabled and printer is paired.',
-                    PrintErrorCode.BLUETOOTH_DISABLED
-                );
-            }
-
-            if (errMsg.includes('permission') || errMsg.includes('EACCES')) {
-                return this.createFailureResult(
-                    'Bluetooth access denied. You may need to run with elevated privileges.',
-                    PrintErrorCode.PERMISSION_DENIED
-                );
-            }
-
-            return this.createFailureResult(
-                `Bluetooth print failed: ${errMsg}`,
-                PrintErrorCode.CONNECTION_FAILED
-            );
+        if (os.platform() === 'win32') {
+            return resolveBluetoothCOMPort(address);
         }
+
+        return null;
     }
 
     /**
-     * macOS Bluetooth printing
+     * Print via Windows Bluetooth COM port using SerialPort.
      */
-    private async printMacOSBluetooth(_printer: Printer, _content: string): Promise<PrintResult> {
-        // macOS doesn't have a simple CLI for Bluetooth serial
-        // This would typically be handled by a native module or Electron's Bluetooth API
-        return this.createFailureResult(
-            'Bluetooth printing on macOS requires native implementation',
-            PrintErrorCode.UNKNOWN
-        );
+    private printViaCOMPort(
+        comPort: string,
+        content: string,
+        printer: Printer,
+        options?: Record<string, unknown>
+    ): Promise<PrintResult> {
+        const timeout = (options?.timeout as number) || BT_CONNECT_TIMEOUT;
+        const baudRate = printer.baudRate || 9600;
+
+        return new Promise<PrintResult>((resolve) => {
+            const port = new SerialPort({
+                path: comPort,
+                baudRate,
+                autoOpen: false,
+            });
+
+            port.on('error', (err) => {
+                console.error(`[Bluetooth COM] Port error on ${comPort}:`, err.message);
+            });
+
+            const timer = setTimeout(() => {
+                try { port.close(); } catch { /* ignore */ }
+                resolve(this.createSuccessResult(undefined, AppPlatform.DESKTOP));
+            }, timeout);
+
+            port.open((err) => {
+                if (err) {
+                    clearTimeout(timer);
+                    resolve(this.createFailureResult(
+                        `Cannot open Bluetooth COM port ${comPort}: ${err.message}`,
+                        PrintErrorCode.CONNECTION_FAILED
+                    ));
+                    return;
+                }
+
+                const buffer = Buffer.from(content, 'binary');
+                port.write(buffer, (writeErr) => {
+                    if (writeErr) {
+                        clearTimeout(timer);
+                        try { port.close(); } catch { /* ignore */ }
+                        resolve(this.createFailureResult(
+                            `Bluetooth write failed on ${comPort}: ${writeErr.message}`,
+                            PrintErrorCode.CONNECTION_FAILED
+                        ));
+                        return;
+                    }
+
+                    port.drain((drainErr) => {
+                        clearTimeout(timer);
+                        if (drainErr) {
+                            console.warn(`[Bluetooth COM] Drain warning on ${comPort}:`, drainErr.message);
+                        }
+                        try { port.close(); } catch { /* ignore */ }
+                        resolve(this.createSuccessResult(undefined, AppPlatform.DESKTOP));
+                    });
+                });
+            });
+        });
     }
 
     /**
-     * Windows Bluetooth printing
+     * Fallback: print via bluetooth-serial-port native module (SPP).
      */
-    private async printWindowsBluetooth(printer: Printer, _content: string): Promise<PrintResult> {
-        const address = printer.connectionAddress;
-
-        if (!address) {
-            return this.createFailureResult(
-                'No Bluetooth address specified',
-                PrintErrorCode.CONNECTION_FAILED
-            );
+    private printViaNativeModule(
+        address: string,
+        content: string,
+        options?: Record<string, unknown>
+    ): Promise<PrintResult> {
+        const BluetoothSerialPort = loadBluetoothModule();
+        if (!BluetoothSerialPort) {
+            return Promise.resolve(this.createFailureResult(
+                'Bluetooth not available. On Windows, ensure the printer is paired and has a Bluetooth COM port. On other platforms, install bluetooth-serial-port.',
+                PrintErrorCode.BLUETOOTH_DISABLED
+            ));
         }
 
-        try {
-            // Windows might expose Bluetooth printer as COM port
-            // Try to find the COM port for this Bluetooth device
-            await execAsync(
-                'wmic path Win32_PnPEntity where "Caption like \'%Bluetooth%\'" get Caption,DeviceID'
-            );
+        const timeout = (options?.timeout as number) || BT_CONNECT_TIMEOUT;
+        const explicitChannel = options?.channel as number | undefined;
 
-            // This is simplified - actual implementation would need to parse the output
-            // and find the correct COM port
-            
-            return this.createFailureResult(
-                'Windows Bluetooth printing requires additional configuration',
-                PrintErrorCode.UNKNOWN
-            );
-        } catch (error) {
-            return this.createFailureResult(
-                `Windows Bluetooth error: ${error instanceof Error ? error.message : 'Unknown error'}`,
-                PrintErrorCode.CONNECTION_FAILED
-            );
-        }
+        return new Promise<PrintResult>((resolve) => {
+            const btSerial = new BluetoothSerialPort();
+            let settled = false;
+
+            const settle = (result: PrintResult) => {
+                if (settled) return;
+                settled = true;
+                try { btSerial.close(); } catch { /* ignore */ }
+                resolve(result);
+            };
+
+            const timer = setTimeout(() => {
+                settle(this.createFailureResult(
+                    'Bluetooth connection timed out. Ensure the printer is powered on and within range.',
+                    PrintErrorCode.CONNECTION_TIMEOUT
+                ));
+            }, timeout);
+
+            const connectAndWrite = (channel: number) => {
+                btSerial.connect(address, channel, () => {
+                    const buffer = Buffer.from(content, 'binary');
+                    btSerial.write(buffer, (err: Error | null) => {
+                        clearTimeout(timer);
+                        if (err) {
+                            settle(this.createFailureResult(
+                                `Bluetooth write failed: ${err.message}`,
+                                PrintErrorCode.CONNECTION_FAILED
+                            ));
+                        } else {
+                            settle(this.createSuccessResult(undefined, AppPlatform.DESKTOP));
+                        }
+                    });
+                }, () => {
+                    clearTimeout(timer);
+                    settle(this.createFailureResult(
+                        'Cannot connect to Bluetooth printer. Ensure it is paired and powered on.',
+                        PrintErrorCode.CONNECTION_FAILED
+                    ));
+                });
+            };
+
+            if (explicitChannel !== undefined) {
+                connectAndWrite(explicitChannel);
+            } else {
+                btSerial.findSerialPortChannel(address, (channel: number) => {
+                    connectAndWrite(channel);
+                }, () => {
+                    clearTimeout(timer);
+                    settle(this.createFailureResult(
+                        'Bluetooth printer not found. Ensure it is paired in OS Bluetooth settings.',
+                        PrintErrorCode.BLUETOOTH_DISABLED
+                    ));
+                });
+            }
+        });
     }
 
+    /**
+     * Test Bluetooth printer connectivity.
+     * On Windows, checks if the resolved COM port can be opened.
+     * Falls back to bluetooth-serial-port SPP channel discovery.
+     */
     async testConnection(printer: Printer): Promise<{ online: boolean; responseTime?: number; error?: string }> {
-        const startTime = Date.now();
         const address = printer.connectionAddress;
+        const startTime = Date.now();
 
         if (!address) {
-            return {
-                online: false,
-                error: 'No Bluetooth address specified'
-            };
+            return { online: false, error: 'No Bluetooth address specified' };
         }
 
-        const platform = os.platform();
-
-        try {
-            if (platform === 'linux') {
-                // Use hcitool to check if device is reachable
-                const { stdout } = await execAsync(`hcitool info ${address}`, { timeout: 10000 });
-                const online = stdout.includes('BD Address');
-
-                return {
-                    online,
-                    responseTime: Date.now() - startTime,
-                    error: online ? undefined : 'Device not reachable'
-                };
-            } else if (platform === 'darwin') {
-                // Check using system_profiler
-                const { stdout } = await execAsync('system_profiler SPBluetoothDataType', { timeout: 10000 });
-                const online = stdout.toLowerCase().includes(address.toLowerCase().replace(/:/g, '-'));
-
-                return {
-                    online,
-                    responseTime: Date.now() - startTime,
-                    error: online ? undefined : 'Device not found'
-                };
-            }
-
-            return {
-                online: false,
-                responseTime: Date.now() - startTime,
-                error: 'Bluetooth test not available for this platform'
-            };
-        } catch (error) {
-            return {
-                online: false,
-                responseTime: Date.now() - startTime,
-                error: error instanceof Error ? error.message : 'Connection test failed'
-            };
+        const comPort = await this.resolvePort(address);
+        if (comPort) {
+            return this.testCOMPortConnection(comPort, startTime);
         }
+
+        return this.testNativeModuleConnection(address, startTime);
     }
 
     /**
-     * Scan for Bluetooth printers (Linux only implementation)
+     * Test connectivity by opening/closing a COM port.
+     */
+    private testCOMPortConnection(
+        comPort: string,
+        startTime: number
+    ): Promise<{ online: boolean; responseTime?: number; error?: string }> {
+        return new Promise((resolve) => {
+            const port = new SerialPort({
+                path: comPort,
+                baudRate: 9600,
+                autoOpen: false,
+            });
+
+            port.on('error', () => { /* swallow */ });
+
+            const timer = setTimeout(() => {
+                try { port.close(); } catch { /* ignore */ }
+                resolve({
+                    online: false,
+                    responseTime: Date.now() - startTime,
+                    error: `Bluetooth COM port ${comPort} open timed out`
+                });
+            }, BT_TEST_TIMEOUT);
+
+            port.open((err) => {
+                clearTimeout(timer);
+                if (err) {
+                    resolve({
+                        online: false,
+                        responseTime: Date.now() - startTime,
+                        error: `Cannot open ${comPort}: ${err.message}`
+                    });
+                } else {
+                    port.close(() => {
+                        resolve({
+                            online: true,
+                            responseTime: Date.now() - startTime
+                        });
+                    });
+                }
+            });
+        });
+    }
+
+    /**
+     * Fallback: test via bluetooth-serial-port native module.
+     */
+    private testNativeModuleConnection(
+        address: string,
+        startTime: number
+    ): Promise<{ online: boolean; responseTime?: number; error?: string }> {
+        const BluetoothSerialPort = loadBluetoothModule();
+        if (!BluetoothSerialPort) {
+            return Promise.resolve({
+                online: false,
+                error: 'Bluetooth module not available and no COM port found for this device'
+            });
+        }
+
+        return new Promise((resolve) => {
+            const btSerial = new BluetoothSerialPort();
+            let settled = false;
+
+            const settle = (result: { online: boolean; responseTime?: number; error?: string }) => {
+                if (settled) return;
+                settled = true;
+                try { btSerial.close(); } catch { /* ignore */ }
+                resolve(result);
+            };
+
+            const timer = setTimeout(() => {
+                settle({
+                    online: false,
+                    responseTime: Date.now() - startTime,
+                    error: 'Bluetooth connection test timed out'
+                });
+            }, BT_TEST_TIMEOUT);
+
+            btSerial.findSerialPortChannel(address, (channel: number) => {
+                btSerial.connect(address, channel, () => {
+                    clearTimeout(timer);
+                    settle({ online: true, responseTime: Date.now() - startTime });
+                }, () => {
+                    clearTimeout(timer);
+                    settle({
+                        online: false,
+                        responseTime: Date.now() - startTime,
+                        error: 'Found device but could not connect. Ensure it is paired.'
+                    });
+                });
+            }, () => {
+                clearTimeout(timer);
+                settle({
+                    online: false,
+                    responseTime: Date.now() - startTime,
+                    error: 'Bluetooth device not found or not paired'
+                });
+            });
+        });
+    }
+
+    /**
+     * Scan for nearby Bluetooth devices.
+     * On Windows, uses PowerShell to query PnP Bluetooth devices.
+     * Falls back to bluetooth-serial-port inquiry scan.
      */
     static async scanForPrinters(): Promise<Array<{ name: string; address: string }>> {
-        const platform = os.platform();
-
-        if (platform !== 'linux') {
-            return [];
+        if (os.platform() === 'win32') {
+            return this.scanWindowsBluetooth();
         }
+        return this.scanViaNativeModule();
+    }
+
+    /**
+     * Windows: discover Bluetooth devices via PowerShell PnP queries.
+     */
+    private static async scanWindowsBluetooth(): Promise<Array<{ name: string; address: string }>> {
+        const devices: Array<{ name: string; address: string }> = [];
 
         try {
-            const { stdout } = await execAsync('hcitool scan', { timeout: 30000 });
-            const lines = stdout.split('\n').slice(1); // Skip header
-            const printers: Array<{ name: string; address: string }> = [];
+            const { stdout } = await execAsync(
+                `powershell -NoProfile -Command "Get-PnpDevice -Class Bluetooth -ErrorAction SilentlyContinue | Where-Object { $_.InstanceId -match 'DEV_' } | Select-Object FriendlyName, InstanceId, Status | ConvertTo-Json"`
+            );
 
-            for (const line of lines) {
-                const match = line.trim().match(/^([0-9A-F:]{17})\s+(.+)$/i);
-                if (match) {
-                    // Filter for likely printers (name contains printer-related keywords)
-                    const name = match[2];
-                    if (/print|star|epson|pos|thermal/i.test(name)) {
-                        printers.push({
-                            address: match[1],
-                            name
-                        });
-                    }
+            const parsed = JSON.parse(stdout || '[]');
+            const devArray = Array.isArray(parsed) ? parsed : [parsed];
+
+            for (const d of devArray) {
+                if (!d?.FriendlyName || !d?.InstanceId) continue;
+                const macMatch = d.InstanceId.match(/DEV_([0-9A-Fa-f]{12})/);
+                if (macMatch) {
+                    const rawMac = macMatch[1].toUpperCase();
+                    const address = rawMac.replace(/(.{2})(?=.)/g, '$1:');
+                    devices.push({ name: d.FriendlyName, address });
                 }
             }
+        } catch (error) {
+            console.warn('[Bluetooth] Windows PnP scan failed:', error);
+        }
 
-            return printers;
-        } catch {
+        return devices;
+    }
+
+    /**
+     * Fallback: scan via bluetooth-serial-port native module inquiry.
+     */
+    private static async scanViaNativeModule(): Promise<Array<{ name: string; address: string }>> {
+        const BluetoothSerialPort = loadBluetoothModule();
+        if (!BluetoothSerialPort) {
+            console.warn('[Bluetooth] bluetooth-serial-port module not available — skipping scan');
             return [];
         }
+
+        return new Promise((resolve) => {
+            const btSerial = new BluetoothSerialPort();
+            const devices: Array<{ name: string; address: string }> = [];
+
+            btSerial.on('found', (address: string, name: string) => {
+                devices.push({ address, name: name || 'Unknown Device' });
+            });
+
+            btSerial.on('finished', () => {
+                resolve(devices);
+            });
+
+            btSerial.inquire();
+            setTimeout(() => resolve(devices), BT_SCAN_TIMEOUT);
+        });
+    }
+
+    /**
+     * List already-paired Bluetooth devices from the OS.
+     * On Windows uses PowerShell; falls back to bluetooth-serial-port.
+     */
+    static async listPairedDevices(): Promise<Array<{ name: string; address: string; services: string[] }>> {
+        if (os.platform() === 'win32') {
+            return this.listWindowsPairedDevices();
+        }
+        return this.listPairedViaNativeModule();
+    }
+
+    /**
+     * Windows: list paired BT devices and their COM ports via PowerShell.
+     */
+    private static async listWindowsPairedDevices(): Promise<Array<{ name: string; address: string; services: string[] }>> {
+        const devices: Array<{ name: string; address: string; services: string[] }> = [];
+
+        try {
+            const { stdout: devStdout } = await execAsync(
+                `powershell -NoProfile -Command "Get-PnpDevice -Class Bluetooth -ErrorAction SilentlyContinue | Where-Object { $_.InstanceId -match 'DEV_' -and $_.Status -eq 'OK' } | Select-Object FriendlyName, InstanceId | ConvertTo-Json"`
+            );
+
+            const parsed = JSON.parse(devStdout || '[]');
+            const devArray = Array.isArray(parsed) ? parsed : [parsed];
+
+            let comPorts: Array<{ Name: string; DeviceID: string }> = [];
+            try {
+                const { stdout: comStdout } = await execAsync(
+                    `powershell -NoProfile -Command "Get-WmiObject -Class Win32_PnPEntity -ErrorAction SilentlyContinue | Where-Object { $_.Name -match 'Standard Serial over Bluetooth' } | Select-Object Name, DeviceID | ConvertTo-Json"`
+                );
+                const comParsed = JSON.parse(comStdout || '[]');
+                comPorts = Array.isArray(comParsed) ? comParsed : [comParsed];
+            } catch { /* ignore */ }
+
+            for (const d of devArray) {
+                if (!d?.FriendlyName || !d?.InstanceId) continue;
+
+                const macMatch = d.InstanceId.match(/DEV_([0-9A-Fa-f]{12})/);
+                if (!macMatch) continue;
+
+                const rawMac = macMatch[1].toUpperCase();
+                const address = rawMac.replace(/(.{2})(?=.)/g, '$1:');
+
+                const services: string[] = [];
+                for (const cp of comPorts) {
+                    if (cp.DeviceID?.toUpperCase().includes(rawMac)) {
+                        const portMatch = cp.Name?.match(/\(COM\d+\)/);
+                        if (portMatch) services.push(`SPP ${portMatch[0]}`);
+                    }
+                }
+
+                devices.push({ name: d.FriendlyName, address, services });
+            }
+        } catch (error) {
+            console.warn('[Bluetooth] Windows paired device listing failed:', error);
+        }
+
+        return devices;
+    }
+
+    /**
+     * Fallback: list paired devices via bluetooth-serial-port native module.
+     */
+    private static async listPairedViaNativeModule(): Promise<Array<{ name: string; address: string; services: string[] }>> {
+        const BluetoothSerialPort = loadBluetoothModule();
+        if (!BluetoothSerialPort) {
+            return [];
+        }
+
+        return new Promise((resolve) => {
+            const btSerial = new BluetoothSerialPort();
+            btSerial.listPairedDevices((devices: Array<{ name: string; address: string; services: Array<{ channelID: number; name: string }> }>) => {
+                resolve(devices.map(d => ({
+                    name: d.name || 'Unknown Device',
+                    address: d.address,
+                    services: d.services?.map(s => s.name) || []
+                })));
+            });
+        });
+    }
+
+    /**
+     * Resolve a Bluetooth MAC address to its COM port on Windows.
+     * Exported for use by other services.
+     */
+    static async resolveBluetoothCOMPort(macAddress: string): Promise<string | null> {
+        return resolveBluetoothCOMPort(macAddress);
     }
 }
 
