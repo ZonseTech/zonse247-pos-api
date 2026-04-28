@@ -350,6 +350,17 @@ const TABLE_DELEGATES: Record<string, keyof typeof prisma> = {
 };
 
 /**
+ * Map table names to their UUID lookup field for models where the Prisma @id
+ * is an autoincrement integer and the business UUID is a separate @unique field.
+ * Models NOT listed here use `id` (their @id IS the UUID).
+ */
+const TABLE_UUID_FIELD: Partial<Record<string, string>> = {
+    categories: 'categoryId',
+    customers: 'customerId',
+    paymentMethods: 'methodId',
+};
+
+/**
  * Pull data using the ChangeLog table for efficient delta sync.
  *
  * Instead of scanning every pullable table with `WHERE updatedAt > since`,
@@ -446,9 +457,10 @@ export async function getPullDataFromChangeLog(
                         result.data.stockMovements = records;
                         result.counts.stockMovements = records.length;
                     } else {
+                        const uuidField = TABLE_UUID_FIELD[pullTableName] || 'id';
                         const records = await delegate.findMany({
                             where: {
-                                id: { in: [...recordIds] },
+                                [uuidField]: { in: [...recordIds] },
                                 deletedAt: null,
                             },
                             take: limit,

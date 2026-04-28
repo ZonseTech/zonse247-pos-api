@@ -5,6 +5,7 @@ import { AuthenticatedUser } from "auth";
 import { CategoryUncheckedCreateInput } from "../databases/prisma/generated/prisma/models";
 import prisma from '../databases/prisma/client';
 import { PaginationParams, buildPaginationMeta, PaginatedResult } from '../utils/pagination.utils';
+import { recordChangeAsync } from './sync/change-log.service';
 
 export class CategoryService {
 
@@ -85,7 +86,18 @@ export class CategoryService {
         }
 
         const newCategory = CategoryModel.buildCategoryData(createRequest as CategoryUncheckedCreateInput);
-        return await CategoryModel.create(newCategory);
+        const created = await CategoryModel.create(newCategory);
+
+        recordChangeAsync({
+            tableName: 'categories',
+            recordId: created.categoryId,
+            operation: 'INSERT',
+            tenantId: user.tenantId,
+            branchId: user.branchId,
+            userId: user.userId,
+        });
+
+        return created;
     }
 
     static async updateCategory(
@@ -121,6 +133,15 @@ export class CategoryService {
             if (updatedCount === 0) {
                 throw new Error('Failed to update category - no rows affected');
             }
+
+            recordChangeAsync({
+                tableName: 'categories',
+                recordId: categoryId,
+                operation: 'UPDATE',
+                tenantId: user.tenantId,
+                branchId: user.branchId,
+                userId: user.userId,
+            });
         } catch (error) {
             throw new Error(error instanceof Error ? error.message : 'Failed to update category');
         }
@@ -150,6 +171,15 @@ export class CategoryService {
             if (deletedCount === 0) {
                 throw new Error('Failed to delete category - no rows affected');
             }
+
+            recordChangeAsync({
+                tableName: 'categories',
+                recordId: categoryId,
+                operation: 'DELETE',
+                tenantId: user.tenantId,
+                branchId: user.branchId,
+                userId: user.userId,
+            });
         } catch (error) {
             throw new Error(error instanceof Error ? error.message : 'Failed to delete category');
         }
