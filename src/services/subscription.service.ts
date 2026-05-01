@@ -228,57 +228,46 @@ export class SubscriptionService {
 		return BranchSubscriptionModel.findByTenantId(tenantId);
 	}
 
-	/**
-	 * @method  subscribeBranch
-	 * @desc    Subscribe a branch to a plan - creates subscription and links it to the branch
-	 * @param   branchId - Branch UUID to subscribe
-	 * @param   subscriptionPlanId - Plan UUID
-	 * @param   options - Additional options (subscriptionMonths, autoRenew, paymentMethod)
-	 * @returns Promise<BranchSubscription> - Created subscription
-	 */
 	static async subscribeBranch(
 		branchId: string,
 		subscriptionPlanId: string,
-		options: { subscriptionMonths?: number; autoRenew?: boolean; paymentMethod?: string } = {}
+		options?: { subscriptionMonths?: number; autoRenew?: boolean; paymentMethod?: string },
 	): Promise<BranchSubscription> {
-		// Validate branch exists
 		const branch = await BranchModel.findById(branchId);
 		if (!branch) {
 			throw new ValidationError('Branch not found');
 		}
 
-		// Validate plan exists and is active
 		const plan = await SubscriptionPlanService.getById(subscriptionPlanId);
 		if (!plan || !plan.isActive) {
 			throw new ValidationError('Subscription plan not found or inactive');
 		}
 
-		// Cancel existing subscription if any
 		if (branch.branchSubscriptionId) {
-			const existingSubscription = await BranchSubscriptionModel.findById(branch.branchSubscriptionId);
-			if (existingSubscription && existingSubscription.status === 'active') {
-				await BranchSubscriptionModel.update(existingSubscription.branchSubscriptionId, {
+			const existing = await BranchSubscriptionModel.findById(branch.branchSubscriptionId);
+			if (existing && existing.status === 'active') {
+				await BranchSubscriptionModel.update(existing.branchSubscriptionId, {
 					status: 'cancelled',
 					endsAt: new Date(),
+					autoRenew: false,
 				});
 			}
 		}
 
-		// Create new subscription
 		const subscriptionData = BranchSubscriptionModel.buildSubscriptionData({
 			subscriptionPlanId,
-			subscriptionMonths: options.subscriptionMonths,
-			autoRenew: options.autoRenew,
-			paymentMethod: options.paymentMethod,
+			subscriptionMonths: options?.subscriptionMonths,
+			autoRenew: options?.autoRenew,
+			paymentMethod: options?.paymentMethod,
 		});
 
 		const newSubscription = await BranchSubscriptionModel.create(subscriptionData);
 
-		// Link subscription to branch
 		await BranchModel.update(branchId, {
 			branchSubscriptionId: newSubscription.branchSubscriptionId,
 		});
 
 		return newSubscription;
 	}
+
 }
