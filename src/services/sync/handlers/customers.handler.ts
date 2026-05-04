@@ -101,11 +101,16 @@ async function createNewCustomer(
 ): Promise<void> {
     const { id: _id, branchId, tenantId, ...customerData } = customer;
 
+    if (!tenantId) {
+        addSyncError(result, customerId, 'Missing tenantId');
+        return;
+    }
+
     await prisma.customer.create({
         data: {
             ...customerData,
             customerId,
-            tenantId,
+            tenant: { connect: { tenantId: tenantId as string } },
             branch: { connect: { branchId: branchId as string } },
         } as any,
     });
