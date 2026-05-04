@@ -78,6 +78,9 @@ typings/
 # Optional npm cache directory
 .npm
 
+# Local npm config (machine-specific, e.g. script-shell on Windows)
+.npmrc
+
 # Optional eslint cache
 .eslintcache
 
