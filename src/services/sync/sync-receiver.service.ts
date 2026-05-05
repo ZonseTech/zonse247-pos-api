@@ -139,7 +139,7 @@ export class SyncReceiverService {
 
         const parallelOps: Array<[string, unknown[] | undefined, () => Promise<SyncResult | StockMovementSyncResult>]> = [
             ['stockMovements', data.stockMovements, () => receiveStockMovements(data.stockMovements || [])],
-            ['customers', data.customers, () => receiveCustomers(data.customers || [])],
+            ['customers', data.customers, () => receiveCustomers(data.customers || [], tenantId)],
             ['orders', data.orders, () => receiveOrders(data.orders || [])],
             ['users', data.users, () => receiveUsers(data.users || [])],
         ];

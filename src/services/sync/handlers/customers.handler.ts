@@ -21,11 +21,22 @@ type CustomerRecord = Record<string, unknown> & {
 /**
  * Receive and upsert customers from terminal
  * Uses customerId as the unique identifier (not the auto-increment id)
+ *
+ * tenantId is sourced from the authenticated request (not the incoming
+ * record payload) to prevent cross-tenant data injection.
  */
 export async function receiveCustomers(
-    customers: CustomerRecord[]
+    customers: CustomerRecord[],
+    tenantId?: string
 ): Promise<SyncResult> {
     const result = createEmptySyncResult();
+
+    if (!tenantId) {
+        for (const customer of customers) {
+            addSyncError(result, getCustomerId(customer) || 'unknown', 'Missing tenantId (auth required)');
+        }
+        return finalizeSyncResult(result);
+    }
 
     for (const customer of customers) {
         try {
@@ -48,7 +59,7 @@ export async function receiveCustomers(
             if (existing) {
                 await handleExistingCustomer(result, customer, customerId, existing);
             } else {
-                await createNewCustomer(result, customer, customerId);
+                await createNewCustomer(result, customer, customerId, tenantId);
             }
         } catch (error) {
             addSyncError(result, customer.id, getErrorMessage(error));
@@ -75,7 +86,7 @@ async function handleExistingCustomer(
     existing: { updatedAt: Date }
 ): Promise<void> {
     if (isNewerRecord(customer, existing)) {
-        const { id: _id, branchId: _branchId, ...updateData } = customer;
+        const { id: _id, branchId: _branchId, tenantId: _tenantId, ...updateData } = customer;
 
         await prisma.customer.update({
             where: { customerId },
@@ -92,25 +103,22 @@ async function handleExistingCustomer(
 }
 
 /**
- * Create new customer with proper relation syntax
+ * Create new customer with proper relation syntax.
+ * tenantId is taken from the authenticated request, not the payload.
  */
 async function createNewCustomer(
     result: SyncResult,
     customer: CustomerRecord,
-    customerId: string
+    customerId: string,
+    tenantId: string
 ): Promise<void> {
-    const { id: _id, branchId, tenantId, ...customerData } = customer;
-
-    if (!tenantId) {
-        addSyncError(result, customerId, 'Missing tenantId');
-        return;
-    }
+    const { id: _id, branchId, tenantId: _payloadTenantId, ...customerData } = customer;
 
     await prisma.customer.create({
         data: {
             ...customerData,
             customerId,
-            tenant: { connect: { tenantId: tenantId as string } },
+            tenant: { connect: { tenantId } },
             branch: { connect: { branchId: branchId as string } },
         } as any,
     });

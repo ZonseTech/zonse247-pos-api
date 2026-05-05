@@ -63,10 +63,17 @@ function getTerminalId(req: SyncRequest): string | undefined {
 }
 
 /**
- * Extract tenant ID from request headers or body
+ * Extract tenant ID from authenticated request.
+ * Falls back to headers/body for legacy/unauthenticated paths.
+ * Auth is the source of truth — never trust client-supplied tenantId
+ * when an authenticated tenant is available.
  */
 function getTenantId(req: SyncRequest): string | undefined {
-    return (req.headers[SYNC_HEADERS.TENANT_ID] as string) || req.body.tenantId;
+    return (
+        req.auth?.tenantId ||
+        (req.headers[SYNC_HEADERS.TENANT_ID] as string) ||
+        req.body.tenantId
+    );
 }
 
 /**
@@ -294,11 +301,26 @@ export class SyncController extends BaseController {
     /**
      * Sync customers
      * POST /v1/sync/customers
+     *
+     * tenantId is taken from the authenticated request, not the payload.
      */
     static async syncCustomers(req: SyncRequest, res: Response): Promise<void> {
+        const tenantId = req.auth?.tenantId;
+
+        if (!tenantId) {
+            res.status(401).json({
+                success: false,
+                message: 'Authenticated tenant is required',
+            });
+            return;
+        }
+
         await handleSyncEndpoint(req, res, 'Customers sync', {
             handler: (records) =>
-                SyncReceiverService.receiveCustomers(records as Parameters<typeof SyncReceiverService.receiveCustomers>[0]),
+                SyncReceiverService.receiveCustomers(
+                    records as Parameters<typeof SyncReceiverService.receiveCustomers>[0],
+                    tenantId
+                ),
         });
     }
 
