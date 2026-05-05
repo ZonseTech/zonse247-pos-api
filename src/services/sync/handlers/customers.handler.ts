@@ -103,7 +103,7 @@ async function handleExistingCustomer(
 }
 
 /**
- * Create new customer with proper relation syntax.
+ * Create new customer using scalar foreign keys.
  * tenantId is taken from the authenticated request, not the payload.
  */
 async function createNewCustomer(
@@ -118,8 +118,8 @@ async function createNewCustomer(
         data: {
             ...customerData,
             customerId,
-            tenant: { connect: { tenantId } },
-            branch: { connect: { branchId: branchId as string } },
+            tenantId,
+            branchId: branchId as string,
         } as any,
     });
 
