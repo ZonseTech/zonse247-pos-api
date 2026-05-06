@@ -47,7 +47,10 @@ export async function receiveReturns(
 /**
  * Receive and upsert return items from terminal.
  *
- * OPTIMISED: 2 bulk queries (item existence + parent existence) instead of 2N.
+ * NOTE: ReturnItem.id is an autoincrement Int; the sync key is the
+ * unique String `returnItemId`. The schema has no `Return` parent
+ * model — `returnTransactionId` references the original Sale, so no
+ * parent-existence check is performed here.
  */
 export async function receiveReturnItems(
     items: SyncRecord[]
@@ -56,24 +59,39 @@ export async function receiveReturnItems(
     if (items.length === 0) return result;
 
     try {
-        const itemIds = items.map((i) => i.id);
-        const parentReturnIds = [...new Set(items.map((i) => i.returnId as string).filter(Boolean))];
+        // Normalise: prefer `returnItemId`, fall back to `id` (terminals
+        // historically used `id` to carry the UUID).
+        const normalised = items.map((item) => {
+            const returnItemId =
+                (item.returnItemId as string | undefined) ||
+                (typeof item.id === 'string' ? (item.id as string) : undefined);
+            // Strip the autoincrement `id` so the DB assigns it.
+            const { id: _id, ...rest } = item;
+            return { ...rest, returnItemId } as Record<string, unknown> & {
+                returnItemId?: string;
+            };
+        });
 
-        const [existingItemIds, existingParentIds] = await Promise.all([
-            findExistingIds(prisma.returnItem, itemIds),
-            findExistingIds(prisma.return, parentReturnIds),
-        ]);
+        const itemIds = normalised
+            .map((i) => i.returnItemId)
+            .filter((x): x is string => typeof x === 'string' && x.length > 0);
+
+        const existingItemIds = await findExistingIds(
+            prisma.returnItem,
+            itemIds,
+            'returnItemId'
+        );
 
         const toInsert: Record<string, unknown>[] = [];
 
-        for (const item of items) {
-            if (existingItemIds.has(item.id)) {
-                result.skipped++;
+        for (const item of normalised) {
+            if (!item.returnItemId) {
+                addSyncError(result, 'unknown', 'Missing returnItemId');
                 continue;
             }
 
-            if (!existingParentIds.has(item.returnId as string)) {
-                addSyncError(result, item.id, 'Parent return not found');
+            if (existingItemIds.has(item.returnItemId)) {
+                result.skipped++;
                 continue;
             }
 
