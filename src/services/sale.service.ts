@@ -30,6 +30,7 @@ import {
     getProductDisplayName,
     validateStockAvailability,
     validatePaymentAmount,
+    validateSaleDate,
     buildSaleInclude,
     buildDateFilter,
     buildSearchFilter,
@@ -70,6 +71,7 @@ export class SaleService {
 
                 const totalPaid = this.getTotalPaid(data);
                 validatePaymentAmount(totals.totalAmount, totalPaid);
+                validateSaleDate(data.saleDate);
 
                 const saleNumber = await this.generateSaleNumber(tenantId, branchId, tx, retryAttempt);
 
@@ -388,6 +390,7 @@ export class SaleService {
                 changeAmount,
                 status: 'COMPLETED',
                 notes: data.notes,
+                ...(data.saleDate && { saleDate: new Date(data.saleDate) }),
                 tenant: { connect: { tenantId } },
                 branch: { connect: { branchId } },
                 user: { connect: { userId } },

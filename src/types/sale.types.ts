@@ -98,6 +98,8 @@ export interface CreateSaleInput {
     payments?: SalePaymentInput[];
     notes?: string;
     items: CreateSaleItemInput[];
+    /** Backdate the sale's transaction date; omit to use "now" */
+    saleDate?: string;
 }
 
 /**

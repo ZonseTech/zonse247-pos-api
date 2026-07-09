@@ -280,6 +280,22 @@ export function validatePaymentAmount(totalAmount: number, totalPaid: number): v
 }
 
 /**
+ * Validate a client-supplied sale date (used for backdating sales)
+ * @throws Error if the date is unparseable or in the future
+ */
+export function validateSaleDate(saleDate?: string): void {
+    if (!saleDate) return;
+
+    const parsed = new Date(saleDate);
+    if (isNaN(parsed.getTime())) {
+        throw new Error(`Invalid sale date: ${saleDate}`);
+    }
+    if (parsed.getTime() > Date.now()) {
+        throw new Error('Sale date cannot be in the future');
+    }
+}
+
+/**
  * Build the standard include object for sale queries
  * Centralizes the relation includes for consistency
  */
