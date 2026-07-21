@@ -41,6 +41,7 @@ import { preventSQLInjection, preventXSS, sanitizeInput } from '../middlewares/s
 import { authLimiter } from '../middlewares/rate-limit.middleware'
 import PaymentServiceProviderRoutes from './payment-service-provider.routes'
 import ReportsRoutes from './reports.routes'
+import DashboardRoutes from './dashboard.routes'
 import MraRoutes from './mra.routes'
 import SyncRoutes from './sync.routes'
 import { TenantMiddleware } from '../middlewares/tenant.middleware'
@@ -102,6 +103,7 @@ router.use('/stock-movements', StockMovementsRoutes);
 router.use('/inventory-valuation', InventoryValuationRoutes);
 router.use('/printers', PrinterRoutes);
 router.use('/reports', ReportsRoutes);
+router.use('/dashboard', DashboardRoutes);
 router.use('/mra', MraRoutes);
 router.use('/sync', SyncRoutes);
 router.use('/loyalty', LoyaltyRoutes);
