@@ -924,13 +924,15 @@ model SalePayment {
   sale            Sale?         @relation(fields: [saleId], references: [id], onDelete: Cascade)
   serviceOrder    ServiceOrder? @relation(fields: [serviceOrderId], references: [id], onDelete: Cascade)
   paymentMethod   PaymentMethod @relation(fields: [paymentMethodId], references: [methodId], onDelete: Restrict)
-  
+  provider        PaymentServiceProvider? @relation(fields: [providerId], references: [providerId], onDelete: SetNull, onUpdate: NoAction)
+
   @@index([tenantId])
   @@index([branchId])
   @@index([tenantId, branchId, updatedAt])
   @@index([saleId])
   @@index([serviceOrderId])
   @@index([paymentMethodId])
+  @@index([providerId])
   @@index([status])
   @@index([processedAt])
   @@index([updatedAt])
@@ -1261,6 +1263,7 @@ model PaymentMethod {
   isActive     Boolean?      @default(true) @map("is_active")
   icon         String?       @map("icon")
   sortOrder    Int?          @default(0) @map("sort_order")
+  parentMethodId String?     @map("parent_method_id")
   lastSyncedAt DateTime?     @map("last_synced_at")
   version      Int           @default(1) @map("version")
   deletedAt    DateTime?     @map("deleted_at")
@@ -1268,15 +1271,19 @@ model PaymentMethod {
   updatedAt    DateTime?     @default(now()) @map("updated_at")
   tenant       Tenant        @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade)
   branch       Branch        @relation(fields: [branchId], references: [branchId], onDelete: Cascade)
+  parent       PaymentMethod?  @relation("PaymentMethodHierarchy", fields: [parentMethodId], references: [methodId], onDelete: SetNull, onUpdate: NoAction)
+  children     PaymentMethod[] @relation("PaymentMethodHierarchy")
   transactions Transaction[]
   sales        Sale[]
   salePayments SalePayment[] // NEW: Support for multiple payment methods per sale
+  serviceProviders PaymentServiceProvider[]
 
   @@index([tenantId])
   @@index([branchId])
   @@index([tenantId, branchId, updatedAt])
   @@index([updatedAt])
   @@index([deletedAt])
+  @@index([parentMethodId])
   @@map("payment_methods")
 }
 
@@ -1808,19 +1815,23 @@ enum ChangeLogOperation {
 }
 
 model PaymentServiceProvider {
-  id           Int           @id @default(autoincrement())
-  providerId   String        @unique @map("providerId")
-  userId       String        @map("userId")
-  name         String        @map("name")
-  type         String        @map("type") // "bank" or "epayment"
-  description  String?       @map("description")
-  logoUrl      String?       @map("logoUrl")
-  isActive     Boolean       @default(true) @map("isActive")
-  sortOrder    Int           @default(0) @map("sortOrder")
-  createdAt    DateTime?     @default(now()) @map("createdAt")
-  updatedAt    DateTime?     @updatedAt @map("updatedAt")
-  transactions Transaction[]
+  id            Int           @id @default(autoincrement())
+  providerId    String        @unique @map("providerId")
+  userId        String        @map("userId")
+  name          String        @map("name")
+  type          String        @map("type") // "bank" or "epayment"
+  description   String?       @map("description")
+  logoUrl       String?       @map("logoUrl")
+  isActive      Boolean       @default(true) @map("isActive")
+  sortOrder     Int           @default(0) @map("sortOrder")
+  paymentMethodId String?     @map("paymentMethodId") // Links to the root PaymentMethod (e.g. Bank, Mobile Money)
+  createdAt     DateTime?     @default(now()) @map("createdAt")
+  updatedAt     DateTime?     @updatedAt @map("updatedAt")
+  paymentMethod PaymentMethod? @relation(fields: [paymentMethodId], references: [methodId], onDelete: SetNull, onUpdate: NoAction)
+  transactions  Transaction[]
+  salePayments  SalePayment[]
 
+  @@index([paymentMethodId])
   @@map("payment_service_providers")
 }
 

@@ -188,12 +188,17 @@ export class DashboardService {
             select: {
                 amount: true,
                 paymentMethod: { select: { name: true } },
+                provider: { select: { name: true } },
             },
         });
 
+        // Group by the specific provider (e.g. "TNM Mpamba", "NBS Bank") when one
+        // was used, since that's the actionable breakdown for reconciliation.
+        // Falls back to the leaf method name (Cash, Credit Card, ...) when there's
+        // no provider - e.g. cash sales don't have one.
         const totals: Record<string, number> = {};
         for (const payment of payments) {
-            const name = payment.paymentMethod.name;
+            const name = payment.provider?.name || payment.paymentMethod.name;
             totals[name] = (totals[name] || 0) + Number(payment.amount);
         }
 

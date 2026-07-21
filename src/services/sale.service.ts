@@ -418,11 +418,12 @@ export class SaleService {
                 },
                 ...(payments.length > 0 && {
                     payments: {
-                        create: payments.map(({ paymentMethodId, ...payment }) => ({
+                        create: payments.map(({ paymentMethodId, providerId, ...payment }) => ({
                             ...payment,
                             tenant: { connect: { tenantId } },
                             branch: { connect: { branchId } },
                             paymentMethod: { connect: { methodId: paymentMethodId } },
+                            ...(providerId && { provider: { connect: { providerId } } }),
                         })),
                     },
                 }),

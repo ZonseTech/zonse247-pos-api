@@ -58,6 +58,8 @@ export interface SalePaymentInput {
     providerId?: string;
     providerRef?: string;
     notes?: string;
+    /** Mobile money phone number - folded into `notes` on write, no dedicated column */
+    phoneNumber?: string;
 }
 
 /**
@@ -77,6 +79,7 @@ export interface SalePayment {
     createdAt: Date;
     updatedAt: Date;
     paymentMethod?: PaymentMethodInfo;
+    provider?: PaymentProviderInfo;
 }
 
 export type PaymentStatus = 'PENDING' | 'COMPLETED' | 'REFUNDED' | 'CANCELLED' | 'FAILED';
@@ -207,6 +210,14 @@ export interface PaymentMethodInfo {
     methodId: string;
     name: string;
     icon?: string;
+    /** Root category (e.g. Bank) when this method is a channel leaf (e.g. POS, Bank Transfer) */
+    parent?: PaymentMethodInfo;
+}
+
+export interface PaymentProviderInfo {
+    providerId: string;
+    name: string;
+    logoUrl?: string;
 }
 
 export interface TerminalInfo {

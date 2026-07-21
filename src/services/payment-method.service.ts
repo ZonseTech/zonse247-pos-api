@@ -53,6 +53,20 @@ export class PaymentMethodService {
         }
     }
 
+    /**
+     * Root payment methods with their channel children nested underneath
+     * (e.g. Bank -> POS, Bank Transfer). Used to drive the cascading
+     * payment picker in the checkout UI.
+     */
+    static async getPaymentMethodTree(): Promise<PaymentMethod[]> {
+        try {
+            return await PaymentMethodModel.findTree();
+        } catch (error) {
+            console.error('Service: Error getting payment method tree:', error);
+            throw new Error('Failed to retrieve payment method tree');
+        }
+    }
+
     static async getPaymentMethodById(uuid: string): Promise<PaymentMethod | null> {
         try {
             if (!uuid || typeof uuid !== 'string') {
@@ -85,6 +99,7 @@ export class PaymentMethodService {
                 name: data.name,
                 icon: data.icon,
                 sortOrder: data.sortOrder,
+                parentMethodId: data.parentMethodId,
                 isActive: data.isActive ?? true,
             } as unknown as PaymentMethodUncheckedCreateInput
 

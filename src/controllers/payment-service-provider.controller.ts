@@ -37,15 +37,45 @@ export class PaymentServiceProviderController extends BaseController {
             }
 
             const filters: PaymentServiceProviderFilters = {
-                tenantId: user.tenantId,
-                branchId: user.branchId
+                paymentMethodId: typeof req.query.paymentMethodId === 'string' ? req.query.paymentMethodId : undefined
             };
             const pagination = parsePaginationParams(req.query);
 
             const result = await PaymentServiceProviderService.listPaymentServiceProviders(filters, pagination);
-            BaseController.sendPaginated(res, 'Payment service providers retrieved successfully', result.data, result.pagination, 'providers');
+            BaseController.sendPaginated(res, 'Payment service providers retrieved successfully', result.data, result.pagination, 'paymentServiceProviders');
         } catch (error) {
             console.error('Error in getAllPaymentServiceProviders:', error);
+            PaymentServiceProviderController.sendServerError(
+                res,
+                'Failed to retrieve payment service providers',
+                error instanceof Error ? error.message : 'Unknown error'
+            );
+        }
+    }
+
+    /**
+     * GET /payment-service-providers/by-method/:methodId
+     * Providers for a payment method - resolves channel leaves (POS, Bank Transfer)
+     * to their root category (Bank) automatically.
+     */
+    static async getByMethod(req: Request & AuthRequest, res: Response): Promise<void> {
+        try {
+            const user = req.auth;
+            if (!user) {
+                PaymentServiceProviderController.sendUnauthorized(res);
+                return;
+            }
+
+            const { methodId } = req.params;
+            if (!methodId) {
+                PaymentServiceProviderController.sendBadRequest(res, 'Payment method ID is required');
+                return;
+            }
+
+            const providers = await PaymentServiceProviderService.getProvidersForMethod(methodId as string);
+            PaymentServiceProviderController.sendSuccess(res, 'Payment service providers retrieved successfully', providers);
+        } catch (error) {
+            console.error('Error in getByMethod:', error);
             PaymentServiceProviderController.sendServerError(
                 res,
                 'Failed to retrieve payment service providers',
@@ -62,7 +92,7 @@ export class PaymentServiceProviderController extends BaseController {
                 return;
             }
 
-            const { name, type, logoUrl } = req.body;
+            const { name, type, logoUrl, paymentMethodId } = req.body;
 
             if (!name || !type || !logoUrl) {
                 PaymentServiceProviderController.sendBadRequest(res, 'Name, type, and logo URL are required');
@@ -70,7 +100,7 @@ export class PaymentServiceProviderController extends BaseController {
             }
 
             const newPSP = await PaymentServiceProviderService.createPaymentServiceProvider(
-                { name, type, logoUrl },
+                { name, type, logoUrl, paymentMethodId },
                 user as any
             );
 
@@ -201,12 +231,7 @@ export class PaymentServiceProviderController extends BaseController {
                 return;
             }
 
-            const filters: PaymentServiceProviderFilters = {
-                tenantId: user.tenantId,
-                branchId: user.branchId
-            };
-
-            const psp = await PaymentServiceProviderService.getPaymentServiceProviderById(pspId as string, filters);
+            const psp = await PaymentServiceProviderService.getPaymentServiceProviderById(pspId as string);
 
             if (!psp) {
                 PaymentServiceProviderController.sendNotFound(res, 'Payment service provider not found');
@@ -239,12 +264,7 @@ export class PaymentServiceProviderController extends BaseController {
                 return;
             }
 
-            const filters: PaymentServiceProviderFilters = {
-                tenantId: user.tenantId,
-                branchId: user.branchId
-            };
-
-            const psps = await PaymentServiceProviderService.getPaymentServiceProviderById(name, filters);
+            const psps = await PaymentServiceProviderService.searchByName(name);
             PaymentServiceProviderController.sendSuccess(res, 'Payment service providers search completed', psps);
         } catch (error) {
             console.error('Error in searchPaymentServiceProviders:', error);
