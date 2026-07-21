@@ -5,9 +5,11 @@ export interface PaymentMethod {
     name: string;
     icon?: string;
     sortOrder?: number;
+    parentMethodId?: string | null;
     isActive?: boolean;
     createdAt?: string;
     updatedAt?: string;
+    children?: PaymentMethod[];
 }
 
 export interface CreatePaymentMethodDto {
@@ -16,6 +18,7 @@ export interface CreatePaymentMethodDto {
     name: string;
     icon?: string;
     sortOrder?: number;
+    parentMethodId?: string;
     isActive?: boolean;
 }
 
@@ -23,5 +26,6 @@ export interface UpdatePaymentMethodDto {
     name?: string;
     icon?: string;
     sortOrder?: number;
+    parentMethodId?: string;
     isActive?: boolean;
 }

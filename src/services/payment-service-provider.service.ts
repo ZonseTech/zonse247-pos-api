@@ -1,9 +1,14 @@
 import { CreatePaymentServiceProviderRequest, PaymentServiceProvider, PaymentServiceProviderFilters, UpdatePaymentServiceProviderDto } from "payment-service-provider";
 import { PaymentServiceProviderModel } from "../models/payment-service-provider.model";
+import { PaymentMethodModel } from "../models/payment-methods.model";
 import { AuthenticatedUser } from "auth";
 import prisma from '../databases/prisma/client';
 import { PaginationParams, buildPaginationMeta, PaginatedResult } from '../utils/pagination.utils';
 
+/**
+ * Payment service providers (banks, mobile money networks) are a global catalog,
+ * not tenant-scoped - the underlying table has no tenantId/branchId columns.
+ */
 export class PaymentServiceProviderService {
 
     static async selectAll(params): Promise<Array<PaymentServiceProvider>> {
@@ -16,8 +21,7 @@ export class PaymentServiceProviderService {
     ): Promise<PaginatedResult<PaymentServiceProvider>> {
         try {
             const where: any = {};
-            if (filters.tenantId) where.tenantId = filters.tenantId;
-            if (filters.branchId) where.branchId = filters.branchId;
+            if (filters.paymentMethodId) where.paymentMethodId = filters.paymentMethodId;
 
             const [providers, total] = await Promise.all([
                 prisma.paymentServiceProvider.findMany({
@@ -39,8 +43,18 @@ export class PaymentServiceProviderService {
         }
     }
 
+    /**
+     * Providers for a given payment method - resolves a leaf method (e.g. POS,
+     * Bank Transfer) to its root category (Bank) first, since providers are
+     * linked to the root, not the channel leaves.
+     */
+    static async getProvidersForMethod(methodId: string): Promise<PaymentServiceProvider[]> {
+        const rootMethodId = await PaymentMethodModel.resolveRootId(methodId);
+        return PaymentServiceProviderModel.findByPaymentMethodId(rootMethodId);
+    }
+
     static async createPaymentServiceProvider(
-        pspData: { name: string; type: string; logoUrl: string },
+        pspData: { name: string; type: string; logoUrl: string; paymentMethodId?: string },
         user: AuthenticatedUser
     ): Promise<PaymentServiceProvider> {
         try {
@@ -48,8 +62,7 @@ export class PaymentServiceProviderService {
                 name: pspData.name,
                 type: pspData.type || 'bank',
                 logoUrl: pspData.logoUrl,
-                tenantId: user.tenantId,
-                branchId: user.branchId,
+                paymentMethodId: pspData.paymentMethodId,
                 userId: user.userId,
             };
 
@@ -58,14 +71,9 @@ export class PaymentServiceProviderService {
                 throw new Error(`Validation failed: ${validationErrors.join(', ')}`);
             }
 
-            const existingPSPs = await PaymentServiceProviderModel.findByTenantIdAndName(
-                user.tenantId,
-                pspData.name.trim()
-            );
-
-            const duplicateInBranch = existingPSPs.find(psp => psp.branchId === user.branchId);
-            if (duplicateInBranch) {
-                throw new Error('Payment service provider with this name already exists in the branch');
+            const existingPSPs = await PaymentServiceProviderModel.findByName(pspData.name.trim());
+            if (existingPSPs.length > 0) {
+                throw new Error('Payment service provider with this name already exists');
             }
 
             const newPSP = PaymentServiceProviderModel.buildPaymentServiceProviderData(createRequest);
@@ -79,7 +87,7 @@ export class PaymentServiceProviderService {
     static async updatePaymentServiceProvider(
         pspId: string,
         updateData: UpdatePaymentServiceProviderDto,
-        user: AuthenticatedUser
+        _user: AuthenticatedUser
     ): Promise<void> {
         try {
             const validationErrors = PaymentServiceProviderModel.validateUpdateRequest(updateData);
@@ -87,26 +95,16 @@ export class PaymentServiceProviderService {
                 throw new Error(`Validation failed: ${validationErrors.join(', ')}`);
             }
 
-            const existingPSP = await this.getPaymentServiceProviderById(pspId, {
-                tenantId: user.tenantId,
-                branchId: user.branchId
-            });
-
+            const existingPSP = await this.getPaymentServiceProviderById(pspId);
             if (!existingPSP) {
-                throw new Error('Payment service provider not found or access denied');
+                throw new Error('Payment service provider not found');
             }
 
             if (updateData.name && updateData.name.trim() !== existingPSP.name) {
-                const existingPSPs = await PaymentServiceProviderModel.findByTenantIdAndName(
-                    user.tenantId,
-                    updateData.name.trim()
-                );
-
-                const duplicateInBranch = existingPSPs.find(
-                    psp => psp.branchId === user.branchId && psp.providerId !== pspId
-                );
-                if (duplicateInBranch) {
-                    throw new Error('Payment service provider with this name already exists in the branch');
+                const existingPSPs = await PaymentServiceProviderModel.findByName(updateData.name.trim());
+                const duplicate = existingPSPs.find(psp => psp.providerId !== pspId);
+                if (duplicate) {
+                    throw new Error('Payment service provider with this name already exists');
                 }
             }
 
@@ -122,23 +120,13 @@ export class PaymentServiceProviderService {
 
     static async deletePaymentServiceProvider(
         pspId: string,
-        user: AuthenticatedUser
+        _user: AuthenticatedUser
     ): Promise<void> {
         try {
-            const existingPSP = await this.getPaymentServiceProviderById(pspId, {
-                tenantId: user.tenantId,
-                branchId: user.branchId
-            });
-
+            const existingPSP = await this.getPaymentServiceProviderById(pspId);
             if (!existingPSP) {
-                throw new Error('Payment service provider not found or access denied');
+                throw new Error('Payment service provider not found');
             }
-
-            // TODO: Add check for related entities (transactions, etc.)
-            // const relatedTransactions = await TransactionModel.findByPSPId(pspId);
-            // if (relatedTransactions.length > 0) {
-            //     throw new Error('Cannot delete payment service provider with associated transactions');
-            // }
 
             const deletedCount = await PaymentServiceProviderModel.delete(pspId);
             if (deletedCount === 0) {
@@ -150,35 +138,29 @@ export class PaymentServiceProviderService {
         }
     }
 
-    static async getPaymentServiceProviderById(
-        pspId: string,
-        filters: PaymentServiceProviderFilters
-    ): Promise<PaymentServiceProvider | null> {
+    static async getPaymentServiceProviderById(pspId: string): Promise<PaymentServiceProvider | null> {
         try {
-            const psp = await PaymentServiceProviderModel.findById(pspId);
-
-            if (!psp ||
-                psp.tenantId !== filters.tenantId ||
-                psp.branchId !== filters.branchId) {
-                return null;
-            }
-
-            return psp;
+            return await PaymentServiceProviderModel.findById(pspId);
         } catch (error) {
             console.error('Error fetching payment service provider by ID:', error);
             throw new Error('Failed to fetch payment service provider');
         }
     }
 
-    static async markPaymentServiceProviderAsSynced(pspId: string, user: AuthenticatedUser): Promise<void> {
+    static async searchByName(name: string): Promise<PaymentServiceProvider[]> {
         try {
-            const psp = await this.getPaymentServiceProviderById(pspId, {
-                tenantId: user.tenantId,
-                branchId: user.branchId
-            });
+            return await PaymentServiceProviderModel.findByName(name);
+        } catch (error) {
+            console.error('Error searching payment service providers by name:', error);
+            throw new Error('Failed to search payment service providers');
+        }
+    }
 
+    static async markPaymentServiceProviderAsSynced(pspId: string, _user: AuthenticatedUser): Promise<void> {
+        try {
+            const psp = await this.getPaymentServiceProviderById(pspId);
             if (!psp) {
-                throw new Error('Payment service provider not found or access denied');
+                throw new Error('Payment service provider not found');
             }
 
             const updatedCount = await PaymentServiceProviderModel.markAsSynced(pspId);
@@ -191,15 +173,11 @@ export class PaymentServiceProviderService {
         }
     }
 
-    static async markPaymentServiceProviderAsUnsynced(pspId: string, user: AuthenticatedUser): Promise<void> {
+    static async markPaymentServiceProviderAsUnsynced(pspId: string, _user: AuthenticatedUser): Promise<void> {
         try {
-            const psp = await this.getPaymentServiceProviderById(pspId, {
-                tenantId: user.tenantId,
-                branchId: user.branchId
-            });
-
+            const psp = await this.getPaymentServiceProviderById(pspId);
             if (!psp) {
-                throw new Error('Payment service provider not found or access denied');
+                throw new Error('Payment service provider not found');
             }
 
             const updatedCount = await PaymentServiceProviderModel.markAsUnsynced(pspId);
@@ -238,15 +216,9 @@ export class PaymentServiceProviderService {
         }
     }
 
-    static async validatePaymentServiceProviderAccess(
-        pspId: string,
-        user: AuthenticatedUser
-    ): Promise<boolean> {
+    static async validatePaymentServiceProviderAccess(pspId: string): Promise<boolean> {
         try {
-            const psp = await this.getPaymentServiceProviderById(pspId, {
-                tenantId: user.tenantId,
-                branchId: user.branchId
-            });
+            const psp = await this.getPaymentServiceProviderById(pspId);
             return psp !== null;
         } catch (error) {
             console.error('Error validating payment service provider access:', error);

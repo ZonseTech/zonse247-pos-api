@@ -42,6 +42,35 @@ export class PaymentMethodModel {
         }
     }
 
+    /**
+     * Root payment methods (Cash, Bank, Mobile Money, ...) with their channel
+     * children (e.g. Bank -> POS, Bank Transfer) nested underneath.
+     */
+    static async findTree(): Promise<PaymentMethod[]> {
+        try {
+            return await prisma.paymentMethod.findMany({
+                where: { parentMethodId: null },
+                orderBy: { sortOrder: 'asc' },
+                include: {
+                    children: { orderBy: { sortOrder: 'asc' } }
+                }
+            }) as unknown as PaymentMethod[];
+        } catch (error) {
+            console.error('Error finding payment method tree:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Resolves a method to its root category id. Leaf methods (e.g. POS, Bank
+     * Transfer) resolve to their parent (Bank); root methods resolve to themselves.
+     * The tree is exactly one level deep, so a single lookup is sufficient.
+     */
+    static async resolveRootId(methodId: string): Promise<string> {
+        const method = await PaymentMethodModel.findById(methodId);
+        return method?.parentMethodId || methodId;
+    }
+
     static async find(conditions: any = {}): Promise<PaymentMethod[]> {
         try {
             return await prisma.paymentMethod.findMany({

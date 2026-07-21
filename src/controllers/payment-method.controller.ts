@@ -39,6 +39,20 @@ export class PaymentMethodController extends BaseController {
         }
     }
 
+    static async getTree(req: Request, res: Response): Promise<void> {
+        try {
+            const tree = await PaymentMethodService.getPaymentMethodTree();
+            PaymentMethodController.sendSuccess(res, 'Payment method tree retrieved successfully', tree);
+        } catch (error) {
+            console.error('Controller: Error getting payment method tree:', error);
+            PaymentMethodController.sendServerError(
+                res,
+                'Failed to retrieve payment method tree',
+                error instanceof Error ? error.message : 'Unknown error'
+            );
+        }
+    }
+
     static async getById(req: Request, res: Response): Promise<void> {
         try {
             const { paymentMethodId } = req.params;

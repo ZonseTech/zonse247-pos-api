@@ -45,15 +45,19 @@ export class PaymentServiceProviderModel {
         }
     }
 
-    static async findByTenantIdAndName(tenantId: string, name: string): Promise<PaymentServiceProvider[]> {
+    /**
+     * Providers linked to a payment method category (e.g. Bank, Mobile Money).
+     * Callers should resolve a leaf method (POS, Bank Transfer) to its root first -
+     * see PaymentServiceProviderService.getProvidersForMethod.
+     */
+    static async findByPaymentMethodId(paymentMethodId: string): Promise<PaymentServiceProvider[]> {
         try {
             return await prisma.paymentServiceProvider.findMany({
-                where: {
-                    name
-                }
+                where: { paymentMethodId, isActive: true },
+                orderBy: { sortOrder: 'asc' }
             }) as unknown as PaymentServiceProvider[];
         } catch (error) {
-            throw new Error(`Error finding payment service provider by tenant ID and name: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            throw new Error(`Error finding payment service providers by payment method: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
     }
 
@@ -75,9 +79,8 @@ export class PaymentServiceProviderModel {
             providerId: uuidv4(),
             name: data.name,
             type: data.type || 'bank',
-            tenantId: data.tenantId,
-            branchId: data.branchId,
             userId: data.userId,
+            paymentMethodId: data.paymentMethodId,
             logoUrl: data.logoUrl,
             createdAt: now,
             updatedAt: now,
@@ -93,6 +96,7 @@ export class PaymentServiceProviderModel {
                     type: pspData.type || 'bank',
                     userId: pspData.userId,
                     logoUrl: pspData.logoUrl,
+                    paymentMethodId: pspData.paymentMethodId,
                 }
             }) as unknown as PaymentServiceProvider;
         } catch (error) {
@@ -182,14 +186,6 @@ export class PaymentServiceProviderModel {
 
         if (data.name && data.name.trim().length > 100) {
             errors.push('Payment service provider name must be less than 100 characters');
-        }
-
-        if (!data.tenantId || data.tenantId.trim().length === 0) {
-            errors.push('Tenant ID is required');
-        }
-
-        if (!data.branchId || data.branchId.trim().length === 0) {
-            errors.push('Branch ID is required');
         }
 
         if (!data.userId || data.userId.trim().length === 0) {
