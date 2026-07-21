@@ -1,55 +1,57 @@
-export interface SalesData {
-    name: string;
-    sales: number;
-    prescriptions: number;
+export interface DashboardFilters {
+    tenantId: string;
+    branchId?: string;
 }
 
-export interface CategoryData {
-    name: string;
+export interface DashboardSummary {
+    todaysRevenue: number;
+    revenueDelta: number;
+    todaysSalesCount: number;
+    salesDelta: number;
+    todaysGrossProfit: number;
+    grossProfitDelta: number;
+}
+
+export interface DashboardDataPoint {
+    label: string;
     value: number;
 }
 
-export interface HourlyData {
-    hour: string;
-    sales: number;
-    prescriptions: number;
+export interface RevenueTrendReport {
+    data: DashboardDataPoint[];
 }
 
-export interface ProductData {
-    id: number;
+export interface PaymentMethodsBreakdown {
+    data: DashboardDataPoint[];
+}
+
+export interface TopSellingProduct {
     name: string;
-    type: 'Prescription' | 'OTC' | 'Supplement';
-    sales: number;
-    revenue: number;
+    unitsSold: number;
 }
 
-export interface InsuranceData {
+export interface TopSellingProductsReport {
+    data: TopSellingProduct[];
+}
+
+export interface RecentSaleItem {
+    id: string;
+    customer: string;
+    amount: number;
+    time: string;
+    status: 'completed' | 'refunded';
+}
+
+export interface RecentSalesReport {
+    data: RecentSaleItem[];
+}
+
+export interface LowStockAlertItem {
     name: string;
-    value: number;
+    remaining: number;
+    reorderPoint: number;
 }
 
-export interface InventoryAlertData {
-    id: number;
-    name: string;
-    current: number;
-    threshold: number;
-}
-
-export interface TableHeader {
-    name: string;
-    align: 'left' | 'center' | 'right';
-}
-
-export interface ProgressBarProps {
-    label: string;
-    count: number;
-    percentage: number;
-    color: string;
-}
-
-export interface ClaimData {
-    label: string;
-    count: number;
-    percentage: number;
-    color: string;
+export interface LowStockReport {
+    data: LowStockAlertItem[];
 }
