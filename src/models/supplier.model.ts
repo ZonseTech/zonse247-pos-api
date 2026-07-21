@@ -45,3 +45,18 @@ export interface UpdateSupplierInput {
     status?: SupplierStatus;
     isActive?: boolean;
 }
+
+export interface SupplierProductHistoryItem {
+    variantId: string;
+    productId: string;
+    productName: string;
+    variantName: string;
+    sku: string | null;
+    unit: string;
+    totalOrdered: number;
+    totalReceived: number;
+    lastUnitPrice: number;
+    lastOrderDate: Date;
+    lastPoNumber: string;
+    orderCount: number;
+}

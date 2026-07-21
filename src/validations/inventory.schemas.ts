@@ -66,6 +66,8 @@ export const inventoryValidationSchemas = {
         search: Joi.string().trim().max(100).allow('').optional(),
         status: Joi.string().valid('ACTIVE', 'INACTIVE', 'SUSPENDED').optional(),
         includeInactive: Joi.string().valid('true', 'false').optional(),
+        startDate: Joi.date().iso().optional(),
+        endDate: Joi.date().iso().optional(),
     }),
 
     // Purchase Order schemas

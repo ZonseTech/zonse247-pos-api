@@ -52,6 +52,8 @@ export class SupplierController extends BaseController {
      * @query search          - Search by name, contact person, email, or phone
      * @query status          - Filter by status: ACTIVE, INACTIVE, SUSPENDED
      * @query includeInactive - Include inactive suppliers (true/false)
+     * @query startDate       - Filter by creation date (from)
+     * @query endDate         - Filter by creation date (to)
      */
     static async listSuppliers(req: Request & AuthRequest, res: Response): Promise<void> {
         try {
@@ -59,6 +61,8 @@ export class SupplierController extends BaseController {
             const includeInactive = req.query.includeInactive === 'true';
             const search = req.query.search as string | undefined;
             const status = req.query.status as string | undefined;
+            const startDate = req.query.startDate as string | undefined;
+            const endDate = req.query.endDate as string | undefined;
 
             const { suppliers, total } = await SupplierService.listSuppliers(
                 req.auth.tenantId,
@@ -67,6 +71,8 @@ export class SupplierController extends BaseController {
                     includeInactive,
                     search,
                     status,
+                    startDate,
+                    endDate,
                     skip: pagination.skip,
                     limit: pagination.limit,
                 },
@@ -103,6 +109,25 @@ export class SupplierController extends BaseController {
             BaseController.sendResponse(res, 200, true, 'Supplier updated successfully', supplier);
         } catch (error: any) {
             BaseController.sendResponse(res, 400, false, 'Failed to update supplier', undefined, error.message);
+        }
+    }
+
+    /**
+     * Products historically supplied by this supplier (aggregated from purchase order history)
+     */
+    static async getSupplierProducts(req: Request & AuthRequest, res: Response): Promise<void> {
+        try {
+            const { supplierId } = req.params;
+
+            const products = await SupplierService.getSupplierProductHistory(
+                supplierId as string,
+                req.auth.tenantId,
+                req.auth.activeBranchId || req.auth.branchId,
+            );
+
+            BaseController.sendResponse(res, 200, true, 'Supplier product history retrieved successfully', products);
+        } catch (error: any) {
+            BaseController.sendResponse(res, 400, false, 'Failed to get supplier product history', undefined, error.message);
         }
     }
 

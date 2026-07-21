@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import { prisma } from '../databases/prisma/client';
-import { CreateSupplierInput, UpdateSupplierInput, Supplier } from '../models/supplier.model';
+import { CreateSupplierInput, UpdateSupplierInput, Supplier, SupplierProductHistoryItem } from '../models/supplier.model';
 
 export class SupplierService {
     /**
@@ -58,6 +58,8 @@ export class SupplierService {
             includeInactive?: boolean;
             search?: string;
             status?: string;
+            startDate?: string;
+            endDate?: string;
             skip: number;
             limit: number;
         },
@@ -82,6 +84,18 @@ export class SupplierService {
                 { email: { contains: options.search } },
                 { phone: { contains: options.search } },
             ];
+        }
+
+        if (options.startDate || options.endDate) {
+            where.createdAt = {};
+            if (options.startDate) {
+                where.createdAt.gte = new Date(options.startDate);
+            }
+            if (options.endDate) {
+                const end = new Date(options.endDate);
+                end.setHours(23, 59, 59, 999);
+                where.createdAt.lte = end;
+            }
         }
 
         const [suppliers, total] = await Promise.all([
@@ -150,6 +164,80 @@ export class SupplierService {
                 isActive: false,
             },
         });
+    }
+
+    /**
+     * Products historically supplied by this supplier, aggregated from purchase order history.
+     * One row per variant: total ordered/received quantity, and the most recent unit price/order date.
+     */
+    static async getSupplierProductHistory(
+        supplierId: string,
+        tenantId: string,
+        branchId: string,
+    ): Promise<SupplierProductHistoryItem[]> {
+        const items = await prisma.purchaseOrderItem.findMany({
+            where: {
+                tenantId,
+                branchId,
+                deletedAt: null,
+                purchaseOrder: {
+                    supplierId,
+                    deletedAt: null,
+                    status: { not: 'CANCELLED' },
+                },
+            },
+            include: {
+                purchaseOrder: { select: { orderDate: true, poNumber: true } },
+                variant: {
+                    select: {
+                        id: true,
+                        variantName: true,
+                        sku: true,
+                        unit: true,
+                        product: { select: { id: true, name: true } },
+                    },
+                },
+            },
+            orderBy: { purchaseOrder: { orderDate: 'desc' } },
+        });
+
+        const grouped = new Map<string, SupplierProductHistoryItem>();
+
+        for (const item of items) {
+            const orderDate = item.purchaseOrder.orderDate;
+            const existing = grouped.get(item.variantId);
+
+            if (!existing) {
+                grouped.set(item.variantId, {
+                    variantId: item.variantId,
+                    productId: item.variant.product.id,
+                    productName: item.variant.product.name,
+                    variantName: item.variant.variantName,
+                    sku: item.variant.sku,
+                    unit: item.variant.unit,
+                    totalOrdered: item.orderedQuantity,
+                    totalReceived: item.receivedQuantity,
+                    lastUnitPrice: Number(item.unitPrice),
+                    lastOrderDate: orderDate,
+                    lastPoNumber: item.purchaseOrder.poNumber,
+                    orderCount: 1,
+                });
+                continue;
+            }
+
+            existing.totalOrdered += item.orderedQuantity;
+            existing.totalReceived += item.receivedQuantity;
+            existing.orderCount += 1;
+            if (orderDate > existing.lastOrderDate) {
+                existing.lastUnitPrice = Number(item.unitPrice);
+                existing.lastOrderDate = orderDate;
+                existing.lastPoNumber = item.purchaseOrder.poNumber;
+            }
+        }
+
+        return Array.from(grouped.values()).sort(
+            (a, b) => b.lastOrderDate.getTime() - a.lastOrderDate.getTime(),
+        );
     }
 
     /**
