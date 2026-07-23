@@ -231,7 +231,7 @@ export class SubscriptionController extends BaseController {
 
     static async getExpiring(req: Request, res: Response): Promise<void> {
         try {
-            const days = parseInt(req.query.days as string) || 30;
+            const days = Number.parseInt(req.query.days as string) || 30;
 
             if (days < 1 || days > 365) {
                 BaseController.sendResponse(res, 400, false, 'Days must be between 1 and 365');

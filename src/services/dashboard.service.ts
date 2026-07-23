@@ -292,8 +292,6 @@ export class DashboardService {
         const inventoryRecords: InventoryLowStockRecord[] = await prisma.inventory.findMany({
             where: {
                 ...whereClause,
-                availableQuantity: { gt: 0 },
-                reorderPoint: { gt: 0 },
                 variant: { isActive: true, product: { isActive: true } },
             },
             select: {
@@ -308,16 +306,27 @@ export class DashboardService {
             },
         });
 
-        const data: LowStockAlertItem[] = inventoryRecords
-            .filter((inv) => inv.reorderPoint !== null && inv.availableQuantity <= inv.reorderPoint)
+        // Mirrors the inventory overview's stock health classification so this count
+        // stays consistent with the "Low/Out Stock" figure shown on the inventory page.
+        const alerts = inventoryRecords.filter(
+            (inv) =>
+                inv.availableQuantity === 0 ||
+                (inv.reorderPoint !== null && inv.reorderPoint > 0 && inv.availableQuantity <= inv.reorderPoint)
+        );
+
+        const data: LowStockAlertItem[] = alerts
             .map((inv) => ({
                 name: buildVariantDisplayName(inv.variant),
                 remaining: inv.availableQuantity,
-                reorderPoint: inv.reorderPoint as number,
+                reorderPoint: inv.reorderPoint ?? 0,
             }))
-            .sort((a, b) => a.remaining / a.reorderPoint - b.remaining / b.reorderPoint)
+            .sort((a, b) => {
+                const ratioA = a.reorderPoint > 0 ? a.remaining / a.reorderPoint : 0;
+                const ratioB = b.reorderPoint > 0 ? b.remaining / b.reorderPoint : 0;
+                return ratioA - ratioB;
+            })
             .slice(0, LOW_STOCK_LIMIT);
 
-        return { data };
+        return { data, totalCount: alerts.length };
     }
 }

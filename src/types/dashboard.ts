@@ -54,4 +54,5 @@ export interface LowStockAlertItem {
 
 export interface LowStockReport {
     data: LowStockAlertItem[];
+    totalCount: number;
 }

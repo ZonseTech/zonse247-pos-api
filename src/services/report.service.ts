@@ -1,4 +1,4 @@
-import { ReportSummary, TotalSalesReport, ReportFilters, SaleDataItem, TopStocksReport, TopCategoriesReport } from '../types/report';
+import { ReportSummary, TotalSalesReport, ReportFilters, SaleDataItem, TopStocksReport, TopCategoriesReport, PaymentModeDataPoint } from '../types/report';
 import { prisma } from '../databases/prisma/client';
 import { HIGH_STOCK_THRESHOLD } from '../constants/report.constants';
 import {
@@ -228,12 +228,12 @@ export class ReportService {
         branchId?: string,
         startDate?: string,
         endDate?: string
-    ): Promise<{ data: { label: string; value: number }[] }> {
+    ): Promise<{ data: PaymentModeDataPoint[] }> {
         try {
             const filters: ReportFilters = { tenantId, branchId, startDate, endDate };
             const salesWhereClause = buildSalesWhereClause(filters);
 
-            // Get all payments with their payment method names
+            // Get all payments with their payment method and provider names
             const payments = await prisma.salePayment.findMany({
                 where: {
                     sale: salesWhereClause,
@@ -245,21 +245,34 @@ export class ReportService {
                             name: true,
                         },
                     },
+                    provider: {
+                        select: {
+                            name: true,
+                        },
+                    },
                 },
             });
 
-            // Group by payment method name
-            const paymentMap: Record<string, number> = {};
+            // Group by the specific provider (e.g. "TNM Mpamba", "NBS Bank") when one
+            // was used, since that's the actionable breakdown for reconciliation.
+            // Falls back to the leaf method name (Cash, POS, ...) when there's no
+            // provider - e.g. cash sales don't have one. Mirrors
+            // DashboardService.getPaymentMethodsBreakdown's grouping.
+            const paymentMap: Record<string, { total: number; count: number }> = {};
             for (const payment of payments) {
-                const methodName = payment.paymentMethod.name;
-                paymentMap[methodName] = (paymentMap[methodName] || 0) + Number(payment.amount);
+                const label = payment.provider?.name || payment.paymentMethod.name;
+                const entry = paymentMap[label] || { total: 0, count: 0 };
+                entry.total += Number(payment.amount);
+                entry.count += 1;
+                paymentMap[label] = entry;
             }
 
             // Convert to data points
             const data = Object.entries(paymentMap)
-                .map(([label, value]) => ({
+                .map(([label, { total, count }]) => ({
                     label,
-                    value: Math.round(value * 100) / 100,
+                    value: Math.round(total * 100) / 100,
+                    transactions: count,
                 }))
                 .filter(item => item.value > 0)
                 .sort((a, b) => b.value - a.value); // Sort by value descending

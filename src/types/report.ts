@@ -37,8 +37,14 @@ export interface SaleDataItem {
     createdAt: Date;
 }
 
+export interface PaymentModeDataPoint {
+    label: string;
+    value: number;
+    transactions: number;
+}
+
 export interface PaymentModesReport {
-    data: SalesDataPoint[];
+    data: PaymentModeDataPoint[];
 }
 
 export interface TopStockItem {
