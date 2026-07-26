@@ -32,7 +32,9 @@ export type PullTableName =
     | 'paymentMethods'
     | 'stockMovements'
     | 'customers'
-    | 'users';
+    | 'users'
+    | 'expenseCategories'
+    | 'expenses';
 
 export interface PullDataResult {
     success: boolean;
@@ -62,7 +64,8 @@ export type PushTableName =
     | 'stockMovements'
     | 'customers'
     | 'orders'
-    | 'users';
+    | 'users'
+    | 'expenses';
 
 export interface PushTableConfig {
     name: PushTableName;
