@@ -49,6 +49,20 @@ const ALL_CASH_PERMISSIONS = [
     'cash.drawer.open', 'cash.count', 'cash.deposit'
 ];
 
+const ALL_EXPENSE_PERMISSIONS = [
+    'expenses.create', 'expenses.view', 'expenses.approve', 'expenses.void', 'expenses.manage_categories'
+];
+
+// Approve, but not void/manage categories — for location managers below full admin
+const MANAGER_EXPENSE_PERMISSIONS = [
+    'expenses.create', 'expenses.view', 'expenses.approve'
+];
+
+// Record + view only — for till-level staff who record petty cash but can't approve their own spend
+const BASIC_EXPENSE_PERMISSIONS = [
+    'expenses.create', 'expenses.view'
+];
+
 const ALL_REPORT_PERMISSIONS = [
     'reports.sales.daily', 'reports.sales.detailed', 'reports.inventory', 'reports.financial'
 ];
@@ -98,6 +112,7 @@ const SUPER_ADMIN_PERMISSIONS = [
     ...ALL_REFUND_PERMISSIONS,
     ...ALL_DISCOUNT_PERMISSIONS,
     ...ALL_CASH_PERMISSIONS,
+    ...ALL_EXPENSE_PERMISSIONS,
     ...ALL_REPORT_PERMISSIONS,
     ...ALL_USER_PERMISSIONS,
     ...ALL_SETTINGS_PERMISSIONS,
@@ -125,6 +140,7 @@ const TENANT_OWNER_PERMISSIONS = [
     ...ALL_REFUND_PERMISSIONS,
     ...ALL_DISCOUNT_PERMISSIONS,
     ...ALL_CASH_PERMISSIONS,
+    ...ALL_EXPENSE_PERMISSIONS,
     ...ALL_REPORT_PERMISSIONS,
     ...ALL_USER_PERMISSIONS,
     ...ALL_SETTINGS_PERMISSIONS,
@@ -140,6 +156,7 @@ const ADMIN_PERMISSIONS = [
     ...ALL_REFUND_PERMISSIONS,
     ...ALL_DISCOUNT_PERMISSIONS,
     ...ALL_CASH_PERMISSIONS,
+    ...ALL_EXPENSE_PERMISSIONS,
     ...ALL_REPORT_PERMISSIONS,
     ...ALL_USER_PERMISSIONS,
     ...ALL_SETTINGS_PERMISSIONS,
@@ -155,6 +172,7 @@ const OPERATIONS_DIRECTOR_PERMISSIONS = [
     ...ALL_REFUND_PERMISSIONS,
     ...ALL_DISCOUNT_PERMISSIONS,
     ...ALL_CASH_PERMISSIONS,
+    ...ALL_EXPENSE_PERMISSIONS,
     ...ALL_REPORT_PERMISSIONS,
     'users.view', 'users.edit', 'users.roles.assign',
     'settings.branch.manage',
@@ -172,6 +190,7 @@ const BRANCH_MANAGER_PERMISSIONS = [
     ...ALL_REFUND_PERMISSIONS,
     ...ALL_DISCOUNT_PERMISSIONS,
     ...ALL_CASH_PERMISSIONS,
+    ...ALL_EXPENSE_PERMISSIONS,
     ...ALL_REPORT_PERMISSIONS,
     'users.create', 'users.view', 'users.edit', 'users.roles.assign',
     'settings.branch.manage',
@@ -187,6 +206,7 @@ const ASSISTANT_MANAGER_PERMISSIONS = [
     ...ALL_REFUND_PERMISSIONS,
     ...ALL_DISCOUNT_PERMISSIONS,
     ...ALL_CASH_PERMISSIONS,
+    ...MANAGER_EXPENSE_PERMISSIONS,
     'reports.sales.daily', 'reports.sales.detailed', 'reports.inventory',
     'users.view',
 ];
@@ -201,6 +221,7 @@ const MANAGER_PERMISSIONS = [
     ...ALL_REFUND_PERMISSIONS,
     ...ALL_DISCOUNT_PERMISSIONS,
     ...ALL_CASH_PERMISSIONS,
+    ...MANAGER_EXPENSE_PERMISSIONS,
     'reports.sales.daily', 'reports.sales.detailed', 'reports.inventory',
 ];
 
@@ -241,6 +262,7 @@ const FINANCE_MANAGER_PERMISSIONS = [
     ...ALL_PAYMENT_PERMISSIONS,
     ...ALL_REFUND_PERMISSIONS,
     ...ALL_CASH_PERMISSIONS,
+    ...ALL_EXPENSE_PERMISSIONS,
     ...ALL_REPORT_PERMISSIONS,
     'system.logs.view',
     'settings.tax.manage', 'settings.payment.manage',
@@ -318,6 +340,7 @@ const SENIOR_CASHIER_PERMISSIONS = [
     'refunds.process', 'refunds.view',
     'discounts.apply',
     'cash.drawer.open', 'cash.count',
+    ...BASIC_EXPENSE_PERMISSIONS,
 ];
 
 // CASHIER - Standard POS operations
@@ -329,6 +352,7 @@ const CASHIER_PERMISSIONS = [
     'payments.process', 'payments.view', 'payments.partial',
     'discounts.apply',
     'cash.drawer.open', 'cash.count',
+    ...BASIC_EXPENSE_PERMISSIONS,
 ];
 
 // TRAINEE CASHIER - Limited cashier in training
@@ -406,6 +430,7 @@ const BAR_MANAGER_PERMISSIONS = [
     ...ALL_REFUND_PERMISSIONS,
     ...ALL_DISCOUNT_PERMISSIONS,
     ...ALL_CASH_PERMISSIONS,
+    ...MANAGER_EXPENSE_PERMISSIONS,
     'reports.sales.daily', 'reports.sales.detailed', 'reports.inventory',
     'users.view',
 ];
@@ -452,6 +477,7 @@ const PHARMACY_MANAGER_PERMISSIONS = [
     ...ALL_REFUND_PERMISSIONS,
     ...ALL_DISCOUNT_PERMISSIONS,
     ...ALL_CASH_PERMISSIONS,
+    ...MANAGER_EXPENSE_PERMISSIONS,
     ...ALL_REPORT_PERMISSIONS,
     'users.create', 'users.view', 'users.edit',
     'settings.branch.manage',
@@ -490,6 +516,7 @@ const FLOOR_MANAGER_PERMISSIONS = [
     'refunds.process', 'refunds.view',
     ...ALL_DISCOUNT_PERMISSIONS,
     'cash.drawer.open', 'cash.count',
+    ...MANAGER_EXPENSE_PERMISSIONS,
     'reports.sales.daily',
     'users.view',
 ];
@@ -518,6 +545,7 @@ const OWNER_OPERATOR_PERMISSIONS = [
     ...ALL_REFUND_PERMISSIONS,
     ...ALL_DISCOUNT_PERMISSIONS,
     ...ALL_CASH_PERMISSIONS,
+    ...ALL_EXPENSE_PERMISSIONS,
     ...ALL_REPORT_PERMISSIONS,
     ...ALL_USER_PERMISSIONS,
     ...ALL_SETTINGS_PERMISSIONS,
@@ -542,6 +570,7 @@ const AUDITOR_PERMISSIONS = [
     'customers.view',
     'payments.view',
     'refunds.view',
+    'expenses.view',
     ...ALL_REPORT_PERMISSIONS,
     'system.logs.view',
 ];
@@ -554,6 +583,7 @@ const COMPLIANCE_OFFICER_PERMISSIONS = [
     'customers.view',
     'payments.view',
     'refunds.view',
+    'expenses.view',
     ...ALL_REPORT_PERMISSIONS,
     'system.logs.view',
     'users.view',
