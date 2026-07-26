@@ -16,6 +16,7 @@ import {
     receiveOrders,
     receiveStockMovements,
     receiveUsers,
+    receiveExpenses,
     getPullData,
     getTableDelta,
     getPullDataFromChangeLog,
@@ -57,6 +58,7 @@ export class SyncReceiverService {
     static receiveCustomers = receiveCustomers;
     static receiveOrders = receiveOrders;
     static receiveUsers = receiveUsers;
+    static receiveExpenses = receiveExpenses;
 
     // ==========================================
     // Batch sync (transactional)
