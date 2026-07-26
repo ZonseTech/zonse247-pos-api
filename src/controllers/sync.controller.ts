@@ -346,6 +346,34 @@ export class SyncController extends BaseController {
         });
     }
 
+    /**
+     * Sync expenses recorded offline from terminal
+     * POST /v1/sync/expenses
+     *
+     * tenantId is taken from the authenticated request, not the payload.
+     */
+    static async syncExpenses(req: SyncRequest, res: Response): Promise<void> {
+        const tenantId = req.auth?.tenantId;
+
+        if (!tenantId) {
+            res.status(401).json({
+                success: false,
+                message: 'Authenticated tenant is required',
+            });
+            return;
+        }
+
+        await handleSyncEndpoint(req, res, 'Expenses sync', {
+            requireTerminalId: true,
+            handler: (records, terminalId) =>
+                SyncReceiverService.receiveExpenses(
+                    records as Parameters<typeof SyncReceiverService.receiveExpenses>[0],
+                    terminalId,
+                    tenantId
+                ),
+        });
+    }
+
     // ==========================================
     // Status
     // ==========================================
