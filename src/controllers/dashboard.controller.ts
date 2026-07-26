@@ -55,6 +55,19 @@ export class DashboardController extends BaseController {
     }
 
     /**
+     * Get today's approved expenses grouped by category
+     * GET /dashboard/expenses-by-category
+     */
+    static async getExpensesByCategory(req: Request & AuthRequest, res: Response): Promise<void> {
+        try {
+            const report = await DashboardService.getExpensesByCategory(this.getFilters(req));
+            BaseController.sendResponse(res, 200, true, 'Expenses by category retrieved successfully', report);
+        } catch (error: any) {
+            BaseController.sendResponse(res, 400, false, 'Failed to retrieve expenses by category', undefined, error.message);
+        }
+    }
+
+    /**
      * Get the top 10 best-selling products
      * GET /dashboard/top-products
      */
