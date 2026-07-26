@@ -46,6 +46,33 @@ export function buildSalesWhereClause(filters: ReportFilters, status = 'COMPLETE
 }
 
 /**
+ * Build a where-clause for approved expenses within an optional date range,
+ * scoped by tenant/branch. Bucketed by the expense's business `expenseDate`
+ * rather than `createdAt` (unlike addDateFilter, which is shared with Sale
+ * queries elsewhere and hardcoded to `createdAt`).
+ */
+export function buildExpenseWhereClause(filters: ReportFilters): any {
+    const where: any = { tenantId: filters.tenantId, status: 'APPROVED', deletedAt: null };
+    if (filters.branchId) {
+        where.branchId = filters.branchId;
+    }
+
+    if (filters.startDate || filters.endDate) {
+        where.expenseDate = {};
+        if (filters.startDate) {
+            where.expenseDate.gte = new Date(filters.startDate);
+        }
+        if (filters.endDate) {
+            const end = new Date(filters.endDate);
+            end.setHours(23, 59, 59, 999);
+            where.expenseDate.lte = end;
+        }
+    }
+
+    return where;
+}
+
+/**
  * Format hour to 12-hour format with minutes (e.g., 12:00AM, 1:00PM)
  */
 export function formatHour(hour: number): string {
