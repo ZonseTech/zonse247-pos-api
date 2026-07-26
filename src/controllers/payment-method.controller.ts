@@ -4,6 +4,7 @@ import { PaymentMethodService } from '../services/payment-method.service';
 import { CreatePaymentMethodDto, UpdatePaymentMethodDto } from 'payment-method';
 import { parsePaginationParams } from '../utils/pagination.utils';
 import { AuditService, getAuditContext } from '../services/audit.service';
+import { AuthRequest } from '../lib/express.type';
 
 export class PaymentMethodController extends BaseController {
 
@@ -18,12 +19,16 @@ export class PaymentMethodController extends BaseController {
         }
     }
 
-    static async list(req: Request, res: Response): Promise<void> {
+    static async list(req: Request & AuthRequest, res: Response): Promise<void> {
         try {
+            const tenantId = req.auth.tenantId;
+            const branchId = req.auth.activeBranchId || req.auth.branchId;
             const { search } = req.query;
             const pagination = parsePaginationParams(req.query);
 
             const result = await PaymentMethodService.listPaymentMethods(
+                tenantId,
+                branchId,
                 pagination,
                 search && typeof search === 'string' ? { search } : undefined,
             );
@@ -39,9 +44,12 @@ export class PaymentMethodController extends BaseController {
         }
     }
 
-    static async getTree(req: Request, res: Response): Promise<void> {
+    static async getTree(req: Request & AuthRequest, res: Response): Promise<void> {
         try {
-            const tree = await PaymentMethodService.getPaymentMethodTree();
+            const tenantId = req.auth.tenantId;
+            const branchId = req.auth.activeBranchId || req.auth.branchId;
+
+            const tree = await PaymentMethodService.getPaymentMethodTree(tenantId, branchId);
             PaymentMethodController.sendSuccess(res, 'Payment method tree retrieved successfully', tree);
         } catch (error) {
             console.error('Controller: Error getting payment method tree:', error);
@@ -53,7 +61,7 @@ export class PaymentMethodController extends BaseController {
         }
     }
 
-    static async getById(req: Request, res: Response): Promise<void> {
+    static async getById(req: Request & AuthRequest, res: Response): Promise<void> {
         try {
             const { paymentMethodId } = req.params;
 
@@ -62,7 +70,10 @@ export class PaymentMethodController extends BaseController {
                 return;
             }
 
-            const paymentMethod = await PaymentMethodService.getPaymentMethodById(paymentMethodId as string);
+            const tenantId = req.auth.tenantId;
+            const branchId = req.auth.activeBranchId || req.auth.branchId;
+
+            const paymentMethod = await PaymentMethodService.getPaymentMethodById(paymentMethodId as string, tenantId, branchId);
 
             if (!paymentMethod) {
                 PaymentMethodController.sendNotFound(res, 'Payment method not found');
@@ -80,7 +91,7 @@ export class PaymentMethodController extends BaseController {
         }
     }
 
-    static async create(req: Request, res: Response): Promise<void> {
+    static async create(req: Request & AuthRequest, res: Response): Promise<void> {
         try {
             const paymentMethodData: CreatePaymentMethodDto = req.body;
 
@@ -92,7 +103,10 @@ export class PaymentMethodController extends BaseController {
                 return;
             }
 
-            const newPaymentMethod = await PaymentMethodService.createPaymentMethod(paymentMethodData);
+            const tenantId = req.auth.tenantId;
+            const branchId = req.auth.activeBranchId || req.auth.branchId;
+
+            const newPaymentMethod = await PaymentMethodService.createPaymentMethod(paymentMethodData, tenantId, branchId);
 
             AuditService.logCreate(getAuditContext(req), 'PaymentMethod', (newPaymentMethod as any).paymentMethodId || '', (newPaymentMethod as any).name || (paymentMethodData as any).name || '', paymentMethodData as any);
 
@@ -119,7 +133,7 @@ export class PaymentMethodController extends BaseController {
         }
     }
 
-    static async update(req: Request, res: Response): Promise<void> {
+    static async update(req: Request & AuthRequest, res: Response): Promise<void> {
         try {
             const { paymentMethodId } = req.params;
             const updateData: UpdatePaymentMethodDto = req.body;
@@ -129,7 +143,10 @@ export class PaymentMethodController extends BaseController {
                 return;
             }
 
-            const updatedPaymentMethod = await PaymentMethodService.updatePaymentMethod(paymentMethodId as string, updateData);
+            const tenantId = req.auth.tenantId;
+            const branchId = req.auth.activeBranchId || req.auth.branchId;
+
+            const updatedPaymentMethod = await PaymentMethodService.updatePaymentMethod(paymentMethodId as string, updateData, tenantId, branchId);
 
             if (!updatedPaymentMethod) {
                 PaymentMethodController.sendNotFound(res, 'Payment method not found');
@@ -161,7 +178,7 @@ export class PaymentMethodController extends BaseController {
         }
     }
 
-    static async delete(req: Request, res: Response): Promise<void> {
+    static async delete(req: Request & AuthRequest, res: Response): Promise<void> {
         try {
             const { paymentMethodId } = req.params;
 
@@ -170,7 +187,10 @@ export class PaymentMethodController extends BaseController {
                 return;
             }
 
-            const deleted = await PaymentMethodService.deletePaymentMethod(paymentMethodId as string);
+            const tenantId = req.auth.tenantId;
+            const branchId = req.auth.activeBranchId || req.auth.branchId;
+
+            const deleted = await PaymentMethodService.deletePaymentMethod(paymentMethodId as string, tenantId, branchId);
 
             if (!deleted) {
                 PaymentMethodController.sendNotFound(res, 'Payment method not found');
