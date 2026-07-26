@@ -52,16 +52,16 @@ export class ReportController extends BaseController {
     }
 
     /**
-     * Get gross profit report (hourly, weekly, monthly)
-     * GET /reports/gross-profit
+     * Get net profit report (hourly, weekly, monthly)
+     * GET /reports/net-profit
      */
-    static async getGrossProfit(req: Request & AuthRequest, res: Response): Promise<void> {
+    static async getNetProfit(req: Request & AuthRequest, res: Response): Promise<void> {
         try {
             const { tenantId, branchId, startDate, endDate } = this.getReportParams(req);
-            const report = await ReportService.getGrossProfit(tenantId, branchId, startDate, endDate);
-            BaseController.sendResponse(res, 200, true, 'Gross profit report retrieved successfully', report);
+            const report = await ReportService.getNetProfit(tenantId, branchId, startDate, endDate);
+            BaseController.sendResponse(res, 200, true, 'Net profit report retrieved successfully', report);
         } catch (error: any) {
-            BaseController.sendResponse(res, 400, false, 'Failed to retrieve gross profit report', undefined, error.message);
+            BaseController.sendResponse(res, 400, false, 'Failed to retrieve net profit report', undefined, error.message);
         }
     }
 
@@ -118,6 +118,34 @@ export class ReportController extends BaseController {
             BaseController.sendResponse(res, 200, true, 'Top categories report retrieved successfully', report);
         } catch (error: any) {
             BaseController.sendResponse(res, 400, false, 'Failed to retrieve top categories report', undefined, error.message);
+        }
+    }
+
+    /**
+     * Get approved expenses report (hourly, weekly, monthly)
+     * GET /reports/expenses-trend
+     */
+    static async getExpensesTrend(req: Request & AuthRequest, res: Response): Promise<void> {
+        try {
+            const { tenantId, branchId, startDate, endDate } = this.getReportParams(req);
+            const report = await ReportService.getExpensesTrend(tenantId, branchId, startDate, endDate);
+            BaseController.sendResponse(res, 200, true, 'Expenses trend report retrieved successfully', report);
+        } catch (error: any) {
+            BaseController.sendResponse(res, 400, false, 'Failed to retrieve expenses trend report', undefined, error.message);
+        }
+    }
+
+    /**
+     * Get approved expenses grouped by category
+     * GET /reports/expenses-by-category
+     */
+    static async getExpensesByCategory(req: Request & AuthRequest, res: Response): Promise<void> {
+        try {
+            const { tenantId, branchId, startDate, endDate } = this.getReportParams(req);
+            const report = await ReportService.getExpensesByCategory(tenantId, branchId, startDate, endDate);
+            BaseController.sendResponse(res, 200, true, 'Expenses by category report retrieved successfully', report);
+        } catch (error: any) {
+            BaseController.sendResponse(res, 400, false, 'Failed to retrieve expenses by category report', undefined, error.message);
         }
     }
 }
