@@ -1,6 +1,7 @@
 export interface ReportSummary {
     totalSales: number;
-    grossProfit: number;
+    expenses: number;
+    netProfit: number;
     topStocks: number;
     topCategory: string;
     receiptCount: number;
@@ -65,4 +66,14 @@ export interface TopCategoriesReport {
 
 export interface TopStocksReport {
     data: TopStockItem[];
+}
+
+export interface ExpensesByCategoryItem {
+    name: string;
+    count: number;
+    totalAmount: number;
+}
+
+export interface ExpensesByCategoryReport {
+    data: ExpensesByCategoryItem[];
 }
