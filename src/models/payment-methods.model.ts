@@ -20,9 +20,10 @@ export class PaymentMethodModel {
         }
     }
 
-    static async findAll(): Promise<PaymentMethod[]> {
+    static async findAll(tenantId: string, branchId: string): Promise<PaymentMethod[]> {
         try {
             return await prisma.paymentMethod.findMany({
+                where: { tenantId, branchId, deletedAt: null },
                 orderBy: { sortOrder: 'asc' }
             }) as unknown as PaymentMethod[];
         } catch (error) {
@@ -46,13 +47,13 @@ export class PaymentMethodModel {
      * Root payment methods (Cash, Bank, Mobile Money, ...) with their channel
      * children (e.g. Bank -> POS, Bank Transfer) nested underneath.
      */
-    static async findTree(): Promise<PaymentMethod[]> {
+    static async findTree(tenantId: string, branchId: string): Promise<PaymentMethod[]> {
         try {
             return await prisma.paymentMethod.findMany({
-                where: { parentMethodId: null },
+                where: { tenantId, branchId, deletedAt: null, parentMethodId: null },
                 orderBy: { sortOrder: 'asc' },
                 include: {
-                    children: { orderBy: { sortOrder: 'asc' } }
+                    children: { where: { deletedAt: null }, orderBy: { sortOrder: 'asc' } }
                 }
             }) as unknown as PaymentMethod[];
         } catch (error) {
@@ -129,9 +130,9 @@ export class PaymentMethodModel {
         }
     }
 
-    static async findByName(name: string): Promise<PaymentMethod | null> {
+    static async findByName(name: string, tenantId: string, branchId: string): Promise<PaymentMethod | null> {
         try {
-            const results = await this.find({ name });
+            const results = await this.find({ name, tenantId, branchId, deletedAt: null });
             return results.length > 0 ? results[0] : null;
         } catch (error) {
             console.error(`Error finding payment method by name ${name}:`, error);
