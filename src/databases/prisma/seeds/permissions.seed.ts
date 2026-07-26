@@ -363,6 +363,50 @@ const APP_PERMISSIONS = [
     },
 
     // =====================================================
+    // EXPENSE PERMISSIONS
+    // =====================================================
+    {
+        permissionId: 'expenses.create',
+        name: 'expenses.create',
+        displayName: 'Record Expenses',
+        description: 'Record new business expenses',
+        category: PermissionCategory.EXPENSES,
+        scope: PermissionScope.BRANCH,
+    },
+    {
+        permissionId: 'expenses.view',
+        name: 'expenses.view',
+        displayName: 'View Expenses',
+        description: 'View recorded expenses',
+        category: PermissionCategory.EXPENSES,
+        scope: PermissionScope.BRANCH,
+    },
+    {
+        permissionId: 'expenses.approve',
+        name: 'expenses.approve',
+        displayName: 'Approve Expenses',
+        description: 'Approve or reject expenses pending approval',
+        category: PermissionCategory.EXPENSES,
+        scope: PermissionScope.BRANCH,
+    },
+    {
+        permissionId: 'expenses.void',
+        name: 'expenses.void',
+        displayName: 'Void Expenses',
+        description: 'Void previously approved expenses',
+        category: PermissionCategory.EXPENSES,
+        scope: PermissionScope.BRANCH,
+    },
+    {
+        permissionId: 'expenses.manage_categories',
+        name: 'expenses.manage_categories',
+        displayName: 'Manage Expense Categories',
+        description: 'Create, edit, and delete expense categories',
+        category: PermissionCategory.EXPENSES,
+        scope: PermissionScope.BRANCH,
+    },
+
+    // =====================================================
     // DISCOUNT PERMISSIONS
     // =====================================================
     {

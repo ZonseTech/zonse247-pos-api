@@ -8,8 +8,10 @@ export interface DashboardSummary {
     revenueDelta: number;
     todaysSalesCount: number;
     salesDelta: number;
-    todaysGrossProfit: number;
-    grossProfitDelta: number;
+    todaysExpenses: number;
+    expensesDelta: number;
+    todaysNetProfit: number;
+    netProfitDelta: number;
 }
 
 export interface DashboardDataPoint {
@@ -22,6 +24,10 @@ export interface RevenueTrendReport {
 }
 
 export interface PaymentMethodsBreakdown {
+    data: DashboardDataPoint[];
+}
+
+export interface ExpensesByCategoryBreakdown {
     data: DashboardDataPoint[];
 }
 

@@ -1,11 +1,12 @@
 import { prisma } from '../databases/prisma/client';
-import { addDateFilter, buildBaseWhereClause, buildSalesWhereClause } from '../utils/report.utils';
+import { addDateFilter, buildBaseWhereClause, buildSalesWhereClause, buildExpenseWhereClause } from '../utils/report.utils';
 import {
     DashboardFilters,
     DashboardSummary,
     DashboardDataPoint,
     RevenueTrendReport,
     PaymentMethodsBreakdown,
+    ExpensesByCategoryBreakdown,
     TopSellingProduct,
     TopSellingProductsReport,
     RecentSaleItem,
@@ -65,7 +66,7 @@ interface InventoryLowStockRecord {
 
 export class DashboardService {
     /**
-     * Get today's revenue, sales count, and gross profit with day-over-day deltas
+     * Get today's revenue, sales count, expenses, and net profit with day-over-day deltas
      * GET /dashboard/summary
      */
     static async getSummary(filters: DashboardFilters): Promise<DashboardSummary> {
@@ -75,36 +76,47 @@ export class DashboardService {
         yesterday.setDate(yesterday.getDate() - 1);
         const yesterdayStr = toDateString(yesterday);
 
-        const todayWhere = buildSalesWhereClause({ ...filters, startDate: todayStr, endDate: todayStr });
-        const yesterdayWhere = buildSalesWhereClause({ ...filters, startDate: yesterdayStr, endDate: yesterdayStr });
-
         const [today, yesterdaySnapshot] = await Promise.all([
-            this.getDaySnapshot(todayWhere),
-            this.getDaySnapshot(yesterdayWhere),
+            this.getDaySnapshot(filters, todayStr),
+            this.getDaySnapshot(filters, yesterdayStr),
         ]);
+
+        const todayNetProfit = today.grossProfit - today.expenses;
+        const yesterdayNetProfit = yesterdaySnapshot.grossProfit - yesterdaySnapshot.expenses;
 
         return {
             todaysRevenue: Math.round(today.revenue * 100) / 100,
             revenueDelta: this.calculateDelta(today.revenue, yesterdaySnapshot.revenue),
             todaysSalesCount: today.salesCount,
             salesDelta: this.calculateDelta(today.salesCount, yesterdaySnapshot.salesCount),
-            todaysGrossProfit: Math.round(today.grossProfit * 100) / 100,
-            grossProfitDelta: this.calculateDelta(today.grossProfit, yesterdaySnapshot.grossProfit),
+            todaysExpenses: Math.round(today.expenses * 100) / 100,
+            expensesDelta: this.calculateDelta(today.expenses, yesterdaySnapshot.expenses),
+            todaysNetProfit: Math.round(todayNetProfit * 100) / 100,
+            netProfitDelta: this.calculateDelta(todayNetProfit, yesterdayNetProfit),
         };
     }
 
     /**
-     * Sum revenue, sale count, and gross profit for a single day's where clause
+     * Sum revenue, sale count, gross profit, and approved expenses for a single day
      */
-    private static async getDaySnapshot(whereClause: any): Promise<{ revenue: number; salesCount: number; grossProfit: number }> {
-        const sales = await prisma.sale.findMany({
-            where: whereClause,
-            select: {
-                totalAmount: true,
-                discountAmount: true,
-                items: { select: { quantity: true, unitCost: true } },
-            },
-        });
+    private static async getDaySnapshot(
+        filters: DashboardFilters,
+        dateStr: string
+    ): Promise<{ revenue: number; salesCount: number; grossProfit: number; expenses: number }> {
+        const salesWhere = buildSalesWhereClause({ ...filters, startDate: dateStr, endDate: dateStr });
+        const expenseWhere = buildExpenseWhereClause({ ...filters, startDate: dateStr, endDate: dateStr });
+
+        const [sales, expenseAgg] = await Promise.all([
+            prisma.sale.findMany({
+                where: salesWhere,
+                select: {
+                    totalAmount: true,
+                    discountAmount: true,
+                    items: { select: { quantity: true, unitCost: true } },
+                },
+            }),
+            prisma.expense.aggregate({ where: expenseWhere, _sum: { amount: true } }),
+        ]);
 
         let revenue = 0;
         let totalCost = 0;
@@ -122,6 +134,7 @@ export class DashboardService {
             revenue,
             salesCount: sales.length,
             grossProfit: revenue - totalDiscount - totalCost,
+            expenses: Number(expenseAgg._sum.amount) || 0,
         };
     }
 
@@ -200,6 +213,36 @@ export class DashboardService {
         for (const payment of payments) {
             const name = payment.provider?.name || payment.paymentMethod.name;
             totals[name] = (totals[name] || 0) + Number(payment.amount);
+        }
+
+        const data = Object.entries(totals)
+            .map(([label, value]) => ({ label, value: Math.round(value * 100) / 100 }))
+            .filter((item) => item.value > 0)
+            .sort((a, b) => b.value - a.value);
+
+        return { data };
+    }
+
+    /**
+     * Get today's approved expenses grouped by category
+     * GET /dashboard/expenses-by-category
+     */
+    static async getExpensesByCategory(filters: DashboardFilters): Promise<ExpensesByCategoryBreakdown> {
+        const todayStr = toDateString(new Date());
+        const whereClause = buildExpenseWhereClause({ ...filters, startDate: todayStr, endDate: todayStr });
+
+        const expenses = await prisma.expense.findMany({
+            where: whereClause,
+            select: {
+                amount: true,
+                category: { select: { name: true } },
+            },
+        });
+
+        const totals: Record<string, number> = {};
+        for (const expense of expenses) {
+            const name = expense.category?.name || 'Uncategorized';
+            totals[name] = (totals[name] || 0) + Number(expense.amount);
         }
 
         const data = Object.entries(totals)
