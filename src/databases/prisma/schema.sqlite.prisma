@@ -554,6 +554,7 @@ model Supplier {
   supplierPayments    SupplierPayment[]
   supplierReturns     SupplierReturn[]
   supplierCreditNotes SupplierCreditNote[]
+  expenses            Expense[]
 
   @@index([branchId])
   @@index([tenantId])
@@ -1101,6 +1102,8 @@ model Branch {
   appointments             Appointment[]
   resources                Resource[]
   loyaltyTransactions      LoyaltyTransaction[]
+  expenses                 Expense[]
+  expenseCategories        ExpenseCategory[]
 
   @@unique([tenantId, branchCode], name: "unique_tenant_branch_code")
   @@index([branchCode])
@@ -1244,6 +1247,7 @@ model PaymentMethod {
   sales        Sale[]
   salePayments SalePayment[] // NEW: Support for multiple payment methods per sale
   serviceProviders PaymentServiceProvider[]
+  expenses     Expense[]
 
   @@index([tenantId])
   @@index([branchId])
@@ -1465,6 +1469,8 @@ model Tenant {
   loyaltyTiers             LoyaltyTier[]
   loyaltyMembers           LoyaltyMember[]
   loyaltyTransactions      LoyaltyTransaction[]
+  expenses                 Expense[]
+  expenseCategories        ExpenseCategory[]
 
   @@index([email])
   @@index([tenantCode])
@@ -1689,6 +1695,11 @@ model User {
   createdAppointments     Appointment[]        @relation("AppointmentCreatedBy")
   settledStaffAssignments StaffAssignment[]
   createdLoyaltyTxns      LoyaltyTransaction[] @relation("LoyaltyTransactionCreatedBy")
+
+  // Expense relations
+  recordedExpenses        Expense[]            @relation("expenses_recorded_by")
+  approvedExpenses        Expense[]            @relation("expenses_approved_by")
+  rejectedExpenses        Expense[]            @relation("expenses_rejected_by")
 
   @@unique([tenantId, username], name: "unique_tenant_username")
   @@index([branchId])
@@ -3138,4 +3149,91 @@ model LoyaltyTransaction {
   @@index([updatedAt])
   @@index([tenantId, branchId, updatedAt])
   @@map("loyalty_transactions")
+}
+
+// ==========================================
+// EXPENSE MODULE
+// ==========================================
+
+enum ExpenseStatus {
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
+  VOIDED
+}
+
+model ExpenseCategory {
+  id           Int       @id @default(autoincrement())
+  categoryId   String    @unique @map("expense_category_id")
+  tenantId     String    @map("tenant_id")
+  branchId     String    @map("branch_id")
+  terminalId   String?   @map("terminal_id")
+  name         String    @map("name")
+  isActive     Boolean   @default(true) @map("is_active")
+  sortOrder    Int?      @default(0) @map("sort_order")
+  lastSyncedAt DateTime? @map("last_synced_at")
+  version      Int       @default(1) @map("version")
+  deletedAt    DateTime? @map("deleted_at")
+  createdAt    DateTime? @default(now()) @map("created_at")
+  updatedAt    DateTime? @default(now()) @map("updated_at")
+
+  tenant       Tenant    @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade)
+  branch       Branch    @relation(fields: [branchId], references: [branchId], onDelete: Cascade)
+  expenses     Expense[]
+
+  @@unique([branchId, name], name: "unique_branch_expense_category")
+  @@index([tenantId])
+  @@index([branchId])
+  @@index([tenantId, branchId, updatedAt])
+  @@index([updatedAt])
+  @@index([deletedAt])
+  @@map("expense_categories")
+}
+
+model Expense {
+  id              String        @id @default(cuid()) @map("expense_id")
+  tenantId        String        @map("tenant_id")
+  branchId        String        @map("branch_id")
+  terminalId      String?       @map("terminal_id")
+  expenseNumber   String        @map("expense_number")
+  categoryId      String        @map("category_id")
+  amount          Float         @map("amount")
+  paymentMethodId String?       @map("payment_method_id")
+  supplierId      String?       @map("supplier_id")
+  expenseDate     DateTime      @default(now()) @map("expense_date")
+  reference       String?       @map("reference")
+  notes           String?       @map("notes")
+  status          ExpenseStatus @default(PENDING_APPROVAL) @map("status")
+  recordedBy      String        @map("recorded_by")
+  approvedBy      String?       @map("approved_by")
+  approvedAt      DateTime?     @map("approved_at")
+  rejectedBy      String?       @map("rejected_by")
+  rejectedAt      DateTime?     @map("rejected_at")
+  rejectedReason  String?       @map("rejected_reason")
+  version         Int           @default(1) @map("version")
+  deletedAt       DateTime?     @map("deleted_at")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+
+  tenant          Tenant          @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade)
+  branch          Branch          @relation(fields: [branchId], references: [branchId], onDelete: Cascade)
+  category        ExpenseCategory @relation(fields: [categoryId], references: [categoryId], onDelete: Restrict)
+  paymentMethod   PaymentMethod?  @relation(fields: [paymentMethodId], references: [methodId], onDelete: SetNull)
+  supplier        Supplier?       @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  recordedByUser  User            @relation("expenses_recorded_by", fields: [recordedBy], references: [userId], onDelete: Restrict)
+  approvedByUser  User?           @relation("expenses_approved_by", fields: [approvedBy], references: [userId], onDelete: SetNull)
+  rejectedByUser  User?           @relation("expenses_rejected_by", fields: [rejectedBy], references: [userId], onDelete: SetNull)
+
+  @@unique([tenantId, branchId, expenseNumber])
+  @@index([tenantId])
+  @@index([branchId])
+  @@index([categoryId])
+  @@index([paymentMethodId])
+  @@index([supplierId])
+  @@index([status])
+  @@index([recordedBy])
+  @@index([tenantId, branchId, updatedAt])
+  @@index([updatedAt])
+  @@index([deletedAt])
+  @@map("expenses")
 }
