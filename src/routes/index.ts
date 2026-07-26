@@ -24,6 +24,8 @@ import GoodsReceiptsRoutes from './goods-receipts.routes'
 import SupplierInvoicesRoutes from './supplier-invoices.routes'
 import SupplierPaymentsRoutes from './supplier-payments.routes'
 import SupplierReturnsRoutes from './supplier-returns.routes'
+import ExpensesRoutes from './expenses.routes'
+import ExpenseCategoriesRoutes from './expense-categories.routes'
 import SalesRoutes from './sales.routes'
 import ParkedSalesRoutes from './parked-sales.routes'
 import StockMovementsRoutes from './stock-movements.routes'
@@ -97,6 +99,8 @@ router.use('/goods-receipts', GoodsReceiptsRoutes);
 router.use('/supplier-invoices', SupplierInvoicesRoutes);
 router.use('/supplier-payments', SupplierPaymentsRoutes);
 router.use('/supplier-returns', SupplierReturnsRoutes);
+router.use('/expenses', ExpensesRoutes);
+router.use('/expense-categories', ExpenseCategoriesRoutes);
 router.use('/sales', SalesRoutes);
 router.use('/parked-sales', ParkedSalesRoutes);
 router.use('/stock-movements', StockMovementsRoutes);
