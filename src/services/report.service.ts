@@ -1,9 +1,10 @@
-import { ReportSummary, TotalSalesReport, ReportFilters, SaleDataItem, TopStocksReport, TopCategoriesReport, PaymentModeDataPoint } from '../types/report';
+import { ReportSummary, TotalSalesReport, ReportFilters, SaleDataItem, TopStocksReport, TopCategoriesReport, PaymentModeDataPoint, ExpensesByCategoryReport } from '../types/report';
 import { prisma } from '../databases/prisma/client';
 import { HIGH_STOCK_THRESHOLD } from '../constants/report.constants';
 import {
     buildBaseWhereClause,
     buildSalesWhereClause,
+    buildExpenseWhereClause,
     buildTimeBasedReport,
 } from '../utils/report.utils';
 
@@ -21,9 +22,10 @@ export class ReportService {
             const filters: ReportFilters = { tenantId, branchId, startDate, endDate };
             const baseWhereClause = buildBaseWhereClause(filters);
             const salesWhereClause = buildSalesWhereClause(filters);
+            const expenseWhereClause = buildExpenseWhereClause(filters);
 
             // Run queries in parallel for better performance
-            const [salesData, salesWithItems, topCategoryData, topStocksCount, paymentModes] = await Promise.all([
+            const [salesData, salesWithItems, topCategoryData, topStocksCount, paymentModes, expenseAgg] = await Promise.all([
                 // Get total sales and receipt count
                 prisma.sale.aggregate({
                     where: salesWhereClause,
@@ -59,10 +61,16 @@ export class ReportService {
                     distinct: ['paymentMethodId'],
                     select: { paymentMethodId: true },
                 }),
+                // Get total approved expenses
+                prisma.expense.aggregate({
+                    where: expenseWhereClause,
+                    _sum: { amount: true },
+                }),
             ]);
 
             const totalSales = salesData._sum.totalAmount || 0;
             const receiptCount = salesData._count.id || 0;
+            const expenses = Number(expenseAgg._sum.amount) || 0;
 
             // Calculate total cost and discount
             let totalCost = 0;
@@ -73,8 +81,9 @@ export class ReportService {
                     totalCost += Number(item.unitCost) * item.quantity;
                 }
             }
-            // Gross Profit = (Revenue - Discount) - Cost
+            // Net Profit = (Revenue - Discount) - Cost - approved Expenses
             const grossProfit = Number(totalSales) - totalDiscount - totalCost;
+            const netProfit = grossProfit - expenses;
 
             // Get top category name from the top selling variant
             let topCategory = '';
@@ -92,7 +101,8 @@ export class ReportService {
 
             return {
                 totalSales: Number(totalSales),
-                grossProfit: Number(grossProfit),
+                expenses,
+                netProfit: Number(netProfit),
                 topStocks: topStocksCount,
                 topCategory,
                 receiptCount,
@@ -140,9 +150,13 @@ export class ReportService {
     }
 
     /**
-     * Get gross profit report with hourly, weekly, and monthly breakdowns
+     * Get net profit report with hourly, weekly, and monthly breakdowns.
+     * Nets approved expenses into the same buckets as the sales-based profit
+     * by giving each expense a negative value item alongside the per-sale
+     * profit items — buildTimeBasedReport just sums `value` per bucket, so
+     * this requires no changes to that shared utility.
      */
-    static async getGrossProfit(
+    static async getNetProfit(
         tenantId: string,
         branchId?: string,
         startDate?: string,
@@ -151,21 +165,28 @@ export class ReportService {
         try {
             const filters: ReportFilters = { tenantId, branchId, startDate, endDate };
             const whereClause = buildSalesWhereClause(filters);
+            const expenseWhereClause = buildExpenseWhereClause(filters);
 
-            const sales = await prisma.sale.findMany({
-                where: whereClause,
-                select: {
-                    totalAmount: true,
-                    discountAmount: true,
-                    saleDate: true,
-                    createdAt: true,
-                    items: {
-                        select: { quantity: true, unitCost: true },
+            const [sales, expenses] = await Promise.all([
+                prisma.sale.findMany({
+                    where: whereClause,
+                    select: {
+                        totalAmount: true,
+                        discountAmount: true,
+                        saleDate: true,
+                        createdAt: true,
+                        items: {
+                            select: { quantity: true, unitCost: true },
+                        },
                     },
-                },
-            });
+                }),
+                prisma.expense.findMany({
+                    where: expenseWhereClause,
+                    select: { amount: true, expenseDate: true },
+                }),
+            ]);
 
-            const items: SaleDataItem[] = sales.map(sale => {
+            const saleItems: SaleDataItem[] = sales.map(sale => {
                 const totalCost = sale.items.reduce(
                     (sum, item) => sum + (Number(item.unitCost) * item.quantity),
                     0
@@ -179,9 +200,15 @@ export class ReportService {
                 };
             });
 
-            return buildTimeBasedReport(items);
+            const expenseItems: SaleDataItem[] = expenses.map(expense => ({
+                value: -Number(expense.amount),
+                saleDate: expense.expenseDate,
+                createdAt: expense.expenseDate,
+            }));
+
+            return buildTimeBasedReport([...saleItems, ...expenseItems]);
         } catch (error) {
-            console.error('Error getting gross profit report:', error);
+            console.error('Error getting net profit report:', error);
             throw error;
         }
     }
@@ -429,6 +456,84 @@ export class ReportService {
             return { data };
         } catch (error) {
             console.error('Error getting top categories report:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Get approved expenses report with hourly, weekly, and monthly breakdowns
+     */
+    static async getExpensesTrend(
+        tenantId: string,
+        branchId?: string,
+        startDate?: string,
+        endDate?: string
+    ): Promise<TotalSalesReport> {
+        try {
+            const filters: ReportFilters = { tenantId, branchId, startDate, endDate };
+            const whereClause = buildExpenseWhereClause(filters);
+
+            const expenses = await prisma.expense.findMany({
+                where: whereClause,
+                select: { amount: true, expenseDate: true },
+            });
+
+            const items: SaleDataItem[] = expenses.map(expense => ({
+                value: Number(expense.amount),
+                saleDate: expense.expenseDate,
+                createdAt: expense.expenseDate,
+            }));
+
+            return buildTimeBasedReport(items);
+        } catch (error) {
+            console.error('Error getting expenses trend report:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Get approved expenses grouped by category
+     * Returns top 10 categories by total amount spent
+     */
+    static async getExpensesByCategory(
+        tenantId: string,
+        branchId?: string,
+        startDate?: string,
+        endDate?: string
+    ): Promise<ExpensesByCategoryReport> {
+        try {
+            const filters: ReportFilters = { tenantId, branchId, startDate, endDate };
+            const whereClause = buildExpenseWhereClause(filters);
+
+            const expenses = await prisma.expense.findMany({
+                where: whereClause,
+                select: {
+                    amount: true,
+                    category: { select: { name: true } },
+                },
+            });
+
+            const categoryMap: Record<string, { count: number; totalAmount: number }> = {};
+            for (const expense of expenses) {
+                const name = expense.category?.name || 'Uncategorized';
+                const entry = categoryMap[name] || { count: 0, totalAmount: 0 };
+                entry.count += 1;
+                entry.totalAmount += Number(expense.amount);
+                categoryMap[name] = entry;
+            }
+
+            const data = Object.entries(categoryMap)
+                .map(([name, { count, totalAmount }]) => ({
+                    name,
+                    count,
+                    totalAmount: Math.round(totalAmount * 100) / 100,
+                }))
+                .sort((a, b) => b.totalAmount - a.totalAmount)
+                .slice(0, 10);
+
+            return { data };
+        } catch (error) {
+            console.error('Error getting expenses by category report:', error);
             throw error;
         }
     }
