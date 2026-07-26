@@ -82,6 +82,13 @@ export async function fetchPendingRecords(
         case 'users':
             return fetchUsersForPush(whereBase, since, limit);
 
+        case 'expenses':
+            return prisma.expense.findMany({
+                where: { ...whereWithTerminal, ...sinceFilter('updatedAt') },
+                orderBy: { updatedAt: 'asc' },
+                take: limit,
+            });
+
         default:
             return [];
     }
