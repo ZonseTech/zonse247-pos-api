@@ -49,8 +49,8 @@ export class PaymentServiceProviderService {
      * linked to the root, not the channel leaves.
      */
     static async getProvidersForMethod(methodId: string): Promise<PaymentServiceProvider[]> {
-        const rootMethodId = await PaymentMethodModel.resolveRootId(methodId);
-        return PaymentServiceProviderModel.findByPaymentMethodId(rootMethodId);
+        const category = await PaymentMethodModel.resolveCategory(methodId);
+        return PaymentServiceProviderModel.findByPaymentMethodId(category);
     }
 
     static async createPaymentServiceProvider(
