@@ -63,13 +63,15 @@ export class PaymentMethodModel {
     }
 
     /**
-     * Resolves a method to its root category id. Leaf methods (e.g. POS, Bank
-     * Transfer) resolve to their parent (Bank); root methods resolve to themselves.
-     * The tree is exactly one level deep, so a single lookup is sufficient.
+     * Resolves a method to its shared provider-catalog category (e.g. 'bank',
+     * 'mobile-money') rather than its (tenant-unique) methodId. Root methods carry
+     * their own category; leaf/channel methods (POS, Bank Transfer) carry their
+     * root's category - see the `category` field on PaymentMethod for why this is
+     * needed instead of matching on methodId/parentMethodId directly.
      */
-    static async resolveRootId(methodId: string): Promise<string> {
+    static async resolveCategory(methodId: string): Promise<string> {
         const method = await PaymentMethodModel.findById(methodId);
-        return method?.parentMethodId || methodId;
+        return method?.category || method?.parentMethodId || methodId;
     }
 
     static async find(conditions: any = {}): Promise<PaymentMethod[]> {
