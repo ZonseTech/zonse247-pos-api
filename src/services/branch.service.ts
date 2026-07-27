@@ -5,6 +5,7 @@ import { Branch, CreateBranchRequest } from "branch";
 import { BranchCreateInput } from "../databases/prisma/generated/prisma/models";
 import prisma from '../databases/prisma/client';
 import { PaginationParams, buildPaginationMeta, PaginatedResult } from '../utils/pagination.utils';
+import { provisionDefaultPaymentMethods } from './payment-method-provisioning.service';
 
 /**
  * @class   BranchService
@@ -164,6 +165,8 @@ export class BranchService {
 			branchSubscriptionId: branchSubscription.branchSubscriptionId
 		});
 		const branch = await BranchModel.create(branchData as unknown as BranchCreateInput);
+
+		await provisionDefaultPaymentMethods(effectiveTenantId, branch.branchId);
 
 		return branch;
 	}

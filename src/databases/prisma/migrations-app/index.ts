@@ -96,6 +96,7 @@ import { migration as m20260419_04 } from './20260419_04_drop_tenant_subscriptio
 import { migration as m20260428_01 } from './20260428_01_drop_stock_movement_uuid_column_from_stock_movements';
 import { migration as m20260721_01 } from './20260721_01_add_payment_method_hierarchy_and_provider_category_link';
 import { migration as m20260723_01 } from './20260723_01_add_expense_module';
+import { migration as m20260727_01 } from './20260727_01_add_payment_method_category_for_per_tenant_provider_matching';
 
 /**
  * All registered migrations, sorted by version
@@ -187,6 +188,7 @@ export const registeredMigrations: Migration[] = [
     m20260428_01,
     m20260721_01,
     m20260723_01,
+    m20260727_01,
 ].sort((a, b) => a.version.localeCompare(b.version));
 
 /**

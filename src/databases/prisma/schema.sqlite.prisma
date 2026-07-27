@@ -1234,6 +1234,12 @@ model PaymentMethod {
   icon         String?       @map("icon")
   sortOrder    Int?          @default(0) @map("sort_order")
   parentMethodId String?     @map("parent_method_id")
+  // Shared category key ('bank', 'mobile-money', 'cash', ...), independent of the
+  // tenant-unique methodId. Root nodes carry their own category; leaf/channel nodes
+  // (POS, Bank Transfer) carry their root's category. Lets PaymentServiceProvider
+  // (a global catalog) resolve "which providers apply here" without needing every
+  // tenant to share the literal methodId of a single row.
+  category     String?       @map("category")
   lastSyncedAt DateTime?     @map("last_synced_at")
   version      Int           @default(1) @map("version")
   deletedAt    DateTime?     @map("deleted_at")
@@ -1255,6 +1261,7 @@ model PaymentMethod {
   @@index([updatedAt])
   @@index([deletedAt])
   @@index([parentMethodId])
+  @@index([category])
   @@map("payment_methods")
 }
 
