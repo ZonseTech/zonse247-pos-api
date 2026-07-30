@@ -809,6 +809,22 @@ const APP_PERMISSIONS = [
         category: PermissionCategory.BRANCHES,
         scope: PermissionScope.TENANT,
     },
+    {
+        permissionId: 'branches.edit.own',
+        name: 'branches.edit.own',
+        displayName: 'Edit Own Branch',
+        description: 'Edit only the branch/location assigned to the user',
+        category: PermissionCategory.BRANCHES,
+        scope: PermissionScope.BRANCH,
+    },
+    {
+        permissionId: 'branches.status.manage',
+        name: 'branches.status.manage',
+        displayName: 'Manage Branch Status',
+        description: 'Activate or deactivate branches/locations',
+        category: PermissionCategory.BRANCHES,
+        scope: PermissionScope.TENANT,
+    },
 
     // =====================================================
     // TERMINAL PERMISSIONS
@@ -1034,6 +1050,7 @@ const APP_PERMISSIONS = [
         scope: PermissionScope.SELF,
     },
 
+    // TODO: Remove the following permissions
     // =====================================================
     // PHARMACY-SPECIFIC PERMISSIONS
     // =====================================================

@@ -83,6 +83,19 @@ const ALL_ROLE_PERMISSIONS = [
     'roles.view', 'roles.create', 'roles.edit', 'roles.delete'
 ];
 
+const ALL_BRANCH_PERMISSIONS = [
+    'branches.view', 'branches.create', 'branches.edit', 'branches.delete', 'branches.status.manage'
+];
+
+// Scoped to the manager's own assigned branch, not tenant-wide edit rights
+const OWN_BRANCH_PERMISSIONS = [
+    'branches.view', 'branches.edit.own'
+];
+
+const ALL_TERMINAL_PERMISSIONS = [
+    'terminals.view', 'terminals.create', 'terminals.edit', 'terminals.delete'
+];
+
 // Basic view-only permissions
 const BASIC_VIEW_PERMISSIONS = [
     'sales.view', 'products.view', 'inventory.view', 'customers.view', 'payments.view'
@@ -121,6 +134,8 @@ const SUPER_ADMIN_PERMISSIONS = [
     ...ALL_USER_PERMISSIONS,
     ...ALL_SETTINGS_PERMISSIONS,
     ...ALL_ROLE_PERMISSIONS,
+    ...ALL_BRANCH_PERMISSIONS,
+    ...ALL_TERMINAL_PERMISSIONS,
 ];
 
 // SUPPORT ADMIN - Platform support with limited write access
@@ -150,6 +165,8 @@ const TENANT_OWNER_PERMISSIONS = [
     ...ALL_USER_PERMISSIONS,
     ...ALL_SETTINGS_PERMISSIONS,
     ...ALL_ROLE_PERMISSIONS,
+    ...ALL_BRANCH_PERMISSIONS,
+    ...ALL_TERMINAL_PERMISSIONS,
 ];
 
 // ADMIN - Full operational access within tenant
@@ -168,6 +185,8 @@ const ADMIN_PERMISSIONS = [
     ...ALL_USER_PERMISSIONS,
     ...ALL_SETTINGS_PERMISSIONS,
     ...ALL_ROLE_PERMISSIONS,
+    ...ALL_BRANCH_PERMISSIONS,
+    ...ALL_TERMINAL_PERMISSIONS,
 ];
 
 // OPERATIONS DIRECTOR - Multi-branch oversight
@@ -184,6 +203,8 @@ const OPERATIONS_DIRECTOR_PERMISSIONS = [
     ...ALL_REPORT_PERMISSIONS,
     'users.view', 'users.edit', 'users.roles.assign',
     'settings.branch.manage',
+    ...ALL_BRANCH_PERMISSIONS,
+    ...ALL_TERMINAL_PERMISSIONS,
 ];
 
 // ===== LOCATION/BRANCH-LEVEL ROLES =====
@@ -202,6 +223,8 @@ const BRANCH_MANAGER_PERMISSIONS = [
     ...ALL_REPORT_PERMISSIONS,
     'users.create', 'users.view', 'users.edit', 'users.roles.assign',
     'settings.branch.manage',
+    ...OWN_BRANCH_PERMISSIONS,
+    ...ALL_TERMINAL_PERMISSIONS,
 ];
 
 // ASSISTANT MANAGER - Supports branch manager
@@ -217,6 +240,7 @@ const ASSISTANT_MANAGER_PERMISSIONS = [
     ...MANAGER_EXPENSE_PERMISSIONS,
     'reports.sales.daily', 'reports.sales.detailed', 'reports.inventory',
     'users.view',
+    'branches.view', 'terminals.view',
 ];
 
 // MANAGER - General operational management
@@ -231,6 +255,8 @@ const MANAGER_PERMISSIONS = [
     ...ALL_CASH_PERMISSIONS,
     ...MANAGER_EXPENSE_PERMISSIONS,
     'reports.sales.daily', 'reports.sales.detailed', 'reports.inventory',
+    ...OWN_BRANCH_PERMISSIONS,
+    ...ALL_TERMINAL_PERMISSIONS,
 ];
 
 // SHIFT SUPERVISOR - Elevated cashier with supervision
@@ -488,6 +514,8 @@ const OWNER_OPERATOR_PERMISSIONS = [
     ...ALL_USER_PERMISSIONS,
     ...ALL_SETTINGS_PERMISSIONS,
     ...ALL_ROLE_PERMISSIONS,
+    ...ALL_BRANCH_PERMISSIONS,
+    ...ALL_TERMINAL_PERMISSIONS,
 ];
 
 // PART TIME STAFF - Limited access
