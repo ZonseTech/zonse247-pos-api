@@ -809,6 +809,22 @@ const APP_PERMISSIONS = [
         category: PermissionCategory.BRANCHES,
         scope: PermissionScope.TENANT,
     },
+    {
+        permissionId: 'branches.edit.own',
+        name: 'branches.edit.own',
+        displayName: 'Edit Own Branch',
+        description: 'Edit only the branch/location assigned to the user',
+        category: PermissionCategory.BRANCHES,
+        scope: PermissionScope.BRANCH,
+    },
+    {
+        permissionId: 'branches.status.manage',
+        name: 'branches.status.manage',
+        displayName: 'Manage Branch Status',
+        description: 'Activate or deactivate branches/locations',
+        category: PermissionCategory.BRANCHES,
+        scope: PermissionScope.TENANT,
+    },
 
     // =====================================================
     // TERMINAL PERMISSIONS
@@ -1006,6 +1022,7 @@ const APP_PERMISSIONS = [
         scope: PermissionScope.TENANT,
     },
 
+    // TODO: Remove the following permissions 
     // =====================================================
     // ORDERS PERMISSIONS (For restaurants/cafes/bars)
     // =====================================================
@@ -1050,6 +1067,7 @@ const APP_PERMISSIONS = [
         scope: PermissionScope.BRANCH,
     },
 
+    // TODO: Remove the following permissions
     // =====================================================
     // TABLE MANAGEMENT (For restaurants/bars)
     // =====================================================
@@ -1086,6 +1104,7 @@ const APP_PERMISSIONS = [
         scope: PermissionScope.BRANCH,
     },
 
+    // TODO: Remove the following permissions 
     // =====================================================
     // RESERVATIONS (For restaurants/bars)
     // =====================================================
@@ -1122,6 +1141,7 @@ const APP_PERMISSIONS = [
         scope: PermissionScope.BRANCH,
     },
 
+    // TODO: Remove the following permissions
     // =====================================================
     // KITCHEN DISPLAY SYSTEM (For restaurants/cafes)
     // =====================================================
@@ -1142,6 +1162,7 @@ const APP_PERMISSIONS = [
         scope: PermissionScope.BRANCH,
     },
 
+    // TODO: Remove the following permissions 
     // =====================================================
     // DELIVERY PERMISSIONS
     // =====================================================
@@ -1170,6 +1191,7 @@ const APP_PERMISSIONS = [
         scope: PermissionScope.SELF,
     },
 
+    // TODO: Remove the following permissions
     // =====================================================
     // TIPS MANAGEMENT (For restaurants/bars/cafes)
     // =====================================================
