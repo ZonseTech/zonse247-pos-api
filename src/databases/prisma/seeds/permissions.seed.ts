@@ -731,94 +731,6 @@ const APP_PERMISSIONS = [
     },
 
     // =====================================================
-    // BRANCH MANAGEMENT PERMISSIONS
-    // =====================================================
-    {
-        permissionId: 'branches.view',
-        name: 'branches.view',
-        displayName: 'View Branches',
-        description: 'View branch/location list and details',
-        category: PermissionCategory.BRANCHES,
-        scope: PermissionScope.BRANCH,
-    },
-    {
-        permissionId: 'branches.create',
-        name: 'branches.create',
-        displayName: 'Create Branches',
-        description: 'Create new branches/locations',
-        category: PermissionCategory.BRANCHES,
-        scope: PermissionScope.TENANT,
-    },
-    {
-        permissionId: 'branches.edit',
-        name: 'branches.edit',
-        displayName: 'Edit Branches',
-        description: 'Edit any branch/location within the tenant',
-        category: PermissionCategory.BRANCHES,
-        scope: PermissionScope.TENANT,
-    },
-    {
-        permissionId: 'branches.edit.own',
-        name: 'branches.edit.own',
-        displayName: 'Edit Own Branch',
-        description: 'Edit only the branch/location assigned to the user',
-        category: PermissionCategory.BRANCHES,
-        scope: PermissionScope.BRANCH,
-    },
-    {
-        permissionId: 'branches.delete',
-        name: 'branches.delete',
-        displayName: 'Delete Branches',
-        description: 'Delete branches/locations',
-        category: PermissionCategory.BRANCHES,
-        scope: PermissionScope.TENANT,
-    },
-    {
-        permissionId: 'branches.status.manage',
-        name: 'branches.status.manage',
-        displayName: 'Manage Branch Status',
-        description: 'Activate or deactivate branches/locations',
-        category: PermissionCategory.BRANCHES,
-        scope: PermissionScope.TENANT,
-    },
-
-    // =====================================================
-    // TERMINAL MANAGEMENT PERMISSIONS
-    // =====================================================
-    {
-        permissionId: 'terminals.view',
-        name: 'terminals.view',
-        displayName: 'View Terminals',
-        description: 'View terminal list and details',
-        category: PermissionCategory.TERMINALS,
-        scope: PermissionScope.BRANCH,
-    },
-    {
-        permissionId: 'terminals.create',
-        name: 'terminals.create',
-        displayName: 'Create Terminals',
-        description: 'Register new terminals',
-        category: PermissionCategory.TERMINALS,
-        scope: PermissionScope.BRANCH,
-    },
-    {
-        permissionId: 'terminals.edit',
-        name: 'terminals.edit',
-        displayName: 'Edit Terminals',
-        description: 'Edit terminals, including regenerating activation codes',
-        category: PermissionCategory.TERMINALS,
-        scope: PermissionScope.BRANCH,
-    },
-    {
-        permissionId: 'terminals.delete',
-        name: 'terminals.delete',
-        displayName: 'Delete Terminals',
-        description: 'Delete terminals',
-        category: PermissionCategory.TERMINALS,
-        scope: PermissionScope.BRANCH,
-    },
-
-    // =====================================================
     // SETTINGS PERMISSIONS
     // =====================================================
     {
@@ -894,6 +806,22 @@ const APP_PERMISSIONS = [
         name: 'branches.delete',
         displayName: 'Delete Branches',
         description: 'Delete or deactivate branches',
+        category: PermissionCategory.BRANCHES,
+        scope: PermissionScope.TENANT,
+    },
+    {
+        permissionId: 'branches.edit.own',
+        name: 'branches.edit.own',
+        displayName: 'Edit Own Branch',
+        description: 'Edit only the branch/location assigned to the user',
+        category: PermissionCategory.BRANCHES,
+        scope: PermissionScope.BRANCH,
+    },
+    {
+        permissionId: 'branches.status.manage',
+        name: 'branches.status.manage',
+        displayName: 'Manage Branch Status',
+        description: 'Activate or deactivate branches/locations',
         category: PermissionCategory.BRANCHES,
         scope: PermissionScope.TENANT,
     },
