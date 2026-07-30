@@ -1,21 +1,22 @@
-import { Request, Response, Router } from 'express';
+import { Router } from 'express';
 import { PermissionController } from '../controllers/permission.controller';
+import { PermissionMiddleware } from '../middlewares/permission.middleware';
+import { asyncHandler } from '../middlewares/error.middleware';
 
 const router = Router();
+const permissionMiddleware = new PermissionMiddleware();
 
-router.get('/', function (req: Request, res: Response): void {
-    res.send('Permission API');
-});
+router.use(permissionMiddleware.requirePermission('system.admin'));
 
-router.get('/all', PermissionController.list);
-router.post('/post', PermissionController.create);
-router.put('/update/:id', PermissionController.update);
-router.get('/permission/:id', PermissionController.show);
-router.delete('/permission/:id', PermissionController.delete);
-router.get('/category/:category', PermissionController.getByCategory);
-router.get('/scope/:scope', PermissionController.getByScope);
-router.get('/system', PermissionController.getSystemPermissions);
-router.get('/categories', PermissionController.getCategories);
-router.get('/scopes', PermissionController.getScopes);
+router.get('/all', asyncHandler(PermissionController.list));
+router.post('/post', asyncHandler(PermissionController.create));
+router.put('/update/:id', asyncHandler(PermissionController.update));
+router.get('/permission/:id', asyncHandler(PermissionController.show));
+router.delete('/permission/:id', asyncHandler(PermissionController.delete));
+router.get('/category/:category', asyncHandler(PermissionController.getByCategory));
+router.get('/scope/:scope', asyncHandler(PermissionController.getByScope));
+router.get('/system', asyncHandler(PermissionController.getSystemPermissions));
+router.get('/categories', asyncHandler(PermissionController.getCategories));
+router.get('/scopes', asyncHandler(PermissionController.getScopes));
 
 export default router;
