@@ -24,6 +24,7 @@ export const PUSH_TABLE_CONFIGS: readonly PushTableConfig[] = [
     { name: 'stockMovements', endpoint: '/sync/stock-movements', orderField: 'createdAt' },
     { name: 'orders', endpoint: '/sync/orders', orderField: 'updatedAt' },
     { name: 'users', endpoint: '/sync/users', orderField: 'updatedAt' },
+    { name: 'expenses', endpoint: '/sync/expenses', orderField: 'updatedAt' },
 ] as const;
 
 /**
@@ -39,6 +40,8 @@ export const PULL_TABLE_NAMES: readonly PullTableName[] = [
     'stockMovements',
     'customers',
     'users',
+    'expenseCategories',
+    'expenses',
 ] as const;
 
 /**
@@ -60,6 +63,7 @@ export const BATCH_MULTIPLIERS: Record<PushTableName, number> = {
     customers: 2,
     orders: 2,
     users: 1,
+    expenses: 2,
 } as const;
 
 export const SYNC_HEADERS = {

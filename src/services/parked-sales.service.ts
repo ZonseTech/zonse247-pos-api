@@ -11,6 +11,8 @@ export class ParkedSalesService {
     ): Promise<any> {
         // Map items with proper field names matching ParkedSaleItem schema
         const items = (data.items || []).map((item: any) => ({
+            tenantId,
+            branchId,
             productId: item.productId,
             categoryId: item.categoryId || null,
             name: item.name || item.productName || 'Unknown Product',

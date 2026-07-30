@@ -6,6 +6,7 @@ const router = Router();
 router.get('/', PaymentServiceProviderController.getWelcome);
 router.get('/all', PaymentServiceProviderController.getAllPaymentServiceProviders);
 router.get('/search', PaymentServiceProviderController.searchPaymentServiceProviders);
+router.get('/by-method/:methodId', PaymentServiceProviderController.getByMethod);
 router.get('/psp/:pspId', PaymentServiceProviderController.getPaymentServiceProviderById);
 router.post('/psp', PaymentServiceProviderController.createPaymentServiceProvider);
 router.put('/psp/:pspId', PaymentServiceProviderController.updatePaymentServiceProvider);

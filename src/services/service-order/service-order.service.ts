@@ -644,11 +644,11 @@ export class ServiceOrderService {
             paymentEntity: 'SERVICE_ORDER',
             amount: payment.amount,
             reference: payment.reference || null,
-            providerId: payment.providerId || null,
             providerRef: payment.providerRef || null,
             notes: payment.notes || null,
             status: 'COMPLETED',
             paymentMethod: { connect: { methodId: payment.paymentMethodId } },
+            ...(payment.providerId && { provider: { connect: { providerId: payment.providerId } } }),
           },
         });
       }

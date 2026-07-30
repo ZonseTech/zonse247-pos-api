@@ -105,9 +105,19 @@ export function createPaymentData(payments: SalePaymentInput[]): PaymentCreateDa
         reference: payment.reference || null,
         providerId: payment.providerId || null,
         providerRef: payment.providerRef || null,
-        notes: payment.notes || null,
+        notes: mergePhoneNumberIntoNotes(payment.notes, payment.phoneNumber),
         status: 'COMPLETED',
     }));
+}
+
+/**
+ * SalePayment has no dedicated phoneNumber column, so mobile money phone
+ * numbers are folded into `notes` on the way in.
+ */
+function mergePhoneNumberIntoNotes(notes?: string, phoneNumber?: string): string | null {
+    const phoneNote = phoneNumber ? `Phone: ${phoneNumber}` : null;
+    if (phoneNote && notes) return `${phoneNote} | ${notes}`;
+    return phoneNote || notes || null;
 }
 
 /**
@@ -233,6 +243,7 @@ function mapPayment(payment: any): SalePayment {
         createdAt: payment.createdAt,
         updatedAt: payment.updatedAt,
         paymentMethod: payment.paymentMethod,
+        provider: payment.provider || undefined,
     };
 }
 
@@ -315,12 +326,25 @@ export function buildSaleInclude(): any {
         payments: {
             include: {
                 paymentMethod: {
-                    select: { methodId: true, name: true, icon: true },
+                    select: {
+                        methodId: true,
+                        name: true,
+                        icon: true,
+                        parent: { select: { methodId: true, name: true, icon: true } },
+                    },
+                },
+                provider: {
+                    select: { providerId: true, name: true, logoUrl: true },
                 },
             },
         },
         paymentMethod: {
-            select: { methodId: true, name: true, icon: true },
+            select: {
+                methodId: true,
+                name: true,
+                icon: true,
+                parent: { select: { methodId: true, name: true, icon: true } },
+            },
         },
         terminal: {
             select: { terminalId: true, terminalLabel: true, terminalCode: true },

@@ -11,9 +11,9 @@ export class PaymentMethodService {
         return await PaymentMethodModel.findAllByRDBMS(params);
     }
 
-    static async getAllPaymentMethods(): Promise<PaymentMethod[]> {
+    static async getAllPaymentMethods(tenantId: string, branchId: string): Promise<PaymentMethod[]> {
         try {
-            return await PaymentMethodModel.findAll();
+            return await PaymentMethodModel.findAll(tenantId, branchId);
         } catch (error) {
             console.error('Service: Error getting all payment methods:', error);
             throw new Error('Failed to retrieve payment methods');
@@ -21,11 +21,13 @@ export class PaymentMethodService {
     }
 
     static async listPaymentMethods(
+        tenantId: string,
+        branchId: string,
         pagination: PaginationParams,
         options?: { search?: string },
     ): Promise<PaginatedResult<PaymentMethod>> {
         try {
-            const where: any = {};
+            const where: any = { tenantId, branchId, deletedAt: null };
             if (options?.search) {
                 where.OR = [
                     { name: { contains: options.search } },
@@ -53,26 +55,49 @@ export class PaymentMethodService {
         }
     }
 
-    static async getPaymentMethodById(uuid: string): Promise<PaymentMethod | null> {
+    /**
+     * Root payment methods with their channel children nested underneath
+     * (e.g. Bank -> POS, Bank Transfer). Used to drive the cascading
+     * payment picker in the checkout UI.
+     */
+    static async getPaymentMethodTree(tenantId: string, branchId: string): Promise<PaymentMethod[]> {
+        try {
+            return await PaymentMethodModel.findTree(tenantId, branchId);
+        } catch (error) {
+            console.error('Service: Error getting payment method tree:', error);
+            throw new Error('Failed to retrieve payment method tree');
+        }
+    }
+
+    static async getPaymentMethodById(uuid: string, tenantId: string, branchId: string): Promise<PaymentMethod | null> {
         try {
             if (!uuid || typeof uuid !== 'string') {
                 throw new Error('Invalid payment method ID provided');
             }
 
-            return await PaymentMethodModel.findById(uuid);
+            const method = await PaymentMethodModel.findById(uuid);
+            if (!method || method.tenantId !== tenantId || method.branchId !== branchId) {
+                return null;
+            }
+
+            return method;
         } catch (error) {
             console.error(`Service: Error getting payment method by ID ${uuid}:`, error);
             throw new Error('Failed to retrieve payment method');
         }
     }
 
-    static async createPaymentMethod(data: CreatePaymentMethodDto): Promise<PaymentMethod> {
+    static async createPaymentMethod(
+        data: CreatePaymentMethodDto,
+        tenantId: string,
+        branchId: string
+    ): Promise<PaymentMethod> {
         try {
             if (!data.name) {
                 throw new Error('Name is required');
             }
 
-            const existingPaymentMethod = await PaymentMethodModel.findByName(data.name);
+            const existingPaymentMethod = await PaymentMethodModel.findByName(data.name, tenantId, branchId);
 
             if (existingPaymentMethod) {
                 throw new Error('Payment method with this name already exists');
@@ -80,11 +105,12 @@ export class PaymentMethodService {
 
             const paymentMethodData = {
                 methodId: uuidv4(),
-                tenantId: data.tenantId,
-                branchId: data.branchId,
+                tenantId,
+                branchId,
                 name: data.name,
                 icon: data.icon,
                 sortOrder: data.sortOrder,
+                parentMethodId: data.parentMethodId,
                 isActive: data.isActive ?? true,
             } as unknown as PaymentMethodUncheckedCreateInput
 
@@ -95,19 +121,24 @@ export class PaymentMethodService {
         }
     }
 
-    static async updatePaymentMethod(methodId: string, data: UpdatePaymentMethodDto): Promise<PaymentMethod | null> {
+    static async updatePaymentMethod(
+        methodId: string,
+        data: UpdatePaymentMethodDto,
+        tenantId: string,
+        branchId: string
+    ): Promise<PaymentMethod | null> {
         try {
             if (!methodId || typeof methodId !== 'string') {
                 throw new Error('Invalid payment method ID provided');
             }
 
             const existingPaymentMethod = await PaymentMethodModel.findById(methodId);
-            if (!existingPaymentMethod) {
+            if (!existingPaymentMethod || existingPaymentMethod.tenantId !== tenantId || existingPaymentMethod.branchId !== branchId) {
                 throw new Error('Payment method not found');
             }
 
             if (data.name && data.name !== existingPaymentMethod.name) {
-                const duplicatePaymentMethod = await PaymentMethodModel.findByName(data.name);
+                const duplicatePaymentMethod = await PaymentMethodModel.findByName(data.name, tenantId, branchId);
 
                 if (duplicatePaymentMethod && duplicatePaymentMethod.methodId !== methodId) {
                     throw new Error('Payment method with this name already exists');
@@ -127,14 +158,14 @@ export class PaymentMethodService {
         }
     }
 
-    static async deletePaymentMethod(uuid: string): Promise<boolean> {
+    static async deletePaymentMethod(uuid: string, tenantId: string, branchId: string): Promise<boolean> {
         try {
             if (!uuid || typeof uuid !== 'string') {
                 throw new Error('Invalid payment method ID provided');
             }
 
             const existingPaymentMethod = await PaymentMethodModel.findById(uuid);
-            if (!existingPaymentMethod) {
+            if (!existingPaymentMethod || existingPaymentMethod.tenantId !== tenantId || existingPaymentMethod.branchId !== branchId) {
                 throw new Error('Payment method not found');
             }
 

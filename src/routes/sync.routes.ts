@@ -83,6 +83,13 @@ router.post('/orders', validateTableSync, SyncController.syncOrders);
  */
 router.post('/users', validateTableSync, SyncController.syncUsers);
 
+/**
+ * @route   POST /v1/sync/expenses
+ * @desc    Sync expenses recorded offline from terminal
+ * @access  Terminal
+ */
+router.post('/expenses', validateTableSync, SyncController.syncExpenses);
+
 // ==========================================
 // STATUS
 // ==========================================

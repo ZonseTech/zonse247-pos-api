@@ -8,6 +8,7 @@ const router = Router();
 router.post('/', SupplierController.createSupplier);
 router.get('/', validateQuery(inventoryValidationSchemas.listSuppliersQuery), SupplierController.listSuppliers);
 router.get('/:supplierId', SupplierController.getSupplier);
+router.get('/:supplierId/products', SupplierController.getSupplierProducts);
 router.put('/:supplierId', SupplierController.updateSupplier);
 router.delete('/:supplierId', SupplierController.deleteSupplier);
 

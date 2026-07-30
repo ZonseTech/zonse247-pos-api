@@ -26,6 +26,7 @@ export const PermissionCategory = {
     DISCOUNTS: 'discounts',
     TAXES: 'taxes',
     CASH_MANAGEMENT: 'cash_management',
+    EXPENSES: 'expenses',
 
     // Reporting & Analytics
     REPORTS: 'reports',

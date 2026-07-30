@@ -24,6 +24,8 @@ import GoodsReceiptsRoutes from './goods-receipts.routes'
 import SupplierInvoicesRoutes from './supplier-invoices.routes'
 import SupplierPaymentsRoutes from './supplier-payments.routes'
 import SupplierReturnsRoutes from './supplier-returns.routes'
+import ExpensesRoutes from './expenses.routes'
+import ExpenseCategoriesRoutes from './expense-categories.routes'
 import SalesRoutes from './sales.routes'
 import ParkedSalesRoutes from './parked-sales.routes'
 import StockMovementsRoutes from './stock-movements.routes'
@@ -41,6 +43,7 @@ import { preventSQLInjection, preventXSS, sanitizeInput } from '../middlewares/s
 import { authLimiter } from '../middlewares/rate-limit.middleware'
 import PaymentServiceProviderRoutes from './payment-service-provider.routes'
 import ReportsRoutes from './reports.routes'
+import DashboardRoutes from './dashboard.routes'
 import MraRoutes from './mra.routes'
 import SyncRoutes from './sync.routes'
 import { TenantMiddleware } from '../middlewares/tenant.middleware'
@@ -96,12 +99,15 @@ router.use('/goods-receipts', GoodsReceiptsRoutes);
 router.use('/supplier-invoices', SupplierInvoicesRoutes);
 router.use('/supplier-payments', SupplierPaymentsRoutes);
 router.use('/supplier-returns', SupplierReturnsRoutes);
+router.use('/expenses', ExpensesRoutes);
+router.use('/expense-categories', ExpenseCategoriesRoutes);
 router.use('/sales', SalesRoutes);
 router.use('/parked-sales', ParkedSalesRoutes);
 router.use('/stock-movements', StockMovementsRoutes);
 router.use('/inventory-valuation', InventoryValuationRoutes);
 router.use('/printers', PrinterRoutes);
 router.use('/reports', ReportsRoutes);
+router.use('/dashboard', DashboardRoutes);
 router.use('/mra', MraRoutes);
 router.use('/sync', SyncRoutes);
 router.use('/loyalty', LoyaltyRoutes);

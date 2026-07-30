@@ -36,6 +36,8 @@ export async function getPullData(
             stockMovements,
             customers,
             users,
+            expenseCategories,
+            expenses,
         ] = await Promise.all([
             fetchIfIncluded(tables, 'products', () =>
                 fetchProducts(whereBase, sinceFilter, limit)
@@ -61,6 +63,12 @@ export async function getPullData(
             fetchIfIncluded(tables, 'users', () =>
                 fetchUsers(whereBase, sinceFilter, limit)
             ),
+            fetchIfIncluded(tables, 'expenseCategories', () =>
+                fetchExpenseCategories(whereBase, sinceFilter, limit)
+            ),
+            fetchIfIncluded(tables, 'expenses', () =>
+                fetchExpenses(whereBase, sinceFilter, limit)
+            ),
         ]);
 
         result.data = {
@@ -72,6 +80,8 @@ export async function getPullData(
             stockMovements,
             customers,
             users,
+            expenseCategories,
+            expenses,
         };
 
         result.counts = {
@@ -83,6 +93,8 @@ export async function getPullData(
             stockMovements: stockMovements.length,
             customers: customers.length,
             users: users.length,
+            expenseCategories: expenseCategories.length,
+            expenses: expenses.length,
         };
     } catch (error) {
         result.success = false;
@@ -136,6 +148,12 @@ export async function getTableDelta(
         case 'users':
             records = await fetchUsers(whereBase, sinceFilter, fetchLimit);
             break;
+        case 'expenseCategories':
+            records = await fetchExpenseCategories(whereBase, sinceFilter, fetchLimit);
+            break;
+        case 'expenses':
+            records = await fetchExpenses(whereBase, sinceFilter, fetchLimit);
+            break;
     }
 
     const hasMore = records.length > limit;
@@ -158,6 +176,8 @@ function createEmptyPullResult(): PullDataResult {
             stockMovements: [],
             customers: [],
             users: [],
+            expenseCategories: [],
+            expenses: [],
         },
         counts: {
             products: 0,
@@ -168,6 +188,8 @@ function createEmptyPullResult(): PullDataResult {
             stockMovements: 0,
             customers: 0,
             users: 0,
+            expenseCategories: 0,
+            expenses: 0,
         },
         serverTime: new Date(),
         errors: [],
@@ -330,6 +352,30 @@ async function fetchUsers(
     return users;
 }
 
+async function fetchExpenseCategories(
+    whereBase: WhereBaseFilter,
+    sinceFilter: SinceFilter,
+    limit: number
+): Promise<unknown[]> {
+    return prisma.expenseCategory.findMany({
+        where: { ...whereBase, ...sinceFilter, deletedAt: null },
+        orderBy: { updatedAt: 'asc' },
+        take: limit,
+    });
+}
+
+async function fetchExpenses(
+    whereBase: WhereBaseFilter,
+    sinceFilter: SinceFilter,
+    limit: number
+): Promise<unknown[]> {
+    return prisma.expense.findMany({
+        where: { ...whereBase, ...sinceFilter, deletedAt: null },
+        orderBy: { updatedAt: 'asc' },
+        take: limit,
+    });
+}
+
 // ==========================================
 // ChangeLog-based Delta Sync
 // ==========================================
@@ -347,6 +393,8 @@ const TABLE_DELEGATES: Record<string, keyof typeof prisma> = {
     stockMovements: 'stockMovement',
     customers: 'customer',
     users: 'user',
+    expenseCategories: 'expenseCategory',
+    expenses: 'expense',
 };
 
 /**
@@ -358,6 +406,7 @@ const TABLE_UUID_FIELD: Partial<Record<string, string>> = {
     categories: 'categoryId',
     customers: 'customerId',
     paymentMethods: 'methodId',
+    expenseCategories: 'categoryId',
 };
 
 /**
