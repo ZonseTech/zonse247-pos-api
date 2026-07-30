@@ -79,6 +79,10 @@ const ALL_SYSTEM_PERMISSIONS = [
     'system.admin', 'system.backup', 'system.logs.view'
 ];
 
+const ALL_ROLE_PERMISSIONS = [
+    'roles.view', 'roles.create', 'roles.edit', 'roles.delete'
+];
+
 // Basic view-only permissions
 const BASIC_VIEW_PERMISSIONS = [
     'sales.view', 'products.view', 'inventory.view', 'customers.view', 'payments.view'
@@ -116,6 +120,7 @@ const SUPER_ADMIN_PERMISSIONS = [
     ...ALL_REPORT_PERMISSIONS,
     ...ALL_USER_PERMISSIONS,
     ...ALL_SETTINGS_PERMISSIONS,
+    ...ALL_ROLE_PERMISSIONS,
 ];
 
 // SUPPORT ADMIN - Platform support with limited write access
@@ -131,7 +136,7 @@ const SUPPORT_ADMIN_PERMISSIONS = [
 
 // TENANT OWNER - Full business access
 const TENANT_OWNER_PERMISSIONS = [
-    'system.backup', 'system.logs.view',
+    'system.admin', 'system.backup', 'system.logs.view',
     ...ALL_SALES_PERMISSIONS,
     ...ALL_PRODUCT_PERMISSIONS,
     ...ALL_INVENTORY_PERMISSIONS,
@@ -144,10 +149,12 @@ const TENANT_OWNER_PERMISSIONS = [
     ...ALL_REPORT_PERMISSIONS,
     ...ALL_USER_PERMISSIONS,
     ...ALL_SETTINGS_PERMISSIONS,
+    ...ALL_ROLE_PERMISSIONS,
 ];
 
 // ADMIN - Full operational access within tenant
 const ADMIN_PERMISSIONS = [
+    'system.admin',
     ...ALL_SALES_PERMISSIONS,
     ...ALL_PRODUCT_PERMISSIONS,
     ...ALL_INVENTORY_PERMISSIONS,
@@ -160,6 +167,7 @@ const ADMIN_PERMISSIONS = [
     ...ALL_REPORT_PERMISSIONS,
     ...ALL_USER_PERMISSIONS,
     ...ALL_SETTINGS_PERMISSIONS,
+    ...ALL_ROLE_PERMISSIONS,
 ];
 
 // OPERATIONS DIRECTOR - Multi-branch oversight
@@ -537,6 +545,7 @@ const DELIVERY_STAFF_PERMISSIONS = [
 
 // OWNER OPERATOR - Single person store (full access)
 const OWNER_OPERATOR_PERMISSIONS = [
+    'system.admin',
     ...ALL_SALES_PERMISSIONS,
     ...ALL_PRODUCT_PERMISSIONS,
     ...ALL_INVENTORY_PERMISSIONS,
@@ -549,6 +558,7 @@ const OWNER_OPERATOR_PERMISSIONS = [
     ...ALL_REPORT_PERMISSIONS,
     ...ALL_USER_PERMISSIONS,
     ...ALL_SETTINGS_PERMISSIONS,
+    ...ALL_ROLE_PERMISSIONS,
 ];
 
 // PART TIME STAFF - Limited access
