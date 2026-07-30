@@ -3,7 +3,7 @@ import { PermissionCategory, PermissionScope } from "../../../utils/enums";
 
 /**
  * Comprehensive permissions for multi-tenant POS system
- * Supports: Cafes, Bars, Pharmacies, Retail Stores (Small to Large businesses)
+ * Supports: Pharmacies, Retail Stores (Small to Large businesses)
  */
 const APP_PERMISSIONS = [
     // =====================================================
@@ -1022,147 +1022,6 @@ const APP_PERMISSIONS = [
         scope: PermissionScope.TENANT,
     },
 
-    // TODO: Remove the following permissions 
-    // =====================================================
-    // ORDERS PERMISSIONS (For restaurants/cafes/bars)
-    // =====================================================
-    {
-        permissionId: 'orders.create',
-        name: 'orders.create',
-        displayName: 'Create Orders',
-        description: 'Create new orders (table/takeaway)',
-        category: PermissionCategory.SALES,
-        scope: PermissionScope.BRANCH,
-    },
-    {
-        permissionId: 'orders.view',
-        name: 'orders.view',
-        displayName: 'View Orders',
-        description: 'View all orders',
-        category: PermissionCategory.SALES,
-        scope: PermissionScope.BRANCH,
-    },
-    {
-        permissionId: 'orders.edit',
-        name: 'orders.edit',
-        displayName: 'Edit Orders',
-        description: 'Edit existing orders',
-        category: PermissionCategory.SALES,
-        scope: PermissionScope.BRANCH,
-    },
-    {
-        permissionId: 'orders.cancel',
-        name: 'orders.cancel',
-        displayName: 'Cancel Orders',
-        description: 'Cancel orders',
-        category: PermissionCategory.SALES,
-        scope: PermissionScope.BRANCH,
-    },
-    {
-        permissionId: 'orders.status',
-        name: 'orders.status',
-        displayName: 'Update Order Status',
-        description: 'Update order preparation/delivery status',
-        category: PermissionCategory.SALES,
-        scope: PermissionScope.BRANCH,
-    },
-
-    // TODO: Remove the following permissions
-    // =====================================================
-    // TABLE MANAGEMENT (For restaurants/bars)
-    // =====================================================
-    {
-        permissionId: 'tables.view',
-        name: 'tables.view',
-        displayName: 'View Tables',
-        description: 'View table layout and status',
-        category: PermissionCategory.SALES,
-        scope: PermissionScope.BRANCH,
-    },
-    {
-        permissionId: 'tables.manage',
-        name: 'tables.manage',
-        displayName: 'Manage Tables',
-        description: 'Manage table assignments and layout',
-        category: PermissionCategory.SALES,
-        scope: PermissionScope.BRANCH,
-    },
-    {
-        permissionId: 'tables.transfer',
-        name: 'tables.transfer',
-        displayName: 'Transfer Tables',
-        description: 'Transfer orders between tables',
-        category: PermissionCategory.SALES,
-        scope: PermissionScope.BRANCH,
-    },
-    {
-        permissionId: 'tables.merge',
-        name: 'tables.merge',
-        displayName: 'Merge/Split Tables',
-        description: 'Merge or split table orders',
-        category: PermissionCategory.SALES,
-        scope: PermissionScope.BRANCH,
-    },
-
-    // TODO: Remove the following permissions 
-    // =====================================================
-    // RESERVATIONS (For restaurants/bars)
-    // =====================================================
-    {
-        permissionId: 'reservations.create',
-        name: 'reservations.create',
-        displayName: 'Create Reservations',
-        description: 'Create new reservations',
-        category: PermissionCategory.CUSTOMERS,
-        scope: PermissionScope.BRANCH,
-    },
-    {
-        permissionId: 'reservations.view',
-        name: 'reservations.view',
-        displayName: 'View Reservations',
-        description: 'View reservation calendar',
-        category: PermissionCategory.CUSTOMERS,
-        scope: PermissionScope.BRANCH,
-    },
-    {
-        permissionId: 'reservations.edit',
-        name: 'reservations.edit',
-        displayName: 'Edit Reservations',
-        description: 'Edit existing reservations',
-        category: PermissionCategory.CUSTOMERS,
-        scope: PermissionScope.BRANCH,
-    },
-    {
-        permissionId: 'reservations.cancel',
-        name: 'reservations.cancel',
-        displayName: 'Cancel Reservations',
-        description: 'Cancel reservations',
-        category: PermissionCategory.CUSTOMERS,
-        scope: PermissionScope.BRANCH,
-    },
-
-    // TODO: Remove the following permissions
-    // =====================================================
-    // KITCHEN DISPLAY SYSTEM (For restaurants/cafes)
-    // =====================================================
-    {
-        permissionId: 'kitchen.view',
-        name: 'kitchen.view',
-        displayName: 'View Kitchen Display',
-        description: 'View kitchen order display',
-        category: PermissionCategory.SALES,
-        scope: PermissionScope.BRANCH,
-    },
-    {
-        permissionId: 'kitchen.manage',
-        name: 'kitchen.manage',
-        displayName: 'Manage Kitchen Orders',
-        description: 'Mark orders as prepared/ready',
-        category: PermissionCategory.SALES,
-        scope: PermissionScope.BRANCH,
-    },
-
-    // TODO: Remove the following permissions 
     // =====================================================
     // DELIVERY PERMISSIONS
     // =====================================================
@@ -1192,34 +1051,6 @@ const APP_PERMISSIONS = [
     },
 
     // TODO: Remove the following permissions
-    // =====================================================
-    // TIPS MANAGEMENT (For restaurants/bars/cafes)
-    // =====================================================
-    {
-        permissionId: 'tips.collect',
-        name: 'tips.collect',
-        displayName: 'Collect Tips',
-        description: 'Accept and record tips',
-        category: PermissionCategory.PAYMENTS,
-        scope: PermissionScope.TERMINAL,
-    },
-    {
-        permissionId: 'tips.view',
-        name: 'tips.view',
-        displayName: 'View Tips',
-        description: 'View tip reports',
-        category: PermissionCategory.PAYMENTS,
-        scope: PermissionScope.BRANCH,
-    },
-    {
-        permissionId: 'tips.manage',
-        name: 'tips.manage',
-        displayName: 'Manage Tips',
-        description: 'Manage tip pooling and distribution',
-        category: PermissionCategory.PAYMENTS,
-        scope: PermissionScope.BRANCH,
-    },
-
     // =====================================================
     // PHARMACY-SPECIFIC PERMISSIONS
     // =====================================================

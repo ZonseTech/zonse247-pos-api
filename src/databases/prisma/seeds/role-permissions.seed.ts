@@ -415,81 +415,6 @@ const CUSTOMER_SERVICE_REP_PERMISSIONS = [
     'refunds.process', 'refunds.view',
 ];
 
-// TODO: Remove the following role
-// ===== CAFE & RESTAURANT ROLES =====
-
-// BARISTA - Cafe counter operations
-const BARISTA_PERMISSIONS = [
-    'sales.create', 'sales.view.own',
-    'products.view',
-    'inventory.view',
-    'customers.create', 'customers.view',
-    'payments.process', 'payments.view',
-    'discounts.apply',
-    'cash.drawer.open',
-];
-
-// TODO: Remove the following role
-// SERVER - Table service
-const SERVER_PERMISSIONS = [
-    'sales.create', 'sales.view.own', 'sales.edit',
-    'products.view',
-    'customers.create', 'customers.view',
-    'payments.process', 'payments.view', 'payments.partial',
-    'discounts.apply',
-];
-
-// TODO: Remove the following role
-// KITCHEN STAFF - Kitchen display and orders
-const KITCHEN_STAFF_PERMISSIONS = [
-    'sales.view',
-    'products.view',
-    'inventory.view',
-];
-
-// TODO: Remove the following role
-// HEAD CHEF - Kitchen management
-const HEAD_CHEF_PERMISSIONS = [
-    'sales.view',
-    'products.view', 'products.edit',
-    'inventory.view', 'inventory.adjust', 'inventory.receive',
-    'reports.inventory',
-];
-
-// ===== BAR ROLES =====
-// TODO: Remove the following role
-// BAR MANAGER - Bar operations
-const BAR_MANAGER_PERMISSIONS = [
-    ...ALL_SALES_PERMISSIONS,
-    'products.view', 'products.edit', 'products.pricing',
-    'inventory.view', 'inventory.adjust', 'inventory.receive',
-    'customers.create', 'customers.view', 'customers.edit',
-    ...ALL_PAYMENT_PERMISSIONS,
-    ...ALL_REFUND_PERMISSIONS,
-    ...ALL_DISCOUNT_PERMISSIONS,
-    ...ALL_CASH_PERMISSIONS,
-    ...MANAGER_EXPENSE_PERMISSIONS,
-    'reports.sales.daily', 'reports.sales.detailed', 'reports.inventory',
-    'users.view',
-];
-// TODO: Remove the following role
-// BARTENDER - Bar sales
-const BARTENDER_PERMISSIONS = [
-    'sales.create', 'sales.view.own',
-    'products.view',
-    'inventory.view',
-    'customers.create', 'customers.view',
-    'payments.process', 'payments.view', 'payments.partial',
-    'discounts.apply',
-    'cash.drawer.open', 'cash.count',
-];
-// TODO: Remove the following role
-// HOST - Reservations and seating
-const HOST_PERMISSIONS = [
-    'sales.view',
-    'customers.create', 'customers.view', 'customers.edit',
-];
-
 // ===== PHARMACY ROLES =====
 
 // PHARMACIST - Full dispensing access
@@ -702,17 +627,6 @@ const DEFAULT_ROLE_PERMISSIONS: RolePermission[] = [
     ...createRolePermissions('trainee-cashier', TRAINEE_CASHIER_PERMISSIONS),
     ...createRolePermissions('sales-associate', SALES_ASSOCIATE_PERMISSIONS),
     ...createRolePermissions('customer-service-rep', CUSTOMER_SERVICE_REP_PERMISSIONS),
-
-    // Cafe & Restaurant
-    ...createRolePermissions('barista', BARISTA_PERMISSIONS),
-    ...createRolePermissions('server', SERVER_PERMISSIONS),
-    ...createRolePermissions('kitchen-staff', KITCHEN_STAFF_PERMISSIONS),
-    ...createRolePermissions('head-chef', HEAD_CHEF_PERMISSIONS),
-
-    // Bar
-    ...createRolePermissions('bar-manager', BAR_MANAGER_PERMISSIONS),
-    ...createRolePermissions('bartender', BARTENDER_PERMISSIONS),
-    ...createRolePermissions('host', HOST_PERMISSIONS),
 
     // Pharmacy
     ...createRolePermissions('pharmacist', PHARMACIST_PERMISSIONS),
