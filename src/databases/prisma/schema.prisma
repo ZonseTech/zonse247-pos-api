@@ -1354,7 +1354,9 @@ model RolePermission {
 model Role {
   id              Int              @id @default(autoincrement())
   roleId          String           @unique @map("role_id")
-  name            String           @unique @map("name")
+  name            String           @map("name")
+  tenantId        String?          @map("tenant_id")
+  branchId        String?          @map("branch_id")
   displayName     String           @map("display_name")
   description     String?          @map("description")
   isSystemRole    Boolean?         @default(false) @map("is_system_role")
@@ -1366,10 +1368,13 @@ model Role {
   rolePermissions RolePermission[]
   users           User[]
 
+  @@unique([tenantId, name], name: "unique_tenant_role_name")
   @@index([isActive], name: "idx_active_role")
   @@index([name], name: "idx_role_name")
   @@index([isSystemRole], name: "idx_system_role")
   @@index([deletedAt], map: "idx_roles_deleted_at")
+  @@index([tenantId], name: "idx_role_tenant")
+  @@index([branchId], name: "idx_role_branch")
   @@map("roles")
 }
 
