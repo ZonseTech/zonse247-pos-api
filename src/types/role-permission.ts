@@ -10,7 +10,7 @@ interface ApiResponse<T> {
 
 export interface Role {
     roleId: string;
-    tenantId: string;
+    tenantId?: string | null;
     branchId?: string | null;
     name: string;
     displayName: string;
@@ -41,7 +41,7 @@ export interface RolePermission {
 }
 
 export interface CreateRoleRequest {
-    tenantId: string;
+    tenantId?: string | null;
     branchId?: string | null;
     name: string;
     displayName: string;
@@ -66,7 +66,7 @@ export interface BulkRolePermissionRequest {
 }
 
 export interface CreateRoleRequest {
-    tenantId: string;
+    tenantId?: string | null;
     branchId?: string | null;
     name: string;
     displayName: string;

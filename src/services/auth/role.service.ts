@@ -1,23 +1,58 @@
 import { RoleModel } from "../../models/role.model";
 import { RolePermissionModel } from "../../models/role-permission.model";
+import { BranchModel } from "../../models/branch.model";
 import { ValidationError } from '../../utils/errors';
 import { PermissionModel } from "../../models/permission.model";
 import { CreateRoleRequest, Permission, Role } from "role-permission";
 import prisma from '../../databases/prisma/client';
 import { PaginationParams, buildPaginationMeta, PaginatedResult } from '../../utils/pagination.utils';
 
+export interface RoleAuthContext {
+    tenantId: string;
+    branchId?: string | null;
+}
+
 export class RoleService {
-    static async getAllRoles(query: any = {}): Promise<Role[]> {
+    /**
+     * Roles visible to a tenant: system roles (global), the tenant's own
+     * tenant-wide custom roles (branchId null), and custom roles scoped to
+     * the requester's own branch. Never trusts a client-supplied tenantId/
+     * branchId for scoping.
+     */
+    private static buildScopeWhere(auth: RoleAuthContext): any {
+        return {
+            OR: [
+                { isSystemRole: true },
+                { tenantId: auth.tenantId, branchId: null },
+                { tenantId: auth.tenantId, branchId: auth.branchId ?? undefined },
+            ],
+        };
+    }
+
+    private static assertOwnership(role: Role, auth: RoleAuthContext): void {
+        if (role.isSystemRole) {
+            return;
+        }
+
+        if (role.tenantId !== auth.tenantId) {
+            throw new Error('Tenant does not own this role');
+        }
+    }
+
+    private static async assertBranchOwnership(branchId: string | null | undefined, auth: RoleAuthContext): Promise<void> {
+        if (!branchId) {
+            return;
+        }
+
+        const branch = await BranchModel.findById(branchId);
+        if (!branch || branch.tenantId !== auth.tenantId) {
+            throw new Error('Tenant does not own this branch');
+        }
+    }
+
+    static async getAllRoles(query: any = {}, auth: RoleAuthContext): Promise<Role[]> {
         try {
-            const conditions: any = {};
-
-            if (query.tenantId) {
-                conditions.tenantId = query.tenantId;
-            }
-
-            if (query.branchId) {
-                conditions.branchId = query.branchId;
-            }
+            const conditions: any = { ...this.buildScopeWhere(auth) };
 
             if (query.isSystemRole !== undefined) {
                 conditions.isSystemRole = query.isSystemRole === 'true';
@@ -40,11 +75,10 @@ export class RoleService {
     static async listRoles(
         query: any = {},
         pagination: PaginationParams,
+        auth: RoleAuthContext,
     ): Promise<PaginatedResult<Role>> {
         try {
-            const where: any = {};
-            if (query.tenantId) where.tenantId = query.tenantId;
-            if (query.branchId) where.branchId = query.branchId;
+            const where: any = { ...this.buildScopeWhere(auth) };
             if (query.isSystemRole !== undefined) where.isSystemRole = query.isSystemRole === 'true';
             if (query.isActive !== undefined) where.isActive = query.isActive === 'true';
             if (query.name) where.name = query.name;
@@ -68,7 +102,7 @@ export class RoleService {
         }
     }
 
-    static async getRoleById(id: string): Promise<Role> {
+    static async getRoleById(id: string, auth: RoleAuthContext): Promise<Role> {
         if (!id) {
             throw new Error('Role ID is required');
         }
@@ -78,10 +112,12 @@ export class RoleService {
             throw new Error('Role not found');
         }
 
+        this.assertOwnership(role, auth);
+
         return role;
     }
 
-    static async createRole(data: CreateRoleRequest): Promise<Role> {
+    static async createRole(data: CreateRoleRequest, auth: RoleAuthContext): Promise<Role> {
         const validationError = ValidationError.validateRequired(data, ['name', 'displayName']);
         if (validationError) {
             throw new Error(validationError);
@@ -91,11 +127,20 @@ export class RoleService {
             throw new Error('Role name must contain only lowercase letters and underscores');
         }
 
-        const roleData = RoleModel.buildRoleData(data);
+        if (!data.branchId) {
+            throw new Error('Missing required field: branchId');
+        }
+
+        await this.assertBranchOwnership(data.branchId, auth);
+
+        const roleData = RoleModel.buildRoleData({
+            ...data,
+            tenantId: auth.tenantId,
+        });
         return RoleModel.create(roleData);
     }
 
-    static async updateRole(id: string, data: Partial<Role>): Promise<Role> {
+    static async updateRole(id: string, data: Partial<Role>, auth: RoleAuthContext): Promise<Role> {
         if (!id) {
             throw new Error('Role ID is required');
         }
@@ -109,6 +154,8 @@ export class RoleService {
             throw new Error('System roles cannot be modified');
         }
 
+        this.assertOwnership(existingRole, auth);
+
         const protectedFields = ['uuid', 'tenantId', 'isSystemRole', 'createdAt'];
         const updateData = { ...data };
 
@@ -120,6 +167,10 @@ export class RoleService {
 
         if (updateData.name && !/^[a-z_]+$/.test(updateData.name)) {
             throw new Error('Role name must contain only lowercase letters and underscores');
+        }
+
+        if ('branchId' in updateData) {
+            await this.assertBranchOwnership(updateData.branchId, auth);
         }
 
         const numUpdated = await RoleModel.update(id, updateData);
@@ -135,7 +186,7 @@ export class RoleService {
         return updatedRole;
     }
 
-    static async deleteRole(id: string): Promise<{ status: boolean }> {
+    static async deleteRole(id: string, auth: RoleAuthContext): Promise<{ status: boolean }> {
         if (!id) {
             throw new Error('Role ID is required');
         }
@@ -148,6 +199,8 @@ export class RoleService {
         if (existingRole.isSystemRole) {
             throw new Error('System roles cannot be deleted');
         }
+
+        this.assertOwnership(existingRole, auth);
 
         await RolePermissionModel.deleteByRoleId(existingRole.roleId);
 
@@ -163,11 +216,11 @@ export class RoleService {
         return await RoleModel.findBySystemRole(true);
     }
 
-    static async getActiveRoles(): Promise<Role[]> {
-        return await RoleModel.findByActive(true);
+    static async getActiveRoles(auth: RoleAuthContext): Promise<Role[]> {
+        return await RoleModel.findAll({ ...this.buildScopeWhere(auth), isActive: true });
     }
 
-    static async updateRoleStatus(id: string, isActive: boolean): Promise<Role> {
+    static async updateRoleStatus(id: string, isActive: boolean, auth: RoleAuthContext): Promise<Role> {
         if (!id) {
             throw new Error('Role ID is required');
         }
@@ -181,7 +234,7 @@ export class RoleService {
             throw new Error('System roles cannot be deactivated');
         }
 
-        return await this.updateRole(id, { isActive: isActive });
+        return await this.updateRole(id, { isActive: isActive }, auth);
     }
 
     static async getRolePermissions(roleId: string): Promise<Permission[]> {
