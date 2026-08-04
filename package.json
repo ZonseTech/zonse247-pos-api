@@ -66,7 +66,7 @@
     "db:reset:sqlite": "bash scripts/db.sh reset sqlite",
     "db:reset:mysql": "bash scripts/db.sh reset mysql",
     "db:seed": "prisma db seed",
-    "seed:expenses": "tsx scripts/seed-expense-permissions.ts",
+    "seed:permissions": "tsx scripts/seed-role-permissions.ts",
     "backfill:payment-methods": "tsx scripts/backfill-payment-methods.ts",
     "db:pull": "prisma db pull",
     "db:freeze:sqlite": "bash scripts/db.sh generate sqlite && echo '✓ Schema and client frozen for SQLite'",
