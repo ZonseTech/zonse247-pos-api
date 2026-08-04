@@ -1,9 +1,11 @@
 import { Router } from 'express';
 import { InventoryValuationController } from '../controllers/inventory-valuation.controller';
+import { PermissionMiddleware } from '../middlewares/permission.middleware';
 import { validateBody, validateQuery } from '../middlewares/validation.middleware';
 import { stockMovementSchemas } from '../validations/stock-movement.schemas';
 
 const router = Router();
+const permissionMiddleware = new PermissionMiddleware();
 
 // ──────────────────────────────────────────────────────────────
 // Valuation
@@ -19,6 +21,7 @@ const router = Router();
  */
 router.get(
     '/summary',
+    permissionMiddleware.requirePermission('inventory.view'),
     validateQuery(stockMovementSchemas.valuationSummaryQuery),
     InventoryValuationController.getValuationSummary,
 );
@@ -38,6 +41,7 @@ router.get(
  */
 router.get(
     '/cogs/period',
+    permissionMiddleware.requirePermission('inventory.view'),
     validateQuery(stockMovementSchemas.periodCOGSQuery),
     InventoryValuationController.getPeriodCOGS,
 );
@@ -50,7 +54,7 @@ router.get(
  * @query endDate    - ISO date (required)
  * @query [branchId] - Optional branch override
  */
-router.get('/cogs/period-from-sales', InventoryValuationController.getPeriodCOGSFromSales);
+router.get('/cogs/period-from-sales', permissionMiddleware.requirePermission('inventory.view'), InventoryValuationController.getPeriodCOGSFromSales);
 
 /**
  * GET /gross-profit/by-product
@@ -65,6 +69,7 @@ router.get('/cogs/period-from-sales', InventoryValuationController.getPeriodCOGS
  */
 router.get(
     '/gross-profit/by-product',
+    permissionMiddleware.requirePermission('inventory.view'),
     validateQuery(stockMovementSchemas.grossProfitQuery),
     InventoryValuationController.getGrossProfitByProduct,
 );
@@ -80,6 +85,7 @@ router.get(
  */
 router.get(
     '/aging',
+    permissionMiddleware.requirePermission('inventory.view'),
     validateQuery(stockMovementSchemas.agingQuery),
     InventoryValuationController.getInventoryAging,
 );
@@ -93,14 +99,14 @@ router.get(
  * Single-item valuation with cost-layer breakdown
  * @param inventoryId - Inventory UUID
  */
-router.get('/:inventoryId', InventoryValuationController.getItemValuation);
+router.get('/:inventoryId', permissionMiddleware.requirePermission('inventory.view'), InventoryValuationController.getItemValuation);
 
 /**
  * GET /:inventoryId/cost-layers
  * Remaining cost layers for an inventory item
  * @param inventoryId - Inventory UUID
  */
-router.get('/:inventoryId/cost-layers', InventoryValuationController.getCostLayers);
+router.get('/:inventoryId/cost-layers', permissionMiddleware.requirePermission('inventory.view'), InventoryValuationController.getCostLayers);
 
 /**
  * POST /cogs
@@ -109,7 +115,7 @@ router.get('/:inventoryId/cost-layers', InventoryValuationController.getCostLaye
  * @body quantity    - Quantity to calculate COGS for
  * @body [overrideMethod] - Override costing method (WEIGHTED_AVERAGE, FIFO, LIFO)
  */
-router.post('/cogs', validateBody(stockMovementSchemas.calculateCOGS), InventoryValuationController.calculateCOGS);
+router.post('/cogs', permissionMiddleware.requirePermission('inventory.view'), validateBody(stockMovementSchemas.calculateCOGS), InventoryValuationController.calculateCOGS);
 
 // ──────────────────────────────────────────────────────────────
 // Costing Method
@@ -121,7 +127,7 @@ router.post('/cogs', validateBody(stockMovementSchemas.calculateCOGS), Inventory
  * @body inventoryId - Inventory UUID
  * @body newMethod   - Target costing method (WEIGHTED_AVERAGE, FIFO, LIFO)
  */
-router.put('/costing-method', validateBody(stockMovementSchemas.changeCostingMethod), InventoryValuationController.changeCostingMethod);
+router.put('/costing-method', permissionMiddleware.requirePermission('inventory.adjust'), validateBody(stockMovementSchemas.changeCostingMethod), InventoryValuationController.changeCostingMethod);
 
 // ──────────────────────────────────────────────────────────────
 // Opening Stock
@@ -136,7 +142,7 @@ router.put('/costing-method', validateBody(stockMovementSchemas.changeCostingMet
  * @body [openingDate] - Optional opening date
  * @body [notes]      - Optional notes
  */
-router.post('/opening-balance', validateBody(stockMovementSchemas.openingStock), InventoryValuationController.recordOpeningBalance);
+router.post('/opening-balance', permissionMiddleware.requireAnyPermission(['inventory.adjust', 'inventory.receive']), validateBody(stockMovementSchemas.openingStock), InventoryValuationController.recordOpeningBalance);
 
 // ──────────────────────────────────────────────────────────────
 // Cost-Layer Management
@@ -147,6 +153,6 @@ router.post('/opening-balance', validateBody(stockMovementSchemas.openingStock),
  * Rebuild cost layers from movement history (data repair)
  * @body inventoryId - Inventory UUID
  */
-router.post('/rebuild-layers', validateBody(stockMovementSchemas.rebuildCostLayers), InventoryValuationController.rebuildCostLayers);
+router.post('/rebuild-layers', permissionMiddleware.requirePermission('inventory.adjust'), validateBody(stockMovementSchemas.rebuildCostLayers), InventoryValuationController.rebuildCostLayers);
 
 export default router;
