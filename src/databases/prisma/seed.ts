@@ -7,8 +7,8 @@ import {
 	seedPaymentMethods,
 	seedPaymentServiceProviders,
 	seedPermissions,
-	seedRolePermissions,
 	seedRoles,
+	seedRolePermissions,
 	seedTenant,
 	seedTerminal,
 	seedUser,
@@ -26,8 +26,8 @@ async function main() {
 	try {
 		await seedPlanFeatures(prisma);
 		await seedSubscriptionPlans(prisma);
-		await seedRoles(prisma);
 		await seedPermissions(prisma);
+		await seedRoles(prisma);
 		await seedRolePermissions(prisma);
 		await seedDistricts(prisma);
 		await seedTenant(prisma);
