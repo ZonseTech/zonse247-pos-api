@@ -1,13 +1,15 @@
 import { Router } from 'express';
 import { InventoryController } from '../controllers/inventory.controller';
+import { PermissionMiddleware } from '../middlewares/permission.middleware';
 
 const router = Router();
+const permissionMiddleware = new PermissionMiddleware();
 
 /**
  * GET /summary
  * Get inventory summary statistics (totalStock, newStock, expiringSoon, expired)
  */
-router.get('/summary', InventoryController.getSummary);
+router.get('/summary', permissionMiddleware.requirePermission('inventory.view'), InventoryController.getSummary);
 
 /**
  * GET /overview
@@ -18,20 +20,20 @@ router.get('/summary', InventoryController.getSummary);
  * @query {string} [startDate] - Filter by creation date range start
  * @query {string} [endDate] - Filter by creation date range end
  */
-router.get('/overview', InventoryController.getOverview);
+router.get('/overview', permissionMiddleware.requirePermission('inventory.view'), InventoryController.getOverview);
 
 /**
  * GET /top-value
  * Get top valuable inventory items sorted by retail value
  * @query {number} [limit=10] - Maximum number of items to return
  */
-router.get('/top-value', InventoryController.getTopValueItems);
+router.get('/top-value', permissionMiddleware.requirePermission('inventory.view'), InventoryController.getTopValueItems);
 
 /**
  * GET /count
  * Get detailed inventory counts (total, incomplete, inStock, lowStock, expired)
  */
-router.get('/count', InventoryController.getCount);
+router.get('/count', permissionMiddleware.requirePermission('inventory.view'), InventoryController.getCount);
 
 /**
  * GET /
@@ -45,7 +47,7 @@ router.get('/count', InventoryController.getCount);
  * @query {string} [endDate] - Filter by date range end
  * @query {boolean} [groupByProduct=false] - Group variants under their parent product
  */
-router.get('/', InventoryController.getInventoryItems);
+router.get('/', permissionMiddleware.requirePermission('inventory.view'), InventoryController.getInventoryItems);
 
 /**
  * GET /items-only
@@ -55,70 +57,70 @@ router.get('/', InventoryController.getInventoryItems);
  * @query {string} [search] - Search term
  * @query {string} [filter] - Filter type
  */
-router.get('/items-only', InventoryController.getInventoryItemsOnly);
+router.get('/items-only', permissionMiddleware.requirePermission('inventory.view'), InventoryController.getInventoryItemsOnly);
 
 /**
  * GET /search
  * Search inventory items by name, description, or barcode
  * @query {string} q - Search query string
  */
-router.get('/search', InventoryController.searchInventoryItems);
+router.get('/search', permissionMiddleware.requirePermission('inventory.view'), InventoryController.searchInventoryItems);
 
 /**
  * GET /low-stock
  * Get items with quantity below threshold
  * @query {number} [threshold=10] - Stock level threshold
  */
-router.get('/low-stock', InventoryController.getLowStockItems);
+router.get('/low-stock', permissionMiddleware.requirePermission('inventory.view'), InventoryController.getLowStockItems);
 
 /**
  * GET /item/:itemId
  * Get a single inventory item by variant ID or product ID
  * @param {string} itemId - Variant UUID or Product UUID
  */
-router.get('/item/:itemId', InventoryController.getInventoryItem);
+router.get('/item/:itemId', permissionMiddleware.requirePermission('inventory.view'), InventoryController.getInventoryItem);
 
 /**
  * GET /barcode/:barcode
  * Find inventory item by barcode (primary or additional)
  * @param {string} barcode - Barcode string to search
  */
-router.get('/barcode/:barcode', InventoryController.findInventoryItemByBarcode);
+router.get('/barcode/:barcode', permissionMiddleware.requirePermission('inventory.view'), InventoryController.findInventoryItemByBarcode);
 
 /**
  * GET /category/:categoryId
  * Get all inventory items in a specific category
  * @param {string} categoryId - Category UUID
  */
-router.get('/category/:categoryId', InventoryController.getInventoryItemsByCategory);
+router.get('/category/:categoryId', permissionMiddleware.requirePermission('inventory.view'), InventoryController.getInventoryItemsByCategory);
 
 /**
  * GET /status/:status
  * Get inventory items by status
  * @param {string} status - Status: active, inactive, void
  */
-router.get('/status/:status', InventoryController.getInventoryItemsByStatus);
+router.get('/status/:status', permissionMiddleware.requirePermission('inventory.view'), InventoryController.getInventoryItemsByStatus);
 
 /**
  * POST /item/sku
  * Find inventory item by SKU code
  * @body {string} sku - SKU code to search
  */
-router.post('/item/sku', InventoryController.findInventoryItemBySku);
+router.post('/item/sku', permissionMiddleware.requirePermission('inventory.view'), InventoryController.findInventoryItemBySku);
 
 /**
  * GET /exists/:itemId
  * Check if an inventory item exists
  * @param {string} itemId - Variant UUID to check
  */
-router.get('/exists/:itemId', InventoryController.checkInventoryItemExists);
+router.get('/exists/:itemId', permissionMiddleware.requirePermission('inventory.view'), InventoryController.checkInventoryItemExists);
 
 /**
  * POST /item
  * Create a new inventory item (product with variants)
  * @body {object} inventoryData - Product/variant data including name, variants[], categoryId, etc.
  */
-router.post('/item', InventoryController.createInventoryItem);
+router.post('/item', permissionMiddleware.requireAnyPermission(['products.create', 'inventory.receive']), InventoryController.createInventoryItem);
 
 /**
  * PUT /item/:itemId
@@ -126,14 +128,14 @@ router.post('/item', InventoryController.createInventoryItem);
  * @param {string} itemId - Variant UUID or Product UUID
  * @body {object} updateData - Fields to update
  */
-router.put('/item/:itemId', InventoryController.updateInventoryItem);
+router.put('/item/:itemId', permissionMiddleware.requireAnyPermission(['products.edit', 'inventory.adjust']), InventoryController.updateInventoryItem);
 
 /**
  * PUT /bulk-update
  * Bulk update multiple inventory items
  * @body {Array<{productUuid: string, data: object}>} updates - Array of update operations
  */
-router.put('/bulk-update', InventoryController.bulkUpdateInventoryItems);
+router.put('/bulk-update', permissionMiddleware.requireAnyPermission(['products.edit', 'inventory.adjust']), InventoryController.bulkUpdateInventoryItems);
 
 /**
  * PATCH /item/:itemId/quantity
@@ -141,7 +143,7 @@ router.put('/bulk-update', InventoryController.bulkUpdateInventoryItems);
  * @param {string} itemId - Variant UUID
  * @body {number} quantity - New absolute quantity
  */
-router.patch('/item/:itemId/quantity', InventoryController.updateInventoryQuantity);
+router.patch('/item/:itemId/quantity', permissionMiddleware.requirePermission('inventory.adjust'), InventoryController.updateInventoryQuantity);
 
 /**
  * PATCH /item/:itemId/adjust
@@ -149,7 +151,7 @@ router.patch('/item/:itemId/quantity', InventoryController.updateInventoryQuanti
  * @param {string} itemId - Variant UUID
  * @body {number} adjustment - Quantity to add (positive) or subtract (negative)
  */
-router.patch('/item/:itemId/adjust', InventoryController.adjustInventory);
+router.patch('/item/:itemId/adjust', permissionMiddleware.requirePermission('inventory.adjust'), InventoryController.adjustInventory);
 
 /**
  * PUT /move-to-category
@@ -157,27 +159,27 @@ router.patch('/item/:itemId/adjust', InventoryController.adjustInventory);
  * @body {string[]} productUuids - Array of variant/product UUIDs to move
  * @body {string} categoryId - Target category UUID
  */
-router.put('/move-to-category', InventoryController.moveToCategory);
+router.put('/move-to-category', permissionMiddleware.requireAnyPermission(['products.edit', 'inventory.adjust']), InventoryController.moveToCategory);
 
 /**
  * POST /sync-category-counts
  * Synchronize item counts for all categories
  */
-router.post('/sync-category-counts', InventoryController.syncCategoryItemCounts);
+router.post('/sync-category-counts', permissionMiddleware.requireAnyPermission(['products.edit', 'inventory.adjust']), InventoryController.syncCategoryItemCounts);
 
 /**
  * PUT /item-void/:itemId
  * Soft delete (void) an inventory item
  * @param {string} itemId - Variant UUID to void
  */
-router.put('/item-void/:itemId', InventoryController.voidInventoryItem);
+router.put('/item-void/:itemId', permissionMiddleware.requireAnyPermission(['products.delete', 'inventory.adjust']), InventoryController.voidInventoryItem);
 
 /**
  * DELETE /item/:itemId
  * Permanently delete an inventory item
  * @param {string} itemId - Variant UUID to delete
  */
-router.delete('/item/:itemId', InventoryController.deleteInventoryItem);
+router.delete('/item/:itemId', permissionMiddleware.requireAnyPermission(['products.delete', 'inventory.adjust']), InventoryController.deleteInventoryItem);
 
 /**
  * PUT /item/:variantId/convert-to-variant
@@ -195,6 +197,6 @@ router.delete('/item/:itemId', InventoryController.deleteInventoryItem);
  * 
  * @returns {object} - { variant: ProductWithInventory, orphanedProductDeleted: boolean, deletedProductId?: string }
  */
-router.put('/item/:variantId/convert-to-variant', InventoryController.convertToVariant);
+router.put('/item/:variantId/convert-to-variant', permissionMiddleware.requireAnyPermission(['products.edit', 'inventory.adjust']), InventoryController.convertToVariant);
 
 export default router;

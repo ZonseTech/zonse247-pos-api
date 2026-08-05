@@ -12,6 +12,8 @@ import {
 } from '../../types/printer';
 import { PrintContentService } from './print-content.service';
 import { getPrintQueue } from './print-queue.service';
+import { ensureStrategiesInitialized, PrintStrategySelector } from './strategies';
+import { AppPlatform } from '../../types/printer.platform';
 import * as net from 'net';
 import { SerialPort } from 'serialport';
 import { exec } from 'child_process';
@@ -284,16 +286,12 @@ export class PrintJobService {
 			switch (printer.connectionType) {
 				case 'NETWORK':
 				case 'WIFI':
-					success = await this.sendToNetworkPrinter(printer, data);
-					break;
 				case 'USB':
-					success = await this.sendToUSBPrinter(printer, data);
+				case 'BLUETOOTH':
+					success = await this.dispatchToPrinterStrategy(printer, data.toString('binary'));
 					break;
 				case 'SERIAL':
 					success = await this.sendToSerialPrinter(printer, data);
-					break;
-				case 'BLUETOOTH':
-					success = await this.sendToBluetoothPrinter(printer, data);
 					break;
 				default:
 					throw new Error(
@@ -315,42 +313,25 @@ export class PrintJobService {
 	}
 
 	/**
-	 * Send data to Bluetooth printer via COM port (Windows) or bluetooth-serial-port fallback
+	 * Dispatch print work through the shared strategy selector.
 	 */
-	private static async sendToBluetoothPrinter(
+	private static async dispatchToPrinterStrategy(
 		printer: Printer,
-		data: Buffer
+		content: string,
+		options?: Record<string, unknown>
 	): Promise<boolean> {
-		const address = printer.connectionAddress;
-		if (!address) {
-			throw new Error(
-				'Bluetooth printer has no address configured. Set connectionAddress to a MAC address or COM port.'
+		ensureStrategiesInitialized();
+		const selector = new PrintStrategySelector(AppPlatform.DESKTOP);
+		const result = await selector.print(printer, content, options);
+
+		if (!result.success) {
+			console.error(
+				`[Printer Strategy] Print failed for ${printer.printerName}: ${result.errorDetails || result.message}`
 			);
+			return false;
 		}
 
-		try {
-			const { BluetoothPrintStrategy } = await import(
-				'./strategies/bluetooth.strategy'
-			);
-			const strategy = new BluetoothPrintStrategy();
-			const content = data.toString('binary');
-			const result = await strategy.print(printer, content);
-
-			if (result.success) {
-				console.log(
-					`[Bluetooth Printer] Successfully sent ${data.length} bytes to ${printer.printerName}`
-				);
-				return true;
-			} else {
-				console.error(
-					`[Bluetooth Printer] Print failed: ${result.errorDetails || 'Unknown error'}`
-				);
-				return false;
-			}
-		} catch (error) {
-			console.error('[Bluetooth Printer] Error:', error);
-			throw error;
-		}
+		return true;
 	}
 
 	/**

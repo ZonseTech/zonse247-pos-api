@@ -183,6 +183,44 @@ export function chunk<T>(arr: T[], size: number): T[][] {
  * Safe batch insert using createMany with skipDuplicates.
  * Returns the count of successfully inserted records.
  */
+export function normalizeRecordForCreateMany(record: Record<string, unknown>): Record<string, unknown> {
+    const normalized: Record<string, unknown> = {};
+
+    for (const [key, value] of Object.entries(record)) {
+        if (value === undefined) continue;
+
+        if (value === null) {
+            normalized[key] = null;
+            continue;
+        }
+
+        if (Array.isArray(value)) {
+            continue;
+        }
+
+        if (typeof value === 'object') {
+            if (value instanceof Date) {
+                normalized[key] = value;
+                continue;
+            }
+
+            if (value && 'connect' in value) {
+                continue;
+            }
+
+            if (value && 'create' in value) {
+                continue;
+            }
+
+            continue;
+        }
+
+        normalized[key] = value;
+    }
+
+    return normalized;
+}
+
 export async function batchInsert(
     model: { createMany: (args: any) => Promise<{ count: number }> },
     records: Record<string, unknown>[],
@@ -193,8 +231,9 @@ export async function batchInsert(
     let totalInserted = 0;
 
     for (const batch of chunk(records, batchSize)) {
+        const normalizedBatch = batch.map((record) => normalizeRecordForCreateMany(record));
         const { count } = await model.createMany({
-            data: batch as any,
+            data: normalizedBatch as any,
             skipDuplicates: true,
         });
         totalInserted += count;

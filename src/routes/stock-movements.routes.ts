@@ -1,10 +1,12 @@
 import { Router } from 'express';
 import { StockMovementController } from '../controllers/stock-movement.controller';
 import { StockAdjustmentController } from '../controllers/stock-adjustment.controller';
+import { PermissionMiddleware } from '../middlewares/permission.middleware';
 import { validateBody } from '../middlewares/validation.middleware';
 import { stockMovementSchemas } from '../validations/stock-movement.schemas';
 
 const router = Router();
+const permissionMiddleware = new PermissionMiddleware();
 
 /**
  * POST /
@@ -18,27 +20,27 @@ const router = Router();
  * @body {number} [unitCost] - Unit cost
  * @body {string} [notes] - Additional notes
  */
-router.post('/', validateBody(stockMovementSchemas.recordMovement), StockMovementController.recordMovement);
+router.post('/', permissionMiddleware.requireAnyPermission(['inventory.adjust', 'inventory.receive', 'inventory.transfer', 'inventory.waste']), validateBody(stockMovementSchemas.recordMovement), StockMovementController.recordMovement);
 
 /**
  * POST /sync
  * Sync stock movements from offline terminal (bulk insert)
  * @body {Array} movements - Array of stock movements to sync
  */
-router.post('/sync', validateBody(stockMovementSchemas.syncMovements), StockMovementController.syncFromOffline);
+router.post('/sync', permissionMiddleware.requireAnyPermission(['inventory.adjust', 'inventory.receive', 'inventory.transfer', 'inventory.waste']), validateBody(stockMovementSchemas.syncMovements), StockMovementController.syncFromOffline);
 
 /**
  * POST /recalculate/:inventoryId
  * Recalculate inventory quantity from all movements (rebuild cache)
  * @param {string} inventoryId - Inventory UUID to recalculate
  */
-router.post('/recalculate/:inventoryId', StockMovementController.recalculateInventory);
+router.post('/recalculate/:inventoryId', permissionMiddleware.requireAnyPermission(['inventory.count', 'inventory.adjust']), StockMovementController.recalculateInventory);
 
 /**
  * POST /recalculate-branch
  * Recalculate all inventory for the current branch
  */
-router.post('/recalculate-branch', StockMovementController.recalculateBranchInventory);
+router.post('/recalculate-branch', permissionMiddleware.requireAnyPermission(['inventory.count', 'inventory.adjust']), StockMovementController.recalculateBranchInventory);
 
 /**
  * POST /stock-count
@@ -47,7 +49,7 @@ router.post('/recalculate-branch', StockMovementController.recalculateBranchInve
  * @body {number} actualQuantity - Physical count quantity
  * @body {string} [notes] - Additional notes
  */
-router.post('/stock-count', validateBody(stockMovementSchemas.stockCount), StockAdjustmentController.recordStockCount);
+router.post('/stock-count', permissionMiddleware.requirePermission('inventory.count'), validateBody(stockMovementSchemas.stockCount), StockAdjustmentController.recordStockCount);
 
 /**
  * POST /adjust
@@ -56,7 +58,7 @@ router.post('/stock-count', validateBody(stockMovementSchemas.stockCount), Stock
  * @body {number} quantity - Adjustment quantity (positive = add, negative = remove)
  * @body {string} [notes] - Reason for adjustment
  */
-router.post('/adjust', validateBody(stockMovementSchemas.adjustment), StockAdjustmentController.recordAdjustment);
+router.post('/adjust', permissionMiddleware.requirePermission('inventory.adjust'), validateBody(stockMovementSchemas.adjustment), StockAdjustmentController.recordAdjustment);
 
 /**
  * POST /damage
@@ -65,7 +67,7 @@ router.post('/adjust', validateBody(stockMovementSchemas.adjustment), StockAdjus
  * @body {number} quantity - Damaged quantity
  * @body {string} [notes] - Description of damage
  */
-router.post('/damage', validateBody(stockMovementSchemas.damage), StockAdjustmentController.recordDamage);
+router.post('/damage', permissionMiddleware.requirePermission('inventory.waste'), validateBody(stockMovementSchemas.damage), StockAdjustmentController.recordDamage);
 
 /**
  * POST /expiry
@@ -74,7 +76,7 @@ router.post('/damage', validateBody(stockMovementSchemas.damage), StockAdjustmen
  * @body {number} quantity - Expired quantity
  * @body {string} [notes] - Additional notes
  */
-router.post('/expiry', validateBody(stockMovementSchemas.expiry), StockAdjustmentController.recordExpiry);
+router.post('/expiry', permissionMiddleware.requirePermission('inventory.waste'), validateBody(stockMovementSchemas.expiry), StockAdjustmentController.recordExpiry);
 
 /**
  * POST /transfer
@@ -84,7 +86,7 @@ router.post('/expiry', validateBody(stockMovementSchemas.expiry), StockAdjustmen
  * @body {number} quantity - Transfer quantity
  * @body {string} [notes] - Transfer notes
  */
-router.post('/transfer', validateBody(stockMovementSchemas.transfer), StockAdjustmentController.recordTransfer);
+router.post('/transfer', permissionMiddleware.requirePermission('inventory.transfer'), validateBody(stockMovementSchemas.transfer), StockAdjustmentController.recordTransfer);
 
 /**
  * POST /correction
@@ -92,7 +94,7 @@ router.post('/transfer', validateBody(stockMovementSchemas.transfer), StockAdjus
  * @body {string} originalMovementId - Movement UUID to correct
  * @body {string} [notes] - Reason for correction
  */
-router.post('/correction', validateBody(stockMovementSchemas.correction), StockAdjustmentController.recordCorrection);
+router.post('/correction', permissionMiddleware.requirePermission('inventory.adjust'), validateBody(stockMovementSchemas.correction), StockAdjustmentController.recordCorrection);
 
 /**
  * GET /variant/:variantId
@@ -101,7 +103,7 @@ router.post('/correction', validateBody(stockMovementSchemas.correction), StockA
  * @query {number} [page=1] - Page number
  * @query {number} [perPage=50] - Items per page
  */
-router.get('/variant/:variantId', StockMovementController.getVariantMovements);
+router.get('/variant/:variantId', permissionMiddleware.requirePermission('inventory.view'), StockMovementController.getVariantMovements);
 
 /**
  * GET /branch
@@ -112,13 +114,13 @@ router.get('/variant/:variantId', StockMovementController.getVariantMovements);
  * @query {number} [page=1] - Page number
  * @query {number} [limit=100] - Items per page
  */
-router.get('/branch', StockMovementController.getBranchMovements);
+router.get('/branch', permissionMiddleware.requirePermission('inventory.view'), StockMovementController.getBranchMovements);
 
 /**
  * GET /:id
  * Get a single stock movement by ID
  * @param {string} id - Movement UUID
  */
-router.get('/:id', StockMovementController.getMovementById);
+router.get('/:id', permissionMiddleware.requirePermission('inventory.view'), StockMovementController.getMovementById);
 
 export default router;

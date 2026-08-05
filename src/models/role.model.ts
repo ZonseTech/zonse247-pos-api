@@ -59,6 +59,8 @@ export class RoleModel {
         return {
             roleId: uuidv4(),
             name: data.name,
+            tenantId: data.tenantId ?? null,
+            branchId: data.branchId ?? null,
             displayName: data.displayName,
             description: data.description || null,
             isSystemRole: data.isSystemRole,
