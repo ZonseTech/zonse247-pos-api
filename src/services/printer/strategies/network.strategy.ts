@@ -54,8 +54,9 @@ export class NetworkPrintStrategy extends BasePrintStrategy {
             socket.setTimeout(timeout);
 
             socket.on('connect', () => {
-                // Send data
-                socket.write(Buffer.from(content), (err) => {
+                // Preserve raw ESC/POS bytes and non-ASCII characters for thermal printers.
+                const payload = Buffer.from(content, 'latin1');
+                socket.write(payload, (err) => {
                     if (err) {
                         cleanup();
                         resolve(this.createFailureResult(
