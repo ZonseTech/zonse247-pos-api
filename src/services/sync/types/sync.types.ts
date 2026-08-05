@@ -34,7 +34,13 @@ export type PullTableName =
     | 'customers'
     | 'users'
     | 'expenseCategories'
-    | 'expenses';
+    | 'expenses'
+    | 'tenants'
+    | 'branches'
+    | 'branchSubscriptions'
+    | 'roles'
+    | 'permissions'
+    | 'rolePermissions';
 
 export interface PullDataResult {
     success: boolean;

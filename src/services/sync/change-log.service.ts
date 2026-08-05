@@ -162,3 +162,73 @@ export async function getLatestSequence(): Promise<bigint | null> {
         return null;
     }
 }
+
+/**
+ * Record a change visible to every branch of one tenant.
+ *
+ * ChangeLog rows are branch-scoped (required, FK-constrained) even though
+ * some data — a tenant's own status, a tenant-owned custom role — logically
+ * belongs to the whole tenant rather than one branch. Use this for that case
+ * instead of hand-rolling the branch fan-out at each call site.
+ */
+export async function recordTenantChangeAsync(
+    tableName: string,
+    recordId: string,
+    operation: ChangeOperation,
+    tenantId: string,
+): Promise<void> {
+    if (DATABASE_OFFLINE_MODE) return;
+
+    try {
+        const branches = await prisma.branch.findMany({
+            where: { tenantId },
+            select: { branchId: true },
+        });
+
+        if (branches.length === 0) return;
+
+        recordChangesAsync(branches.map((branch) => ({
+            tableName,
+            recordId,
+            operation,
+            tenantId,
+            branchId: branch.branchId,
+        })));
+    } catch (error) {
+        console.error(`${LOG_PREFIX.RECEIVER} Failed to record tenant-wide change:`, error);
+    }
+}
+
+/**
+ * Record a change visible to every branch of every tenant.
+ *
+ * Use for genuinely global catalog data — system roles/permissions — that
+ * every terminal is expected to see regardless of which tenant it belongs
+ * to (matching how the onboarding sync already pulls these unscoped; see
+ * `hasTenantScope: false` in onboarding/table-fetch-configs.ts).
+ */
+export async function recordGlobalChangeAsync(
+    tableName: string,
+    recordId: string,
+    operation: ChangeOperation,
+): Promise<void> {
+    if (DATABASE_OFFLINE_MODE) return;
+
+    try {
+        const branches = await prisma.branch.findMany({
+            select: { branchId: true, tenantId: true },
+        });
+
+        if (branches.length === 0) return;
+
+        recordChangesAsync(branches.map((branch) => ({
+            tableName,
+            recordId,
+            operation,
+            tenantId: branch.tenantId,
+            branchId: branch.branchId,
+        })));
+    } catch (error) {
+        console.error(`${LOG_PREFIX.RECEIVER} Failed to record global change:`, error);
+    }
+}

@@ -32,6 +32,12 @@ export const PUSH_TABLE_CONFIGS: readonly PushTableConfig[] = [
  * Order matters - respects foreign key dependencies
  */
 export const PULL_TABLE_NAMES: readonly PullTableName[] = [
+    'tenants',
+    'branchSubscriptions',
+    'branches',
+    'roles',
+    'permissions',
+    'rolePermissions',
     'categories',
     'products',
     'productVariants',

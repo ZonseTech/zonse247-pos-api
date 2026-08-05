@@ -5,6 +5,20 @@ import { RolePermissionModel } from "../../models/role-permission.model";
 import { BulkRolePermissionRequest, CreateRolePermissionRequest, Permission, Role, RolePermission } from "role-permission";
 import prisma from '../../databases/prisma/client';
 import { PaginationParams, buildPaginationMeta, PaginatedResult } from '../../utils/pagination.utils';
+import { recordTenantChangeAsync, recordGlobalChangeAsync } from '../sync/change-log.service';
+
+/**
+ * Record a rolePermission link so the terminals that can see its role can
+ * also see the link — same scope as the role itself (system role: every
+ * terminal; tenant-owned role: that tenant's branches only).
+ */
+async function recordRolePermissionChange(role: Role, rolePermissionId: string, operation: 'INSERT'): Promise<void> {
+    if (role.isSystemRole) {
+        await recordGlobalChangeAsync('rolePermissions', rolePermissionId, operation);
+    } else if (role.tenantId) {
+        await recordTenantChangeAsync('rolePermissions', rolePermissionId, operation, role.tenantId);
+    }
+}
 
 export class RolePermissionService {
 
@@ -79,7 +93,10 @@ export class RolePermissionService {
             throw new Error('Role permission assignment already exists');
         }
 
-        return RolePermissionModel.create(data);
+        const created = await RolePermissionModel.create(data);
+        await recordRolePermissionChange(role, created.rolePermissionId, 'INSERT');
+
+        return created;
     }
 
     static async deleteRolePermission(id: string): Promise<{ status: boolean }> {
@@ -130,11 +147,13 @@ export class RolePermissionService {
                 continue;
             }
 
-            await RolePermissionModel.create({
+            const created = await RolePermissionModel.create({
                 roleId: data.roleId,
                 permissionId: permissionId
             });
             assignedCount++;
+
+            await recordRolePermissionChange(role, created.rolePermissionId, 'INSERT');
         }
 
         return { assigned: assignedCount, skipped: skippedCount };
@@ -318,11 +337,13 @@ export class RolePermissionService {
                 throw new Error(`Permission with UUID ${permissionId} not found`);
             }
 
-            await RolePermissionModel.create({
+            const created = await RolePermissionModel.create({
                 roleId: roleId,
                 permissionId: permissionId
             });
             addedCount++;
+
+            await recordRolePermissionChange(role, created.rolePermissionId, 'INSERT');
         }
 
         for (const permissionId of permissionsToRemove) {
