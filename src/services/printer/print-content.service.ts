@@ -1,24 +1,3 @@
-/**
- * Print Content Service
- * 
- * Generates ESC/POS content for thermal receipt printers.
- * 
- * PERFORMANCE BEST PRACTICES:
- * 1. Pass `receiptSettings` in the request to skip terminal settings DB lookup
- * 2. DB calls for branch and terminal settings run in parallel
- * 3. Content generation is synchronous and memory-efficient
- * 4. For batch printing, cache receiptSettings in the caller
- * 
- * @example
- * // Fast path - pass settings directly
- * await PrintContentService.generateReceiptContent({
- *   saleId: '...',
- *   tenantId: '...',
- *   branchId: '...',
- *   receiptSettings: cachedSettings, // Skips DB lookup
- * });
- */
-
 import { Printer } from '../../types/printer';
 import { OrderModel } from '../../models/order.model';
 import { BranchModel } from '../../models/branch.model';
