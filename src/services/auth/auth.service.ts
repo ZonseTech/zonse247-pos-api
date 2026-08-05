@@ -9,7 +9,6 @@ import { RolePermissionModel } from '../../models/role-permission.model';
 import { UserStatus } from '../../databases/prisma/generated/prisma/enums';
 import { getConfig } from '../../config/app.config';
 import { BranchModel } from '../../models/branch.model';
-import { ClientType } from '../../utils/enums';
 
 /**
  * Service layer for authentication and authorization operations
@@ -26,13 +25,13 @@ export class AuthService {
      * 
      * @param username - User's username (automatically sanitized)
      * @param password - User's plain text password
-     * @param clientType - Client type (web, mobile, desktop) - subscription enforced for web/mobile
+     * @param clientType - Client type (web, mobile, desktop). Kept for callers/logging;
+     * subscription is now enforced for every client type, including desktop.
      * @returns Object containing user data with token, or error message
      */
     static async loginUser(
         username: string,
         password: string,
-        clientType: 'web' | 'mobile' | 'desktop' = 'desktop',
     ): Promise<{ user?: any; token?: string; message?: string }> {
         const escapedUsername = validator.escape(username);
 
@@ -84,24 +83,26 @@ export class AuthService {
                         completeUser.subscriptionEndsAt = null;
                     }
 
-                    const requiresSubscription = clientType === ClientType.WEB || clientType === ClientType.MOBILE;
-                    if (requiresSubscription) {
-                        const subscription = branchData.branchSubscription;
+                    // Subscription is enforced for every client type, including desktop.
+                    // Desktop logs in against its local SQLite copy first (offline path),
+                    // which is kept fresh by the periodic sync pull; if that copy is stale
+                    // it fails here and the app falls back to a live login, which re-syncs
+                    // fresh subscription data (see AuthService.login in the desktop app).
+                    const subscription = branchData.branchSubscription;
 
-                        if (!subscription) {
-                            return { message: 'No subscription assigned to this branch. Please contact support.' };
-                        }
+                    if (!subscription) {
+                        return { message: 'No subscription assigned to this branch. Please contact support.' };
+                    }
 
-                        if (subscription.status !== 'active') {
-                            return { message: `Your branch subscription is ${subscription.status || 'inactive'}. Please renew to continue using the service.` };
-                        }
+                    if (subscription.status !== 'active') {
+                        return { message: `Your branch subscription is ${subscription.status || 'inactive'}. Please renew to continue using the service.` };
+                    }
 
-                        if (subscription.endsAt) {
-                            const now = new Date();
-                            const endsAt = new Date(subscription.endsAt);
-                            if (endsAt < now) {
-                                return { message: 'Your subscription has expired. Please renew to continue using the service.' };
-                            }
+                    if (subscription.endsAt) {
+                        const now = new Date();
+                        const endsAt = new Date(subscription.endsAt);
+                        if (endsAt < now) {
+                            return { message: 'Your subscription has expired. Please renew to continue using the service.' };
                         }
                     }
                 }
@@ -503,7 +504,6 @@ export class AuthService {
         userId: string,
         targetBranchId: string,
         tenantId: string,
-        clientType: 'web' | 'mobile' | 'desktop' = 'desktop'
     ): Promise<{ user: any; token: string; branch: any; message?: string }> {
         if (!userId || !targetBranchId || !tenantId) {
             throw new Error('User ID, Branch ID, and Tenant ID are required');
@@ -541,8 +541,9 @@ export class AuthService {
             throw new Error('The target branch is not active');
         }
 
-        const requiresSubscription = clientType === ClientType.WEB || clientType === ClientType.MOBILE;
-        if (requiresSubscription) {
+        // Subscription is enforced for every client type, including desktop —
+        // switching branches must not let a user hop onto an inactive/expired one.
+        {
             const subscription = branchData.branchSubscription;
 
             if (!subscription) {
