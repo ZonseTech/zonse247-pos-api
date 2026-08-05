@@ -5,6 +5,8 @@ import {
     PrintJobStatus,
     Printer
 } from '../../types/printer';
+import { AppPlatform } from '../../types/printer.platform';
+import { ensureStrategiesInitialized, PrintStrategySelector } from './strategies';
 import * as net from 'net';
 import { SerialPort } from 'serialport';
 import * as fs from 'fs';
@@ -405,17 +407,17 @@ export class PrintQueueService extends EventEmitter {
      * Check if a printer is connected
      */
     private async checkPrinterConnection(printer: Printer): Promise<boolean> {
-        switch (printer.connectionType) {
-            case 'NETWORK':
-            case 'WIFI':
-                return this.checkNetworkPrinter(printer);
-            case 'USB':
-            case 'SERIAL':
-                return this.checkSerialPrinter(printer);
-            case 'BLUETOOTH':
-                return this.checkBluetoothPrinter(printer);
-            default:
-                return false;
+        if (printer.connectionType === 'SERIAL') {
+            return this.checkSerialPrinter(printer);
+        }
+
+        try {
+            ensureStrategiesInitialized();
+            const selector = new PrintStrategySelector(AppPlatform.DESKTOP);
+            const result = await selector.testConnection(printer);
+            return result.online;
+        } catch {
+            return false;
         }
     }
 
@@ -503,14 +505,12 @@ export class PrintQueueService extends EventEmitter {
             switch (printer.connectionType) {
                 case 'NETWORK':
                 case 'WIFI':
-                    success = await this.sendToNetworkPrinter(printer, data);
-                    break;
                 case 'USB':
+                case 'BLUETOOTH':
+                    success = await this.dispatchToPrinterStrategy(printer, data.toString('binary'));
+                    break;
                 case 'SERIAL':
                     success = await this.sendToSerialPrinter(printer, data);
-                    break;
-                case 'BLUETOOTH':
-                    success = await this.sendToBluetoothPrinter(printer, data);
                     break;
                 default:
                     throw new Error(`Unsupported connection type: ${printer.connectionType}`);
@@ -623,21 +623,15 @@ export class PrintQueueService extends EventEmitter {
     }
 
     /**
-     * Send to Bluetooth printer via COM port (Windows) or native module fallback
+     * Dispatch print work through the shared strategy selector.
      */
-    private async sendToBluetoothPrinter(printer: Printer, data: Buffer): Promise<boolean> {
-        const address = printer.connectionAddress;
-        if (!address) {
-            throw new Error('Bluetooth printer has no address configured');
-        }
-
-        const { BluetoothPrintStrategy } = await import('./strategies/bluetooth.strategy');
-        const strategy = new BluetoothPrintStrategy();
-        const content = data.toString('binary');
-        const result = await strategy.print(printer, content);
+    private async dispatchToPrinterStrategy(printer: Printer, content: string): Promise<boolean> {
+        ensureStrategiesInitialized();
+        const selector = new PrintStrategySelector(AppPlatform.DESKTOP);
+        const result = await selector.print(printer, content);
 
         if (!result.success) {
-            throw new Error(result.errorDetails || 'Bluetooth print failed');
+            throw new Error(result.errorDetails || result.message || 'Print strategy execution failed');
         }
 
         return true;
