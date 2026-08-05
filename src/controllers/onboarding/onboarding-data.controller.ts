@@ -1,9 +1,3 @@
-/**
- * Onboarding Data Controller
- * Handles onboarding data fetch and sync HTTP requests
- * Refactored with centralized validation and error handling
- */
-
 import { Request, Response } from "express";
 import { BaseController } from "../base.controller";
 import { OnboardingFetchService } from "../../services/onboarding/onboarding-fetch.service";
@@ -11,7 +5,6 @@ import { OnboardingSyncService } from "../../services/onboarding/onboarding-sync
 import { InitialSyncService, INITIAL_SYNC_TABLES } from "../../services/onboarding/initial-sync.service";
 import { MasterDataFetchService } from "../../services/onboarding/master-data-fetch.service";
 import {
-    OnboardingError,
     getErrorMessage,
     mapErrorToStatusCode
 } from "../../services/onboarding/errors";
@@ -50,10 +43,7 @@ function handleError(res: Response, error: unknown, context: string): void {
  * @desc    Handles onboarding data fetch and sync HTTP requests
  */
 export class OnboardingDataController {
-    // ==========================================
     // Fetch Methods (Local Database)
-    // ==========================================
-
     static async fetchSubscriptionPlans(req: Request, res: Response): Promise<void> {
         try {
             const params = validateTenantBranchParams(req);
@@ -104,10 +94,7 @@ export class OnboardingDataController {
         }
     }
 
-    // ==========================================
     // Sync Methods (Cloud -> Local)
-    // ==========================================
-
     static async syncSubscriptionPlans(req: Request, res: Response): Promise<void> {
         try {
             const plans = validateArrayField(req.body.plans, 'plans') as any[];
@@ -189,10 +176,7 @@ export class OnboardingDataController {
         }
     }
 
-    // ==========================================
     // Initial Sync Methods
-    // ==========================================
-
     static async syncInitialMasterData(req: Request, res: Response): Promise<void> {
         try {
             const params = validateOnboardingParams(req);
@@ -255,10 +239,7 @@ export class OnboardingDataController {
         }
     }
 
-    // ==========================================
     // Paginated Master Data Fetch Methods
-    // ==========================================
-
     static async fetchMasterDataTable(req: Request, res: Response): Promise<void> {
         try {
             const params = parseOptionalTenantBranchParams(req);
@@ -330,10 +311,7 @@ export class OnboardingDataController {
         }
     }
 
-    // ==========================================
     // Table-Specific Paginated Fetch
-    // ==========================================
-
     static async fetchProductsPaginated(req: Request, res: Response): Promise<void> {
         try {
             const params = validateTenantBranchParams(req);
