@@ -5,6 +5,7 @@ import { CreatePermissionRequest, Permission } from "role-permission";
 import { RolePermissionModel } from "../../models/role-permission.model";
 import prisma from '../../databases/prisma/client';
 import { PaginationParams, buildPaginationMeta, PaginatedResult } from '../../utils/pagination.utils';
+import { recordGlobalChangeAsync } from '../sync/change-log.service';
 
 export class PermissionService {
 
@@ -101,7 +102,11 @@ export class PermissionService {
         }
 
         const permissionData = PermissionModel.buildPermissionData(data);
-        return PermissionModel.create(permissionData);
+        const permission = await PermissionModel.create(permissionData);
+
+        await recordGlobalChangeAsync('permissions', permission.permissionId, 'INSERT');
+
+        return permission;
     }
 
     static async updatePermission(id: string, data: Partial<Permission>): Promise<Permission> {
@@ -151,6 +156,8 @@ export class PermissionService {
         if (!updatedPermission) {
             throw new Error('Failed to retrieve updated permission');
         }
+
+        await recordGlobalChangeAsync('permissions', id, 'UPDATE');
 
         return updatedPermission;
     }
