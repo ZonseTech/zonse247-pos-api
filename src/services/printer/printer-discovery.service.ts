@@ -13,8 +13,63 @@ import * as os from 'os';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import Bonjour, { Service } from 'bonjour-service';
+import { ensureStrategiesInitialized, PrintStrategySelector } from './strategies';
+import { BaseDiscoveryStrategy, PrintStrategyFactory } from './strategies/print.strategy';
+import {
+    AppPlatform,
+    PlatformDiscoveryRequest,
+    PlatformDiscoveryResult,
+    DiscoveredPlatformPrinter
+} from '../../types/printer.platform';
 
 const execAsync = promisify(exec);
+
+class DesktopPrinterDiscoveryStrategy extends BaseDiscoveryStrategy {
+    constructor() {
+        super(
+            [AppPlatform.DESKTOP],
+            [
+                PrinterConnectionType.USB,
+                PrinterConnectionType.NETWORK,
+                PrinterConnectionType.WIFI,
+                PrinterConnectionType.SERIAL,
+                PrinterConnectionType.BLUETOOTH,
+            ]
+        );
+    }
+
+    async discover(request: PlatformDiscoveryRequest): Promise<PlatformDiscoveryResult> {
+        const startedAt = Date.now();
+        const connectionTypes = request.connectionTypes?.length
+            ? request.connectionTypes
+            : [
+                PrinterConnectionType.USB,
+                PrinterConnectionType.NETWORK,
+                PrinterConnectionType.WIFI,
+                PrinterConnectionType.SERIAL,
+                PrinterConnectionType.BLUETOOTH,
+            ];
+
+        const printers: DiscoveredPlatformPrinter[] = [];
+        const errors: string[] = [];
+
+        for (const connectionType of connectionTypes) {
+            try {
+                const discovered = await PrinterDiscoveryService.discoverByConnectionType(connectionType);
+                printers.push(...discovered);
+            } catch (error) {
+                errors.push(error instanceof Error ? error.message : String(error));
+            }
+        }
+
+        return {
+            platform: request.platform,
+            printers,
+            scanDuration: Date.now() - startedAt,
+            errors: errors.length > 0 ? errors : undefined,
+        };
+    }
+}
 
 // Common USB Vendor IDs for printers
 const PRINTER_VENDOR_IDS = [
@@ -63,6 +118,74 @@ const PRINTER_VENDOR_IDS = [
 
 export class PrinterDiscoveryService {
     private static bonjourInstance: Bonjour | null = null;
+    private static discoveryStrategyRegistered = false;
+
+    private static registerDiscoveryStrategy(): void {
+        if (this.discoveryStrategyRegistered) {
+            return;
+        }
+
+        PrintStrategyFactory.registerDiscoveryStrategy('desktop', new DesktopPrinterDiscoveryStrategy());
+        this.discoveryStrategyRegistered = true;
+    }
+
+    static async discoverByConnectionType(connectionType: PrinterConnectionType): Promise<DiscoveredPlatformPrinter[]> {
+        switch (connectionType) {
+            case PrinterConnectionType.USB:
+                return (await this.discoverUSBPrinters()).map((printer) => ({
+                    name: printer.name,
+                    platform: AppPlatform.DESKTOP,
+                    connectionType: printer.connectionType,
+                    address: printer.address,
+                    port: printer.port,
+                    vendorId: printer.vendorId,
+                    productId: printer.productId,
+                    serialNumber: printer.serialNumber,
+                    manufacturer: printer.manufacturer,
+                    model: printer.model,
+                    isOnline: printer.isOnline,
+                }));
+            case PrinterConnectionType.NETWORK:
+            case PrinterConnectionType.WIFI:
+                return (await this.discoverNetworkPrinters()).map((printer) => ({
+                    name: printer.name,
+                    platform: AppPlatform.DESKTOP,
+                    connectionType: printer.connectionType,
+                    address: printer.address,
+                    port: printer.port,
+                    manufacturer: printer.manufacturer,
+                    model: printer.model,
+                    isOnline: printer.isOnline,
+                }));
+            case PrinterConnectionType.SERIAL:
+                return (await this.discoverSerialPrinters()).map((printer) => ({
+                    name: printer.name,
+                    platform: AppPlatform.DESKTOP,
+                    connectionType: printer.connectionType,
+                    address: printer.address,
+                    port: printer.port,
+                    vendorId: printer.vendorId,
+                    productId: printer.productId,
+                    serialNumber: printer.serialNumber,
+                    manufacturer: printer.manufacturer,
+                    model: printer.model,
+                    isOnline: printer.isOnline,
+                }));
+            case PrinterConnectionType.BLUETOOTH:
+                return (await this.discoverBluetoothPrinters()).map((printer) => ({
+                    name: printer.name,
+                    platform: AppPlatform.DESKTOP,
+                    connectionType: printer.connectionType,
+                    address: printer.address,
+                    port: printer.port,
+                    manufacturer: printer.manufacturer,
+                    model: printer.model,
+                    isOnline: printer.isOnline,
+                }));
+            default:
+                return [];
+        }
+    }
 
     /**
      * Get or create Bonjour instance
@@ -147,18 +270,21 @@ export class PrinterDiscoveryService {
      * Check printer connection based on connection type
      */
     static async checkPrinterConnection(printer: Printer): Promise<boolean> {
-        switch (printer.connectionType) {
-            case 'NETWORK':
-            case 'WIFI':
-                return this.checkNetworkPrinter(printer);
-            case 'USB':
-                return this.checkUSBPrinter(printer);
-            case 'BLUETOOTH':
-                return this.checkBluetoothPrinter(printer);
-            case 'SERIAL':
-                return this.checkSerialPrinter(printer);
-            default:
-                return false;
+        if (printer.connectionType === 'SERIAL') {
+            return this.checkSerialPrinter(printer);
+        }
+
+        if (printer.connectionType === 'USB') {
+            return this.checkUSBPrinter(printer);
+        }
+
+        try {
+            ensureStrategiesInitialized();
+            const selector = new PrintStrategySelector(AppPlatform.DESKTOP);
+            const result = await selector.testConnection(printer);
+            return result.online;
+        } catch {
+            return false;
         }
     }
 
@@ -336,6 +462,33 @@ export class PrinterDiscoveryService {
      * Discover available printers
      */
     static async discoverPrinters(connectionType?: PrinterConnectionType): Promise<DiscoveredPrinter[]> {
+        ensureStrategiesInitialized();
+        this.registerDiscoveryStrategy();
+
+        const strategy = PrintStrategyFactory.getDiscoveryStrategy(AppPlatform.DESKTOP);
+        if (strategy) {
+            const request: PlatformDiscoveryRequest = {
+                platform: AppPlatform.DESKTOP,
+                connectionTypes: connectionType ? [connectionType] : undefined,
+                timeout: 15000,
+            };
+
+            const result = await strategy.discover(request);
+            return result.printers.map((printer) => ({
+                name: printer.name,
+                address: printer.address,
+                port: printer.port,
+                type: this.inferPrinterType(printer.name),
+                connectionType: printer.connectionType,
+                vendorId: printer.vendorId,
+                productId: printer.productId,
+                serialNumber: printer.serialNumber,
+                manufacturer: printer.manufacturer,
+                model: printer.model,
+                isOnline: printer.isOnline,
+            }));
+        }
+
         const discovered: DiscoveredPrinter[] = [];
         const discoveryPromises: Promise<DiscoveredPrinter[]>[] = [];
 
@@ -759,7 +912,8 @@ export class PrinterDiscoveryService {
             // Common Bluetooth thermal printer model prefixes
             /\b(mp|mpt|mtp|spp|rpp|hm|ht|ts)[-\s]?\d/i.test(name) ||
             lowerName.includes('xprinter') || lowerName.includes('munbyn') ||
-            lowerName.includes('goojprt') || lowerName.includes('rongta')) {
+            lowerName.includes('goojprt') || lowerName.includes('rongta') ||
+            lowerName.includes('hop-e802') || lowerName.includes('hop e802')) {
             return PrinterType.THERMAL;
         }
 
