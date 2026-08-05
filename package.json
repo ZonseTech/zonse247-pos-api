@@ -1,6 +1,6 @@
 {
   "name": "zonse247-pos-api",
-  "version": "1.9.0",
+  "version": "1.9.1",
   "description": "Zonse247 POS API - A point of sale API system",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -24,7 +24,7 @@
     "build:package": "bash scripts/db.sh generate sqlite && npm run clean && tsc && npm run db:build-template && npm run db:copy-template",
     "start": "node dist/main.js",
     "dev": "nodemon --exec ts-node src/main.ts",
-    "clean": "rm -rf dist",
+    "clean": "node -e \"require('fs').rmSync('dist', { recursive: true, force: true })\"",
     "lint": "eslint . --ext .ts,.js --fix",
     "test": "jest --passWithNoTests",
     "test:watch": "jest --watch --passWithNoTests",
@@ -73,7 +73,7 @@
     "db:freeze:mysql": "bash scripts/db.sh generate mysql && echo '✓ Schema and client frozen for MySQL'",
     "db:build-template": "cross-env DATABASE_URL=file:./src/databases/prisma/template.db npx prisma db push --accept-data-loss && npm run db:stamp-version && echo '✓ Template database created with version'",
     "db:stamp-version": "node -e \"const Database = require('better-sqlite3'); const db = new Database('./src/databases/prisma/template.db'); db.exec('CREATE TABLE IF NOT EXISTS db_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at TEXT DEFAULT CURRENT_TIMESTAMP)'); db.exec(\\\"INSERT OR REPLACE INTO db_meta (key, value, updated_at) VALUES ('schema_version', '20260108_01', datetime('now')), ('created_at', datetime('now'), datetime('now'))\\\"); db.close(); console.log('✓ Version stamped');\"",
-    "db:copy-template": "mkdir -p dist/databases && cp src/databases/prisma/template.db dist/databases/template.db && echo '✓ Template database copied to dist'"
+    "db:copy-template": "node -e \"const fs=require('fs'); const path=require('path'); fs.mkdirSync(path.join('dist','databases'), { recursive: true }); fs.copyFileSync(path.join('src','databases','prisma','template.db'), path.join('dist','databases','template.db')); console.log('✓ Template database copied to dist')\""
   },
   "keywords": [
     "pos",
