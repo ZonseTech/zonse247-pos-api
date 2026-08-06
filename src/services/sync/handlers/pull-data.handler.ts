@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-non-null-assertion */
 import { prisma } from '../../../databases/prisma/client';
 import type {
     PullDataResult,
@@ -55,13 +56,13 @@ export async function getPullData(
                 fetchBranchSubscriptions(whereBase, sinceFilter, limit)
             ),
             fetchIfIncluded(tables, 'roles', () =>
-                fetchRoles(sinceFilter, limit)
+                fetchRoles(whereBase, sinceFilter, limit)
             ),
             fetchIfIncluded(tables, 'permissions', () =>
                 fetchPermissions(sinceFilter, limit)
             ),
             fetchIfIncluded(tables, 'rolePermissions', () =>
-                fetchRolePermissions(sinceFilter, limit)
+                fetchRolePermissions(whereBase, sinceFilter, limit)
             ),
             fetchIfIncluded(tables, 'products', () =>
                 fetchProducts(whereBase, sinceFilter, limit)
@@ -170,13 +171,13 @@ export async function getTableDelta(
             records = await fetchBranchSubscriptions(whereBase, sinceFilter, fetchLimit);
             break;
         case 'roles':
-            records = await fetchRoles(sinceFilter, fetchLimit);
+            records = await fetchRoles(whereBase, sinceFilter, fetchLimit);
             break;
         case 'permissions':
             records = await fetchPermissions(sinceFilter, fetchLimit);
             break;
         case 'rolePermissions':
-            records = await fetchRolePermissions(sinceFilter, fetchLimit);
+            records = await fetchRolePermissions(whereBase, sinceFilter, fetchLimit);
             break;
         case 'products':
             records = await fetchProducts(whereBase, sinceFilter, fetchLimit);
@@ -327,14 +328,23 @@ async function fetchBranchSubscriptions(
 }
 
 /**
- * Roles are global (system roles) or tenant-scoped, but are pulled here the
- * same way the one-time onboarding sync already treats them — unscoped —
- * so behavior is consistent between "first sync" and "ongoing sync".
- * See api/src/services/onboarding/table-fetch-configs.ts (`hasTenantScope: false`).
+ * Roles visible to a terminal: system roles (shared, tenantId null) plus
+ * this terminal's own tenant's custom roles — never another tenant's custom
+ * roles. Mirrors the scoping already enforced on the regular roles API
+ * (RoleService.buildScopeWhere in services/auth/role.service.ts).
  */
-async function fetchRoles(sinceFilter: SinceFilter, limit: number): Promise<unknown[]> {
+function rolesScopeWhere(tenantId: string) {
+    return {
+        OR: [
+            { isSystemRole: true },
+            { tenantId },
+        ],
+    };
+}
+
+async function fetchRoles(whereBase: WhereBaseFilter, sinceFilter: SinceFilter, limit: number): Promise<unknown[]> {
     return prisma.role.findMany({
-        where: { ...sinceFilter, deletedAt: null },
+        where: { ...rolesScopeWhere(whereBase.tenantId), ...sinceFilter, deletedAt: null },
         take: limit,
     });
 }
@@ -351,11 +361,21 @@ async function fetchPermissions(sinceFilter: SinceFilter, limit: number): Promis
 }
 
 /**
- * Role-permission links, same unscoped treatment as roles/permissions.
+ * Role-permission links — scoped to the same role set fetchRoles() allows
+ * (system roles + this tenant's own), so a link for another tenant's custom
+ * role never reaches this terminal even though RolePermission itself has no
+ * tenantId column to filter on directly.
  */
-async function fetchRolePermissions(sinceFilter: SinceFilter, limit: number): Promise<unknown[]> {
+async function fetchRolePermissions(whereBase: WhereBaseFilter, sinceFilter: SinceFilter, limit: number): Promise<unknown[]> {
+    const visibleRoles = await prisma.role.findMany({
+        where: rolesScopeWhere(whereBase.tenantId),
+        select: { roleId: true },
+    });
+
+    if (visibleRoles.length === 0) return [];
+
     return prisma.rolePermission.findMany({
-        where: { ...sinceFilter, deletedAt: null },
+        where: { roleId: { in: visibleRoles.map((r) => r.roleId) }, ...sinceFilter, deletedAt: null },
         take: limit,
     });
 }

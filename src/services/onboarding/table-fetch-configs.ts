@@ -75,8 +75,8 @@ export const TABLE_CONFIG: Record<InitialSyncTable, TableConfig> = {
     },
     paymentMethods: {
         idField: 'id',
-        hasTenantScope: false,
-        hasBranchScope: false,
+        hasTenantScope: true,
+        hasBranchScope: true,
         softDelete: true,
     },
     paymentServiceProviders: {
