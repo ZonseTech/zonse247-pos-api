@@ -133,7 +133,12 @@ export class ReturnService {
         const refundCalculation = this.calculateRefundAmount(request.items, originalSale);
         const isFullRefund = Math.abs(refundCalculation.refundAmount - Number(originalSale.totalAmount)) < 0.01;
 
-        // Create return items and update sale status
+        // Create return items and update sale status.
+        // Inventory is NOT restocked here — that only happens through the
+        // explicit approval step (restockReturnedItems / POST /returns/:saleId/restock),
+        // which lets staff review item condition before adding it back to
+        // sellable stock. Restocking eagerly here would double-count against
+        // that later step.
         const returnItems = await this.processReturn(
             originalSale,
             request.items,
@@ -142,8 +147,6 @@ export class ReturnService {
             isFullRefund,
             auth
         );
-
-        await this.updateInventoryForReturn(request.items, originalSale, auth);
 
         // Get updated sale
         const updatedSale = await SaleService.getSaleById(originalSale.id, auth.tenantId, auth.branchId);
@@ -244,14 +247,14 @@ export class ReturnService {
             const quantity = Number(item.restockedQuantity || 0);
             if (quantity <= 0) continue;
 
-            // Find the inventory record for this product
-            const inventory = await prisma.inventory.findFirst({
-                where: {
-                    productId: item.productId,
-                    branchId: auth.branchId,
-                    tenantId: auth.tenantId,
-                },
-            });
+            // Resolve the exact variant via the original sale item
+            const originalSaleItem = await this.findOriginalSaleItem(item.originalOrderId);
+            const inventory = await this.findInventoryForReturnItem(
+                item.productId,
+                originalSaleItem?.variantId,
+                auth.tenantId,
+                auth.branchId
+            );
 
             if (inventory) {
                 // GOLDEN RULE: Record stock movement to reverse the return
@@ -311,30 +314,22 @@ export class ReturnService {
                 throw new Error(`Only ${remainingToRestock} items remaining to restock for this return item`);
             }
 
-            // Find the inventory record for this product
-            const inventory = await prisma.inventory.findFirst({
-                where: {
-                    productId: returnItem.productId,
-                    branchId: auth.branchId,
-                    tenantId: auth.tenantId,
-                },
-            });
+            // Resolve the exact variant via the original sale item (unitCost
+            // doubles as COGS at time of sale, so we restock at that cost,
+            // not the refund price).
+            const originalSaleItem = await this.findOriginalSaleItem(returnItem.originalOrderId);
+            const unitCost = originalSaleItem?.unitCost ?? 0;
+
+            const inventory = await this.findInventoryForReturnItem(
+                returnItem.productId,
+                originalSaleItem?.variantId,
+                auth.tenantId,
+                auth.branchId
+            );
 
             if (!inventory) {
                 throw new Error(`Inventory not found for product ${returnItem.productId}`);
             }
-
-            // Look up the original sale item's unitCost (COGS at time of sale)
-            // so we restock at the original cost, not the refund price.
-            const originalSaleItem = await prisma.saleItem.findFirst({
-                where: {
-                    saleId: returnItem.originalOrderId,
-                    productId: returnItem.productId,
-                    deletedAt: null,
-                },
-                select: { unitCost: true },
-            });
-            const unitCost = originalSaleItem ? Number(originalSaleItem.unitCost) : 0;
 
             // GOLDEN RULE: Record stock movement to add items back to inventory
             await StockMovementService.recordReturn({
@@ -546,47 +541,44 @@ export class ReturnService {
     }
 
     /**
-     * Update inventory for returned items
-     * GOLDEN RULE: Uses StockMovementService for inventory changes
+     * Resolve the original sale item a return item was created from.
+     * `ReturnItem.originalOrderId` stores the sale item's ID (not the sale's).
      */
-    private static async updateInventoryForReturn(
-        returnItems: ReturnItemRequest[],
-        originalSale: SaleWithItems,
-        auth: AuthenticatedUser
-    ): Promise<void> {
-        for (const item of returnItems) {
-            // Find the original sale item to get the unit cost
-            const originalItem = originalSale.items.find(si => si.id === item.saleItemId);
-            const unitCost = originalItem ? Number(originalItem.unitCost || 0) : 0;
+    private static async findOriginalSaleItem(
+        saleItemId: string
+    ): Promise<{ variantId: string; unitCost: number } | null> {
+        const saleItem = await prisma.saleItem.findUnique({
+            where: { id: saleItemId },
+            select: { variantId: true, unitCost: true },
+        });
 
-            // Find the inventory record for this product
-            const inventory = await prisma.inventory.findFirst({
-                where: {
-                    productId: item.productId,
-                    branchId: auth.branchId,
-                    tenantId: auth.tenantId,
-                },
-            });
+        if (!saleItem) return null;
 
-            if (!inventory) {
-                // Log warning but continue - inventory might not exist for all products
-                console.warn(`Inventory not found for product ${item.productId}, skipping stock update`);
-                continue;
-            }
+        return { variantId: saleItem.variantId, unitCost: Number(saleItem.unitCost) };
+    }
 
-            // GOLDEN RULE: Record stock movement to increment inventory
-            // referenceType: 'SALE' because we're referencing the original sale
-            await StockMovementService.recordReturn({
-                tenantId: auth.tenantId,
-                branchId: auth.branchId,
-                inventoryId: inventory.id,
-                quantity: item.returnQuantity,
-                unitCost,
-                referenceType: 'SALE', // Reference the original sale
-                referenceId: originalSale.id,
-                notes: item.returnReason || 'Customer return',
-                movedBy: auth.userId,
-            });
-        }
+    /**
+     * Find the exact inventory row a return item belongs to.
+     *
+     * `ReturnItem` only stores `productId`, but a product with multiple
+     * variants has one Inventory row per variant sharing that same
+     * `productId` — matching on `productId` alone is ambiguous and can
+     * silently restock the wrong variant. Prefer `variantId` (resolved via
+     * the original sale item) and fall back to `productId` only when no
+     * variant can be determined.
+     */
+    private static async findInventoryForReturnItem(
+        productId: string,
+        variantId: string | undefined,
+        tenantId: string,
+        branchId: string
+    ) {
+        return prisma.inventory.findFirst({
+            where: {
+                tenantId,
+                branchId,
+                ...(variantId ? { variantId } : { productId }),
+            },
+        });
     }
 }
