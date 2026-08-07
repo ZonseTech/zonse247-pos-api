@@ -9,8 +9,6 @@ export interface DefaultPaymentMethodTemplate {
     parentKey?: string;
 }
 
-// Root templates are also their own `category` (see PaymentMethod.category).
-// Leaf/channel templates (POS, Bank Transfer) inherit their parent's category.
 export const DEFAULT_PAYMENT_METHOD_TEMPLATES: DefaultPaymentMethodTemplate[] = [
     { key: 'cash', name: 'Cash', icon: '💵', sortOrder: 1 },
     { key: 'bank', name: 'Bank', icon: '🏦', sortOrder: 2 },
@@ -22,24 +20,6 @@ export const DEFAULT_PAYMENT_METHOD_TEMPLATES: DefaultPaymentMethodTemplate[] = 
     { key: 'cheque', name: 'Cheque', icon: '📝', sortOrder: 6 },
 ];
 
-/**
- * Creates any of the standard payment-method hierarchy (Cash, Bank -> POS/Bank
- * Transfer, Mobile Money, ...) that a tenant/branch is missing.
- *
- * payment_methods.method_id is globally unique, so every tenant needs its own
- * distinct method_id per method - this generates a fresh uuid per row (same
- * convention as PaymentMethodService.createPaymentMethod for custom methods) and
- * classifies each row with `category` so the global provider catalog (bank/mobile
- * money networks) can still resolve for this tenant. See the 20260727_01
- * migration for why `category` exists separately from method_id.
- *
- * Idempotent per template (matched by name), NOT an all-or-nothing "skip if any
- * row exists" check - many tenants already had one or more custom payment methods
- * (created via the settings UI, pre-dating this hierarchy feature) before this was
- * written, and an all-or-nothing guard would leave them stuck with just that one
- * custom method forever. Safe to call repeatedly, from both branch-creation flows
- * and a one-off backfill for existing tenants.
- */
 export async function provisionDefaultPaymentMethods(tenantId: string, branchId: string): Promise<void> {
     const existing = await prisma.paymentMethod.findMany({
         where: { tenantId, branchId, deletedAt: null },

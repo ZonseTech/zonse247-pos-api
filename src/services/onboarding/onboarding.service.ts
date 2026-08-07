@@ -16,8 +16,6 @@ import { parseNumeric, parseBoolean } from './base-sync.service';
 import { DEFAULTS } from './constants';
 import { getErrorMessage } from './errors';
 import { provisionDefaultPaymentMethods } from '../payment-method-provisioning.service';
-
-// Re-export sub-services for backward compatibility
 export { OnboardingFetchService } from './onboarding-fetch.service';
 export { OnboardingSyncService } from './onboarding-sync.service';
 export { InitialSyncService, INITIAL_SYNC_TABLES, STEP_TO_TABLES_MAP } from './initial-sync.service';
@@ -166,6 +164,7 @@ export class OnboardingService {
         const existingBranch = await BranchModel.findById(branchData.branchId);
 
         if (existingBranch) {
+            await provisionDefaultPaymentMethods(existingBranch.tenantId, existingBranch.branchId);
             return { saved: false, exists: true, data: existingBranch };
         }
 
