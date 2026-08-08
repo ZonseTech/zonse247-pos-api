@@ -99,6 +99,7 @@ import { migration as m20260723_01 } from './20260723_01_add_expense_module';
 import { migration as m20260727_01 } from './20260727_01_add_payment_method_category_for_per_tenant_provider_matching';
 import { migration as m20260730_01 } from './20260730_01_remove_restaurant_bar_roles_and_permissions';
 import { migration as m20260730_02 } from './20260730_02_add_tenant_branch_scope_to_roles';
+import { migration as m20260808_01 } from './20260808_01_drop_legacy_global_barcode_unique_constraints';
 
 /**
  * All registered migrations, sorted by version
@@ -193,6 +194,7 @@ export const registeredMigrations: Migration[] = [
     m20260727_01,
     m20260730_01,
     m20260730_02,
+    m20260808_01,
 ].sort((a, b) => a.version.localeCompare(b.version));
 
 /**
