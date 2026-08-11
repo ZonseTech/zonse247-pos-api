@@ -1,15 +1,29 @@
 import prisma from '../../../databases/prisma/client';
 import type { UpsertResult, PullTableName } from '../types/sync.types';
 import { isNewerRecord } from './base.handler';
+import { TenantModel } from '../../../models/tenant.model';
+import { BranchModel } from '../../../models/branch.model';
+import { BranchSubscriptionModel } from '../../../models/branch-subscription.model';
+import { RoleModel } from '../../../models/role.model';
+import { PermissionModel } from '../../../models/permission.model';
 
-/**
- * Upsert a pulled record into local database
- */
 export async function upsertPulledRecord(
     tableName: PullTableName,
     record: Record<string, unknown>
 ): Promise<UpsertResult> {
     switch (tableName) {
+        case 'tenants':
+            return upsertTenant(record);
+        case 'branches':
+            return upsertBranch(record);
+        case 'branchSubscriptions':
+            return upsertBranchSubscription(record);
+        case 'roles':
+            return upsertRole(record);
+        case 'permissions':
+            return upsertPermission(record);
+        case 'rolePermissions':
+            return upsertRolePermission(record);
         case 'products':
             return upsertProduct(record);
         case 'productVariants':
@@ -138,6 +152,18 @@ async function upsertPaymentMethod(record: Record<string, unknown>): Promise<Ups
         return 'skipped';
     }
 
+    const existingByName = await prisma.paymentMethod.findFirst({
+        where: {
+            tenantId: record.tenantId as string,
+            branchId: record.branchId as string,
+            name: record.name as string,
+        },
+    });
+
+    if (existingByName) {
+        return 'skipped';
+    }
+
     await prisma.paymentMethod.create({ data: record as never });
     return 'inserted';
 }
@@ -171,15 +197,6 @@ async function upsertCustomer(record: Record<string, unknown>): Promise<UpsertRe
     return 'inserted';
 }
 
-/**
- * Upsert a user record pulled from the server into the local/offline database
- * 
- * This handles server-side changes flowing to terminals:
- * - Admin resets password → terminal gets the new hash
- * - Admin changes role/status → terminal gets the update
- * - Password conflict: latest passwordChangedAt wins
- * - Profile conflict: latest updatedAt wins
- */
 async function upsertUser(record: Record<string, unknown>): Promise<UpsertResult> {
     const userId = record.userId as string;
     const existing = await prisma.user.findUnique({ where: { userId } });
@@ -272,6 +289,97 @@ async function upsertUser(record: Record<string, unknown>): Promise<UpsertResult
 
     // Don't create new users via pull - they must arrive through login/saveUserOffline
     return 'skipped';
+}
+
+async function upsertTenant(record: Record<string, unknown>): Promise<UpsertResult> {
+    const tenantId = record.tenantId as string;
+    const existing = await TenantModel.findById(tenantId);
+
+    if (!existing) {
+        return 'skipped';
+    }
+
+    if (!isNewerRecord(record, existing)) {
+        return 'skipped';
+    }
+
+    await TenantModel.update(tenantId, record as never);
+    return 'updated';
+}
+
+async function upsertBranch(record: Record<string, unknown>): Promise<UpsertResult> {
+    const branchId = record.branchId as string;
+    const existing = await BranchModel.findById(branchId);
+
+    if (!existing) {
+        return 'skipped';
+    }
+
+    if (!isNewerRecord(record, existing)) {
+        return 'skipped';
+    }
+
+    await BranchModel.update(branchId, record as never);
+    return 'updated';
+}
+
+async function upsertBranchSubscription(record: Record<string, unknown>): Promise<UpsertResult> {
+    const subscriptionPlanId = record.subscriptionPlanId as string | undefined;
+    if (subscriptionPlanId) {
+        const planExists = await prisma.subscriptionPlan.findUnique({
+            where: { subscriptionPlanId },
+            select: { subscriptionPlanId: true },
+        });
+
+        if (!planExists) {
+            return 'skipped';
+        }
+    }
+
+    const { created } = await BranchSubscriptionModel.createOrUpdate(record);
+    return created ? 'inserted' : 'updated';
+}
+
+async function upsertRole(record: Record<string, unknown>): Promise<UpsertResult> {
+    const { created } = await RoleModel.createOrUpdate(record);
+    return created ? 'inserted' : 'updated';
+}
+
+async function upsertPermission(record: Record<string, unknown>): Promise<UpsertResult> {
+    const { created } = await PermissionModel.createOrUpdate(record);
+    return created ? 'inserted' : 'updated';
+}
+
+async function upsertRolePermission(record: Record<string, unknown>): Promise<UpsertResult> {
+    const rolePermissionId = record.rolePermissionId as string;
+    const roleId = record.roleId as string;
+    const permissionId = record.permissionId as string;
+
+    const existing = await prisma.rolePermission.findUnique({ where: { rolePermissionId } });
+    if (existing) {
+        return 'skipped';
+    }
+
+    const [roleExists, permissionExists] = await Promise.all([
+        prisma.role.findUnique({ where: { roleId }, select: { roleId: true } }),
+        prisma.permission.findUnique({ where: { permissionId }, select: { permissionId: true } }),
+    ]);
+
+    if (!roleExists || !permissionExists) {
+        return 'skipped';
+    }
+
+    await prisma.rolePermission.create({
+        data: {
+            rolePermissionId,
+            roleId,
+            permissionId,
+            createdAt: record.createdAt ? new Date(record.createdAt as string) : new Date(),
+            updatedAt: record.updatedAt ? new Date(record.updatedAt as string) : new Date(),
+        },
+    });
+
+    return 'inserted';
 }
 
 /**

@@ -6,6 +6,7 @@ import { TenantCreateInput } from "../databases/prisma/generated/prisma/models";
 import { ValidationError } from '../utils/errors';
 import prisma from '../databases/prisma/client';
 import { PaginationParams, buildPaginationMeta, PaginatedResult } from '../utils/pagination.utils';
+import { recordTenantChangeAsync } from './sync/change-log.service';
 
 /**
  * @class   TenantService
@@ -150,6 +151,10 @@ export class TenantService {
         }
 
         const updatedTenant = await TenantModel.update(tenantId, updateData as Partial<any>);
+
+        if (updateData.status && updateData.status !== tenant.status) {
+            await recordTenantChangeAsync('tenants', tenantId, 'UPDATE', tenantId);
+        }
 
         return TenantModel.sanitizeTenant(updatedTenant);
     }

@@ -6,6 +6,7 @@ import { PermissionModel } from "../../models/permission.model";
 import { CreateRoleRequest, Permission, Role } from "role-permission";
 import prisma from '../../databases/prisma/client';
 import { PaginationParams, buildPaginationMeta, PaginatedResult } from '../../utils/pagination.utils';
+import { recordTenantChangeAsync, recordGlobalChangeAsync } from '../sync/change-log.service';
 
 export interface RoleAuthContext {
     tenantId: string;
@@ -137,7 +138,11 @@ export class RoleService {
             ...data,
             tenantId: auth.tenantId,
         });
-        return RoleModel.create(roleData);
+        const role = await RoleModel.create(roleData);
+
+        await recordTenantChangeAsync('roles', role.roleId, 'INSERT', auth.tenantId);
+
+        return role;
     }
 
     static async updateRole(id: string, data: Partial<Role>, auth: RoleAuthContext): Promise<Role> {
@@ -181,6 +186,12 @@ export class RoleService {
         const updatedRole = await RoleModel.findById(id);
         if (!updatedRole) {
             throw new Error('Failed to retrieve updated role');
+        }
+
+        // System roles can't reach this point (blocked above), so a
+        // tenant-owned custom role's tenantId is always known here.
+        if (updatedRole.tenantId) {
+            await recordTenantChangeAsync('roles', id, 'UPDATE', updatedRole.tenantId);
         }
 
         return updatedRole;
@@ -280,11 +291,17 @@ export class RoleService {
 
             const exists = await RolePermissionModel.findByRoleAndPermissionId(role.roleId, permissionId);
             if (!exists) {
-                await RolePermissionModel.create({
+                const created = await RolePermissionModel.create({
                     roleId: role.roleId,
                     permissionId: permissionId
                 });
                 assignedCount++;
+
+                if (role.isSystemRole) {
+                    await recordGlobalChangeAsync('rolePermissions', created.rolePermissionId, 'INSERT');
+                } else if (role.tenantId) {
+                    await recordTenantChangeAsync('rolePermissions', created.rolePermissionId, 'INSERT', role.tenantId);
+                }
             }
         }
 

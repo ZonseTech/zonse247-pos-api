@@ -38,7 +38,7 @@ export class AuthController extends BaseController {
                 return;
             }
 
-            const result = await AuthService.loginUser(username, password, clientType);
+            const result = await AuthService.loginUser(username, password);
 
             if (result.message) {
                 BaseController.sendResponse(res, 401, false, result.message);
@@ -427,7 +427,6 @@ export class AuthController extends BaseController {
         try {
             const { branchId } = req.body;
             const user = req.auth;
-            const clientType = (req.headers['x-client-type'] as 'web' | 'mobile' | 'desktop') || 'desktop';
 
             if (!user) {
                 BaseController.sendResponse(res, 401, false, 'Authentication required');
@@ -439,7 +438,7 @@ export class AuthController extends BaseController {
                 return;
             }
 
-            const result = await AuthService.switchBranch(user.userId, branchId, user.tenantId, clientType);
+            const result = await AuthService.switchBranch(user.userId, branchId, user.tenantId);
 
             res.setHeader('X-Active-Branch-Id', branchId);
 

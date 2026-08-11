@@ -68,6 +68,8 @@
     "db:seed": "prisma db seed",
     "seed:permissions": "tsx scripts/seed-role-permissions.ts",
     "backfill:payment-methods": "tsx scripts/backfill-payment-methods.ts",
+    "backfill:sale-payment-method-ids": "tsx scripts/backfill-sale-payment-method-ids.ts",
+    "cleanup:orphan-payment-methods": "tsx scripts/delete-orphan-payment-methods.ts",
     "db:pull": "prisma db pull",
     "db:freeze:sqlite": "bash scripts/db.sh generate sqlite && echo '✓ Schema and client frozen for SQLite'",
     "db:freeze:mysql": "bash scripts/db.sh generate mysql && echo '✓ Schema and client frozen for MySQL'",

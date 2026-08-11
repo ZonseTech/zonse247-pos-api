@@ -15,9 +15,6 @@ import { TerminalSaveResult, EntitySaveResult } from './types';
 import { parseNumeric, parseBoolean } from './base-sync.service';
 import { DEFAULTS } from './constants';
 import { getErrorMessage } from './errors';
-import { provisionDefaultPaymentMethods } from '../payment-method-provisioning.service';
-
-// Re-export sub-services for backward compatibility
 export { OnboardingFetchService } from './onboarding-fetch.service';
 export { OnboardingSyncService } from './onboarding-sync.service';
 export { InitialSyncService, INITIAL_SYNC_TABLES, STEP_TO_TABLES_MAP } from './initial-sync.service';
@@ -200,8 +197,6 @@ export class OnboardingService {
             branchSubscriptionId: branchData.branchSubscriptionId || null,
             status: branchData.status || DEFAULTS.STATUS
         });
-
-        await provisionDefaultPaymentMethods(branch.tenantId, branch.branchId);
 
         return { saved: true, exists: false, data: branch };
     }

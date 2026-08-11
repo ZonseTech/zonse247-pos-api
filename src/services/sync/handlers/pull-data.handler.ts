@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-non-null-assertion */
 import { prisma } from '../../../databases/prisma/client';
 import type {
     PullDataResult,
@@ -28,6 +29,12 @@ export async function getPullData(
 
     try {
         const [
+            tenants,
+            branches,
+            branchSubscriptions,
+            roles,
+            permissions,
+            rolePermissions,
             products,
             productVariants,
             categories,
@@ -39,6 +46,24 @@ export async function getPullData(
             expenseCategories,
             expenses,
         ] = await Promise.all([
+            fetchIfIncluded(tables, 'tenants', () =>
+                fetchTenants(whereBase, sinceFilter, limit)
+            ),
+            fetchIfIncluded(tables, 'branches', () =>
+                fetchBranches(whereBase, sinceFilter, limit)
+            ),
+            fetchIfIncluded(tables, 'branchSubscriptions', () =>
+                fetchBranchSubscriptions(whereBase, sinceFilter, limit)
+            ),
+            fetchIfIncluded(tables, 'roles', () =>
+                fetchRoles(whereBase, sinceFilter, limit)
+            ),
+            fetchIfIncluded(tables, 'permissions', () =>
+                fetchPermissions(sinceFilter, limit)
+            ),
+            fetchIfIncluded(tables, 'rolePermissions', () =>
+                fetchRolePermissions(whereBase, sinceFilter, limit)
+            ),
             fetchIfIncluded(tables, 'products', () =>
                 fetchProducts(whereBase, sinceFilter, limit)
             ),
@@ -72,6 +97,12 @@ export async function getPullData(
         ]);
 
         result.data = {
+            tenants,
+            branches,
+            branchSubscriptions,
+            roles,
+            permissions,
+            rolePermissions,
             products,
             productVariants,
             categories,
@@ -85,6 +116,12 @@ export async function getPullData(
         };
 
         result.counts = {
+            tenants: tenants.length,
+            branches: branches.length,
+            branchSubscriptions: branchSubscriptions.length,
+            roles: roles.length,
+            permissions: permissions.length,
+            rolePermissions: rolePermissions.length,
             products: products.length,
             productVariants: productVariants.length,
             categories: categories.length,
@@ -124,6 +161,24 @@ export async function getTableDelta(
     let records: unknown[] = [];
 
     switch (tableName) {
+        case 'tenants':
+            records = await fetchTenants(whereBase, sinceFilter, fetchLimit);
+            break;
+        case 'branches':
+            records = await fetchBranches(whereBase, sinceFilter, fetchLimit);
+            break;
+        case 'branchSubscriptions':
+            records = await fetchBranchSubscriptions(whereBase, sinceFilter, fetchLimit);
+            break;
+        case 'roles':
+            records = await fetchRoles(whereBase, sinceFilter, fetchLimit);
+            break;
+        case 'permissions':
+            records = await fetchPermissions(sinceFilter, fetchLimit);
+            break;
+        case 'rolePermissions':
+            records = await fetchRolePermissions(whereBase, sinceFilter, fetchLimit);
+            break;
         case 'products':
             records = await fetchProducts(whereBase, sinceFilter, fetchLimit);
             break;
@@ -168,6 +223,12 @@ function createEmptyPullResult(): PullDataResult {
     return {
         success: true,
         data: {
+            tenants: [],
+            branches: [],
+            branchSubscriptions: [],
+            roles: [],
+            permissions: [],
+            rolePermissions: [],
             products: [],
             productVariants: [],
             categories: [],
@@ -180,6 +241,12 @@ function createEmptyPullResult(): PullDataResult {
             expenses: [],
         },
         counts: {
+            tenants: 0,
+            branches: 0,
+            branchSubscriptions: 0,
+            roles: 0,
+            permissions: 0,
+            rolePermissions: 0,
             products: 0,
             productVariants: 0,
             categories: 0,
@@ -202,6 +269,115 @@ async function fetchIfIncluded<T>(
     fetcher: () => Promise<T[]>
 ): Promise<T[]> {
     return tables.includes(tableName) ? fetcher() : [];
+}
+
+/**
+ * Fetch the terminal's own tenant record.
+ * A terminal only ever needs its single paired tenant, so this scopes
+ * to whereBase.tenantId instead of a branch-based filter.
+ */
+async function fetchTenants(
+    whereBase: WhereBaseFilter,
+    sinceFilter: SinceFilter,
+    limit: number
+): Promise<unknown[]> {
+    return prisma.tenant.findMany({
+        where: { tenantId: whereBase.tenantId, ...sinceFilter, deletedAt: null },
+        take: limit,
+    });
+}
+
+/**
+ * Fetch the terminal's own branch record — this is how a terminal picks up
+ * a new branchSubscriptionId after an admin resubscribes the branch (the
+ * subscribeBranch flow mints a brand-new subscription row and repoints
+ * branch.branchSubscriptionId rather than reusing the old ID).
+ */
+async function fetchBranches(
+    whereBase: WhereBaseFilter,
+    sinceFilter: SinceFilter,
+    limit: number
+): Promise<unknown[]> {
+    return prisma.branch.findMany({
+        where: { branchId: whereBase.branchId, tenantId: whereBase.tenantId, ...sinceFilter, deletedAt: null },
+        take: limit,
+    });
+}
+
+/**
+ * Fetch the branch's currently-linked subscription.
+ * BranchSubscription has no tenantId/branchId column of its own — the
+ * link is branch.branchSubscriptionId — so resolve it via the branch first.
+ */
+async function fetchBranchSubscriptions(
+    whereBase: WhereBaseFilter,
+    sinceFilter: SinceFilter,
+    limit: number
+): Promise<unknown[]> {
+    const branch = await prisma.branch.findUnique({
+        where: { branchId: whereBase.branchId },
+        select: { branchSubscriptionId: true },
+    });
+
+    if (!branch?.branchSubscriptionId) return [];
+
+    return prisma.branchSubscription.findMany({
+        where: { branchSubscriptionId: branch.branchSubscriptionId, ...sinceFilter },
+        take: limit,
+    });
+}
+
+/**
+ * Roles visible to a terminal: system roles (shared, tenantId null) plus
+ * this terminal's own tenant's custom roles — never another tenant's custom
+ * roles. Mirrors the scoping already enforced on the regular roles API
+ * (RoleService.buildScopeWhere in services/auth/role.service.ts).
+ */
+function rolesScopeWhere(tenantId: string) {
+    return {
+        OR: [
+            { isSystemRole: true },
+            { tenantId },
+        ],
+    };
+}
+
+async function fetchRoles(whereBase: WhereBaseFilter, sinceFilter: SinceFilter, limit: number): Promise<unknown[]> {
+    return prisma.role.findMany({
+        where: { ...rolesScopeWhere(whereBase.tenantId), ...sinceFilter, deletedAt: null },
+        take: limit,
+    });
+}
+
+/**
+ * Permissions have no tenant/branch column at all — it's a shared system
+ * catalog, not per-tenant data.
+ */
+async function fetchPermissions(sinceFilter: SinceFilter, limit: number): Promise<unknown[]> {
+    return prisma.permission.findMany({
+        where: { ...sinceFilter, deletedAt: null },
+        take: limit,
+    });
+}
+
+/**
+ * Role-permission links — scoped to the same role set fetchRoles() allows
+ * (system roles + this tenant's own), so a link for another tenant's custom
+ * role never reaches this terminal even though RolePermission itself has no
+ * tenantId column to filter on directly.
+ */
+async function fetchRolePermissions(whereBase: WhereBaseFilter, sinceFilter: SinceFilter, limit: number): Promise<unknown[]> {
+    const visibleRoles = await prisma.role.findMany({
+        where: rolesScopeWhere(whereBase.tenantId),
+        select: { roleId: true },
+    });
+
+    if (visibleRoles.length === 0) return [];
+
+    return prisma.rolePermission.findMany({
+        where: { roleId: { in: visibleRoles.map((r) => r.roleId) }, ...sinceFilter, deletedAt: null },
+        take: limit,
+    });
 }
 
 async function fetchProducts(
@@ -395,6 +571,12 @@ const TABLE_DELEGATES: Record<string, keyof typeof prisma> = {
     users: 'user',
     expenseCategories: 'expenseCategory',
     expenses: 'expense',
+    tenants: 'tenant',
+    branches: 'branch',
+    branchSubscriptions: 'branchSubscription',
+    roles: 'role',
+    permissions: 'permission',
+    rolePermissions: 'rolePermission',
 };
 
 /**
@@ -407,7 +589,19 @@ const TABLE_UUID_FIELD: Partial<Record<string, string>> = {
     customers: 'customerId',
     paymentMethods: 'methodId',
     expenseCategories: 'categoryId',
+    tenants: 'tenantId',
+    branches: 'branchId',
+    branchSubscriptions: 'branchSubscriptionId',
+    roles: 'roleId',
+    permissions: 'permissionId',
+    rolePermissions: 'rolePermissionId',
 };
+
+/**
+ * Tables whose model has no `deletedAt` column — the generic ChangeLog
+ * fetch path below must skip that filter for these or Prisma will throw.
+ */
+const TABLES_WITHOUT_SOFT_DELETE = new Set(['branchSubscriptions']);
 
 /**
  * Pull data using the ChangeLog table for efficient delta sync.
@@ -510,7 +704,7 @@ export async function getPullDataFromChangeLog(
                         const records = await delegate.findMany({
                             where: {
                                 [uuidField]: { in: [...recordIds] },
-                                deletedAt: null,
+                                ...(TABLES_WITHOUT_SOFT_DELETE.has(pullTableName) ? {} : { deletedAt: null }),
                             },
                             take: limit,
                         });

@@ -5,6 +5,20 @@ import type { CreateSubscriptionRequest, BranchSubscription } from 'subscription
 import { ValidationError } from '../utils/errors';
 import prisma from '../databases/prisma/client';
 import { PaginationParams, buildPaginationMeta, PaginatedResult } from '../utils/pagination.utils';
+import { recordChangesAsync } from './sync/change-log.service';
+
+/**
+ * Look up the branch a subscription is currently linked to, so its
+ * terminal(s) can be told (via ChangeLog) which branchId/tenantId to
+ * record the change against.
+ */
+async function findLinkedBranch(branchSubscriptionId: string): Promise<{ branchId: string; tenantId: string } | null> {
+	const branch = await prisma.branch.findFirst({
+		where: { branchSubscriptionId },
+		select: { branchId: true, tenantId: true },
+	});
+	return branch;
+}
 
 export class SubscriptionService {
 
@@ -116,11 +130,24 @@ export class SubscriptionService {
 			return null;
 		}
 
-		return await BranchSubscriptionModel.update(id, {
+		const updated = await BranchSubscriptionModel.update(id, {
 			status: 'cancelled',
 			endsAt: new Date(),
 			autoRenew: false,
 		});
+
+		const branch = await findLinkedBranch(id);
+		if (branch) {
+			recordChangesAsync([{
+				tableName: 'branchSubscriptions',
+				recordId: id,
+				operation: 'UPDATE',
+				tenantId: branch.tenantId,
+				branchId: branch.branchId,
+			}]);
+		}
+
+		return updated;
 	}
 
 	static async reactivate(id: string): Promise<BranchSubscription | null> {
@@ -145,12 +172,25 @@ export class SubscriptionService {
 			endDate = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000);
 		}
 
-		return await BranchSubscriptionModel.update(id, {
+		const updated = await BranchSubscriptionModel.update(id, {
 			status: 'active',
 			startsAt: now,
 			endsAt: endDate || undefined,
 			autoRenew: true,
 		});
+
+		const branch = await findLinkedBranch(id);
+		if (branch) {
+			recordChangesAsync([{
+				tableName: 'branchSubscriptions',
+				recordId: id,
+				operation: 'UPDATE',
+				tenantId: branch.tenantId,
+				branchId: branch.branchId,
+			}]);
+		}
+
+		return updated;
 	}
 
 	static async processPayment(
@@ -175,13 +215,26 @@ export class SubscriptionService {
 			}
 		}
 
-		return await BranchSubscriptionModel.update(id, {
+		const updated = await BranchSubscriptionModel.update(id, {
 			lastPaymentDate: now,
 			paymentMethod: paymentData.paymentMethod,
 			status: 'active',
 			nextPaymentDate: nextPaymentDate || undefined,
 			endsAt: nextPaymentDate || undefined,
 		});
+
+		const branch = await findLinkedBranch(id);
+		if (branch) {
+			recordChangesAsync([{
+				tableName: 'branchSubscriptions',
+				recordId: id,
+				operation: 'UPDATE',
+				tenantId: branch.tenantId,
+				branchId: branch.branchId,
+			}]);
+		}
+
+		return updated;
 	}
 
 	static async getExpiring(days = 30): Promise<BranchSubscription[]> {
@@ -266,6 +319,23 @@ export class SubscriptionService {
 		await BranchModel.update(branchId, {
 			branchSubscriptionId: newSubscription.branchSubscriptionId,
 		});
+
+		recordChangesAsync([
+			{
+				tableName: 'branchSubscriptions',
+				recordId: newSubscription.branchSubscriptionId,
+				operation: 'INSERT',
+				tenantId: branch.tenantId,
+				branchId,
+			},
+			{
+				tableName: 'branches',
+				recordId: branchId,
+				operation: 'UPDATE',
+				tenantId: branch.tenantId,
+				branchId,
+			},
+		]);
 
 		return newSubscription;
 	}

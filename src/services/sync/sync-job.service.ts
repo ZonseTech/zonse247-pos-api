@@ -24,6 +24,22 @@ import {
 } from './handlers';
 
 /**
+ * Tables with a real FK dependency on another pulled table, applied in this
+ * exact order before the rest of the pull batch runs in parallel:
+ * - `branchSubscriptions` before `branches` (branch.branchSubscriptionId
+ *   references it — a resubscribe mints a brand-new subscription ID)
+ * - `roles` and `permissions` before `rolePermissions` (a link row needs
+ *   both sides to exist locally first)
+ */
+const PULL_DEPENDENCY_ORDER: readonly PullTableName[] = [
+    'branchSubscriptions',
+    'branches',
+    'roles',
+    'permissions',
+    'rolePermissions',
+];
+
+/**
  * Offline Sync Job Service
  * Runs on terminals for bidirectional sync with the server.
  *
@@ -323,14 +339,33 @@ export class SyncJobService {
 
             const { data } = response.data;
 
-            // Process tables in parallel — each table's records are independent
-            const tablePromises = PULL_TABLE_NAMES
+            // A handful of tables have real FK dependencies on each other
+            // (a resubscribe's new branchSubscriptionId must exist before the
+            // branch row that references it is applied; a role-permission
+            // link needs both its role and permission to exist first). Pulled
+            // together in one batch, applying them all in parallel can race —
+            // and since the ChangeLog cursor advances regardless of whether an
+            // individual record's FK-dependent write succeeds, a lost race
+            // isn't retried on the next cycle. Apply these strictly in order
+            // first; everything else has no such dependency and stays parallel.
+            const orderedResults: PullBatchResult[] = [];
+            for (const tableName of PULL_DEPENDENCY_ORDER) {
+                const records = data[tableName];
+                if (records?.length > 0) {
+                    orderedResults.push(await this.savePulledRecords(tableName, records));
+                }
+            }
+
+            const remainingTables = PULL_TABLE_NAMES.filter(
+                (tableName) => !PULL_DEPENDENCY_ORDER.includes(tableName)
+            );
+            const tablePromises = remainingTables
                 .filter((tableName) => data[tableName]?.length > 0)
                 .map((tableName) =>
                     this.savePulledRecords(tableName, data[tableName])
                 );
 
-            const tableResults = await Promise.all(tablePromises);
+            const tableResults = [...orderedResults, ...await Promise.all(tablePromises)];
 
             for (const tableResult of tableResults) {
                 result.tables.push(tableResult);

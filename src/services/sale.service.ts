@@ -242,13 +242,34 @@ export class SaleService {
         const sales = await prisma.sale.findMany({
             where,
             select: {
+                id: true,
                 totalAmount: true,
                 status: true,
                 isVoided: true,
             },
         });
 
-        return this.calculateSummary(sales);
+        const refundedSaleIds = sales
+            .filter((sale) => sale.status === 'REFUNDED' || sale.status === 'PARTIALLY_REFUNDED')
+            .map((sale) => sale.id);
+
+        const returnItems = refundedSaleIds.length > 0
+            ? await prisma.returnItem.findMany({
+                where: { returnTransactionId: { in: refundedSaleIds } },
+                select: { returnTransactionId: true, returnPrice: true, returnedQuantity: true },
+            })
+            : [];
+
+        const refundedAmountBySaleId = new Map<string, number>();
+        for (const item of returnItems) {
+            const amount = Number(item.returnPrice) * Number(item.returnedQuantity);
+            refundedAmountBySaleId.set(
+                item.returnTransactionId,
+                (refundedAmountBySaleId.get(item.returnTransactionId) || 0) + amount
+            );
+        }
+
+        return this.calculateSummary(sales, refundedAmountBySaleId);
     }
 
     /**
@@ -586,8 +607,14 @@ export class SaleService {
 
     /**
      * Calculate summary statistics from sales data
+     *
+     * `refundedAmountBySaleId` holds the actual refunded amount per sale,
+     * derived from ReturnItem rows (returnPrice * returnedQuantity) rather
+     * than trusting the sale's status flag alone — a PARTIALLY_REFUNDED sale
+     * only had some of its items returned, so only that portion should be
+     * deducted from Net Sales, not the sale's full totalAmount.
      */
-    private static calculateSummary(sales: any[]): SalesSummary {
+    private static calculateSummary(sales: any[], refundedAmountBySaleId: Map<string, number>): SalesSummary {
         let totalSales = 0;
         let totalVoided = 0;
         let completedCount = 0;
@@ -601,7 +628,16 @@ export class SaleService {
                 totalVoided += amount;
                 voidedCount++;
             } else if (sale.status === 'REFUNDED') {
-                totalVoided += amount;
+                // Full refund: the sale contributed no net revenue. Prefer the
+                // actual returned amount when available, falling back to the
+                // sale's full total (refund should equal it for a full refund).
+                totalVoided += refundedAmountBySaleId.get(sale.id) ?? amount;
+                refundedCount++;
+            } else if (sale.status === 'PARTIALLY_REFUNDED') {
+                // The sale still happened — count its full amount as revenue —
+                // but deduct only the portion that was actually returned.
+                totalSales += amount;
+                totalVoided += refundedAmountBySaleId.get(sale.id) ?? 0;
                 refundedCount++;
             } else {
                 totalSales += amount;

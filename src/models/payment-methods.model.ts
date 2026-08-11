@@ -4,12 +4,13 @@ import prisma from '../databases/prisma/client';
 import { PaymentMethodUncheckedCreateInput } from '../databases/prisma/generated/prisma/models';
 
 export class PaymentMethodModel {
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     static async findAllByRDBMS(conditions: ValidationParams): Promise<Array<PaymentMethod>> {
         try {
             return await prisma.paymentMethod.findMany({
                 where: {
-                    // tenantId: conditions.tenantId,
+                    tenantId: conditions.tenantId,
+                    branchId: conditions.branchId,
+                    deletedAt: null,
                 },
                 orderBy: { sortOrder: 'asc' }
             }) as unknown as PaymentMethod[];

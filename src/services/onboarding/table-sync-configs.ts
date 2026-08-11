@@ -223,31 +223,53 @@ const paymentServiceProvidersSync: TableSyncHandler = {
     },
 };
 
-// ==========================================
-// Tenant/Branch Scoped Tables
-// ==========================================
-
 const paymentMethodsSync: TableSyncHandler = {
     async sync(records: unknown[], params: OnboardingParams): Promise<TableSyncResult> {
-        return syncTableRecords(
-            records as RecordAny[],
-            {
-                getId: (r) => r.methodId as string,
-                findExisting: (id) => prisma.paymentMethod.findUnique({ where: { methodId: id } }),
-                transformForCreate: (r, p) => ({
-                    methodId: r.methodId,
-                    tenantId: p?.tenantId,
-                    branchId: p?.branchId,
-                    name: r.name,
-                    icon: r.icon || null,
-                    sortOrder: r.sortOrder || 0,
-                    isActive: parseBoolean(r.isActive, true),
-                }),
-                create: (data: any) => prisma.paymentMethod.create({ data }),
-            },
-            'paymentMethods',
-            params
-        );
+        const result = createEmptyTableSyncResult('paymentMethods');
+
+        for (const record of records as RecordAny[]) {
+            try {
+                const methodId = record.methodId as string;
+                const name = record.name as string;
+
+                if (!methodId) {
+                    result.failed++;
+                    result.errors.push('paymentMethods: Missing required ID field');
+                    continue;
+                }
+
+                const existing = await prisma.paymentMethod.findUnique({ where: { methodId } });
+                const existingByName = existing
+                    ? null
+                    : await prisma.paymentMethod.findFirst({
+                        where: { tenantId: params?.tenantId, branchId: params?.branchId, name },
+                    });
+
+                if (existing || existingByName) {
+                    result.skipped++;
+                    continue;
+                }
+
+                await prisma.paymentMethod.create({
+                    data: {
+                        methodId,
+                        tenantId: params?.tenantId,
+                        branchId: params?.branchId,
+                        name,
+                        icon: (record.icon as string) || null,
+                        sortOrder: (record.sortOrder as number) || 0,
+                        isActive: parseBoolean(record.isActive, true),
+                    },
+                });
+                result.inserted++;
+            } catch (error) {
+                result.failed++;
+                result.errors.push(`paymentMethods: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            }
+        }
+
+        result.success = result.failed === 0;
+        return result;
     },
 };
 
