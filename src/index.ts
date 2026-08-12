@@ -46,7 +46,7 @@ export {
     PrintContext,
     initializePrintStrategies,
     ensureStrategiesInitialized
-} from './services/printer/strategies';
+} from '@zonse247/print-engine';
 
 export {
     SyncJobService,
