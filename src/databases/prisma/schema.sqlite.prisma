@@ -1931,7 +1931,7 @@ model Printer {
   isKitchenPrinter  Boolean               @default(false) @map("is_kitchen_printer")
   isReportPrinter   Boolean               @default(false) @map("is_report_printer")
   status            PrinterStatus         @default(OFFLINE) @map("status")
-  configuration     String?               @map("configuration")
+  configuration     Json?                 @map("configuration")
   lastConnected     DateTime?             @map("last_connected")
   lastPrintJob      DateTime?             @map("last_print_job")
   printJobCount     Int                   @default(0) @map("print_job_count")
@@ -1956,6 +1956,8 @@ model Printer {
   @@index([tenantId, branchId, updatedAt])
   @@index([updatedAt])
   @@index([deletedAt])
+  @@index([branchId, isActive, isDefault, createdAt])
+  @@index([tenantId, isActive, isDefault, createdAt])
   @@map("printers")
 }
 
@@ -1996,6 +1998,7 @@ model PrintJob {
   @@index([tenantId, branchId, updatedAt])
   @@index([updatedAt])
   @@index([deletedAt])
+  @@index([branchId, status, priority, createdAt])
   @@map("print_jobs")
 }
 
