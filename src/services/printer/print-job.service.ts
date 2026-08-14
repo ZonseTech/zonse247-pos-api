@@ -12,8 +12,13 @@ import {
 } from '../../types/printer';
 import { PrintContentService } from './print-content.service';
 import { getPrintQueue } from './print-queue.service';
-import { ensureStrategiesInitialized, PrintStrategySelector } from './strategies';
-import { AppPlatform } from '../../types/printer.platform';
+import {
+	ensureStrategiesInitialized,
+	PrintStrategySelector,
+	AppPlatform,
+	generateTestPageContent,
+	generateOpenDrawerCommand,
+} from '@zonse247/print-engine';
 import * as net from 'net';
 import { SerialPort } from 'serialport';
 import { exec } from 'child_process';
@@ -1398,6 +1403,7 @@ try {
 			openCashDrawer: printerConfig.openCashDrawer,
 			beepAfterPrint: printerConfig.beepAfterPrint,
 			cutPaper: printerConfig.cutPaper,
+			paperWidth: printerConfig.paperWidth,
 		});
 
 		if (debug) {
@@ -1510,7 +1516,7 @@ try {
 			throw new Error('Printer not found');
 		}
 
-		const content = PrintContentService.generateTestPageContent(printer);
+		const content = generateTestPageContent(printer);
 
 		const printJobData: CreatePrintJobRequest = {
 			printerId: printer.printerId,
@@ -1549,7 +1555,7 @@ try {
 		}
 
 		// Generate drawer open command
-		const content = PrintContentService.generateOpenDrawerCommand();
+		const content = generateOpenDrawerCommand();
 
 		const printJobData: CreatePrintJobRequest = {
 			printerId: printer.printerId,

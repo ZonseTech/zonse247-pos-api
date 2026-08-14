@@ -150,7 +150,7 @@ export class PrinterModel {
     static async findByName(printerName: string, branchId: string): Promise<Printer | null> {
         try {
             const printer = await prisma.printer.findFirst({
-                where: { printerName, branchId }
+                where: { printerName, branchId, isActive: true }
             });
             return printer as unknown as Printer | null;
         } catch (error) {
@@ -207,7 +207,7 @@ export class PrinterModel {
                     isKitchenPrinter: data.isKitchenPrinter ?? false,
                     isReportPrinter: data.isReportPrinter ?? false,
                     status: 'OFFLINE',
-                    configuration: JSON.stringify(configuration),
+                    configuration,
                     printJobCount: 0,
                     errorCount: 0,
                     isActive: true,
@@ -243,12 +243,12 @@ export class PrinterModel {
                             ? JSON.parse(existingPrinter.configuration)
                             : existingPrinter.configuration)
                         : {};
-                    updateData.configuration = JSON.stringify({
+                    updateData.configuration = {
                         ...existingConfig,
                         ...data.configuration
-                    });
+                    };
                 } else {
-                    updateData.configuration = JSON.stringify(data.configuration);
+                    updateData.configuration = data.configuration;
                 }
             }
 
@@ -344,7 +344,7 @@ export class PrinterModel {
             const printer = await prisma.printer.update({
                 where: { printerId },
                 data: {
-                    configuration: JSON.stringify(newConfig),
+                    configuration: newConfig,
                     updatedAt: new Date()
                 }
             });

@@ -3,46 +3,30 @@
  * Defines types for multi-platform printer support (Web, Desktop, Mobile)
  */
 
-import { Printer, PrintJob, PrinterStatus, PrinterConnectionType, PrintJobStatus, PrintJobType } from './printer';
+import { Printer, PrintJob, PrinterStatus, PrintJobStatus, PrintJobType } from './printer';
+import {
+    AppPlatform,
+    PrintErrorCode,
+    PlatformCapabilities,
+    PLATFORM_CAPABILITIES,
+    PlatformDiscoveryRequest,
+    DiscoveredPlatformPrinter,
+    PlatformDiscoveryResult,
+} from '@zonse247/print-engine';
+
+// Device-level platform/discovery types are owned by @zonse247/print-engine —
+// re-exported here so existing api imports keep working unchanged.
+export {
+    AppPlatform,
+    PrintErrorCode,
+    PlatformCapabilities,
+    PLATFORM_CAPABILITIES,
+    PlatformDiscoveryRequest,
+    DiscoveredPlatformPrinter,
+    PlatformDiscoveryResult,
+};
 
 // ==================== PLATFORM TYPES ====================
-
-/**
- * Supported application platforms
- */
-export enum AppPlatform {
-    WEB = 'WEB',
-    DESKTOP = 'DESKTOP',      // Electron
-    MOBILE_ANDROID = 'MOBILE_ANDROID',
-    MOBILE_IOS = 'MOBILE_IOS',
-    MOBILE_REACT_NATIVE = 'MOBILE_REACT_NATIVE'
-}
-
-/**
- * Platform capabilities for printing
- */
-export interface PlatformCapabilities {
-    platform: AppPlatform;
-    
-    // Connection support
-    supportsUSB: boolean;
-    supportsNetwork: boolean;
-    supportsBluetooth: boolean;
-    supportsSerial: boolean;
-    supportsWifi: boolean;
-    
-    // Feature support
-    supportsDirectPrint: boolean;    // Can print directly without server
-    supportsPrintPreview: boolean;   // Can show print preview
-    supportsBackgroundPrint: boolean; // Can print in background
-    supportsPrinterDiscovery: boolean; // Can discover printers
-    supportsCloudPrint: boolean;     // Can use cloud printing
-    supportsRawCommands: boolean;    // Can send raw ESC/POS commands
-    
-    // Storage
-    supportsLocalQueue: boolean;     // Can queue jobs locally
-    supportsOfflineMode: boolean;    // Can work offline
-}
 
 /**
  * Platform-specific print request
@@ -89,43 +73,17 @@ export interface PrintResult {
     printJobId?: string;
     message: string;
     platform: AppPlatform;
-    
+
     // Status tracking
     status: PrintJobStatus;
     printedAt?: Date;
-    
+
     // Error info
     errorCode?: PrintErrorCode;
     errorDetails?: string;
-    
+
     // Platform-specific result data
     platformData?: Record<string, unknown>;
-}
-
-export enum PrintErrorCode {
-    // General errors
-    UNKNOWN = 'UNKNOWN',
-    PRINTER_NOT_FOUND = 'PRINTER_NOT_FOUND',
-    PRINTER_OFFLINE = 'PRINTER_OFFLINE',
-    PRINTER_BUSY = 'PRINTER_BUSY',
-    NO_CONTENT = 'NO_CONTENT',
-    INVALID_CONTENT = 'INVALID_CONTENT',
-    
-    // Connection errors
-    CONNECTION_FAILED = 'CONNECTION_FAILED',
-    CONNECTION_TIMEOUT = 'CONNECTION_TIMEOUT',
-    PERMISSION_DENIED = 'PERMISSION_DENIED',
-    
-    // Platform-specific errors
-    BLUETOOTH_DISABLED = 'BLUETOOTH_DISABLED',
-    BLUETOOTH_PAIRING_FAILED = 'BLUETOOTH_PAIRING_FAILED',
-    USB_NOT_SUPPORTED = 'USB_NOT_SUPPORTED',
-    NETWORK_UNREACHABLE = 'NETWORK_UNREACHABLE',
-    
-    // Queue errors
-    QUEUE_FULL = 'QUEUE_FULL',
-    JOB_CANCELLED = 'JOB_CANCELLED',
-    JOB_TIMEOUT = 'JOB_TIMEOUT'
 }
 
 // ==================== PLATFORM-SPECIFIC PRINTER INFO ====================
@@ -150,54 +108,6 @@ export interface PrinterCapabilities {
     supportsLogo: boolean;
     maxResolution?: number;      // DPI
     supportedEncodings: string[];
-}
-
-// ==================== DISCOVERY TYPES ====================
-
-/**
- * Platform-aware printer discovery request
- */
-export interface PlatformDiscoveryRequest {
-    platform: AppPlatform;
-    connectionTypes?: PrinterConnectionType[];
-    timeout?: number;
-    
-    // Network scan options
-    networkRange?: {
-        baseIP: string;
-        startHost: number;
-        endHost: number;
-        ports: number[];
-    };
-    
-    // Bluetooth options
-    bluetoothOptions?: {
-        scanDuration: number;
-        filterByName?: string;
-    };
-}
-
-export interface PlatformDiscoveryResult {
-    platform: AppPlatform;
-    printers: DiscoveredPlatformPrinter[];
-    scanDuration: number;
-    errors?: string[];
-}
-
-export interface DiscoveredPlatformPrinter {
-    name: string;
-    platform: AppPlatform;
-    connectionType: PrinterConnectionType;
-    address?: string;
-    port?: number;
-    vendorId?: string;
-    productId?: string;
-    serialNumber?: string;
-    manufacturer?: string;
-    model?: string;
-    isOnline: boolean;
-    signalStrength?: number;     // For Bluetooth/WiFi
-    capabilities?: PrinterCapabilities;
 }
 
 // ==================== QUEUE TYPES ====================
@@ -405,94 +315,6 @@ export interface SetupInstructionsDTO {
         solution: string;
     }>;
 }
-
-// ==================== CONSTANTS ====================
-
-/**
- * Platform capability defaults
- */
-export const PLATFORM_CAPABILITIES: Record<AppPlatform, PlatformCapabilities> = {
-    [AppPlatform.WEB]: {
-        platform: AppPlatform.WEB,
-        supportsUSB: false,
-        supportsNetwork: true,
-        supportsBluetooth: false,
-        supportsSerial: false,
-        supportsWifi: true,
-        supportsDirectPrint: false,
-        supportsPrintPreview: true,
-        supportsBackgroundPrint: false,
-        supportsPrinterDiscovery: false,
-        supportsCloudPrint: true,
-        supportsRawCommands: false,
-        supportsLocalQueue: false,
-        supportsOfflineMode: false
-    },
-    [AppPlatform.DESKTOP]: {
-        platform: AppPlatform.DESKTOP,
-        supportsUSB: true,
-        supportsNetwork: true,
-        supportsBluetooth: true,
-        supportsSerial: true,
-        supportsWifi: true,
-        supportsDirectPrint: true,
-        supportsPrintPreview: true,
-        supportsBackgroundPrint: true,
-        supportsPrinterDiscovery: true,
-        supportsCloudPrint: true,
-        supportsRawCommands: true,
-        supportsLocalQueue: true,
-        supportsOfflineMode: true
-    },
-    [AppPlatform.MOBILE_ANDROID]: {
-        platform: AppPlatform.MOBILE_ANDROID,
-        supportsUSB: true,        // USB OTG
-        supportsNetwork: true,
-        supportsBluetooth: true,
-        supportsSerial: false,
-        supportsWifi: true,
-        supportsDirectPrint: true,
-        supportsPrintPreview: true,
-        supportsBackgroundPrint: true,
-        supportsPrinterDiscovery: true,
-        supportsCloudPrint: true,
-        supportsRawCommands: true,
-        supportsLocalQueue: true,
-        supportsOfflineMode: true
-    },
-    [AppPlatform.MOBILE_IOS]: {
-        platform: AppPlatform.MOBILE_IOS,
-        supportsUSB: false,
-        supportsNetwork: true,
-        supportsBluetooth: true,
-        supportsSerial: false,
-        supportsWifi: true,
-        supportsDirectPrint: false,
-        supportsPrintPreview: true,
-        supportsBackgroundPrint: false,
-        supportsPrinterDiscovery: true,
-        supportsCloudPrint: true,
-        supportsRawCommands: false,  // Limited in iOS
-        supportsLocalQueue: true,
-        supportsOfflineMode: true
-    },
-    [AppPlatform.MOBILE_REACT_NATIVE]: {
-        platform: AppPlatform.MOBILE_REACT_NATIVE,
-        supportsUSB: true,        // Depends on native modules
-        supportsNetwork: true,
-        supportsBluetooth: true,
-        supportsSerial: false,
-        supportsWifi: true,
-        supportsDirectPrint: true,
-        supportsPrintPreview: true,
-        supportsBackgroundPrint: true,
-        supportsPrinterDiscovery: true,
-        supportsCloudPrint: true,
-        supportsRawCommands: true,
-        supportsLocalQueue: true,
-        supportsOfflineMode: true
-    }
-};
 
 export default {
     AppPlatform,

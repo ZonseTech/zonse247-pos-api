@@ -212,7 +212,18 @@ export const printerValidationSchemas = {
                 .min(1)
                 .max(99)
                 .optional()
-                .default(1)
+                .default(1),
+            lineSpacing: Joi.number()
+                .valid(1, 1.5, 2, 2.5)
+                .optional()
+                .default(1.5),
+            printMode: Joi.string()
+                .valid('normal', 'draft', 'high')
+                .optional()
+                .default('normal'),
+            autoPrintOnSale: Joi.boolean()
+                .optional()
+                .default(true)
         }).optional()
     }),
 
@@ -315,7 +326,10 @@ export const printerValidationSchemas = {
             marginLeft: Joi.number().min(0).max(50).optional(),
             marginRight: Joi.number().min(0).max(50).optional(),
             beepAfterPrint: Joi.boolean().optional(),
-            copies: Joi.number().min(1).max(99).optional()
+            copies: Joi.number().min(1).max(99).optional(),
+            lineSpacing: Joi.number().valid(1, 1.5, 2, 2.5).optional(),
+            printMode: Joi.string().valid('normal', 'draft', 'high').optional(),
+            autoPrintOnSale: Joi.boolean().optional()
         }).optional(),
 
         isActive: Joi.boolean()

@@ -1,11 +1,9 @@
 import { PrintJobService } from '../services/printer/print-job.service';
 import { PrinterDiscoveryService } from '../services/printer/printer-discovery.service';
-import { PrintStrategyFactory, PrintStrategySelector } from '../services/printer/strategies';
-import { AppPlatform } from '../types/printer.platform';
-import { PrinterConnectionType, PrinterType } from '../types/printer';
+import { PrintStrategyFactory, PrintStrategySelector, AppPlatform, PrinterConnectionType, PrinterType } from '@zonse247/print-engine';
 
-jest.mock('../services/printer/strategies', () => {
-    const actual = jest.requireActual('../services/printer/strategies');
+jest.mock('@zonse247/print-engine', () => {
+    const actual = jest.requireActual('@zonse247/print-engine');
     return {
         ...actual,
         ensureStrategiesInitialized: jest.fn(),
@@ -82,7 +80,6 @@ describe('printer strategy enforcement', () => {
                 success: true,
                 message: 'printed',
                 platform: AppPlatform.DESKTOP,
-                status: 'COMPLETED' as never,
             });
 
         const printer = {

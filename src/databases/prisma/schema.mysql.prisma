@@ -2057,6 +2057,8 @@ model Printer {
   @@index([tenantId, branchId, updatedAt])
   @@index([updatedAt])
   @@index([deletedAt])
+  @@index([branchId, isActive, isDefault, createdAt])
+  @@index([tenantId, isActive, isDefault, createdAt])
   @@map("printers")
 }
 
@@ -2097,6 +2099,7 @@ model PrintJob {
   @@index([tenantId, branchId, updatedAt])
   @@index([updatedAt])
   @@index([deletedAt])
+  @@index([branchId, status, priority, createdAt])
   @@map("print_jobs")
 }
 
