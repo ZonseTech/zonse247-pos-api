@@ -14,7 +14,7 @@ export class ReportService {
      */
     static async getSummary(
         tenantId: string,
-        branchId?: string,
+        branchId?: string | string[],
         startDate?: string,
         endDate?: string
     ): Promise<ReportSummary> {
@@ -119,7 +119,7 @@ export class ReportService {
      */
     static async getTotalSales(
         tenantId: string,
-        branchId?: string,
+        branchId?: string | string[],
         startDate?: string,
         endDate?: string
     ): Promise<TotalSalesReport> {
@@ -158,7 +158,7 @@ export class ReportService {
      */
     static async getNetProfit(
         tenantId: string,
-        branchId?: string,
+        branchId?: string | string[],
         startDate?: string,
         endDate?: string
     ): Promise<TotalSalesReport> {
@@ -218,7 +218,7 @@ export class ReportService {
      */
     static async getReceiptCount(
         tenantId: string,
-        branchId?: string,
+        branchId?: string | string[],
         startDate?: string,
         endDate?: string
     ): Promise<TotalSalesReport> {
@@ -252,7 +252,7 @@ export class ReportService {
      */
     static async getPaymentModes(
         tenantId: string,
-        branchId?: string,
+        branchId?: string | string[],
         startDate?: string,
         endDate?: string
     ): Promise<{ data: PaymentModeDataPoint[] }> {
@@ -317,7 +317,7 @@ export class ReportService {
      */
     static async getTopStocks(
         tenantId: string,
-        branchId?: string,
+        branchId?: string | string[],
         startDate?: string,
         endDate?: string
     ): Promise<TopStocksReport> {
@@ -392,7 +392,7 @@ export class ReportService {
      */
     static async getTopCategories(
         tenantId: string,
-        branchId?: string,
+        branchId?: string | string[],
         startDate?: string,
         endDate?: string
     ): Promise<TopCategoriesReport> {
@@ -465,7 +465,7 @@ export class ReportService {
      */
     static async getExpensesTrend(
         tenantId: string,
-        branchId?: string,
+        branchId?: string | string[],
         startDate?: string,
         endDate?: string
     ): Promise<TotalSalesReport> {
@@ -497,7 +497,7 @@ export class ReportService {
      */
     static async getExpensesByCategory(
         tenantId: string,
-        branchId?: string,
+        branchId?: string | string[],
         startDate?: string,
         endDate?: string
     ): Promise<ExpensesByCategoryReport> {
