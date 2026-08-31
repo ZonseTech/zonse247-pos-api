@@ -10,6 +10,8 @@ import {
     SalesSummaryOptions,
     SalesSummary,
     ProcessedSaleItem,
+    DayCloseReportOptions,
+    DayCloseReportRow,
 } from '../types/sale.types';
 import { MraSaleSubmissionRequest, MraSaleItem } from '../types/mra.types';
 import {
@@ -270,6 +272,142 @@ export class SaleService {
         }
 
         return this.calculateSummary(sales, refundedAmountBySaleId);
+    }
+
+    /**
+     * Get the day close report: one row per calendar day with units sold,
+     * revenue, cost of sales, gross profit, approved expenses, and net
+     * profit. Revenue is net of discount; Gross Profit = Revenue - Cost of
+     * Sales; Net Profit = Gross Profit - Expenses.
+     *
+     * Every sale in range touches its day - including VOIDED/REFUNDED ones -
+     * so a day with only a refunded or voided sale still shows up as a row
+     * (net figures near zero) instead of disappearing from the report.
+     * Mirrors the VOIDED/REFUNDED/PARTIALLY_REFUNDED netting already used by
+     * getSalesSummary, since a hard `status: COMPLETED` filter here silently
+     * dropped any day whose only sale had since been refunded.
+     *
+     * @param tenantId - Tenant identifier
+     * @param branchId - Branch identifier
+     * @param filters - Optional date range
+     * @returns One row per day with sales/expense figures, newest first
+     */
+    static async getDayCloseReport(
+        tenantId: string,
+        branchId: string,
+        filters: DayCloseReportOptions
+    ): Promise<DayCloseReportRow[]> {
+        const saleWhere: any = { tenantId, branchId };
+        const saleDateFilter = buildDateFilter(filters.startDate, filters.endDate);
+        if (saleDateFilter) saleWhere.saleDate = saleDateFilter;
+
+        const expenseWhere: any = { tenantId, branchId, status: 'APPROVED', deletedAt: null };
+        const expenseDateFilter = buildDateFilter(filters.startDate, filters.endDate);
+        if (expenseDateFilter) expenseWhere.expenseDate = expenseDateFilter;
+
+        const [sales, expenses] = await Promise.all([
+            prisma.sale.findMany({
+                where: saleWhere,
+                select: {
+                    id: true,
+                    totalAmount: true,
+                    discountAmount: true,
+                    saleDate: true,
+                    status: true,
+                    isVoided: true,
+                    items: { select: { quantity: true, unitCost: true } },
+                },
+            }),
+            prisma.expense.findMany({
+                where: expenseWhere,
+                select: { amount: true, expenseDate: true },
+            }),
+        ]);
+
+        const refundedSaleIds = sales
+            .filter((sale) => sale.status === 'REFUNDED' || sale.status === 'PARTIALLY_REFUNDED')
+            .map((sale) => sale.id);
+
+        const returnItems = refundedSaleIds.length > 0
+            ? await prisma.returnItem.findMany({
+                where: { returnTransactionId: { in: refundedSaleIds } },
+                select: { returnTransactionId: true, returnPrice: true, returnedQuantity: true },
+            })
+            : [];
+
+        const refundedAmountBySaleId = new Map<string, number>();
+        for (const item of returnItems) {
+            const amount = Number(item.returnPrice) * Number(item.returnedQuantity);
+            refundedAmountBySaleId.set(
+                item.returnTransactionId,
+                (refundedAmountBySaleId.get(item.returnTransactionId) || 0) + amount
+            );
+        }
+
+        const dayMap = new Map<string, DayCloseReportRow>();
+        const getOrCreateDay = (dateKey: string): DayCloseReportRow => {
+            let row = dayMap.get(dateKey);
+            if (!row) {
+                row = { date: dateKey, unitsSold: 0, revenue: 0, costOfSales: 0, grossProfit: 0, expenses: 0, netProfit: 0 };
+                dayMap.set(dateKey, row);
+            }
+            return row;
+        };
+
+        for (const sale of sales) {
+            // Touch the day for every sale so it shows up even when the sale
+            // nets to zero revenue (voided or fully refunded).
+            const row = getOrCreateDay(this.toDateString(sale.saleDate));
+            const amount = Number(sale.totalAmount) || 0;
+            const discount = Number(sale.discountAmount) || 0;
+
+            if (sale.status === 'VOIDED' || sale.isVoided) {
+                // Inventory was reversed - no net revenue, units, or cost.
+                continue;
+            }
+
+            if (sale.status === 'REFUNDED') {
+                // Fully refunded - nets to no revenue; goods were returned
+                // so they don't count toward units sold or cost of sales.
+                row.revenue += amount - discount - (refundedAmountBySaleId.get(sale.id) ?? amount);
+                continue;
+            }
+
+            for (const item of sale.items) {
+                row.unitsSold += item.quantity;
+                row.costOfSales += Number(item.unitCost) * item.quantity;
+            }
+
+            if (sale.status === 'PARTIALLY_REFUNDED') {
+                row.revenue += amount - discount - (refundedAmountBySaleId.get(sale.id) ?? 0);
+            } else {
+                row.revenue += amount - discount;
+            }
+        }
+
+        for (const expense of expenses) {
+            const row = getOrCreateDay(this.toDateString(expense.expenseDate));
+            row.expenses += Number(expense.amount);
+        }
+
+        return Array.from(dayMap.values())
+            .map((row) => {
+                const revenue = roundCurrency(row.revenue);
+                const costOfSales = roundCurrency(row.costOfSales);
+                const expensesTotal = roundCurrency(row.expenses);
+                const grossProfit = roundCurrency(revenue - costOfSales);
+
+                return {
+                    date: row.date,
+                    unitsSold: row.unitsSold,
+                    revenue,
+                    costOfSales,
+                    grossProfit,
+                    expenses: expensesTotal,
+                    netProfit: roundCurrency(grossProfit - expensesTotal),
+                };
+            })
+            .sort((a, b) => (a.date < b.date ? 1 : -1));
     }
 
     /**
@@ -582,6 +720,13 @@ export class SaleService {
         }
 
         return where;
+    }
+
+    /**
+     * Format a date as YYYY-MM-DD for grouping rows by calendar day
+     */
+    private static toDateString(date: Date): string {
+        return date.toISOString().split('T')[0];
     }
 
     /**
