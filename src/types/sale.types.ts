@@ -206,6 +206,24 @@ export interface SalesSummary {
     refundedCount: number;
 }
 
+export interface DayCloseReportOptions {
+    startDate?: Date;
+    endDate?: Date;
+}
+
+/**
+ * Day close report row - one per calendar day
+ */
+export interface DayCloseReportRow {
+    date: string;
+    unitsSold: number;
+    revenue: number;
+    costOfSales: number;
+    grossProfit: number;
+    expenses: number;
+    netProfit: number;
+}
+
 export interface PaymentMethodInfo {
     methodId: string;
     name: string;
