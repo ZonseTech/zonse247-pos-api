@@ -101,6 +101,7 @@ import { migration as m20260730_01 } from './20260730_01_remove_restaurant_bar_r
 import { migration as m20260730_02 } from './20260730_02_add_tenant_branch_scope_to_roles';
 import { migration as m20260808_01 } from './20260808_01_drop_legacy_global_barcode_unique_constraints';
 import { migration as m20260811_01 } from './20260811_01_add_printer_printjob_sort_covering_indexes';
+import { migration as m20260901_01 } from './20260901_01_add_branch_preferences_column_to_branches_table';
 
 /**
  * All registered migrations, sorted by version
@@ -197,6 +198,7 @@ export const registeredMigrations: Migration[] = [
     m20260730_02,
     m20260808_01,
     m20260811_01,
+    m20260901_01,
 ].sort((a, b) => a.version.localeCompare(b.version));
 
 /**
