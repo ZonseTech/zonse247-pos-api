@@ -10,6 +10,8 @@ router.get('/', permissionMiddleware.requireAnyPermission(['sales.view', 'sales.
 router.get('/summaries', permissionMiddleware.requireAnyPermission(['sales.view', 'sales.view.own']), SaleController.getSummaries);
 router.get('/day-close-report', permissionMiddleware.requireAnyPermission(['sales.view', 'sales.view.own']), SaleController.getDayCloseReport);
 router.get('/day-close-report/summary', permissionMiddleware.requireAnyPermission(['sales.view', 'sales.view.own']), SaleController.getDayCloseReportSummary);
+router.get('/day-close-report/:date', permissionMiddleware.requireAnyPermission(['sales.view', 'sales.view.own']), SaleController.getDayCloseReportDetails);
+router.post('/void-batch', permissionMiddleware.requirePermission('sales.void'), SaleController.voidSalesByIds);
 router.get('/:saleId', permissionMiddleware.requireAnyPermission(['sales.view', 'sales.view.own']), SaleController.getSale);
 router.post('/:saleId/void', permissionMiddleware.requirePermission('sales.void'), SaleController.voidSale);
 
