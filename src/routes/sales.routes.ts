@@ -9,6 +9,7 @@ router.post('/', permissionMiddleware.requirePermission('sales.create'), SaleCon
 router.get('/', permissionMiddleware.requireAnyPermission(['sales.view', 'sales.view.own']), SaleController.listSales);
 router.get('/summaries', permissionMiddleware.requireAnyPermission(['sales.view', 'sales.view.own']), SaleController.getSummaries);
 router.get('/day-close-report', permissionMiddleware.requireAnyPermission(['sales.view', 'sales.view.own']), SaleController.getDayCloseReport);
+router.get('/day-close-report/summary', permissionMiddleware.requireAnyPermission(['sales.view', 'sales.view.own']), SaleController.getDayCloseReportSummary);
 router.get('/:saleId', permissionMiddleware.requireAnyPermission(['sales.view', 'sales.view.own']), SaleController.getSale);
 router.post('/:saleId/void', permissionMiddleware.requirePermission('sales.void'), SaleController.voidSale);
 
