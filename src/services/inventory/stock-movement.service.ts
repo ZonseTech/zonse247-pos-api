@@ -1191,6 +1191,57 @@ export class StockMovementService {
         };
     }
 
+    static async getStockCountDetail(
+        variantId: string,
+        tenantId: string,
+        branchId: string,
+        tradingDate: string
+    ): Promise<{ bookBalance: number; goodsReceived: number; openingBalance: number }> {
+        const dayStart = new Date(`${tradingDate}T00:00:00.000`);
+        const dayEnd = new Date(`${tradingDate}T23:59:59.999`);
+
+        const inventory = await prisma.inventory.findFirst({
+            where: { tenantId, branchId, variantId },
+            select: { id: true, availableQuantity: true },
+        });
+
+        if (!inventory) {
+            return { bookBalance: 0, goodsReceived: 0, openingBalance: 0 };
+        }
+
+        const [latestMovement, receivedAgg] = await Promise.all([
+            prisma.stockMovement.findFirst({
+                where: {
+                    tenantId,
+                    branchId,
+                    inventoryId: inventory.id,
+                    movementDate: { lte: dayEnd },
+                },
+                orderBy: { movementDate: 'desc' },
+                select: { newQuantity: true },
+            }),
+            prisma.stockMovement.aggregate({
+                where: {
+                    tenantId,
+                    branchId,
+                    inventoryId: inventory.id,
+                    movementType: { in: this.INCREASE_TYPES },
+                    movementDate: { gte: dayStart, lte: dayEnd },
+                },
+                _sum: { quantity: true },
+            }),
+        ]);
+
+        const bookBalance = latestMovement ? latestMovement.newQuantity : inventory.availableQuantity;
+        const goodsReceived = receivedAgg._sum.quantity || 0;
+
+        return {
+            bookBalance,
+            goodsReceived,
+            openingBalance: bookBalance - goodsReceived,
+        };
+    }
+
     /**
      * Get stock movements for a branch
      */
