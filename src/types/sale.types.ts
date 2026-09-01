@@ -224,6 +224,17 @@ export interface DayCloseReportRow {
     netProfit: number;
 }
 
+/**
+ * Day close report summary - totals across the requested date range
+ */
+export interface DayCloseReportSummary {
+    revenue: number;
+    costOfSales: number;
+    grossProfit: number;
+    expenses: number;
+    netProfit: number;
+}
+
 export interface PaymentMethodInfo {
     methodId: string;
     name: string;
