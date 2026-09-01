@@ -12,6 +12,7 @@ import {
     ProcessedSaleItem,
     DayCloseReportOptions,
     DayCloseReportRow,
+    DayCloseReportSummary,
 } from '../types/sale.types';
 import { MraSaleSubmissionRequest, MraSaleItem } from '../types/mra.types';
 import {
@@ -408,6 +409,43 @@ export class SaleService {
                 };
             })
             .sort((a, b) => (a.date < b.date ? 1 : -1));
+    }
+
+    /**
+     * Get the day close report totals (Total Revenue, Cost of Sales, Gross
+     * Profit, Expenses, Net Profit) across the requested date range.
+     *
+     * @param tenantId - Tenant identifier
+     * @param branchId - Branch identifier
+     * @param filters - Optional date range
+     * @returns Totals across all days in range
+     */
+    static async getDayCloseReportSummary(
+        tenantId: string,
+        branchId: string,
+        filters: DayCloseReportOptions
+    ): Promise<DayCloseReportSummary> {
+        const rows = await this.getDayCloseReport(tenantId, branchId, filters);
+
+        const totals = rows.reduce(
+            (acc, row) => {
+                acc.revenue += row.revenue;
+                acc.costOfSales += row.costOfSales;
+                acc.grossProfit += row.grossProfit;
+                acc.expenses += row.expenses;
+                acc.netProfit += row.netProfit;
+                return acc;
+            },
+            { revenue: 0, costOfSales: 0, grossProfit: 0, expenses: 0, netProfit: 0 }
+        );
+
+        return {
+            revenue: roundCurrency(totals.revenue),
+            costOfSales: roundCurrency(totals.costOfSales),
+            grossProfit: roundCurrency(totals.grossProfit),
+            expenses: roundCurrency(totals.expenses),
+            netProfit: roundCurrency(totals.netProfit),
+        };
     }
 
     /**
