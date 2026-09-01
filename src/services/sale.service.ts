@@ -13,6 +13,9 @@ import {
     DayCloseReportOptions,
     DayCloseReportRow,
     DayCloseReportSummary,
+    DayCloseReportDetails,
+    DayCloseReportItemEntry,
+    BatchVoidResult,
 } from '../types/sale.types';
 import { MraSaleSubmissionRequest, MraSaleItem } from '../types/mra.types';
 import {
@@ -278,16 +281,8 @@ export class SaleService {
     /**
      * Get the day close report: one row per calendar day with units sold,
      * revenue, cost of sales, gross profit, approved expenses, and net
-     * profit. Revenue is net of discount; Gross Profit = Revenue - Cost of
-     * Sales; Net Profit = Gross Profit - Expenses.
-     *
-     * Every sale in range touches its day - including VOIDED/REFUNDED ones -
-     * so a day with only a refunded or voided sale still shows up as a row
-     * (net figures near zero) instead of disappearing from the report.
-     * Mirrors the VOIDED/REFUNDED/PARTIALLY_REFUNDED netting already used by
-     * getSalesSummary, since a hard `status: COMPLETED` filter here silently
-     * dropped any day whose only sale had since been refunded.
-     *
+     * profit.
+     * 
      * @param tenantId - Tenant identifier
      * @param branchId - Branch identifier
      * @param filters - Optional date range
@@ -446,6 +441,271 @@ export class SaleService {
             expenses: roundCurrency(totals.expenses),
             netProfit: roundCurrency(totals.netProfit),
         };
+    }
+
+    /**
+     * Get the full day close details for a single date: the day's totals
+     * plus every sale and expense that made up those totals.
+     *
+     * @param tenantId - Tenant identifier
+     * @param branchId - Branch identifier
+     * @param date - Calendar date (YYYY-MM-DD)
+     */
+    static async getDayCloseReportDetails(
+        tenantId: string,
+        branchId: string,
+        date: string
+    ): Promise<DayCloseReportDetails> {
+        const dayStart = new Date(date + 'T00:00:00');
+        const dayEnd = new Date(date + 'T00:00:00');
+        dayEnd.setHours(23, 59, 59, 999);
+
+        const [rows, sales, expenses] = await Promise.all([
+            this.getDayCloseReport(tenantId, branchId, { startDate: dayStart, endDate: dayStart }),
+            prisma.sale.findMany({
+                where: { tenantId, branchId, saleDate: { gte: dayStart, lte: dayEnd } },
+                select: {
+                    id: true,
+                    saleNumber: true,
+                    saleDate: true,
+                    status: true,
+                    totalAmount: true,
+                    discountAmount: true,
+                    items: {
+                        select: {
+                            variantId: true,
+                            quantity: true,
+                            unitPrice: true,
+                            variant: {
+                                select: {
+                                    sku: true,
+                                    primaryBarcode: true,
+                                    product: { select: { name: true } },
+                                },
+                            },
+                        },
+                    },
+                },
+                orderBy: { saleDate: 'desc' },
+            }),
+            prisma.expense.findMany({
+                where: {
+                    tenantId,
+                    branchId,
+                    status: 'APPROVED',
+                    deletedAt: null,
+                    expenseDate: { gte: dayStart, lte: dayEnd },
+                },
+                select: {
+                    id: true,
+                    expenseNumber: true,
+                    amount: true,
+                    expenseDate: true,
+                    status: true,
+                    category: { select: { name: true } },
+                },
+                orderBy: { expenseDate: 'desc' },
+            }),
+        ]);
+
+        const saleIds = sales.map((sale) => sale.id);
+        const payments = saleIds.length > 0
+            ? await prisma.salePayment.findMany({
+                where: { tenantId, branchId, saleId: { in: saleIds }, status: 'COMPLETED', deletedAt: null },
+                select: { paymentMethodId: true, amount: true, paymentMethod: { select: { name: true } } },
+            })
+            : [];
+
+        const paymentTotals = new Map<string, { methodName: string; amount: number }>();
+        for (const payment of payments) {
+            const amount = Number(payment.amount);
+            const existing = paymentTotals.get(payment.paymentMethodId);
+            if (existing) {
+                existing.amount += amount;
+            } else {
+                paymentTotals.set(payment.paymentMethodId, { methodName: payment.paymentMethod.name, amount });
+            }
+        }
+
+        const paymentMethods = Array.from(paymentTotals.entries())
+            .map(([methodId, { methodName, amount }]) => ({
+                methodId,
+                methodName,
+                amount: roundCurrency(amount),
+            }))
+            .sort((a, b) => b.amount - a.amount);
+
+        const itemAggregates = new Map<string, {
+            variantId: string;
+            name: string;
+            code: string;
+            quantitySold: number;
+            salesValue: number;
+        }>();
+
+        for (const sale of sales) {
+            for (const item of sale.items) {
+                const quantity = item.quantity;
+                const value = quantity * Number(item.unitPrice);
+                const existing = itemAggregates.get(item.variantId);
+                if (existing) {
+                    existing.quantitySold += quantity;
+                    existing.salesValue += value;
+                } else {
+                    itemAggregates.set(item.variantId, {
+                        variantId: item.variantId,
+                        name: item.variant?.product?.name ?? 'Unknown Item',
+                        code: item.variant?.sku ?? item.variant?.primaryBarcode ?? '',
+                        quantitySold: quantity,
+                        salesValue: value,
+                    });
+                }
+            }
+        }
+
+        const items = await this.buildDayCloseItemEntries(
+            tenantId,
+            branchId,
+            date,
+            dayStart,
+            dayEnd,
+            Array.from(itemAggregates.values())
+        );
+
+        const row = rows[0] ?? {
+            date,
+            unitsSold: 0,
+            revenue: 0,
+            costOfSales: 0,
+            grossProfit: 0,
+            expenses: 0,
+            netProfit: 0,
+        };
+
+        return {
+            ...row,
+            sales: sales.map((sale) => ({
+                id: sale.id,
+                saleNumber: sale.saleNumber,
+                saleDate: sale.saleDate,
+                status: sale.status,
+                itemCount: sale.items.length,
+                totalAmount: Number(sale.totalAmount),
+                discountAmount: Number(sale.discountAmount),
+            })),
+            items,
+            expenseRecords: expenses.map((expense) => ({
+                id: expense.id,
+                expenseNumber: expense.expenseNumber,
+                categoryName: expense.category?.name ?? 'Uncategorized',
+                amount: Number(expense.amount),
+                expenseDate: expense.expenseDate,
+                status: expense.status,
+            })),
+            paymentMethods,
+        };
+    }
+
+    /**
+     * Void a batch of sales by id (e.g. every sale shown on a Day Close
+     * Details page).
+     */
+    static async voidSalesByIds(
+        tenantId: string,
+        branchId: string,
+        saleIds: string[],
+        voidedBy: string,
+        voidReason: string
+    ): Promise<BatchVoidResult> {
+        const sales = await prisma.sale.findMany({
+            where: { tenantId, branchId, id: { in: saleIds }, isVoided: false },
+            select: { id: true, saleNumber: true },
+        });
+
+        for (const sale of sales) {
+            await this.voidSale(sale.id, tenantId, branchId, { voidedBy, voidReason });
+        }
+
+        return {
+            voidedCount: sales.length,
+            sales: sales.map((sale) => ({ id: sale.id, saleNumber: sale.saleNumber })),
+        };
+    }
+
+    private static async buildDayCloseItemEntries(
+        tenantId: string,
+        branchId: string,
+        date: string,
+        dayStart: Date,
+        dayEnd: Date,
+        aggregates: { variantId: string; name: string; code: string; quantitySold: number; salesValue: number }[]
+    ): Promise<DayCloseReportItemEntry[]> {
+        if (aggregates.length === 0) return [];
+
+        const variantIds = aggregates.map((aggregate) => aggregate.variantId);
+
+        const [inventories, goodsReceivedResults] = await Promise.all([
+            prisma.inventory.findMany({
+                where: { tenantId, branchId, variantId: { in: variantIds } },
+                select: { id: true, variantId: true, availableQuantity: true },
+            }),
+            Promise.all(
+                aggregates.map((aggregate) =>
+                    StockMovementService.getStockCountDetail(aggregate.variantId, tenantId, branchId, date)
+                )
+            ),
+        ]);
+
+        const inventoryByVariant = new Map<string, { id: string; variantId: string; availableQuantity: number }>(
+            inventories.map((inventory) => [inventory.variantId, inventory])
+        );
+        const inventoryIds = inventories.map((inventory) => inventory.id);
+
+        const saleMovements = inventoryIds.length > 0
+            ? await prisma.stockMovement.findMany({
+                where: {
+                    tenantId,
+                    branchId,
+                    inventoryId: { in: inventoryIds },
+                    movementType: 'SALE',
+                    movementDate: { gte: dayStart, lte: dayEnd },
+                },
+                orderBy: { movementDate: 'asc' },
+                select: { inventoryId: true, previousQuantity: true },
+            })
+            : [];
+
+        const earliestSaleBalanceByInventory = new Map<string, number>();
+        for (const movement of saleMovements) {
+            if (!earliestSaleBalanceByInventory.has(movement.inventoryId)) {
+                earliestSaleBalanceByInventory.set(movement.inventoryId, movement.previousQuantity);
+            }
+        }
+
+        return aggregates.map((aggregate, index) => {
+            const inventory = inventoryByVariant.get(aggregate.variantId);
+            const bookBalance = inventory
+                ? earliestSaleBalanceByInventory.get(inventory.id) ?? inventory.availableQuantity
+                : aggregate.quantitySold;
+            const goodsReceived = goodsReceivedResults[index]?.goodsReceived ?? 0;
+            const openingBalance = bookBalance - goodsReceived;
+            const physicalCount = bookBalance - aggregate.quantitySold;
+
+            return {
+                variantId: aggregate.variantId,
+                name: aggregate.name,
+                code: aggregate.code,
+                unitPrice: aggregate.quantitySold > 0
+                    ? roundCurrency(aggregate.salesValue / aggregate.quantitySold)
+                    : 0,
+                openingBalance,
+                goodsReceived,
+                bookBalance,
+                physicalCount,
+                quantitySold: aggregate.quantitySold,
+                salesValue: roundCurrency(aggregate.salesValue),
+            };
+        });
     }
 
     /**
