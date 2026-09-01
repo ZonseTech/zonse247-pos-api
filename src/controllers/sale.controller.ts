@@ -305,4 +305,71 @@ export class SaleController extends BaseController {
             BaseController.sendResponse(res, 400, false, 'Failed to get day close report summary', undefined, error.message);
         }
     }
+
+    /**
+     * Get the full day close details for a single date: the day's totals
+     * plus every sale and expense that made up those totals
+     */
+    static async getDayCloseReportDetails(req: Request & AuthRequest, res: Response): Promise<void> {
+        try {
+            const { date } = req.params;
+            const { tenantId, branchId } = SaleController.getAuthValues(req.auth);
+
+            if (!date) {
+                BaseController.sendResponse(res, 400, false, 'date parameter is required');
+                return;
+            }
+
+            const result = await SaleService.getDayCloseReportDetails(tenantId, branchId, date.toString());
+
+            BaseController.sendResponse(res, 200, true, 'Day close report details retrieved successfully', result);
+        } catch (error: any) {
+            BaseController.sendResponse(res, 400, false, 'Failed to get day close report details', undefined, error.message);
+        }
+    }
+
+    /**
+     * Void a batch of sales by id
+     */
+    static async voidSalesByIds(req: Request & AuthRequest, res: Response): Promise<void> {
+        try {
+            const { saleIds, voidReason } = req.body;
+            const { tenantId, branchId } = SaleController.getAuthValues(req.auth);
+
+            if (!Array.isArray(saleIds) || saleIds.length === 0) {
+                BaseController.sendResponse(res, 400, false, 'saleIds must be a non-empty array');
+                return;
+            }
+
+            if (!voidReason || !voidReason.trim()) {
+                BaseController.sendResponse(res, 400, false, 'voidReason is required');
+                return;
+            }
+
+            const result = await SaleService.voidSalesByIds(
+                tenantId,
+                branchId,
+                saleIds,
+                req.auth.userId,
+                voidReason
+            );
+
+            for (const sale of result.sales) {
+                AuditService.logStatusChange(
+                    getAuditContext(req),
+                    'void',
+                    'Sale',
+                    sale.id,
+                    sale.saleNumber,
+                    'COMPLETED',
+                    'VOIDED',
+                    { reason: voidReason }
+                );
+            }
+
+            BaseController.sendResponse(res, 200, true, `Voided ${result.voidedCount} sale(s)`, result);
+        } catch (error: any) {
+            BaseController.sendResponse(res, 400, false, 'Failed to void sales', undefined, error.message);
+        }
+    }
 }

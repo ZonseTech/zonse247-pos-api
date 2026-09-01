@@ -5,6 +5,17 @@ export type MraApprovalStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 export type BranchStatus = 'active' | 'inactive' | 'suspended';
 export type BranchBusinessType = 'PRODUCT_BASED' | 'SERVICE_BASED' | 'HYBRID';
 
+/**
+ * Branch-level UI customization, shared by every terminal/user at the branch.
+ * A generic bucket so future customization groups can be added without a
+ * new migration - navigation is the first.
+ */
+export interface BranchPreferences {
+    navigation?: {
+        hiddenNavItemIds: string[];
+    };
+}
+
 export interface Branch {
     branchId: string;
     tenantId: string;
@@ -37,6 +48,7 @@ export interface Branch {
     mraApprovalDate?: Date | null;
     branchSubscriptionId?: string | null;
     branchSubscription?: BranchSubscription | null;
+    branchPreferences?: BranchPreferences | null;
     status?: BranchStatus;
     createdAt?: Date;
     updatedAt?: Date;

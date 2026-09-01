@@ -777,6 +777,14 @@ export const APP_PERMISSIONS: PermissionDefinition[] = [
         category: PermissionCategory.SETTINGS,
         scope: PermissionScope.TENANT,
     },
+    {
+        permissionId: "settings.navigation.manage",
+        name: "settings.navigation.manage",
+        displayName: "Manage Navigation Settings",
+        description: "Control which navigation items are visible to everyone at this branch",
+        category: PermissionCategory.SETTINGS,
+        scope: PermissionScope.BRANCH,
+    },
 
     // =====================================================
     // BRANCH MANAGEMENT PERMISSIONS
