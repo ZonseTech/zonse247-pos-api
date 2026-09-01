@@ -274,4 +274,35 @@ export class SaleController extends BaseController {
             BaseController.sendResponse(res, 400, false, 'Failed to get day close report', undefined, error.message);
         }
     }
+
+    /**
+     * Get the day close report totals (Total Revenue, Cost of Sales, Gross
+     * Profit, Net Profit) across the requested date range
+     */
+    static async getDayCloseReportSummary(req: Request & AuthRequest, res: Response): Promise<void> {
+        try {
+            const { startDate, endDate } = req.query;
+            const { tenantId, branchId } = SaleController.getAuthValues(req.auth);
+
+            let parsedStartDate: Date | undefined;
+            let parsedEndDate: Date | undefined;
+
+            if (startDate) {
+                parsedStartDate = new Date(startDate.toString() + 'T00:00:00');
+            }
+
+            if (endDate) {
+                parsedEndDate = new Date(endDate.toString() + 'T00:00:00');
+            }
+
+            const result = await SaleService.getDayCloseReportSummary(tenantId, branchId, {
+                startDate: parsedStartDate,
+                endDate: parsedEndDate,
+            });
+
+            BaseController.sendResponse(res, 200, true, 'Day close report summary retrieved successfully', result);
+        } catch (error: any) {
+            BaseController.sendResponse(res, 400, false, 'Failed to get day close report summary', undefined, error.message);
+        }
+    }
 }

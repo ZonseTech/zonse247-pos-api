@@ -255,6 +255,34 @@ export class StockMovementController extends BaseController {
         }
     }
 
+    static async getStockCountDetail(req: Request & AuthRequest, res: Response): Promise<void> {
+        try {
+            const { variantId } = req.params;
+            const tradingDate = (req.query.tradingDate as string) || new Date().toISOString().split('T')[0];
+
+            const tenantId = (req.query.tenantId as string) || req.auth.tenantId;
+            const branchId = req.auth.activeBranchId || (req.query.branchId as string) || req.auth.branchId;
+
+            const result = await StockMovementService.getStockCountDetail(
+                variantId as string,
+                tenantId,
+                branchId,
+                tradingDate
+            );
+
+            BaseController.sendResponse(res, 200, true, 'Stock count detail retrieved successfully', result);
+        } catch (error: any) {
+            BaseController.sendResponse(
+                res,
+                400,
+                false,
+                'Failed to get stock count detail',
+                undefined,
+                error.message
+            );
+        }
+    }
+
     /**
      * Get stock movements for a branch
      */
