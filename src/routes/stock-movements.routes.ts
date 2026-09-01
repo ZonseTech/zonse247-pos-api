@@ -106,6 +106,15 @@ router.post('/correction', permissionMiddleware.requirePermission('inventory.adj
 router.get('/variant/:variantId', permissionMiddleware.requirePermission('inventory.view'), StockMovementController.getVariantMovements);
 
 /**
+ * GET /variant/:variantId/stock-count-detail
+ * Get Book Balance, Goods Received, and Opening Balance for a variant on a trading date
+ * (used by the day-end close stock count)
+ * @param {string} variantId - Variant UUID
+ * @query {string} [tradingDate=today] - Trading date (YYYY-MM-DD)
+ */
+router.get('/variant/:variantId/stock-count-detail', permissionMiddleware.requirePermission('inventory.view'), StockMovementController.getStockCountDetail);
+
+/**
  * GET /branch
  * Get stock movements for the current branch with optional filters
  * @query {string} [movementType] - Filter by movement type
