@@ -169,6 +169,37 @@ export class BranchController {
     }
 
     /**
+     * @method  updatePreferences
+     * @desc    Merge branch preference groups (e.g. navigation) into the
+     *          branch's branchPreferences JSON - shared by every terminal
+     *          and user at the branch
+     * @param   req - Express request with branchId param and preference groups body
+     * @param   res - Express response object
+     * @returns Promise<void> - JSON response with updated branch data
+     * @throws  404 - Branch not found
+     * @throws  500 - Internal server error
+     */
+    static async updatePreferences(req: Request<{ branchId: string }, ApiResponse<Branch>, Partial<Branch['branchPreferences']>> & AuthRequest, res: Response): Promise<void> {
+        try {
+            const { branchId } = req.params;
+            const updatedBranch = await BranchService.updatePreferences(branchId, req.auth.tenantId, req.body || {});
+
+            AuditService.logUpdate(getAuditContext(req), 'Branch', branchId, (updatedBranch as any).branchName || branchId, undefined, req.body as any);
+
+            BaseController.sendResponse(res, 200, true, 'Branch preferences updated successfully', updatedBranch);
+        } catch (error: any) {
+            console.error('Error updating branch preferences:', error);
+
+            let statusCode = 500;
+            if (error.message.includes('not found')) {
+                statusCode = 404;
+            }
+
+            BaseController.sendResponse(res, statusCode, false, error.message, undefined, error.message);
+        }
+    }
+
+    /**
      * @method  getPrimaryTerminalId
      * @desc    Get the primary terminal ID for a branch (used by web clients)
      * @param   req - Express request with tenantId and branchId query params
