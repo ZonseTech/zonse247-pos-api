@@ -12,9 +12,9 @@ import {
     PlatformDiscoveryRequest,
     DiscoveredPlatformPrinter,
     PlatformDiscoveryResult,
-} from '@zonse247/print-engine';
+} from '../lib/print-engine';
 
-// Device-level platform/discovery types are owned by @zonse247/print-engine —
+// Device-level platform/discovery types are owned by lib/print-engine —
 // re-exported here so existing api imports keep working unchanged.
 export {
     AppPlatform,
