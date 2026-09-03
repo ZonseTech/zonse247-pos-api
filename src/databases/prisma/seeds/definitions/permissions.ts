@@ -930,6 +930,14 @@ export const APP_PERMISSIONS: PermissionDefinition[] = [
         scope: PermissionScope.GLOBAL,
     },
     {
+        permissionId: "tenants.view",
+        name: "tenants.view",
+        displayName: "View Tenants",
+        description: "View the platform-wide list of tenants",
+        category: PermissionCategory.SYSTEM,
+        scope: PermissionScope.GLOBAL,
+    },
+    {
         permissionId: "system.backup",
         name: "system.backup",
         displayName: "System Backup",
