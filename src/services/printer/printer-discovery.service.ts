@@ -1,11 +1,3 @@
-/**
- * Printer discovery — thin facade over @zonse247/print-engine.
- *
- * All actual OS/network scanning, connectivity checks, and strategy
- * selection live in the package. This service only adds the pieces that
- * need the database: testing a *registered* printer (persists status back
- * to the Printer row) and branch/tenant-wide health rollups.
- */
 import { PrinterModel } from '../../models/printer.model';
 import {
     Printer,
@@ -24,7 +16,7 @@ import {
     checkPrinterConnection,
     SerialPortInfo,
     CommonPrinterPort,
-} from '@zonse247/print-engine';
+} from '../../lib/print-engine';
 
 export class PrinterDiscoveryService {
     static cleanup(): void {
