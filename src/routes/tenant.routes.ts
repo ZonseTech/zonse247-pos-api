@@ -1,15 +1,17 @@
 import { Router } from 'express';
 import { TenantController } from '../controllers/tenant.controller';
+import { PermissionMiddleware } from '../middlewares/permission.middleware';
 
 const router: Router = Router();
+const permissionMiddleware = new PermissionMiddleware();
 
 /**
  * @route   GET /tenants
  * @desc    Retrieve a paginated list of all tenants
  * @query   page: number, limit: number
- * @access  Protected
+ * @access  Protected — tenants.view
  */
-router.get('/', TenantController.list);
+router.get('/', permissionMiddleware.requirePermission('tenants.view'), TenantController.list);
 
 /** 
  * @route   POST /tenants
@@ -23,9 +25,9 @@ router.post('/', TenantController.store);
  * @route   GET /tenants/:tenantId
  * @desc    Retrieve a single tenant by ID
  * @param   tenantId - Unique tenant identifier
- * @access  Protected
+ * @access  Protected — tenants.view
  */
-router.get('/:tenantId', TenantController.show);
+router.get('/:tenantId', permissionMiddleware.requirePermission('tenants.view'), TenantController.show);
 
 /**
  * @route   PUT /tenants/:tenantId
