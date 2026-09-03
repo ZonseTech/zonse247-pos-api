@@ -60,7 +60,17 @@ export class GoodsReceiptService {
         branchId: string,
         receivedBy: string
     ): Promise<GoodsReceiptWithItems> {
-        return await prisma.$transaction(async (tx) => {
+        return await prisma.$transaction((tx) => this._createStep(tx, data, tenantId, branchId, receivedBy));
+    }
+
+    private static async _createStep(
+        tx: any,
+        data: CreateGoodsReceiptInput,
+        tenantId: string,
+        branchId: string,
+        receivedBy: string
+    ): Promise<GoodsReceiptWithItems> {
+        {
             // Validate the PO exists and is in a receivable state
             const po = await tx.purchaseOrder.findFirst({
                 where: { id: data.purchaseOrderId, tenantId, branchId, deletedAt: null },
@@ -147,7 +157,7 @@ export class GoodsReceiptService {
             });
 
             return this.mapGoodsReceipt(grn);
-        });
+        }
     }
 
     /**
@@ -260,7 +270,17 @@ export class GoodsReceiptService {
         branchId: string,
         notes?: string
     ): Promise<GoodsReceiptWithItems> {
-        return await prisma.$transaction(async (tx) => {
+        return await prisma.$transaction((tx) => this._verifyStep(tx, goodsReceiptId, tenantId, branchId, notes));
+    }
+
+    private static async _verifyStep(
+        tx: any,
+        goodsReceiptId: string,
+        tenantId: string,
+        branchId: string,
+        notes?: string
+    ): Promise<GoodsReceiptWithItems> {
+        {
             const existing = await tx.goodsReceipt.findFirst({
                 where: { id: goodsReceiptId, tenantId, branchId, deletedAt: null },
                 include: { items: { where: { deletedAt: null } } },
@@ -287,7 +307,7 @@ export class GoodsReceiptService {
             });
 
             return this.mapGoodsReceipt(updated);
-        });
+        }
     }
 
     /**
@@ -306,7 +326,18 @@ export class GoodsReceiptService {
         postedBy: string,
         notes?: string
     ): Promise<GoodsReceiptWithItems> {
-        return await prisma.$transaction(async (tx) => {
+        return await prisma.$transaction((tx) => this._postStep(tx, goodsReceiptId, tenantId, branchId, postedBy, notes));
+    }
+
+    private static async _postStep(
+        tx: any,
+        goodsReceiptId: string,
+        tenantId: string,
+        branchId: string,
+        postedBy: string,
+        notes?: string
+    ): Promise<GoodsReceiptWithItems> {
+        {
             const grn = await tx.goodsReceipt.findFirst({
                 where: { id: goodsReceiptId, tenantId, branchId, deletedAt: null },
                 include: {
@@ -481,6 +512,59 @@ export class GoodsReceiptService {
             });
 
             return this.mapGoodsReceipt(posted);
+        }
+    }
+
+    /**
+     * "Quick Receive" a purchase order: creates a GRN and immediately verifies
+     * and posts it, all in a single atomic transaction. This is the entry
+     * point used by PurchaseOrderService.receivePurchaseOrder so that the
+     * one-click "Quick Receive" flow on a PO shares the exact same GRN
+     * create/verify/post pipeline (receipt numbering, over-receipt
+     * protection, aggregated received-quantity tracking) instead of
+     * duplicating inventory-update logic.
+     */
+    static async quickReceive(
+        purchaseOrderId: string,
+        tenantId: string,
+        branchId: string,
+        userId: string,
+        items: { variantId: string; receivedQuantity: number; damagedQuantity: number }[]
+    ): Promise<GoodsReceiptWithItems> {
+        return await prisma.$transaction(async (tx) => {
+            const po = await tx.purchaseOrder.findFirst({
+                where: { id: purchaseOrderId, tenantId, branchId, deletedAt: null },
+                include: { items: { where: { deletedAt: null } } },
+            });
+
+            if (!po) {
+                throw new Error('Purchase order not found');
+            }
+
+            const grnItems = items.map((item) => {
+                const poItem = po.items.find((i: any) => i.variantId === item.variantId);
+                if (!poItem) {
+                    throw new Error(`Variant ${item.variantId} not found in purchase order`);
+                }
+                return {
+                    purchaseOrderItemId: poItem.id,
+                    variantId: item.variantId,
+                    receivedQuantity: item.receivedQuantity,
+                    rejectedQuantity: item.damagedQuantity,
+                    rejectionReason: item.damagedQuantity > 0 ? 'Damaged (Quick Receive)' : undefined,
+                    unitCost: Number(poItem.unitPrice),
+                };
+            });
+
+            const grn = await this._createStep(
+                tx,
+                { purchaseOrderId, items: grnItems },
+                tenantId,
+                branchId,
+                userId
+            );
+            await this._verifyStep(tx, grn.id, tenantId, branchId);
+            return this._postStep(tx, grn.id, tenantId, branchId, userId);
         });
     }
 
