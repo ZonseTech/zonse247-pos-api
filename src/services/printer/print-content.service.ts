@@ -6,7 +6,7 @@ import {
     ReceiptData,
     ReceiptFormatOptions,
     ProductLabelData,
-} from '@zonse247/print-engine';
+} from '../../lib/print-engine';
 import { OrderModel } from '../../models/order.model';
 import { BranchModel } from '../../models/branch.model';
 import { ProductService } from '../inventory/product.service';
@@ -39,21 +39,7 @@ export interface LabelContentRequest {
 
 export type { ReceiptData };
 
-/**
- * Fetches the sale/order/product data a receipt or label needs, then hands
- * off to @zonse247/print-engine's pure formatters. All ESC/POS/ZPL content
- * generation itself lives in the package — this service owns only the
- * database lookups that assemble the data the package formats.
- */
 export class PrintContentService {
-    /**
-     * Generate receipt content (ESC/POS format) with actual data
-     *
-     * Performance optimizations:
-     * - Uses provided receiptSettings to skip DB lookup
-     * - Parallel data fetching in fetchSaleData
-     * - Content generation is synchronous/memory-efficient
-     */
     static async generateReceiptContent(request: ReceiptContentRequest): Promise<string> {
         let receiptData: ReceiptData | null = null;
         let receiptSettings: ReceiptDisplaySettings | null = request.receiptSettings || null;

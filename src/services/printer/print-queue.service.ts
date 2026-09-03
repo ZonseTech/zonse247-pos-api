@@ -5,7 +5,7 @@ import {
     PrintJobStatus,
     Printer
 } from '../../types/printer';
-import { ensureStrategiesInitialized, PrintStrategySelector, AppPlatform } from '@zonse247/print-engine';
+import { ensureStrategiesInitialized, PrintStrategySelector, AppPlatform } from '../../lib/print-engine';
 import * as net from 'net';
 import { SerialPort } from 'serialport';
 import * as fs from 'fs';
@@ -478,7 +478,7 @@ export class PrintQueueService extends EventEmitter {
      */
     private async checkBluetoothPrinter(printer: Printer): Promise<boolean> {
         try {
-            const { BluetoothPrintStrategy } = await import('@zonse247/print-engine');
+            const { BluetoothPrintStrategy } = await import('../../lib/print-engine');
             const strategy = new BluetoothPrintStrategy();
             const result = await strategy.testConnection(printer);
             return result.online;

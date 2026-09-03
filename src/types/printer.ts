@@ -3,8 +3,8 @@
  * Defines types for printer management in POS system.
  *
  * Device-level types (connection/discovery/config shape) come from
- * @zonse247/print-engine, the single source of truth shared with any other
- * consumer of that package. Only DB/tenant-shaped types are declared here.
+ * lib/print-engine, the single source of truth for those shapes. Only
+ * DB/tenant-shaped types are declared here.
  */
 
 import { ReceiptDisplaySettings } from './terminal-settings';
@@ -13,7 +13,7 @@ import {
     PrinterConnectionType,
     PrinterConfiguration,
     DiscoveredPrinter,
-} from '@zonse247/print-engine';
+} from '../lib/print-engine';
 
 export { PrinterType, PrinterConnectionType, PrinterConfiguration, DiscoveredPrinter };
 

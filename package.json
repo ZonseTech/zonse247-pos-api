@@ -1,6 +1,6 @@
 {
   "name": "zonse247-pos-api",
-  "version": "1.9.3",
+  "version": "1.9.5",
   "description": "Zonse247 POS API - A point of sale API system",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -103,7 +103,6 @@
     "@prisma/adapter-better-sqlite3": "7.8.0",
     "@prisma/adapter-mariadb": "7.8.0",
     "@prisma/client": "7.8.0",
-    "@zonse247/print-engine": "file:../print-engine",
     "async": "^3.2.6",
     "axios": "^1.8.4",
     "bcryptjs": "^3.0.2",

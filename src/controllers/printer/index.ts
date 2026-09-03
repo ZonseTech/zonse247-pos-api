@@ -4,7 +4,7 @@
  */
 
 // Initialize strategies on module load
-import { ensureStrategiesInitialized } from '@zonse247/print-engine';
+import { ensureStrategiesInitialized } from '../../lib/print-engine';
 ensureStrategiesInitialized();
 
 // Export individual controllers

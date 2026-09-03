@@ -18,7 +18,7 @@ import {
 	AppPlatform,
 	generateTestPageContent,
 	generateOpenDrawerCommand,
-} from '@zonse247/print-engine';
+} from '../../lib/print-engine';
 import * as net from 'net';
 import { SerialPort } from 'serialport';
 import { exec } from 'child_process';
