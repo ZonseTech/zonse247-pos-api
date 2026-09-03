@@ -569,10 +569,17 @@ export class AuthService {
 
         const updatedUser = await UserModel.findById(userId);
         const roleData = await UserService.getRoleWithPermissions(updatedUser!.roleId);
-        const completeUser = UserService.getPublicUser({
+        const completeUser: any = UserService.getPublicUser({
             ...updatedUser!,
             currentBranchId: targetBranchId
         }, roleData || {});
+
+        if (updatedUser!.roleId) {
+            const role = await RoleModel.findById(updatedUser!.roleId);
+            if (role) {
+                completeUser.role = role;
+            }
+        }
 
         const token = this.generateJWTToken({
             ...completeUser,
