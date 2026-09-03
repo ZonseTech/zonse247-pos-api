@@ -6,7 +6,7 @@ import {
     ReceivePurchaseOrderInput,
     PurchaseOrderWithItems,
 } from '../../models/purchase-order.model';
-import { StockMovementService } from '../inventory/stock-movement.service';
+import { GoodsReceiptService } from './goods-receipt.service';
 import type { PurchaseOrderStatus } from '../../databases/prisma/generated/prisma/enums';
 
 // ─── Shared Includes ───────────────────────────────────────────────
@@ -283,119 +283,11 @@ export class PurchaseOrderService {
         branchId: string,
         data: ReceivePurchaseOrderInput
     ): Promise<PurchaseOrderWithItems> {
-        return await prisma.$transaction(async (tx) => {
-            const po = await tx.purchaseOrder.findFirst({
-                where: { id: purchaseOrderId, tenantId, branchId, deletedAt: null },
-                include: { items: { where: { deletedAt: null } } },
-            });
+        await GoodsReceiptService.quickReceive(purchaseOrderId, tenantId, branchId, data.receivedBy, data.items);
 
-            if (!po) throw new Error('Purchase order not found');
-            if (po.status === 'DRAFT') throw new Error('Cannot receive a DRAFT purchase order — send it first');
-            if (po.status === 'RECEIVED' || po.isLocked) throw new Error('Purchase order already fully received or locked');
-            if (po.status === 'CANCELLED') throw new Error('Cannot receive a cancelled purchase order');
-
-            for (const receivedItem of data.items) {
-                const poItem = po.items.find((i) => i.variantId === receivedItem.variantId);
-                if (!poItem) {
-                    throw new Error(`Variant ${receivedItem.variantId} not found in purchase order`);
-                }
-
-                await tx.purchaseOrderItem.update({
-                    where: { id: poItem.id },
-                    data: {
-                        receivedQuantity: receivedItem.receivedQuantity,
-                        damagedQuantity: receivedItem.damagedQuantity,
-                    },
-                });
-
-                // Find or create inventory record (creates with 0 quantity - not a direct update)
-                let inventory = await tx.inventory.findFirst({
-                    where: {
-                        tenantId,
-                        branchId,
-                        variantId: receivedItem.variantId,
-                        deletedAt: null,
-                    },
-                });
-
-                if (!inventory) {
-                    // Create inventory shell with 0 quantity
-                    // Stock will be added via StockMovementService
-                    inventory = await tx.inventory.create({
-                        data: {
-                            id: uuidv4(),
-                            tenantId,
-                            branchId,
-                            variantId: receivedItem.variantId,
-                            productId: receivedItem.variantId, // Legacy field - use variantId
-                            availableQuantity: 0,
-                            reservedQuantity: 0,
-                            damagedQuantity: 0,
-                            averageCost: 0,
-                            lastPurchaseCost: 0,
-                        },
-                    });
-                }
-
-                const unitCost = Number(poItem.unitPrice);
-                const receivedQty = receivedItem.receivedQuantity;
-                const damagedQty = receivedItem.damagedQuantity;
-
-                // GOLDEN RULE: Record stock movements - inventory cache is updated atomically
-                if (receivedQty > 0) {
-                    await StockMovementService.recordPurchaseReceipt(
-                        {
-                            tenantId,
-                            branchId,
-                            inventoryId: inventory.id,
-                            quantity: receivedQty,
-                            unitCost,
-                            referenceId: purchaseOrderId,
-                            notes: `Received from PO ${po.poNumber}`,
-                            movedBy: data.receivedBy,
-                        },
-                        tx
-                    );
-                }
-
-                if (damagedQty > 0) {
-                    await StockMovementService.recordDamage(
-                        {
-                            tenantId,
-                            branchId,
-                            inventoryId: inventory.id,
-                            quantity: damagedQty,
-                            unitCost,
-                            referenceId: purchaseOrderId,
-                            notes: `Damaged items from PO ${po.poNumber}`,
-                            movedBy: data.receivedBy,
-                        },
-                        tx
-                    );
-                }
-            }
-
-            const allItemsReceived = data.items.every((item) => {
-                const poItem = po.items.find((i) => i.variantId === item.variantId);
-                return poItem && item.receivedQuantity + item.damagedQuantity === poItem.orderedQuantity;
-            });
-
-            const status: PurchaseOrderStatus = allItemsReceived ? 'RECEIVED' : 'PARTIALLY_RECEIVED';
-
-            const updatedPO = await tx.purchaseOrder.update({
-                where: { id: purchaseOrderId },
-                data: {
-                    status,
-                    receivedAt: new Date(),
-                    receivedBy: data.receivedBy,
-                    isLocked: allItemsReceived,
-                    version: { increment: 1 },
-                },
-                include: PO_INCLUDE,
-            });
-
-            return this.mapPurchaseOrder(updatedPO);
-        });
+        const updated = await this.getPurchaseOrderById(purchaseOrderId, tenantId, branchId);
+        if (!updated) throw new Error('Purchase order not found after receiving');
+        return updated;
     }
 
     /**
