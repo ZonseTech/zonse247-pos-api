@@ -84,6 +84,7 @@ export const DEFAULT_ROLE_DEFINITIONS: RoleSeedDefinition[] = [
         [
             ...ALL_SYSTEM_PERMISSIONS,
             ...ALL_SYSTEM_EXTENDED_PERMISSIONS,
+            "tenants.view",
             ...ALL_SALES_PERMISSIONS,
             ...ALL_SALES_EXTENDED_PERMISSIONS,
             ...ALL_PRODUCT_PERMISSIONS,
@@ -192,6 +193,7 @@ export const DEFAULT_ROLE_DEFINITIONS: RoleSeedDefinition[] = [
         "Tenant administrator with full operational access across all locations",
         [
             "system.admin",
+            "tenants.view",
             ...ALL_SALES_PERMISSIONS,
             ...ALL_SALES_EXTENDED_PERMISSIONS,
             ...ALL_PRODUCT_PERMISSIONS,
