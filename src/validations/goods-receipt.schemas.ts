@@ -58,6 +58,9 @@ export const goodsReceiptSchemas = {
             .valid('DRAFT', 'VERIFIED', 'POSTED', 'CANCELLED')
             .optional(),
         purchaseOrderId: Joi.string().optional(),
+        search: Joi.string().optional(),
+        dateFrom: Joi.date().iso().optional(),
+        dateTo: Joi.date().iso().optional(),
         page: Joi.number().integer().min(1).optional(),
         limit: Joi.number().integer().min(1).max(100).optional(),
     }),
