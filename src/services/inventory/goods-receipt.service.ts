@@ -627,6 +627,9 @@ export class GoodsReceiptService {
         options?: {
             status?: GRNStatus;
             purchaseOrderId?: string;
+            search?: string;
+            dateFrom?: Date;
+            dateTo?: Date;
             page?: number;
             limit?: number;
         }
@@ -635,12 +638,34 @@ export class GoodsReceiptService {
         const limit = Number(options?.limit) || 50;
         const skip = (page - 1) * limit;
 
+        const dateFrom = options?.dateFrom;
+        const dateTo = options?.dateTo;
+        // Treat dateTo as inclusive of the whole day when it carries no time component.
+        const dateToInclusive = dateTo
+            ? new Date(dateTo.getFullYear(), dateTo.getMonth(), dateTo.getDate(), 23, 59, 59, 999)
+            : undefined;
+
+        const search = options?.search?.trim();
+
         const where: any = {
             tenantId,
             branchId,
             deletedAt: null,
             ...(options?.status && { status: options.status }),
             ...(options?.purchaseOrderId && { purchaseOrderId: options.purchaseOrderId }),
+            ...((dateFrom || dateToInclusive) && {
+                receivedAt: {
+                    ...(dateFrom && { gte: dateFrom }),
+                    ...(dateToInclusive && { lte: dateToInclusive }),
+                },
+            }),
+            ...(search && {
+                OR: [
+                    { receiptNumber: { contains: search } },
+                    { purchaseOrder: { poNumber: { contains: search } } },
+                    { purchaseOrder: { supplier: { name: { contains: search } } } },
+                ],
+            }),
         };
 
         const [receipts, total] = await Promise.all([
