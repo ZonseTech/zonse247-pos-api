@@ -318,6 +318,9 @@ export class PurchaseRequisitionService {
         options?: {
             status?: RequisitionStatus;
             requestedBy?: string;
+            search?: string;
+            dateFrom?: Date;
+            dateTo?: Date;
             page?: number;
             limit?: number;
         }
@@ -326,12 +329,33 @@ export class PurchaseRequisitionService {
         const limit = Number(options?.limit) || 50;
         const skip = (page - 1) * limit;
 
+        const dateFrom = options?.dateFrom;
+        const dateTo = options?.dateTo;
+        // Treat dateTo as inclusive of the whole day when it carries no time component.
+        const dateToInclusive = dateTo
+            ? new Date(dateTo.getFullYear(), dateTo.getMonth(), dateTo.getDate(), 23, 59, 59, 999)
+            : undefined;
+
+        const search = options?.search?.trim();
+
         const where: any = {
             tenantId,
             branchId,
             deletedAt: null,
             ...(options?.status && { status: options.status }),
             ...(options?.requestedBy && { requestedBy: options.requestedBy }),
+            ...((dateFrom || dateToInclusive) && {
+                createdAt: {
+                    ...(dateFrom && { gte: dateFrom }),
+                    ...(dateToInclusive && { lte: dateToInclusive }),
+                },
+            }),
+            ...(search && {
+                OR: [
+                    { requisitionNumber: { contains: search } },
+                    { requestedByUser: { fullname: { contains: search } } },
+                ],
+            }),
         };
 
         const [requisitions, total] = await Promise.all([
