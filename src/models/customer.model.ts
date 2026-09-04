@@ -18,10 +18,10 @@ export class CustomerModel {
         }
     }
 
-    static async findById(customerId: string, tenantId: string): Promise<Customer | null> {
+    static async findById(customerId: string, tenantId: string, branchId?: string): Promise<Customer | null> {
         try {
             return await prisma.customer.findFirst({
-                where: { customerId, tenantId, deletedAt: null },
+                where: { customerId, tenantId, deletedAt: null, ...(branchId && { branchId }) },
             });
         } catch (error) {
             throw new Error(
@@ -68,10 +68,10 @@ export class CustomerModel {
         }
     }
 
-    static async update(customerId: string, tenantId: string, updateData: Partial<Customer>): Promise<Customer> {
+    static async update(customerId: string, tenantId: string, updateData: Partial<Customer>, branchId?: string): Promise<Customer> {
         try {
             const customer = await prisma.customer.findFirst({
-                where: { customerId, tenantId, deletedAt: null },
+                where: { customerId, tenantId, deletedAt: null, ...(branchId && { branchId }) },
             });
             if (!customer) {
                 throw new Error('Customer not found');
@@ -87,10 +87,10 @@ export class CustomerModel {
         }
     }
 
-    static async delete(customerId: string, tenantId: string): Promise<Customer> {
+    static async delete(customerId: string, tenantId: string, branchId?: string): Promise<Customer> {
         try {
             const customer = await prisma.customer.findFirst({
-                where: { customerId, tenantId, deletedAt: null },
+                where: { customerId, tenantId, deletedAt: null, ...(branchId && { branchId }) },
             });
             if (!customer) {
                 throw new Error('Customer not found');
