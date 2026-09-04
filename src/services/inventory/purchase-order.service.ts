@@ -318,6 +318,8 @@ export class PurchaseOrderService {
             status?: PurchaseOrderStatus;
             supplierId?: string;
             requisitionId?: string;
+            dateFrom?: Date;
+            dateTo?: Date;
             page?: number;
             limit?: number;
         }
@@ -326,6 +328,13 @@ export class PurchaseOrderService {
         const limit = Number(options?.limit) || 50;
         const skip = (page - 1) * limit;
 
+        const dateFrom = options?.dateFrom;
+        const dateTo = options?.dateTo;
+        // Treat dateTo as inclusive of the whole day when it carries no time component.
+        const dateToInclusive = dateTo
+            ? new Date(dateTo.getFullYear(), dateTo.getMonth(), dateTo.getDate(), 23, 59, 59, 999)
+            : undefined;
+
         const where: any = {
             tenantId,
             branchId,
@@ -333,6 +342,12 @@ export class PurchaseOrderService {
             ...(options?.status && { status: options.status }),
             ...(options?.supplierId && { supplierId: options.supplierId }),
             ...(options?.requisitionId && { requisitionId: options.requisitionId }),
+            ...((dateFrom || dateToInclusive) && {
+                orderDate: {
+                    ...(dateFrom && { gte: dateFrom }),
+                    ...(dateToInclusive && { lte: dateToInclusive }),
+                },
+            }),
         };
 
         const [orders, total] = await Promise.all([
@@ -436,10 +451,13 @@ export class PurchaseOrderService {
 
         const prefix = `PO-${year}${month}`;
 
+        // poNumber is only unique per tenant (unique_tenant_po_number), not per branch, so the
+        // sequence must be counted across the whole tenant — branch-scoping this lookup causes
+        // every branch to independently generate "PO-YYYYMM-0001" first, colliding with each
+        // other under that tenant-wide constraint.
         const lastPO = await db.purchaseOrder.findFirst({
             where: {
                 tenantId,
-                branchId,
                 poNumber: {
                     startsWith: prefix,
                 },
