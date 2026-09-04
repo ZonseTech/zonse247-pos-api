@@ -57,6 +57,10 @@ export const userValidationSchemas = {
 			'string.base': 'Role ID must be a string',
 		}),
 
+		accessibleBranches: Joi.array().items(Joi.string()).optional().messages({
+			'array.base': 'Accessible branches must be an array',
+		}),
+
 		trackAttendance: Joi.boolean().optional().messages({
 			'boolean.base': 'Track attendance must be a boolean',
 		}),
@@ -215,6 +219,10 @@ export const userValidationSchemas = {
 			.messages({
 				'any.only': 'Status must be either active, inactive, or suspended',
 			}),
+
+		accessibleBranches: Joi.array().items(Joi.string()).optional().messages({
+			'array.base': 'Accessible branches must be an array',
+		}),
 	}),
 
 	id: Joi.object({
