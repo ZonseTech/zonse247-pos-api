@@ -11,21 +11,21 @@ export class CustomerService {
         return await CustomerModel.findAllByRDBMS(params);
     }
 
-    static async getCustomerById(customerId: string, tenantId: string): Promise<Customer | null> {
+    static async getCustomerById(customerId: string, tenantId: string, branchId?: string): Promise<Customer | null> {
         if (!customerId) {
             throw new Error('Customer ID is required');
         }
 
         const sanitizedId = validator.escape(customerId.toString());
-        return await CustomerModel.findById(sanitizedId, tenantId);
+        return await CustomerModel.findById(sanitizedId, tenantId, branchId);
     }
 
     static async getAllCustomers(tenantId: string): Promise<Customer[]> {
         return await CustomerModel.findAll(tenantId);
     }
 
-    static async listCustomers(tenantId: string, pagination: PaginationParams): Promise<PaginatedResult<Customer>> {
-        const where = { tenantId, deletedAt: null };
+    static async listCustomers(tenantId: string, branchId: string | undefined, pagination: PaginationParams): Promise<PaginatedResult<Customer>> {
+        const where = { tenantId, deletedAt: null, ...(branchId && { branchId }) };
 
         const [customers, total] = await Promise.all([
             prisma.customer.findMany({
@@ -83,7 +83,7 @@ export class CustomerService {
         return await CustomerModel.create(newCustomer);
     }
 
-    static async updateCustomer(customerId: string, tenantId: string, updateData: UpdateCustomerData): Promise<boolean> {
+    static async updateCustomer(customerId: string, tenantId: string, updateData: UpdateCustomerData, branchId?: string): Promise<boolean> {
         if (!customerId) {
             throw new Error('Customer ID is required for update');
         }
@@ -119,30 +119,30 @@ export class CustomerService {
             sanitizedUpdateData.isDefault = updateData.isDefault;
         }
 
-        await CustomerModel.update(sanitizedId, tenantId, sanitizedUpdateData);
+        await CustomerModel.update(sanitizedId, tenantId, sanitizedUpdateData, branchId);
         return true;
     }
 
-    static async deleteCustomer(customerId: string, tenantId: string): Promise<boolean> {
+    static async deleteCustomer(customerId: string, tenantId: string, branchId?: string): Promise<boolean> {
         if (!customerId) {
             throw new Error('Customer ID is required');
         }
 
         const sanitizedId = validator.escape(customerId.toString());
-        await CustomerModel.delete(sanitizedId, tenantId);
+        await CustomerModel.delete(sanitizedId, tenantId, branchId);
         return true;
     }
 
-    static async getCustomersCount(tenantId: string): Promise<number> {
-        return await CustomerModel.count(tenantId);
+    static async getCustomersCount(tenantId: string, branchId?: string): Promise<number> {
+        return await CustomerModel.count(tenantId, branchId ? { branchId } : {});
     }
 
-    static async searchCustomers(tenantId: string, conditions: SearchConditions): Promise<Customer[]> {
+    static async searchCustomers(tenantId: string, branchId: string | undefined, conditions: SearchConditions): Promise<Customer[]> {
         const sanitizedConditions: any = {};
 
         Object.keys(conditions).forEach(key => {
-            // Never allow callers to override tenantId via search conditions
-            if (key === 'tenantId') return;
+            // Never allow callers to override tenantId/branchId via search conditions
+            if (key === 'tenantId' || key === 'branchId') return;
             if (conditions[key] !== undefined && conditions[key] !== null) {
                 if (typeof conditions[key] === 'string') {
                     sanitizedConditions[key] = validator.escape(conditions[key].toString());
@@ -151,6 +151,10 @@ export class CustomerService {
                 }
             }
         });
+
+        if (branchId) {
+            sanitizedConditions.branchId = branchId;
+        }
 
         return await CustomerModel.find(tenantId, sanitizedConditions);
     }
