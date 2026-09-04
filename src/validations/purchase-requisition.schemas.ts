@@ -57,6 +57,9 @@ export const purchaseRequisitionSchemas = {
             .valid('PENDING', 'APPROVED', 'REJECTED', 'CANCELLED', 'PARTIALLY_APPROVED')
             .optional(),
         requestedBy: Joi.string().optional(),
+        search: Joi.string().optional(),
+        dateFrom: Joi.date().iso().optional(),
+        dateTo: Joi.date().iso().optional(),
         page: Joi.number().integer().min(1).optional(),
         limit: Joi.number().integer().min(1).max(100).optional(),
     }),
