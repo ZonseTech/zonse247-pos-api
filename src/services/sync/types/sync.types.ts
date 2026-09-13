@@ -30,6 +30,7 @@ export type PullTableName =
     | 'categories'
     | 'inventory'
     | 'paymentMethods'
+    | 'paymentServiceProviders'
     | 'stockMovements'
     | 'customers'
     | 'users'
