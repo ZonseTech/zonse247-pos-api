@@ -43,6 +43,7 @@ export const PULL_TABLE_NAMES: readonly PullTableName[] = [
     'productVariants',
     'inventory',
     'paymentMethods',
+    'paymentServiceProviders',
     'stockMovements',
     'customers',
     'users',
