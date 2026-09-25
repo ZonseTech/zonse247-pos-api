@@ -33,6 +33,7 @@ export type PullTableName =
     | 'paymentServiceProviders'
     | 'stockMovements'
     | 'customers'
+    | 'suppliers'
     | 'users'
     | 'expenseCategories'
     | 'expenses'
@@ -71,6 +72,7 @@ export type PushTableName =
     | 'stockMovements'
     | 'customers'
     | 'categories'
+    | 'suppliers'
     | 'orders'
     | 'users'
     | 'expenses';

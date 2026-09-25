@@ -43,6 +43,7 @@ export async function getPullData(
             paymentServiceProviders,
             stockMovements,
             customers,
+            suppliers,
             users,
             expenseCategories,
             expenses,
@@ -89,6 +90,9 @@ export async function getPullData(
             fetchIfIncluded(tables, 'customers', () =>
                 fetchCustomers(whereBase, sinceFilter, limit)
             ),
+            fetchIfIncluded(tables, 'suppliers', () =>
+                fetchSuppliers(whereBase, sinceFilter, limit)
+            ),
             fetchIfIncluded(tables, 'users', () =>
                 fetchUsers(whereBase, sinceFilter, limit)
             ),
@@ -115,6 +119,7 @@ export async function getPullData(
             paymentServiceProviders,
             stockMovements,
             customers,
+            suppliers,
             users,
             expenseCategories,
             expenses,
@@ -135,6 +140,7 @@ export async function getPullData(
             paymentServiceProviders: paymentServiceProviders.length,
             stockMovements: stockMovements.length,
             customers: customers.length,
+            suppliers: suppliers.length,
             users: users.length,
             expenseCategories: expenseCategories.length,
             expenses: expenses.length,
@@ -209,6 +215,9 @@ export async function getTableDelta(
         case 'customers':
             records = await fetchCustomers(whereBase, sinceFilter, fetchLimit);
             break;
+        case 'suppliers':
+            records = await fetchSuppliers(whereBase, sinceFilter, fetchLimit);
+            break;
         case 'users':
             records = await fetchUsers(whereBase, sinceFilter, fetchLimit);
             break;
@@ -246,6 +255,7 @@ function createEmptyPullResult(): PullDataResult {
             paymentServiceProviders: [],
             stockMovements: [],
             customers: [],
+            suppliers: [],
             users: [],
             expenseCategories: [],
             expenses: [],
@@ -265,6 +275,7 @@ function createEmptyPullResult(): PullDataResult {
             paymentServiceProviders: 0,
             stockMovements: 0,
             customers: 0,
+            suppliers: 0,
             users: 0,
             expenseCategories: 0,
             expenses: 0,
@@ -496,6 +507,18 @@ async function fetchCustomers(
     });
 }
 
+async function fetchSuppliers(
+    whereBase: WhereBaseFilter,
+    sinceFilter: SinceFilter,
+    limit: number
+): Promise<unknown[]> {
+    return prisma.supplier.findMany({
+        where: { ...whereBase, ...sinceFilter, deletedAt: null },
+        orderBy: { updatedAt: 'asc' },
+        take: limit,
+    });
+}
+
 /**
  * Fetch users for a branch/tenant that have changed since the last sync
  * Includes credential changes (password, username) and profile updates
@@ -588,6 +611,7 @@ const TABLE_DELEGATES: Record<string, keyof typeof prisma> = {
     paymentServiceProviders: 'paymentServiceProvider',
     stockMovements: 'stockMovement',
     customers: 'customer',
+    suppliers: 'supplier',
     users: 'user',
     expenseCategories: 'expenseCategory',
     expenses: 'expense',
