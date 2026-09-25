@@ -84,6 +84,13 @@ router.post('/categories', validateTableSync, SyncController.syncCategories);
 router.post('/suppliers', validateTableSync, SyncController.syncSuppliers);
 
 /**
+ * @route   POST /v1/sync/expense-categories
+ * @desc    Sync expense categories from terminal
+ * @access  Terminal
+ */
+router.post('/expense-categories', validateTableSync, SyncController.syncExpenseCategories);
+
+/**
  * @route   POST /v1/sync/orders
  * @desc    Sync orders from terminal
  * @access  Terminal
