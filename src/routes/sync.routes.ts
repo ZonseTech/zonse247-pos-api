@@ -70,6 +70,13 @@ router.post('/stock-movements', validateTableSync, SyncController.syncStockMovem
 router.post('/customers', validateTableSync, SyncController.syncCustomers);
 
 /**
+ * @route   POST /v1/sync/categories
+ * @desc    Sync categories from terminal
+ * @access  Terminal
+ */
+router.post('/categories', validateTableSync, SyncController.syncCategories);
+
+/**
  * @route   POST /v1/sync/orders
  * @desc    Sync orders from terminal
  * @access  Terminal
