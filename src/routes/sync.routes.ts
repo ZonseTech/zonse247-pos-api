@@ -77,6 +77,13 @@ router.post('/customers', validateTableSync, SyncController.syncCustomers);
 router.post('/categories', validateTableSync, SyncController.syncCategories);
 
 /**
+ * @route   POST /v1/sync/suppliers
+ * @desc    Sync suppliers from terminal
+ * @access  Terminal
+ */
+router.post('/suppliers', validateTableSync, SyncController.syncSuppliers);
+
+/**
  * @route   POST /v1/sync/orders
  * @desc    Sync orders from terminal
  * @access  Terminal
