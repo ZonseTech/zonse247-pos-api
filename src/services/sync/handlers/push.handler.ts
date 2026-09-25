@@ -79,6 +79,13 @@ export async function fetchPendingRecords(
                 take: limit,
             });
 
+        case 'suppliers':
+            return prisma.supplier.findMany({
+                where: { ...whereBase, ...sinceFilter('updatedAt') },
+                orderBy: { updatedAt: 'asc' },
+                take: limit,
+            });
+
         case 'orders':
             return prisma.order.findMany({
                 where: sinceFilter('updatedAt'),
