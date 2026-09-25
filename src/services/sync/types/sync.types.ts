@@ -70,6 +70,7 @@ export type PushTableName =
     | 'returnItems'
     | 'stockMovements'
     | 'customers'
+    | 'categories'
     | 'orders'
     | 'users'
     | 'expenses';
