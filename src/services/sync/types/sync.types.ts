@@ -75,6 +75,7 @@ export type PushTableName =
     | 'suppliers'
     | 'orders'
     | 'users'
+    | 'expenseCategories'
     | 'expenses';
 
 export interface PushTableConfig {
