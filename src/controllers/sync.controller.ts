@@ -351,6 +351,32 @@ export class SyncController extends BaseController {
     }
 
     /**
+     * Sync suppliers
+     * POST /v1/sync/suppliers
+     *
+     * tenantId is taken from the authenticated request, not the payload.
+     */
+    static async syncSuppliers(req: SyncRequest, res: Response): Promise<void> {
+        const tenantId = req.auth?.tenantId;
+
+        if (!tenantId) {
+            res.status(401).json({
+                success: false,
+                message: 'Authenticated tenant is required',
+            });
+            return;
+        }
+
+        await handleSyncEndpoint(req, res, 'Suppliers sync', {
+            handler: (records) =>
+                SyncReceiverService.receiveSuppliers(
+                    records as Parameters<typeof SyncReceiverService.receiveSuppliers>[0],
+                    tenantId
+                ),
+        });
+    }
+
+    /**
      * Sync orders
      * POST /v1/sync/orders
      */
