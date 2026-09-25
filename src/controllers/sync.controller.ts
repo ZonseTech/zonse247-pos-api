@@ -325,6 +325,32 @@ export class SyncController extends BaseController {
     }
 
     /**
+     * Sync categories
+     * POST /v1/sync/categories
+     *
+     * tenantId is taken from the authenticated request, not the payload.
+     */
+    static async syncCategories(req: SyncRequest, res: Response): Promise<void> {
+        const tenantId = req.auth?.tenantId;
+
+        if (!tenantId) {
+            res.status(401).json({
+                success: false,
+                message: 'Authenticated tenant is required',
+            });
+            return;
+        }
+
+        await handleSyncEndpoint(req, res, 'Categories sync', {
+            handler: (records) =>
+                SyncReceiverService.receiveCategories(
+                    records as Parameters<typeof SyncReceiverService.receiveCategories>[0],
+                    tenantId
+                ),
+        });
+    }
+
+    /**
      * Sync orders
      * POST /v1/sync/orders
      */
