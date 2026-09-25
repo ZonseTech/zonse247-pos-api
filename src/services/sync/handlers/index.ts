@@ -4,6 +4,7 @@ export { receiveSales, receiveSaleItems, receiveSalePayments } from './sales.han
 export { receiveReturns, receiveReturnItems } from './returns.handler';
 export { receiveCustomers } from './customers.handler';
 export { receiveCategories } from './categories.handler';
+export { receiveSuppliers } from './suppliers.handler';
 export { receiveOrders } from './orders.handler';
 export { receiveUsers } from './users.handler';
 export { receiveStockMovements } from './stock-movements.handler';
