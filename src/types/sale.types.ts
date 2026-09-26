@@ -140,7 +140,7 @@ export interface VoidSaleInput {
  * Options for listing sales
  */
 export interface ListSalesOptions {
-    status?: SaleStatus;
+    status?: SaleStatus | SaleStatus[];
     userId?: string;
     terminalId?: string;
     paymentMethodId?: string;
