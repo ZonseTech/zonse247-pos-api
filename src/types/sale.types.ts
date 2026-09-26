@@ -150,6 +150,8 @@ export interface ListSalesOptions {
     limit?: number;
     includeItems?: boolean;
     search?: string;
+    /** Restrict to these sale ids */
+    saleIds?: string[];
 }
 
 /**

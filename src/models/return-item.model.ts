@@ -36,6 +36,18 @@ export class ReturnItemModel {
         }) as unknown as ReturnItem | null;
     }
 
+    /**
+     * Sale ids (returnTransactionId) that had items returned within the given createdAt range
+     */
+    static async findReturnTransactionIdsInRange(createdAt: { gte?: Date; lte?: Date }): Promise<string[]> {
+        const rows = await prisma.returnItem.findMany({
+            where: { createdAt },
+            select: { returnTransactionId: true },
+            distinct: ['returnTransactionId'],
+        });
+        return rows.map((row) => row.returnTransactionId);
+    }
+
     static async findByReturnTransactionId(returnTransactionId: string): Promise<ReturnItem[]> {
         return prisma.returnItem.findMany({
             where: { returnTransactionId },

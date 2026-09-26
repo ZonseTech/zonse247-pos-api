@@ -7,6 +7,7 @@ import { SaleService } from './sale.service';
 import { SaleWithItems } from '../models/sale.model';
 import { prisma } from '../databases/prisma/client';
 import { PaginationParams, buildPaginationMeta, PaginatedResult } from '../utils/pagination.utils';
+import { buildDateFilter } from '../utils/sale.utils';
 
 export interface ReturnItemRequest {
     saleItemId: string;        // Changed from orderItemId - links to sale_item_id
@@ -77,13 +78,25 @@ export class ReturnService {
         tenantId: string,
         branchId: string,
         pagination: PaginationParams,
+        returnDateRange?: { startDate?: Date; endDate?: Date },
     ): Promise<PaginatedResult<ReturnResponse>> {
+        // Filter on when items were returned, not on the original sale date
+        let saleIds: string[] | undefined;
+        const returnDateFilter = buildDateFilter(returnDateRange?.startDate, returnDateRange?.endDate);
+        if (returnDateFilter) {
+            saleIds = await ReturnItemModel.findReturnTransactionIdsInRange(returnDateFilter);
+            if (saleIds.length === 0) {
+                return { data: [], pagination: buildPaginationMeta(0, pagination.page, pagination.limit) };
+            }
+        }
+
         // Get paginated refunded/partially refunded sales
         const { sales, total, totalPages } = await SaleService.listSales(tenantId, branchId, {
             includeItems: true,
             status: 'REFUNDED',
             page: pagination.page,
             limit: pagination.limit,
+            saleIds,
         });
 
         // Also include partially refunded   
