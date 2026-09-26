@@ -125,6 +125,18 @@ export class ProductService {
         }
     }
 
+    static async validateProductNameUniqueness(name: string, scope: TenantBranchScope, excludeProductId?: string): Promise<void> {
+        if (!(await this.isProductNameAvailable(name, scope, excludeProductId))) {
+            throw new ConflictError(ERROR_MESSAGES.PRODUCT_NAME_EXISTS(name.trim()), 'name');
+        }
+    }
+
+    static async isProductNameAvailable(name: string, scope: TenantBranchScope, excludeProductId?: string): Promise<boolean> {
+        const trimmed = name?.trim();
+        if (!trimmed) return true;
+        return !(await ProductRepository.findActiveProductByName(trimmed, scope, excludeProductId));
+    }
+
     private static async validateSkuUniqueness(sku: string, scope: TenantBranchScope, excludeVariantId?: string): Promise<void> {
         const existing = await ProductRepository.findBySku(sku, scope, excludeVariantId);
         if (existing) throw new ConflictError(ERROR_MESSAGES.SKU_EXISTS(sku), 'sku');
@@ -151,6 +163,7 @@ export class ProductService {
         try {
             const scope = { tenantId, branchId };
             this.validateProductInput(data);
+            await this.validateProductNameUniqueness(data.name, scope);
 
             const variantData = extractVariantData(data);
 
@@ -251,6 +264,7 @@ export class ProductService {
     }
 
     static async updateProduct(productId: string, tenantId: string, branchId: string, data: UpdateProductInput): Promise<ProductWithVariants> {
+        if (data.name !== undefined) await this.validateProductNameUniqueness(data.name, { tenantId, branchId }, productId);
         const product = await ProductRepository.updateProduct(productId, { tenantId, branchId }, data);
         return mapProductWithVariants(product);
     }
