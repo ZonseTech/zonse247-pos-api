@@ -37,6 +37,10 @@ const REQUISITION_INCLUDE = {
     items: { where: { deletedAt: null }, include: ITEM_INCLUDE },
     requestedByUser: { select: USER_SELECT },
     approvedByUser: { select: USER_SELECT },
+    purchaseOrders: {
+        where: { deletedAt: null, status: { not: 'CANCELLED' } },
+        select: { items: { where: { deletedAt: null }, select: { variantId: true, orderedQuantity: true } } },
+    },
 } as const;
 
 // ─── Service ───────────────────────────────────────────────────────
@@ -442,6 +446,13 @@ export class PurchaseRequisitionService {
      * Map a Prisma result to a typed response object.
      */
     private static mapRequisition(r: any): PurchaseRequisitionWithItems {
+        const ordered = new Map<string, number>();
+        for (const po of r.purchaseOrders ?? []) {
+            for (const item of po.items) {
+                ordered.set(item.variantId, (ordered.get(item.variantId) ?? 0) + item.orderedQuantity);
+            }
+        }
+
         return {
             id: r.id,
             tenantId: r.tenantId,
@@ -469,6 +480,7 @@ export class PurchaseRequisitionService {
                 terminalId: item.terminalId,
                 requestedQuantity: item.requestedQuantity,
                 approvedQuantity: item.approvedQuantity,
+                orderedQuantity: ordered.get(item.variantId) ?? 0,
                 notes: item.notes,
                 version: item.version,
                 deletedAt: item.deletedAt,
