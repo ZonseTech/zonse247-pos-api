@@ -78,21 +78,15 @@ export class ReturnService {
         branchId: string,
         pagination: PaginationParams,
     ): Promise<PaginatedResult<ReturnResponse>> {
-        // Get paginated refunded/partially refunded sales
-        const { sales, total, totalPages } = await SaleService.listSales(tenantId, branchId, {
+        const { sales, total } = await SaleService.listSales(tenantId, branchId, {
             includeItems: true,
-            status: 'REFUNDED',
+            status: ['REFUNDED', 'PARTIALLY_REFUNDED'],
             page: pagination.page,
             limit: pagination.limit,
         });
 
-        // Also include partially refunded   
-        const allRefunded = sales.filter(sale =>
-            sale.status === 'REFUNDED' || sale.status === 'PARTIALLY_REFUNDED'
-        );
-
         const returns = await Promise.all(
-            allRefunded.map(async (sale) => {
+            sales.map(async (sale) => {
                 const returnItems = await ReturnItemModel.findByReturnTransactionId(sale.id);
 
                 return {
