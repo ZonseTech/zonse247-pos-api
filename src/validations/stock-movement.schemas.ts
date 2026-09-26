@@ -199,10 +199,11 @@ export const stockMovementSchemas = {
     transfer: Joi.object({
         sourceInventoryId: Joi.string().uuid().required(),
         destinationBranchId: Joi.string().uuid().required(),
-        destinationInventoryId: Joi.string().uuid().required(),
+        // Resolved from the source item at the destination branch when omitted
+        destinationInventoryId: Joi.string().uuid().optional(),
         quantity: Joi.number().integer().min(1).required(),
         unitCost: Joi.number().min(0).optional(),
-        transferId: Joi.string().uuid().required(),
+        transferId: Joi.string().uuid().optional(),
         notes: Joi.string().max(1000).allow(null, '').optional(),
     }),
 
