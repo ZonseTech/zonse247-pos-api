@@ -59,6 +59,8 @@ export class PurchaseOrderService {
                 if (requisition.status !== 'APPROVED' && requisition.status !== 'PARTIALLY_APPROVED') {
                     throw new Error('Only APPROVED or PARTIALLY_APPROVED requisitions can be linked to a PO');
                 }
+
+                await this.assertWithinRequisition(data.requisitionId, data.items, tenantId, tx);
             }
 
             const poNumber = await this.generatePONumber(tenantId, branchId, tx);
@@ -124,15 +126,18 @@ export class PurchaseOrderService {
                 throw new Error('Only APPROVED or PARTIALLY_APPROVED requisitions can generate a PO');
             }
 
-            // Build PO items from approved requisition items
+            const remaining = await this.getRequisitionRemaining(requisitionId, tenantId, tx);
+
+            // Build PO items from what is still outstanding on the approved requisition items
             const poItems = requisition.items
-                .filter((item) => (item.approvedQuantity ?? 0) > 0)
+                .filter((item) => (remaining.get(item.variantId)?.quantity ?? 0) > 0)
                 .map((item) => {
                     const priceEntry = itemPrices.find((p) => p.variantId === item.variantId);
                     if (!priceEntry) {
                         throw new Error(`Unit price required for variant ${item.variantId}`);
                     }
-                    const qty = item.approvedQuantity ?? item.requestedQuantity;
+                    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+                    const qty = remaining.get(item.variantId)!.quantity;
                     return {
                         id: uuidv4(),
                         tenantId,
@@ -145,7 +150,7 @@ export class PurchaseOrderService {
                 });
 
             if (poItems.length === 0) {
-                throw new Error('No approved items found on the requisition');
+                throw new Error('All approved items on this requisition have already been ordered');
             }
 
             const poNumber = await this.generatePONumber(tenantId, branchId, tx);
@@ -174,6 +179,81 @@ export class PurchaseOrderService {
     }
 
     /**
+     * Quantity still orderable per variant on a requisition: approved minus what active
+     * (non-cancelled) POs already order. `excludePurchaseOrderId` leaves out a PO being edited.
+     */
+    private static async getRequisitionRemaining(
+        requisitionId: string,
+        tenantId: string,
+        tx: any,
+        excludePurchaseOrderId?: string
+    ): Promise<Map<string, { name: string; quantity: number }>> {
+        const [requisitionItems, orderedItems] = await Promise.all([
+            tx.purchaseRequisitionItem.findMany({
+                where: { requisitionId, tenantId, deletedAt: null },
+                include: { variant: { select: { variantName: true, product: { select: { name: true } } } } },
+            }),
+            tx.purchaseOrderItem.findMany({
+                where: {
+                    tenantId,
+                    deletedAt: null,
+                    purchaseOrder: {
+                        requisitionId,
+                        deletedAt: null,
+                        status: { not: 'CANCELLED' },
+                        ...(excludePurchaseOrderId && { id: { not: excludePurchaseOrderId } }),
+                    },
+                },
+                select: { variantId: true, orderedQuantity: true },
+            }),
+        ]);
+
+        const ordered = new Map<string, number>();
+        for (const item of orderedItems) {
+            ordered.set(item.variantId, (ordered.get(item.variantId) ?? 0) + item.orderedQuantity);
+        }
+
+        const remaining = new Map<string, { name: string; quantity: number }>();
+        for (const item of requisitionItems) {
+            const approved = item.approvedQuantity ?? 0;
+            if (approved <= 0) continue;
+            remaining.set(item.variantId, {
+                name: item.variant?.product?.name ?? item.variant?.variantName ?? item.variantId,
+                quantity: Math.max(0, approved - (ordered.get(item.variantId) ?? 0)),
+            });
+        }
+        return remaining;
+    }
+
+    /**
+     * A PO linked to a requisition may only order approved lines, up to what is still outstanding.
+     */
+    private static async assertWithinRequisition(
+        requisitionId: string,
+        items: { variantId: string; orderedQuantity: number }[],
+        tenantId: string,
+        tx: any,
+        excludePurchaseOrderId?: string
+    ): Promise<void> {
+        const remaining = await this.getRequisitionRemaining(requisitionId, tenantId, tx, excludePurchaseOrderId);
+
+        const requested = new Map<string, number>();
+        for (const item of items) {
+            requested.set(item.variantId, (requested.get(item.variantId) ?? 0) + item.orderedQuantity);
+        }
+
+        for (const [variantId, quantity] of requested) {
+            const line = remaining.get(variantId);
+            if (!line) {
+                throw new Error('Items not approved on the requisition cannot be added to its purchase order');
+            }
+            if (quantity > line.quantity) {
+                throw new Error(`${line.name}: only ${line.quantity} left to order on the requisition`);
+            }
+        }
+    }
+
+    /**
      * Update a DRAFT purchase order (supplier, dates, notes, items).
      * Replaces all items when items array is provided.
      */
@@ -193,6 +273,10 @@ export class PurchaseOrderService {
             }
             if (existing.status !== 'DRAFT') {
                 throw new Error('Only DRAFT purchase orders can be updated');
+            }
+
+            if (data.items && existing.requisitionId) {
+                await this.assertWithinRequisition(existing.requisitionId, data.items, tenantId, tx, purchaseOrderId);
             }
 
             // Replace items if provided
