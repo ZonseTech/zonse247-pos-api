@@ -1009,6 +1009,7 @@ export class SaleService {
         if (options?.userId) where.userId = options.userId;
         if (options?.terminalId) where.terminalId = options.terminalId;
         if (options?.paymentMethodId) where.paymentMethodId = options.paymentMethodId;
+        if (options?.saleIds) where.id = { in: options.saleIds };
 
         const dateFilter = buildDateFilter(options?.startDate, options?.endDate);
         if (dateFilter) where.saleDate = dateFilter;
