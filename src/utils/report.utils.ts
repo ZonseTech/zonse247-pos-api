@@ -180,9 +180,10 @@ export function buildTimeBasedReport(items: SaleDataItem[]): TotalSalesReport {
     const weeklyData = calculateWeeklyDistribution(items);
     const monthlyData = calculateMonthlyDistribution(items);
 
+    // Keep negative buckets: net profit can be a loss, and dropping those hid them
     return {
-        hourly: { data: hourlyData.filter(item => item.value > 0) },
-        weekly: { data: weeklyData.filter(item => item.value > 0) },
-        monthly: { data: monthlyData.filter(item => item.value > 0) },
+        hourly: { data: hourlyData.filter(item => item.value !== 0) },
+        weekly: { data: weeklyData.filter(item => item.value !== 0) },
+        monthly: { data: monthlyData.filter(item => item.value !== 0) },
     };
 }
