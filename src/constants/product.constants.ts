@@ -73,6 +73,8 @@ export const ERROR_MESSAGES = {
         `Reorder level (${reorder}) cannot exceed maximum stock (${max}).`,
 
     // Duplicate errors
+    PRODUCT_NAME_EXISTS: (name: string) =>
+        `An item named "${name}" already exists in this branch.`,
     SKU_EXISTS: (sku: string) =>
         `SKU "${sku}" is already in use by another product.`,
     BARCODE_EXISTS: (barcode: string, productName?: string) =>
