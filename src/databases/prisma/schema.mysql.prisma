@@ -55,7 +55,7 @@ model Product {
   
   variants    ProductVariant[]  // All variants of this product
   
-  @@unique([branchId, name], name: "unique_branch_product_name")
+  // Name is unique per branch among non-deleted products only: see migration 20260926_01 (unique_branch_active_product_name)
   @@index([branchId])
   @@index([tenantId])
   @@index([categoryId])

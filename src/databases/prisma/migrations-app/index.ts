@@ -102,6 +102,7 @@ import { migration as m20260730_02 } from './20260730_02_add_tenant_branch_scope
 import { migration as m20260808_01 } from './20260808_01_drop_legacy_global_barcode_unique_constraints';
 import { migration as m20260811_01 } from './20260811_01_add_printer_printjob_sort_covering_indexes';
 import { migration as m20260901_01 } from './20260901_01_add_branch_preferences_column_to_branches_table';
+import { migration as m20260926_01 } from './20260926_01_scope_product_name_uniqueness_to_non_deleted_products';
 
 /**
  * All registered migrations, sorted by version
@@ -199,6 +200,7 @@ export const registeredMigrations: Migration[] = [
     m20260808_01,
     m20260811_01,
     m20260901_01,
+    m20260926_01,
 ].sort((a, b) => a.version.localeCompare(b.version));
 
 /**

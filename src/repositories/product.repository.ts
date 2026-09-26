@@ -82,6 +82,13 @@ export class ProductRepository {
         });
     }
 
+    static async findActiveProductByName(name: string, scope: TenantBranchScope, excludeProductId?: string) {
+        return prisma.product.findFirst({
+            where: { name, ...scope, deletedAt: null, ...(excludeProductId && { id: { not: excludeProductId } }) },
+            select: { id: true, name: true },
+        });
+    }
+
     static async findBySku(sku: string, scope: TenantBranchScope, excludeVariantId?: string) {
         return prisma.productVariant.findFirst({
             where: { sku, ...scope, isActive: true, ...(excludeVariantId && { id: { not: excludeVariantId } }) },

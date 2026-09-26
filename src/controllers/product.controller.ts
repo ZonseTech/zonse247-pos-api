@@ -106,6 +106,31 @@ export class ProductController extends BaseController {
     }
 
     /**
+     * Check whether a product name is free in the active branch (deleted products don't count)
+     * @query {string} name
+     * @query {string} [excludeProductId] - product being edited
+     */
+    static async checkNameAvailability(req: Request & AuthRequest, res: Response): Promise<void> {
+        try {
+            const name = ((req.query.name as string) || '').trim();
+            if (!name) {
+                BaseController.sendBadRequest(res, 'Name is required');
+                return;
+            }
+
+            const available = await ProductService.isProductNameAvailable(
+                name,
+                { tenantId: req.auth.tenantId, branchId: req.auth.activeBranchId || req.auth.branchId },
+                (req.query.excludeProductId as string) || undefined
+            );
+
+            BaseController.sendSuccess(res, available ? 'Name is available' : 'Name is already in use', { available });
+        } catch (error) {
+            ProductController.handleError(res, error);
+        }
+    }
+
+    /**
      * Get product by ID
      */
     static async getProduct(req: Request & AuthRequest, res: Response): Promise<void> {
