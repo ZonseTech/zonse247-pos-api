@@ -80,6 +80,7 @@ export class InventoryWriteRepository {
             : [inventoryData];
 
         await this.validateVariantData(variants, auth);
+        await ProductService.validateProductNameUniqueness(inventoryData.name, { tenantId: auth.tenantId, branchId: auth.branchId });
 
         const productId = uuidv4();
 
@@ -232,6 +233,20 @@ export class InventoryWriteRepository {
      * Update a variant and its inventory
      */
     static async updateVariant(variantId: string, updateData: Record<string, any>): Promise<number> {
+        if (updateData.name !== undefined) {
+            const variant = await prisma.productVariant.findUnique({
+                where: { id: variantId },
+                select: { productId: true, tenantId: true, branchId: true },
+            });
+            if (variant) {
+                await ProductService.validateProductNameUniqueness(
+                    updateData.name,
+                    { tenantId: variant.tenantId, branchId: variant.branchId },
+                    variant.productId
+                );
+            }
+        }
+
         await prisma.$transaction(async (tx) => {
             const variantUpdate = this.buildVariantUpdate(updateData);
             if (Object.keys(variantUpdate).length > 0) {
@@ -276,6 +291,10 @@ export class InventoryWriteRepository {
         updateData: ProductUpdateData,
         auth: AuthContext
     ): Promise<number> {
+        if (updateData.name !== undefined) {
+            await ProductService.validateProductNameUniqueness(updateData.name, { tenantId: auth.tenantId, branchId: auth.branchId }, productId);
+        }
+
         await prisma.$transaction(async (tx) => {
             const productUpdate = this.buildProductUpdate(updateData);
             if (Object.keys(productUpdate).length > 0) {
@@ -441,7 +460,7 @@ export class InventoryWriteRepository {
     private static buildProductUpdate(updateData: Record<string, any>): Record<string, any> {
         const productUpdate: Record<string, any> = {};
 
-        if (updateData.name !== undefined) productUpdate.name = updateData.name;
+        if (updateData.name !== undefined) productUpdate.name = typeof updateData.name === 'string' ? updateData.name.trim() : updateData.name;
         if (updateData.categoryId !== undefined) productUpdate.categoryId = updateData.categoryId || null;
         if (updateData.description !== undefined) productUpdate.description = updateData.description || null;
         if (updateData.brand !== undefined) productUpdate.brand = updateData.brand || null;
