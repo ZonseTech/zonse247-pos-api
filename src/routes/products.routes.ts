@@ -7,6 +7,7 @@ const permissionMiddleware = new PermissionMiddleware();
 
 router.post('/', permissionMiddleware.requireAnyPermission(['products.create', 'inventory.receive']), ProductController.createProduct);
 router.get('/', permissionMiddleware.requireAnyPermission(['products.view', 'inventory.view']), ProductController.listProducts);
+router.get('/name-available', permissionMiddleware.requireAnyPermission(['products.view', 'inventory.view']), ProductController.checkNameAvailability);
 router.get('/search/:term', permissionMiddleware.requireAnyPermission(['products.view', 'inventory.view']), ProductController.searchProduct);
 router.get('/:productId', permissionMiddleware.requireAnyPermission(['products.view', 'inventory.view']), ProductController.getProduct);
 router.put('/:productId', permissionMiddleware.requireAnyPermission(['products.edit', 'inventory.adjust']), ProductController.updateProduct);
