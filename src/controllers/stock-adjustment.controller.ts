@@ -149,23 +149,13 @@ export class StockAdjustmentController extends BaseController {
                 notes
             } = req.body;
 
-            if (!sourceInventoryId || !destinationBranchId || !destinationInventoryId) {
-                BaseController.sendResponse(
-                    res,
-                    400,
-                    false,
-                    'sourceInventoryId, destinationBranchId, and destinationInventoryId are required'
-                );
+            if (!sourceInventoryId || !destinationBranchId) {
+                BaseController.sendResponse(res, 400, false, 'sourceInventoryId and destinationBranchId are required');
                 return;
             }
 
             if (!quantity || quantity <= 0) {
                 BaseController.sendResponse(res, 400, false, 'quantity must be a positive number');
-                return;
-            }
-
-            if (!transferId) {
-                BaseController.sendResponse(res, 400, false, 'transferId is required');
                 return;
             }
 
@@ -175,10 +165,10 @@ export class StockAdjustmentController extends BaseController {
                     sourceBranchId: req.auth.activeBranchId || req.auth.branchId,
                     sourceInventoryId,
                     destinationBranchId,
-                    destinationInventoryId,
+                    destinationInventoryId: destinationInventoryId || undefined,
                     quantity,
                     unitCost: unitCost || undefined, // Let service auto-resolve from source avg cost
-                    transferId,
+                    transferId: transferId || undefined,
                     terminalId: req.verifiedMetadata?.terminalId,
                     notes,
                     movedBy: req.auth.userId,
@@ -193,7 +183,7 @@ export class StockAdjustmentController extends BaseController {
                 result
             );
 
-            AuditService.logCreate(getAuditContext(req), 'StockTransfer', transferId, sourceInventoryId, { quantity, destinationBranchId, destinationInventoryId });
+            AuditService.logCreate(getAuditContext(req), 'StockTransfer', transferId || result.transferOutMovementId, sourceInventoryId, { quantity, destinationBranchId, destinationInventoryId });
         } catch (error: any) {
             BaseController.sendResponse(res, 400, false, 'Failed to record transfer', undefined, error.message);
         }
