@@ -14,6 +14,7 @@ import {
     receiveCustomers,
     receiveCategories,
     receiveSuppliers,
+    receiveExpenseCategories,
     receiveOrders,
     receiveStockMovements,
     receiveUsers,
@@ -58,6 +59,7 @@ export class SyncReceiverService {
     static receiveCustomers = receiveCustomers;
     static receiveCategories = receiveCategories;
     static receiveSuppliers = receiveSuppliers;
+    static receiveExpenseCategories = receiveExpenseCategories;
     static receiveOrders = receiveOrders;
     static receiveUsers = receiveUsers;
     static receiveExpenses = receiveExpenses;
