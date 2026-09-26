@@ -12,10 +12,17 @@ export class ReturnController extends BaseController {
     static async getAllReturns(req: Request & AuthRequest, res: Response): Promise<void> {
         try {
             const pagination = parsePaginationParams(req.query);
+            // YYYY-MM-DD, read as local midnight like GET /sales; filters on the return date
+            const parseDay = (value: unknown): Date | undefined => {
+                if (!value) return undefined;
+                const date = new Date(`${value}T00:00:00`);
+                return isNaN(date.getTime()) ? undefined : date;
+            };
             const result = await ReturnService.listReturns(
                 req.auth.tenantId,
                 req.auth.activeBranchId || req.auth.branchId,
                 pagination,
+                { startDate: parseDay(req.query.startDate), endDate: parseDay(req.query.endDate) },
             );
 
             BaseController.sendPaginated(res, 'Returns retrieved successfully', result.data, result.pagination, 'returns');
