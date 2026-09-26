@@ -101,7 +101,7 @@ export class ProductController extends BaseController {
 
             BaseController.sendCreated(res, 'Product created successfully', product);
         } catch (error) {
-            this.handleError(res, error);
+            ProductController.handleError(res, error);
         }
     }
 
@@ -130,7 +130,7 @@ export class ProductController extends BaseController {
 
             BaseController.sendSuccess(res, 'Product retrieved successfully', product);
         } catch (error) {
-            this.handleError(res, error);
+            ProductController.handleError(res, error);
         }
     }
 
@@ -159,7 +159,7 @@ export class ProductController extends BaseController {
 
             BaseController.sendSuccess(res, 'Product found', result);
         } catch (error) {
-            this.handleError(res, error);
+            ProductController.handleError(res, error);
         }
     }
 
@@ -208,7 +208,7 @@ export class ProductController extends BaseController {
                 }
             });
         } catch (error) {
-            this.handleError(res, error);
+            ProductController.handleError(res, error);
         }
     }
 
@@ -235,7 +235,7 @@ export class ProductController extends BaseController {
 
             BaseController.sendSuccess(res, 'Product updated successfully', product);
         } catch (error) {
-            this.handleError(res, error);
+            ProductController.handleError(res, error);
         }
     }
 
@@ -261,7 +261,7 @@ export class ProductController extends BaseController {
 
             BaseController.sendSuccess(res, 'Product deleted successfully');
         } catch (error) {
-            this.handleError(res, error);
+            ProductController.handleError(res, error);
         }
     }
 
@@ -297,7 +297,7 @@ export class ProductController extends BaseController {
 
             BaseController.sendCreated(res, 'Barcode added successfully');
         } catch (error) {
-            this.handleError(res, error);
+            ProductController.handleError(res, error);
         }
     }
 }
