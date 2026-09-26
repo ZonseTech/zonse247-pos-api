@@ -1005,7 +1005,7 @@ export class SaleService {
     ): any {
         const where: any = { tenantId, branchId };
 
-        if (options?.status) where.status = options.status;
+        if (options?.status) where.status = Array.isArray(options.status) ? { in: options.status } : options.status;
         if (options?.userId) where.userId = options.userId;
         if (options?.terminalId) where.terminalId = options.terminalId;
         if (options?.paymentMethodId) where.paymentMethodId = options.paymentMethodId;
