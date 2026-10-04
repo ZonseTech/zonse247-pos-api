@@ -356,7 +356,10 @@ export class GoodsReceiptService {
             // ── 1. Process each GRN item: stock movement + inventory ──
 
             for (const grnItem of grn.items) {
-                if (grnItem.receivedQuantity <= 0) continue;
+                // receivedQuantity (good) and rejectedQuantity (damaged) are separate counts:
+                // both units were physically delivered.
+                const deliveredQuantity = grnItem.receivedQuantity + (grnItem.rejectedQuantity || 0);
+                if (deliveredQuantity <= 0) continue;
 
                 // Find or create inventory record for this variant
                 let inventory = await tx.inventory.findFirst({
@@ -388,24 +391,27 @@ export class GoodsReceiptService {
 
                 const unitCost = Number(grnItem.unitCost);
 
-                // Record PURCHASE_RECEIPT with GOODS_RECEIPT reference
+                // Record PURCHASE_RECEIPT for everything delivered (good + damaged) with GOODS_RECEIPT reference
                 await StockMovementService.recordMovement(
                     {
                         tenantId,
                         branchId,
                         inventoryId: inventory.id,
                         movementType: 'PURCHASE_RECEIPT',
-                        quantity: grnItem.receivedQuantity,
+                        quantity: deliveredQuantity,
                         referenceType: 'GOODS_RECEIPT' as any,
                         referenceId: goodsReceiptId,
                         unitCost,
-                        notes: `GRN ${grn.receiptNumber} — received ${grnItem.receivedQuantity} units`,
+                        notes: `GRN ${grn.receiptNumber} — delivered ${deliveredQuantity} units` +
+                            (grnItem.rejectedQuantity > 0
+                                ? ` (${grnItem.receivedQuantity} good, ${grnItem.rejectedQuantity} damaged)`
+                                : ''),
                         movedBy: postedBy,
                     },
                     tx
                 );
 
-                // Record damaged/rejected items if any
+                // Write off the damaged units just brought in, so available stock nets to receivedQuantity
                 if (grnItem.rejectedQuantity > 0) {
                     await StockMovementService.recordDamage(
                         {
