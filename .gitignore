@@ -142,3 +142,4 @@ src/databases/prisma/migrations-backup/
 src/databases/prisma/migrations
 
 uploads/
+storage/
