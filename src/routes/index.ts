@@ -46,6 +46,7 @@ import ReportsRoutes from './reports.routes'
 import DashboardRoutes from './dashboard.routes'
 import MraRoutes from './mra.routes'
 import SyncRoutes from './sync.routes'
+import BackupRoutes from './backup.routes'
 import { TenantMiddleware } from '../middlewares/tenant.middleware'
 import { BranchMiddleware } from '../middlewares/branch.middleware'
 
@@ -110,6 +111,7 @@ router.use('/reports', ReportsRoutes);
 router.use('/dashboard', DashboardRoutes);
 router.use('/mra', MraRoutes);
 router.use('/sync', SyncRoutes);
+router.use('/backups', BackupRoutes);
 router.use('/loyalty', LoyaltyRoutes);
 router.use('/resources', ResourcesRoutes);
 router.use('/staff', StaffRoutes);
