@@ -39,8 +39,10 @@ export function formatSaleNumber(prefix: string, sequence: number): string {
  * @returns Sequence number or 0 if invalid
  */
 export function extractSequenceNumber(saleNumber: string): number {
-    const parts = saleNumber.split('-');
-    return parseInt(parts[parts.length - 1] || '0', 10);
+    // The sequence follows the date, also in numbers renumbered on sync
+    // (e.g. SALE-20261117-00001-TR004)
+    const match = /-\d{8}-(\d+)/.exec(saleNumber);
+    return match ? parseInt(match[1], 10) : 0;
 }
 
 /**
