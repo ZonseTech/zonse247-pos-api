@@ -101,6 +101,22 @@ function createSyncResponse(result: SyncResult & { inventoriesRecalculated?: num
 }
 
 /**
+ * Log records the server rejected, so a terminal whose sync is stuck on a
+ * record shows up in the server logs instead of only in its own responses.
+ */
+function logRejections(
+    logContext: string,
+    terminalId: string,
+    errors: Array<{ id: string; error: string }> | undefined
+): void {
+    if (!errors?.length) return;
+    const sample = errors.slice(0, 5).map((e) => `${e.id}: ${e.error}`).join('; ');
+    console.warn(
+        `${LOG_PREFIX.CONTROLLER} ${logContext} rejected ${errors.length} record(s) from terminal ${terminalId || 'unknown'} — ${sample}`
+    );
+}
+
+/**
  * Generic sync endpoint handler to reduce code duplication
  */
 async function handleSyncEndpoint(
@@ -131,6 +147,7 @@ async function handleSyncEndpoint(
         }
 
         const result = await config.handler(records, terminalId);
+        logRejections(logContext, terminalId, result.errors);
 
         res.status(200).json(createSyncResponse(result));
     } catch (error) {
@@ -205,6 +222,9 @@ export class SyncController extends BaseController {
                 tenantId,
                 branchId
             );
+            for (const [table, tableResult] of Object.entries(result.results)) {
+                logRejections(`Batch ${table}`, terminalId, tableResult.errors);
+            }
 
             res.status(result.success ? 200 : 207).json({
                 success: result.success,
