@@ -60,6 +60,10 @@ switch_schema() {
 
 cmd_generate() {
     local db=$1
+    local companion_schema="$MYSQL_SCHEMA"
+    [ "$db" = "mysql" ] && companion_schema="$SQLITE_SCHEMA"
+    print_info "Generating companion Prisma client from $(basename "$companion_schema")..."
+    npx prisma generate --schema "$companion_schema"
     print_info "Generating Prisma client for $db..."
     switch_schema "$db"
     npx prisma generate
