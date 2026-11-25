@@ -4,19 +4,123 @@ import {
     createEmptySyncResult,
     finalizeSyncResult,
     findExistingIds,
-    partitionRecords,
     batchInsert,
     addSyncError,
     getErrorMessage,
+    isNewerRecord,
+    normalizeRecordForCreateMany,
 } from './base.handler';
 
 type SyncRecord = Record<string, unknown> & { id: string; saleId?: string; terminalId?: string };
 
+/** Fields a terminal may change on a sale after it was first synced (refund, void, delete). */
+const SALE_STATUS_FIELDS = ['status', 'notes', 'isVoided', 'voidedAt', 'voidedBy', 'voidReason', 'deletedAt'] as const;
+
+const saleNumberKey = (tenantId: unknown, branchId: unknown, saleNumber: unknown) =>
+    `${tenantId}|${branchId}|${saleNumber}`;
+
 /**
- * Receive and upsert sales from terminal.
+ * Suffix that makes a terminal's sale number unique in its branch when
+ * another terminal (or the web portal) already used the number. Terminals
+ * number sales from their own database only, so this happens whenever two
+ * of them sell in the same branch on the same day.
+ */
+async function terminalSuffix(terminalId: string): Promise<string> {
+    try {
+        const terminal = await prisma.terminal.findUnique({
+            where: { terminalId },
+            select: { terminalCode: true },
+        });
+        if (terminal?.terminalCode) return terminal.terminalCode;
+    } catch {
+        // Fall back to the terminal id below
+    }
+    return terminalId.replace(/-/g, '').slice(0, 8).toUpperCase() || 'T';
+}
+
+/**
+ * Store sale numbers another sale of the branch already uses under
+ * `<number>-<terminal code>`, so the sale is kept instead of being dropped
+ * by the unique (tenant, branch, sale_number) key.
+ */
+async function resolveSaleNumberClashes(records: SyncRecord[], terminalId: string): Promise<SyncRecord[]> {
+    const numbers = [...new Set(records.map((r) => r.saleNumber).filter((n): n is string => typeof n === 'string'))];
+    if (numbers.length === 0) return records;
+
+    const used = await prisma.sale.findMany({
+        where: { saleNumber: { in: numbers } },
+        select: { id: true, tenantId: true, branchId: true, saleNumber: true },
+    });
+    const taken = new Set<string>(used.map((s: any) => saleNumberKey(s.tenantId, s.branchId, s.saleNumber)));
+
+    const isTaken = async (record: SyncRecord, saleNumber: string): Promise<boolean> => {
+        const key = saleNumberKey(record.tenantId, record.branchId, saleNumber);
+        if (taken.has(key)) return true;
+        const found = await prisma.sale.findMany({
+            where: { saleNumber: { in: [saleNumber] } },
+            select: { tenantId: true, branchId: true },
+        });
+        if (found.some((s: any) => s.tenantId === record.tenantId && s.branchId === record.branchId)) {
+            taken.add(key);
+            return true;
+        }
+        return false;
+    };
+
+    let suffix: string | null = null;
+    const resolved: SyncRecord[] = [];
+    for (const record of records) {
+        const original = record.saleNumber;
+        if (typeof original !== 'string' || !taken.has(saleNumberKey(record.tenantId, record.branchId, original))) {
+            if (typeof original === 'string') taken.add(saleNumberKey(record.tenantId, record.branchId, original));
+            resolved.push(record);
+            continue;
+        }
+
+        suffix ??= await terminalSuffix((record.terminalId as string) || terminalId);
+        let candidate = `${original}-${suffix}`;
+        for (let n = 2; await isTaken(record, candidate); n++) {
+            candidate = `${original}-${suffix}-${n}`;
+        }
+        taken.add(saleNumberKey(record.tenantId, record.branchId, candidate));
+
+        const note = `[Sale number ${original} was already used in this branch; stored as ${candidate}]`;
+        resolved.push({
+            ...record,
+            saleNumber: candidate,
+            notes: typeof record.notes === 'string' && record.notes ? `${record.notes} ${note}` : note,
+        });
+    }
+    return resolved;
+}
+
+/**
+ * Apply refunds, voids and deletions the terminal made after the sale was
+ * first synced. Returns true when the stored sale was updated.
+ */
+async function applySaleStatusChange(incoming: SyncRecord, stored: { id: string; updatedAt?: Date | null }): Promise<boolean> {
+    if (!isNewerRecord(incoming as { updatedAt?: string }, stored)) return false;
+
+    const changes: Record<string, unknown> = {};
+    for (const field of SALE_STATUS_FIELDS) {
+        if (field in incoming) changes[field] = incoming[field];
+    }
+    if (Object.keys(changes).length === 0) return false;
+
+    await prisma.sale.update({
+        where: { id: stored.id },
+        data: normalizeRecordForCreateMany({ ...changes, updatedAt: incoming.updatedAt }),
+    });
+    return true;
+}
+
+/**
+ * Receive sales from a terminal.
  *
- * OPTIMISED: single bulk existence check + createMany with skipDuplicates
- * instead of per-record findUnique + create (eliminates N+1).
+ * Every sale sent is accounted for: stored (accepted), already present and
+ * unchanged (skipped), or rejected with a reason. New sales are inserted in
+ * bulk; sale-number clashes are renumbered first, and anything the database
+ * still drops is reported as rejected instead of disappearing.
  */
 export async function receiveSales(
     sales: SyncRecord[],
@@ -27,18 +131,48 @@ export async function receiveSales(
 
     try {
         const ids = sales.map((s) => s.id);
-        const existingIds = await findExistingIds(prisma.sale, ids);
-        const { newRecords } = partitionRecords(sales, existingIds);
+        const stored = await prisma.sale.findMany({
+            where: { id: { in: ids } },
+            select: { id: true, updatedAt: true },
+        });
+        const storedById = new Map<string, { id: string; updatedAt?: Date | null }>(
+            stored.map((s: any) => [s.id, s])
+        );
 
-        result.skipped = existingIds.size;
+        const newRecords: SyncRecord[] = [];
+        for (const sale of sales) {
+            const existing = storedById.get(sale.id);
+            if (!existing) {
+                newRecords.push(sale);
+                continue;
+            }
+            try {
+                if (await applySaleStatusChange(sale, existing)) result.accepted++;
+                else result.skipped++;
+            } catch (error) {
+                addSyncError(result, sale.id, `Status update failed: ${getErrorMessage(error)}`);
+            }
+        }
 
-        // Normalise terminalId on all new records before bulk insert
-        const toInsert = newRecords.map((sale) => ({
+        const toInsert: SyncRecord[] = (await resolveSaleNumberClashes(newRecords, terminalId)).map((sale) => ({
             ...sale,
             terminalId: sale.terminalId || terminalId,
         }));
 
-        result.accepted = await batchInsert(prisma.sale, toInsert);
+        const inserted = await batchInsert(prisma.sale, toInsert);
+        result.accepted += inserted;
+
+        if (inserted < toInsert.length) {
+            const present = await findExistingIds(prisma.sale, toInsert.map((s) => s.id));
+            let missing = 0;
+            for (const sale of toInsert) {
+                if (!present.has(sale.id)) {
+                    missing++;
+                    addSyncError(result, sale.id, `Sale ${sale.saleNumber} was not stored (constraint violation)`);
+                }
+            }
+            result.skipped += toInsert.length - inserted - missing;
+        }
     } catch (error) {
         addSyncError(result, 'batch', getErrorMessage(error));
     }
