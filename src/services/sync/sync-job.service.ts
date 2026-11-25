@@ -8,6 +8,7 @@ import type {
     SyncCycleResult,
     PullTableName,
     PushTableConfig,
+    PushTableName,
 } from './types/sync.types';
 import {
     SYNC_DEFAULTS,
@@ -15,6 +16,7 @@ import {
     PULL_TABLE_NAMES,
     SYNC_HEADERS,
     LOG_PREFIX,
+    BATCH_MULTIPLIERS,
 } from './constants/sync.constants';
 import {
     fetchPendingRecords,
@@ -22,6 +24,58 @@ import {
     upsertPulledRecord,
     chunk,
 } from './handlers';
+import {
+    loadPushState,
+    savePushState,
+    clearPushState,
+    emptyPushState,
+    type PushState,
+    type RetryEntry,
+} from './push-state.store';
+
+interface SendOutcome {
+    sent: number;
+    accepted: number;
+    rejected: number;
+    errors: string[];
+    rejectedIds: Map<string, string>;
+    failed: boolean;
+}
+
+const MAX_RETRY_ENTRIES_PER_TABLE = 1000;
+
+/** Fields that identify a pushed record in the server's rejection list. */
+const RECORD_ID_FIELDS = ['id', 'returnItemId', 'customerId', 'categoryId', 'orderId', 'userId', 'supplierId', 'expenseId'];
+
+function orderValue(record: unknown, tableConfig: PushTableConfig): Date {
+    return new Date((record as Record<string, any>)[tableConfig.orderField]);
+}
+
+function recordKey(record: unknown, rejectedIds: Map<string, string>): string {
+    const r = record as Record<string, unknown>;
+    for (const field of RECORD_ID_FIELDS) {
+        const value = r[field];
+        if (value !== undefined && value !== null && rejectedIds.has(String(value))) return String(value);
+    }
+    return String(r.id ?? '');
+}
+
+function errorText(e: string | { id?: unknown; error?: unknown }): string {
+    return typeof e === 'string' ? e : `${e.id ?? 'unknown'}: ${e.error ?? 'Rejected'}`;
+}
+
+function addRetryEntry(state: PushState, table: PushTableName, record: unknown, error: string): void {
+    const snapshot = JSON.parse(JSON.stringify(record)) as Record<string, unknown>;
+    const id = String(snapshot.id ?? snapshot.returnItemId ?? snapshot.customerId ?? snapshot.userId ?? '');
+    const entries = (state.retry[table] ?? []).filter((e) => e.id !== id);
+    entries.push({ id, record: snapshot, attempts: 1, lastError: error, firstRejectedAt: new Date().toISOString() });
+
+    if (entries.length > MAX_RETRY_ENTRIES_PER_TABLE) {
+        const dropped = entries.splice(0, entries.length - MAX_RETRY_ENTRIES_PER_TABLE);
+        console.error(`${LOG_PREFIX.JOB} ${table}: retry list full, giving up on ${dropped.map((d) => d.id).join(', ')}`);
+    }
+    state.retry[table] = entries;
+}
 
 /**
  * Tables with a real FK dependency on another pulled table, applied in this
@@ -115,6 +169,7 @@ export class SyncJobService {
         } catch (error) {
             console.error(`${LOG_PREFIX.JOB} Failed to reset sync timestamps:`, error);
         }
+        await clearPushState(this.config.terminalId);
     }
 
     /**
@@ -131,10 +186,9 @@ export class SyncJobService {
         const result = this.createEmptyCycleResult();
 
         try {
-            const lastPush = await this.getLastPushTimestamp();
             const lastPull = await this.getLastPullTimestamp();
 
-            await this.executePushPhase(result, lastPush);
+            await this.executePushPhase(result);
 
             if (this.config.enablePull) {
                 await this.executePullPhase(result, lastPull);
@@ -154,10 +208,17 @@ export class SyncJobService {
     /**
      * Push phase — sends local changes to server.
      *
-     * OPTIMISED: Independent tables (customers, orders, users) are pushed
-     * in parallel once all dependency-ordered tables are done.
+     * Each table keeps its own cursor (see push-state.store), so a table that
+     * is behind or failing never holds back the others. Records the server
+     * rejects go to a retry list instead of freezing the cursor.
+     *
+     * Independent tables (customers, orders, users) are pushed in parallel
+     * once all dependency-ordered tables are done.
      */
-    private async executePushPhase(result: SyncCycleResult, lastSync: Date | null): Promise<void> {
+    private async executePushPhase(result: SyncCycleResult): Promise<void> {
+        const state = await this.loadPushState();
+        const ceilings = new Map<PushTableName, Date | null>();
+
         // Separate tables into dependency-ordered and independent
         const dependencyOrdered: PushTableConfig[] = [];
         const independent: PushTableConfig[] = [];
@@ -172,9 +233,7 @@ export class SyncJobService {
             }
         }
 
-        // Phase 1: Sequential push for dependency-ordered tables
-        for (const tableConfig of dependencyOrdered) {
-            const tableResult = await this.syncTable(tableConfig, lastSync);
+        const collect = (tableResult: SyncBatchResult) => {
             result.pushTables.push(tableResult);
             result.totalSent += tableResult.sent;
             result.totalAccepted += tableResult.accepted;
@@ -183,70 +242,112 @@ export class SyncJobService {
             if (!tableResult.success) {
                 result.success = false;
             }
+        };
+
+        // Phase 1: Sequential push for dependency-ordered tables
+        for (const tableConfig of dependencyOrdered) {
+            collect(await this.syncTable(tableConfig, state, ceilings));
         }
 
         // Phase 2: Parallel push for independent tables
         if (independent.length > 0) {
             const parallelResults = await Promise.all(
-                independent.map((tableConfig) => this.syncTable(tableConfig, lastSync))
+                independent.map((tableConfig) => this.syncTable(tableConfig, state, ceilings))
             );
-
-            for (const tableResult of parallelResults) {
-                result.pushTables.push(tableResult);
-                result.totalSent += tableResult.sent;
-                result.totalAccepted += tableResult.accepted;
-                result.totalRejected += tableResult.rejected;
-
-                if (!tableResult.success) {
-                    result.success = false;
-                }
-            }
+            parallelResults.forEach(collect);
         }
 
-        if (result.totalSent > 0 && result.totalRejected === 0) {
-            await this.updateLastPushTimestamp(new Date());
+        await savePushState(this.config.terminalId, state);
+
+        // terminals.lastSyncAt stays a safe lower bound: everything before it
+        // has been sent. It is only read when the push state is missing.
+        const cursors = Object.values(state.cursors).filter(Boolean).map((c) => new Date(c as string).getTime());
+        if (cursors.length > 0) {
+            await this.updateLastPushTimestamp(new Date(Math.min(...cursors)));
         }
+    }
+
+    private async loadPushState(): Promise<PushState> {
+        const stored = await loadPushState(this.config.terminalId);
+        if (stored) return stored;
+
+        // First run with per-table cursors: start every table from the old
+        // single push timestamp so nothing pending since then is skipped.
+        const state = emptyPushState();
+        const legacy = await this.getLastPushTimestamp();
+        if (legacy) {
+            for (const { name } of PUSH_TABLE_CONFIGS) state.cursors[name] = legacy.toISOString();
+        }
+        return state;
     }
 
     private async syncTable(
         tableConfig: PushTableConfig,
-        since: Date | null
+        state: PushState,
+        ceilings: Map<PushTableName, Date | null>
     ): Promise<SyncBatchResult> {
+        const name = tableConfig.name;
         const result: SyncBatchResult = {
             success: true,
-            table: tableConfig.name,
+            table: name,
             sent: 0,
             accepted: 0,
             rejected: 0,
             errors: [],
         };
+        const since = state.cursors[name] ? new Date(state.cursors[name] as string) : null;
+        ceilings.set(name, since ?? new Date(0));
 
         try {
-            const records = await fetchPendingRecords(tableConfig.name, {
-                tenantId: this.config.tenantId,
-                branchId: this.config.branchId,
-                terminalId: this.config.terminalId,
-                batchSize: this.config.batchSize,
-            }, since);
+            await this.retryRejected(tableConfig, state, result);
 
-            if (records.length === 0) return result;
-
-            result.sent = records.length;
-
-            for (let i = 0; i < records.length; i += this.config.batchSize) {
-                const batch = records.slice(i, i + this.config.batchSize);
-                const batchResult = await this.sendBatchWithRetry(tableConfig.endpoint, batch);
-
-                result.accepted += batchResult.accepted;
-                result.rejected += batchResult.rejected;
-                result.errors.push(...batchResult.errors);
+            const { records, full } = await this.fetchPage(tableConfig, since);
+            if (records.length === 0) {
+                ceilings.set(name, null);
+                return result;
             }
 
-            if (result.accepted > 0) {
-                await markRecordsSynced(
-                    tableConfig.name,
-                    records.slice(0, result.accepted) as Array<{ id?: string; customerId?: string }>
-                );
+            const outcome = await this.sendRecords(tableConfig.endpoint, records);
+            result.sent += outcome.sent;
+            result.accepted += outcome.accepted;
+            result.rejected += outcome.rejected;
+            result.errors.push(...outcome.errors);
+
+            const sentRecords = records.slice(0, outcome.sent);
+            const last = sentRecords.length ? orderValue(sentRecords[sentRecords.length - 1], tableConfig) : null;
+
+            // Where every record up to has been sent. A full page may have
+            // more records with the last timestamp, so stop 1 ms before it.
+            let next: Date | null = last && (full || outcome.failed) ? new Date(last.getTime() - 1) : last;
+            let caughtUp = !full && !outcome.failed;
+
+            const parentCeiling = tableConfig.parentTable ? ceilings.get(tableConfig.parentTable) : null;
+            if (next && parentCeiling && next > parentCeiling) {
+                next = parentCeiling;
+                caughtUp = false;
+            }
+
+            if (next && (!since || next > since)) {
+                state.cursors[name] = next.toISOString();
+            }
+            ceilings.set(name, caughtUp ? null : new Date(state.cursors[name] ?? 0));
+
+            const cursorAt = state.cursors[name] ? new Date(state.cursors[name] as string) : null;
+            const accepted: unknown[] = [];
+            for (const record of sentRecords) {
+                const error = outcome.rejectedIds.get(recordKey(record, outcome.rejectedIds));
+                if (error === undefined) {
+                    accepted.push(record);
+                } else if (cursorAt && orderValue(record, tableConfig) <= cursorAt) {
+                    // Behind the cursor now, so it would never be fetched again
+                    addRetryEntry(state, name, record, error);
+                }
+            }
+
+            if (outcome.failed) result.success = false;
+
+            if (accepted.length > 0) {
+                await markRecordsSynced(name, accepted as Array<{ id?: string; customerId?: string }>);
             }
         } catch (error) {
             result.success = false;
@@ -256,10 +357,106 @@ export class SyncJobService {
         return result;
     }
 
+    /**
+     * Fetch the next page after the cursor. If the whole page shares one
+     * timestamp the cursor could not move, so the page is widened.
+     */
+    private async fetchPage(
+        tableConfig: PushTableConfig,
+        since: Date | null
+    ): Promise<{ records: unknown[]; full: boolean }> {
+        for (let factor = 1; ; factor *= 10) {
+            const batchSize = this.config.batchSize * factor;
+            const records = await fetchPendingRecords(tableConfig.name, {
+                tenantId: this.config.tenantId,
+                branchId: this.config.branchId,
+                terminalId: this.config.terminalId,
+                batchSize,
+            }, since);
+
+            const full = records.length >= batchSize * BATCH_MULTIPLIERS[tableConfig.name];
+            if (!full || !since) return { records, full };
+
+            const last = orderValue(records[records.length - 1], tableConfig);
+            if (last.getTime() - 1 > since.getTime()) return { records, full };
+
+            if (factor >= 100) {
+                console.warn(`${LOG_PREFIX.JOB} ${tableConfig.name}: more than ${records.length} records share one timestamp; moving past it`);
+                return { records, full: false };
+            }
+        }
+    }
+
+    /**
+     * Resend records the server rejected before. Accepted ones leave the list.
+     */
+    private async retryRejected(tableConfig: PushTableConfig, state: PushState, result: SyncBatchResult): Promise<void> {
+        const entries = state.retry[tableConfig.name];
+        if (!entries?.length) return;
+
+        const outcome = await this.sendRecords(tableConfig.endpoint, entries.map((e) => e.record));
+        result.sent += outcome.sent;
+        result.accepted += outcome.accepted;
+        result.rejected += outcome.rejected;
+        result.errors.push(...outcome.errors);
+
+        const remaining: RetryEntry[] = [];
+        entries.forEach((entry, i) => {
+            if (i >= outcome.sent) {
+                remaining.push(entry);
+                return;
+            }
+            const error = outcome.rejectedIds.get(recordKey(entry.record, outcome.rejectedIds));
+            if (error !== undefined) {
+                remaining.push({ ...entry, attempts: entry.attempts + 1, lastError: error });
+            }
+        });
+        state.retry[tableConfig.name] = remaining;
+    }
+
+    /**
+     * Send records in batches. Stops at the first batch that fails as a whole
+     * (network, server error), so the caller does not move past it.
+     */
+    private async sendRecords(endpoint: string, records: unknown[]): Promise<SendOutcome> {
+        const outcome: SendOutcome = { sent: 0, accepted: 0, rejected: 0, errors: [], rejectedIds: new Map(), failed: false };
+
+        for (let i = 0; i < records.length; i += this.config.batchSize) {
+            const batch = records.slice(i, i + this.config.batchSize);
+            const batchResult = await this.sendBatchWithRetry(endpoint, batch);
+
+            const batchErrors = batchResult.errors as Array<string | { id?: unknown; error?: unknown }>;
+            const failedAsWhole =
+                batchResult.failed ||
+                batchErrors.some((e) => typeof e === 'object' && e !== null && e.id === 'batch');
+            if (failedAsWhole) {
+                outcome.failed = true;
+                outcome.errors.push(...batchErrors.map(errorText));
+                break;
+            }
+
+            outcome.sent += batch.length;
+            outcome.accepted += batchResult.accepted;
+            outcome.rejected += batchResult.rejected;
+            for (const e of batchErrors) {
+                outcome.errors.push(errorText(e));
+                if (typeof e === 'object' && e !== null && e.id !== undefined) {
+                    outcome.rejectedIds.set(String(e.id), String(e.error ?? 'Rejected'));
+                }
+            }
+            const unidentified = batchResult.rejected - batchErrors.filter((e) => typeof e === 'object' && e?.id !== undefined).length;
+            if (unidentified > 0) {
+                console.warn(`${LOG_PREFIX.JOB} ${endpoint}: ${unidentified} record(s) rejected without an id; they cannot be retried`);
+            }
+        }
+
+        return outcome;
+    }
+
     private async sendBatchWithRetry(
         endpoint: string,
         records: unknown[]
-    ): Promise<{ accepted: number; rejected: number; errors: string[] }> {
+    ): Promise<{ accepted: number; rejected: number; errors: string[]; failed?: boolean }> {
         let lastError: Error | null = null;
 
         for (let attempt = 1; attempt <= this.config.maxRetries; attempt++) {
@@ -289,6 +486,7 @@ export class SyncJobService {
             accepted: 0,
             rejected: records.length,
             errors: [lastError?.message ?? 'Unknown error'],
+            failed: true,
         };
     }
 
