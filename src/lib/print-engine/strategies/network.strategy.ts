@@ -1,20 +1,7 @@
-/**
- * Network Printer Strategy
- * Handles printing to network/WiFi connected printers
- */
-
 import * as net from 'net';
-import { Printer, PrinterConnectionType } from '../../../types/printer';
-import {
-    AppPlatform,
-    PrintResult,
-    PrintErrorCode
-} from '../../../types/printer.platform';
-import { BasePrintStrategy } from './print.strategy';
+import { AppPlatform, PrintErrorCode, PrintResult, PrinterConnectionType, PrinterDescriptor } from '../types';
+import { BasePrintStrategy } from './base-print-strategy';
 
-/**
- * Network print strategy for TCP/IP printers
- */
 export class NetworkPrintStrategy extends BasePrintStrategy {
     private defaultPort = 9100;
     private timeout = 10000;
@@ -27,7 +14,7 @@ export class NetworkPrintStrategy extends BasePrintStrategy {
         );
     }
 
-    async print(printer: Printer, content: string, options?: Record<string, unknown>): Promise<PrintResult> {
+    async print(printer: PrinterDescriptor, content: string, options?: Record<string, unknown>): Promise<PrintResult> {
         const address = printer.connectionAddress;
         const port = printer.port || this.defaultPort;
 
@@ -69,7 +56,7 @@ export class NetworkPrintStrategy extends BasePrintStrategy {
                     // Wait a bit for data to be processed
                     setTimeout(() => {
                         cleanup();
-                        resolve(this.createSuccessResult(undefined, AppPlatform.DESKTOP));
+                        resolve(this.createSuccessResult(AppPlatform.DESKTOP));
                     }, 500);
                 });
             });
@@ -108,7 +95,7 @@ export class NetworkPrintStrategy extends BasePrintStrategy {
         });
     }
 
-    async testConnection(printer: Printer): Promise<{ online: boolean; responseTime?: number; error?: string }> {
+    async testConnection(printer: PrinterDescriptor): Promise<{ online: boolean; responseTime?: number; error?: string }> {
         const address = printer.connectionAddress;
         const port = printer.port || this.defaultPort;
 

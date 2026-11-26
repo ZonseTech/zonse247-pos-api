@@ -1,25 +1,21 @@
 /**
  * Printer Types and Interfaces
- * Defines types for printer management in POS system
+ * Defines types for printer management in POS system.
+ *
+ * Device-level types (connection/discovery/config shape) come from
+ * lib/print-engine, the single source of truth for those shapes. Only
+ * DB/tenant-shaped types are declared here.
  */
 
 import { ReceiptDisplaySettings } from './terminal-settings';
+import {
+    PrinterType,
+    PrinterConnectionType,
+    PrinterConfiguration,
+    DiscoveredPrinter,
+} from '../lib/print-engine';
 
-export enum PrinterType {
-    THERMAL = 'THERMAL',
-    INKJET = 'INKJET',
-    LASER = 'LASER',
-    DOT_MATRIX = 'DOT_MATRIX',
-    LABEL = 'LABEL'
-}
-
-export enum PrinterConnectionType {
-    USB = 'USB',
-    NETWORK = 'NETWORK',
-    BLUETOOTH = 'BLUETOOTH',
-    SERIAL = 'SERIAL',
-    WIFI = 'WIFI'
-}
+export { PrinterType, PrinterConnectionType, PrinterConfiguration, DiscoveredPrinter };
 
 export enum PrinterStatus {
     ONLINE = 'ONLINE',
@@ -47,28 +43,6 @@ export enum PrintJobType {
     KITCHEN_ORDER = 'KITCHEN_ORDER',
     TEST_PAGE = 'TEST_PAGE',
     CASH_DRAWER = 'CASH_DRAWER'
-}
-
-export interface PrinterConfiguration {
-    paperWidth?: number;          // in mm (e.g., 58, 80)
-    paperHeight?: number;         // in mm (for labels)
-    dpi?: number;                 // dots per inch
-    fontSize?: number;            // default font size
-    encoding?: string;            // character encoding (e.g., 'UTF-8', 'CP437')
-    cutPaper?: boolean;           // auto-cut after printing
-    openCashDrawer?: boolean;     // open drawer after receipt
-    printLogo?: boolean;          // print store logo
-    logoUrl?: string;             // URL or path to logo
-    headerLines?: string[];       // custom header text
-    footerLines?: string[];       // custom footer text
-    printSpeed?: number;          // print speed setting
-    darkness?: number;            // print darkness/density (1-10)
-    marginTop?: number;           // top margin in mm
-    marginBottom?: number;        // bottom margin in mm
-    marginLeft?: number;          // left margin in mm
-    marginRight?: number;         // right margin in mm
-    beepAfterPrint?: boolean;     // beep sound after print
-    copies?: number;              // default number of copies
 }
 
 export interface Printer {
@@ -224,20 +198,6 @@ export interface PrintLabelRequest {
     includeBarcode?: boolean;
     includeQRCode?: boolean;
     customText?: string;
-}
-
-export interface DiscoveredPrinter {
-    name: string;
-    address?: string;
-    port?: number;
-    type?: PrinterType;
-    connectionType: PrinterConnectionType;
-    vendorId?: string;
-    productId?: string;
-    serialNumber?: string;
-    manufacturer?: string;
-    model?: string;
-    isOnline: boolean;
 }
 
 export interface PrinterTestResult {

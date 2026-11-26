@@ -101,6 +101,22 @@ function createSyncResponse(result: SyncResult & { inventoriesRecalculated?: num
 }
 
 /**
+ * Log records the server rejected, so a terminal whose sync is stuck on a
+ * record shows up in the server logs instead of only in its own responses.
+ */
+function logRejections(
+    logContext: string,
+    terminalId: string,
+    errors: Array<{ id: string; error: string }> | undefined
+): void {
+    if (!errors?.length) return;
+    const sample = errors.slice(0, 5).map((e) => `${e.id}: ${e.error}`).join('; ');
+    console.warn(
+        `${LOG_PREFIX.CONTROLLER} ${logContext} rejected ${errors.length} record(s) from terminal ${terminalId || 'unknown'} — ${sample}`
+    );
+}
+
+/**
  * Generic sync endpoint handler to reduce code duplication
  */
 async function handleSyncEndpoint(
@@ -131,6 +147,7 @@ async function handleSyncEndpoint(
         }
 
         const result = await config.handler(records, terminalId);
+        logRejections(logContext, terminalId, result.errors);
 
         res.status(200).json(createSyncResponse(result));
     } catch (error) {
@@ -205,6 +222,9 @@ export class SyncController extends BaseController {
                 tenantId,
                 branchId
             );
+            for (const [table, tableResult] of Object.entries(result.results)) {
+                logRejections(`Batch ${table}`, terminalId, tableResult.errors);
+            }
 
             res.status(result.success ? 200 : 207).json({
                 success: result.success,
@@ -319,6 +339,84 @@ export class SyncController extends BaseController {
             handler: (records) =>
                 SyncReceiverService.receiveCustomers(
                     records as Parameters<typeof SyncReceiverService.receiveCustomers>[0],
+                    tenantId
+                ),
+        });
+    }
+
+    /**
+     * Sync categories
+     * POST /v1/sync/categories
+     *
+     * tenantId is taken from the authenticated request, not the payload.
+     */
+    static async syncCategories(req: SyncRequest, res: Response): Promise<void> {
+        const tenantId = req.auth?.tenantId;
+
+        if (!tenantId) {
+            res.status(401).json({
+                success: false,
+                message: 'Authenticated tenant is required',
+            });
+            return;
+        }
+
+        await handleSyncEndpoint(req, res, 'Categories sync', {
+            handler: (records) =>
+                SyncReceiverService.receiveCategories(
+                    records as Parameters<typeof SyncReceiverService.receiveCategories>[0],
+                    tenantId
+                ),
+        });
+    }
+
+    /**
+     * Sync suppliers
+     * POST /v1/sync/suppliers
+     *
+     * tenantId is taken from the authenticated request, not the payload.
+     */
+    static async syncSuppliers(req: SyncRequest, res: Response): Promise<void> {
+        const tenantId = req.auth?.tenantId;
+
+        if (!tenantId) {
+            res.status(401).json({
+                success: false,
+                message: 'Authenticated tenant is required',
+            });
+            return;
+        }
+
+        await handleSyncEndpoint(req, res, 'Suppliers sync', {
+            handler: (records) =>
+                SyncReceiverService.receiveSuppliers(
+                    records as Parameters<typeof SyncReceiverService.receiveSuppliers>[0],
+                    tenantId
+                ),
+        });
+    }
+
+    /**
+     * Sync expense categories
+     * POST /v1/sync/expense-categories
+     *
+     * tenantId is taken from the authenticated request, not the payload.
+     */
+    static async syncExpenseCategories(req: SyncRequest, res: Response): Promise<void> {
+        const tenantId = req.auth?.tenantId;
+
+        if (!tenantId) {
+            res.status(401).json({
+                success: false,
+                message: 'Authenticated tenant is required',
+            });
+            return;
+        }
+
+        await handleSyncEndpoint(req, res, 'Expense categories sync', {
+            handler: (records) =>
+                SyncReceiverService.receiveExpenseCategories(
+                    records as Parameters<typeof SyncReceiverService.receiveExpenseCategories>[0],
                     tenantId
                 ),
         });

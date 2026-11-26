@@ -101,7 +101,32 @@ export class ProductController extends BaseController {
 
             BaseController.sendCreated(res, 'Product created successfully', product);
         } catch (error) {
-            this.handleError(res, error);
+            ProductController.handleError(res, error);
+        }
+    }
+
+    /**
+     * Check whether a product name is free in the active branch (deleted products don't count)
+     * @query {string} name
+     * @query {string} [excludeProductId] - product being edited
+     */
+    static async checkNameAvailability(req: Request & AuthRequest, res: Response): Promise<void> {
+        try {
+            const name = ((req.query.name as string) || '').trim();
+            if (!name) {
+                BaseController.sendBadRequest(res, 'Name is required');
+                return;
+            }
+
+            const available = await ProductService.isProductNameAvailable(
+                name,
+                { tenantId: req.auth.tenantId, branchId: req.auth.activeBranchId || req.auth.branchId },
+                (req.query.excludeProductId as string) || undefined
+            );
+
+            BaseController.sendSuccess(res, available ? 'Name is available' : 'Name is already in use', { available });
+        } catch (error) {
+            ProductController.handleError(res, error);
         }
     }
 
@@ -130,7 +155,7 @@ export class ProductController extends BaseController {
 
             BaseController.sendSuccess(res, 'Product retrieved successfully', product);
         } catch (error) {
-            this.handleError(res, error);
+            ProductController.handleError(res, error);
         }
     }
 
@@ -159,7 +184,7 @@ export class ProductController extends BaseController {
 
             BaseController.sendSuccess(res, 'Product found', result);
         } catch (error) {
-            this.handleError(res, error);
+            ProductController.handleError(res, error);
         }
     }
 
@@ -208,7 +233,7 @@ export class ProductController extends BaseController {
                 }
             });
         } catch (error) {
-            this.handleError(res, error);
+            ProductController.handleError(res, error);
         }
     }
 
@@ -235,7 +260,7 @@ export class ProductController extends BaseController {
 
             BaseController.sendSuccess(res, 'Product updated successfully', product);
         } catch (error) {
-            this.handleError(res, error);
+            ProductController.handleError(res, error);
         }
     }
 
@@ -261,7 +286,7 @@ export class ProductController extends BaseController {
 
             BaseController.sendSuccess(res, 'Product deleted successfully');
         } catch (error) {
-            this.handleError(res, error);
+            ProductController.handleError(res, error);
         }
     }
 
@@ -297,7 +322,7 @@ export class ProductController extends BaseController {
 
             BaseController.sendCreated(res, 'Barcode added successfully');
         } catch (error) {
-            this.handleError(res, error);
+            ProductController.handleError(res, error);
         }
     }
 }

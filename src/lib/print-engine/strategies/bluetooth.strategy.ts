@@ -1,27 +1,12 @@
-/**
- * Bluetooth Printer Strategy
- * Handles printing to Bluetooth connected printers via OS-level Bluetooth COM/serial ports.
- * On Windows, paired Bluetooth SPP devices appear as COM ports.
- * Falls back to bluetooth-serial-port native module if available.
- */
-
-import { Printer, PrinterConnectionType } from '../../../types/printer';
-import {
-    AppPlatform,
-    PrintResult,
-    PrintErrorCode
-} from '../../../types/printer.platform';
-import { BasePrintStrategy } from './print.strategy';
+import { AppPlatform, PrintErrorCode, PrintResult, PrinterConnectionType, PrinterDescriptor } from '../types';
+import { BT_CONNECT_TIMEOUT, BT_TEST_TIMEOUT, BT_SCAN_TIMEOUT } from '../constants';
+import { BasePrintStrategy } from './base-print-strategy';
 import { SerialPort } from 'serialport';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import * as os from 'os';
 
 const execAsync = promisify(exec);
-
-const BT_CONNECT_TIMEOUT = 15000;
-const BT_TEST_TIMEOUT = 10000;
-const BT_SCAN_TIMEOUT = 30000;
 
 /**
  * Lazily load bluetooth-serial-port to avoid crashing if native module is unavailable.
@@ -88,7 +73,7 @@ export class BluetoothPrintStrategy extends BasePrintStrategy {
      * On Windows, resolves the Bluetooth MAC to a COM port and writes via SerialPort.
      * Falls back to bluetooth-serial-port native module on other platforms.
      */
-    async print(printer: Printer, content: string, options?: Record<string, unknown>): Promise<PrintResult> {
+    async print(printer: PrinterDescriptor, content: string, options?: Record<string, unknown>): Promise<PrintResult> {
         const address = printer.connectionAddress;
 
         if (!address) {
@@ -124,13 +109,10 @@ export class BluetoothPrintStrategy extends BasePrintStrategy {
         return null;
     }
 
-    /**
-     * Print via Windows Bluetooth COM port using SerialPort.
-     */
     private printViaCOMPort(
         comPort: string,
         content: string,
-        printer: Printer,
+        printer: PrinterDescriptor,
         options?: Record<string, unknown>
     ): Promise<PrintResult> {
         const timeout = (options?.timeout as number) || BT_CONNECT_TIMEOUT;
@@ -149,7 +131,7 @@ export class BluetoothPrintStrategy extends BasePrintStrategy {
 
             const timer = setTimeout(() => {
                 try { port.close(); } catch { /* ignore */ }
-                resolve(this.createSuccessResult(undefined, AppPlatform.DESKTOP));
+                resolve(this.createSuccessResult(AppPlatform.DESKTOP));
             }, timeout);
 
             port.open((err) => {
@@ -180,16 +162,13 @@ export class BluetoothPrintStrategy extends BasePrintStrategy {
                             console.warn(`[Bluetooth COM] Drain warning on ${comPort}:`, drainErr.message);
                         }
                         try { port.close(); } catch { /* ignore */ }
-                        resolve(this.createSuccessResult(undefined, AppPlatform.DESKTOP));
+                        resolve(this.createSuccessResult(AppPlatform.DESKTOP));
                     });
                 });
             });
         });
     }
 
-    /**
-     * Fallback: print via bluetooth-serial-port native module (SPP).
-     */
     private printViaNativeModule(
         address: string,
         content: string,
@@ -235,7 +214,7 @@ export class BluetoothPrintStrategy extends BasePrintStrategy {
                                 PrintErrorCode.CONNECTION_FAILED
                             ));
                         } else {
-                            settle(this.createSuccessResult(undefined, AppPlatform.DESKTOP));
+                            settle(this.createSuccessResult(AppPlatform.DESKTOP));
                         }
                     });
                 }, () => {
@@ -268,7 +247,7 @@ export class BluetoothPrintStrategy extends BasePrintStrategy {
      * On Windows, checks if the resolved COM port can be opened.
      * Falls back to bluetooth-serial-port SPP channel discovery.
      */
-    async testConnection(printer: Printer): Promise<{ online: boolean; responseTime?: number; error?: string }> {
+    async testConnection(printer: PrinterDescriptor): Promise<{ online: boolean; responseTime?: number; error?: string }> {
         const address = printer.connectionAddress;
         const startTime = Date.now();
 
@@ -284,9 +263,6 @@ export class BluetoothPrintStrategy extends BasePrintStrategy {
         return this.testNativeModuleConnection(address, startTime);
     }
 
-    /**
-     * Test connectivity by opening/closing a COM port.
-     */
     private testCOMPortConnection(
         comPort: string,
         startTime: number
@@ -329,9 +305,6 @@ export class BluetoothPrintStrategy extends BasePrintStrategy {
         });
     }
 
-    /**
-     * Fallback: test via bluetooth-serial-port native module.
-     */
     private testNativeModuleConnection(
         address: string,
         startTime: number
@@ -398,9 +371,6 @@ export class BluetoothPrintStrategy extends BasePrintStrategy {
         return this.scanViaNativeModule();
     }
 
-    /**
-     * Windows: discover Bluetooth devices via PowerShell PnP queries.
-     */
     private static async scanWindowsBluetooth(): Promise<Array<{ name: string; address: string }>> {
         const devices: Array<{ name: string; address: string }> = [];
 
@@ -428,9 +398,6 @@ export class BluetoothPrintStrategy extends BasePrintStrategy {
         return devices;
     }
 
-    /**
-     * Fallback: scan via bluetooth-serial-port native module inquiry.
-     */
     private static async scanViaNativeModule(): Promise<Array<{ name: string; address: string }>> {
         const BluetoothSerialPort = loadBluetoothModule();
         if (!BluetoothSerialPort) {
@@ -466,9 +433,6 @@ export class BluetoothPrintStrategy extends BasePrintStrategy {
         return this.listPairedViaNativeModule();
     }
 
-    /**
-     * Windows: list paired BT devices and their COM ports via PowerShell.
-     */
     private static async listWindowsPairedDevices(): Promise<Array<{ name: string; address: string; services: string[] }>> {
         const devices: Array<{ name: string; address: string; services: string[] }> = [];
 
@@ -515,9 +479,6 @@ export class BluetoothPrintStrategy extends BasePrintStrategy {
         return devices;
     }
 
-    /**
-     * Fallback: list paired devices via bluetooth-serial-port native module.
-     */
     private static async listPairedViaNativeModule(): Promise<Array<{ name: string; address: string; services: string[] }>> {
         const BluetoothSerialPort = loadBluetoothModule();
         if (!BluetoothSerialPort) {

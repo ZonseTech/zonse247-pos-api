@@ -81,6 +81,8 @@ export const purchaseOrderSchemas = {
             .optional(),
         supplierId: Joi.string().optional(),
         requisitionId: Joi.string().optional(),
+        dateFrom: Joi.date().iso().optional(),
+        dateTo: Joi.date().iso().optional(),
         page: Joi.number().integer().min(1).optional(),
         limit: Joi.number().integer().min(1).max(100).optional(),
     }),

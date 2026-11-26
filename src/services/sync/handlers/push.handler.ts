@@ -72,6 +72,27 @@ export async function fetchPendingRecords(
                 take: limit,
             });
 
+        case 'categories':
+            return prisma.category.findMany({
+                where: { ...whereBase, ...sinceFilter('updatedAt') },
+                orderBy: { updatedAt: 'asc' },
+                take: limit,
+            });
+
+        case 'suppliers':
+            return prisma.supplier.findMany({
+                where: { ...whereBase, ...sinceFilter('updatedAt') },
+                orderBy: { updatedAt: 'asc' },
+                take: limit,
+            });
+
+        case 'expenseCategories':
+            return prisma.expenseCategory.findMany({
+                where: { ...whereBase, ...sinceFilter('updatedAt') },
+                orderBy: { updatedAt: 'asc' },
+                take: limit,
+            });
+
         case 'orders':
             return prisma.order.findMany({
                 where: sinceFilter('updatedAt'),

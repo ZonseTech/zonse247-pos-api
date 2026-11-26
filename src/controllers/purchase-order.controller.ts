@@ -141,7 +141,7 @@ export class PurchaseOrderController extends BaseController {
      */
     static async listPurchaseOrders(req: Request & AuthRequest, res: Response): Promise<void> {
         try {
-            const { status, supplierId, requisitionId, page, limit } = req.query;
+            const { status, supplierId, requisitionId, dateFrom, dateTo, page, limit } = req.query;
 
             const validatedStatus = status && VALID_STATUSES.includes(status as PurchaseOrderStatus)
                 ? (status as PurchaseOrderStatus)
@@ -159,6 +159,8 @@ export class PurchaseOrderController extends BaseController {
                     status: validatedStatus,
                     supplierId: supplierId as string,
                     requisitionId: requisitionId as string,
+                    dateFrom: dateFrom ? new Date(dateFrom as string) : undefined,
+                    dateTo: dateTo ? new Date(dateTo as string) : undefined,
                     page: page ? parseInt(page as string) : undefined,
                     limit: limit ? parseInt(limit as string) : undefined,
                 }

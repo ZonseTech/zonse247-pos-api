@@ -27,7 +27,8 @@ export interface TotalSalesReport {
 
 export interface ReportFilters {
     tenantId: string;
-    branchId?: string;
+    /** A single branch to scope to, or a list of branches to aggregate across (e.g. "all accessible branches") */
+    branchId?: string | string[];
     startDate?: string;
     endDate?: string;
 }

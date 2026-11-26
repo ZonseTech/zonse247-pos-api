@@ -37,6 +37,10 @@ const REQUISITION_INCLUDE = {
     items: { where: { deletedAt: null }, include: ITEM_INCLUDE },
     requestedByUser: { select: USER_SELECT },
     approvedByUser: { select: USER_SELECT },
+    purchaseOrders: {
+        where: { deletedAt: null, status: { not: 'CANCELLED' } },
+        select: { items: { where: { deletedAt: null }, select: { variantId: true, orderedQuantity: true } } },
+    },
 } as const;
 
 // ─── Service ───────────────────────────────────────────────────────
@@ -318,6 +322,9 @@ export class PurchaseRequisitionService {
         options?: {
             status?: RequisitionStatus;
             requestedBy?: string;
+            search?: string;
+            dateFrom?: Date;
+            dateTo?: Date;
             page?: number;
             limit?: number;
         }
@@ -326,12 +333,33 @@ export class PurchaseRequisitionService {
         const limit = Number(options?.limit) || 50;
         const skip = (page - 1) * limit;
 
+        const dateFrom = options?.dateFrom;
+        const dateTo = options?.dateTo;
+        // Treat dateTo as inclusive of the whole day when it carries no time component.
+        const dateToInclusive = dateTo
+            ? new Date(dateTo.getFullYear(), dateTo.getMonth(), dateTo.getDate(), 23, 59, 59, 999)
+            : undefined;
+
+        const search = options?.search?.trim();
+
         const where: any = {
             tenantId,
             branchId,
             deletedAt: null,
             ...(options?.status && { status: options.status }),
             ...(options?.requestedBy && { requestedBy: options.requestedBy }),
+            ...((dateFrom || dateToInclusive) && {
+                createdAt: {
+                    ...(dateFrom && { gte: dateFrom }),
+                    ...(dateToInclusive && { lte: dateToInclusive }),
+                },
+            }),
+            ...(search && {
+                OR: [
+                    { requisitionNumber: { contains: search } },
+                    { requestedByUser: { fullname: { contains: search } } },
+                ],
+            }),
         };
 
         const [requisitions, total] = await Promise.all([
@@ -418,6 +446,13 @@ export class PurchaseRequisitionService {
      * Map a Prisma result to a typed response object.
      */
     private static mapRequisition(r: any): PurchaseRequisitionWithItems {
+        const ordered = new Map<string, number>();
+        for (const po of r.purchaseOrders ?? []) {
+            for (const item of po.items) {
+                ordered.set(item.variantId, (ordered.get(item.variantId) ?? 0) + item.orderedQuantity);
+            }
+        }
+
         return {
             id: r.id,
             tenantId: r.tenantId,
@@ -445,6 +480,7 @@ export class PurchaseRequisitionService {
                 terminalId: item.terminalId,
                 requestedQuantity: item.requestedQuantity,
                 approvedQuantity: item.approvedQuantity,
+                orderedQuantity: ordered.get(item.variantId) ?? 0,
                 notes: item.notes,
                 version: item.version,
                 deletedAt: item.deletedAt,

@@ -371,16 +371,11 @@ const productsSync: TableSyncHandler = {
                     continue;
                 }
 
-                // Check by unique constraint (branchId, name) to avoid duplicate errors
                 const name = record.name as string;
                 if (name && params.branchId) {
-                    const existingByName = await prisma.product.findUnique({
-                        where: {
-                            unique_branch_product_name: {
-                                branchId: params.branchId,
-                                name,
-                            },
-                        },
+                    const existingByName = await prisma.product.findFirst({
+                        where: { branchId: params.branchId, name, deletedAt: null },
+                        select: { id: true },
                     });
                     if (existingByName) {
                         result.skipped++;

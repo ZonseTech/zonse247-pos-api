@@ -1,4 +1,3 @@
-import prisma from '../../databases/prisma/client';
 import type {
     SyncResult,
     StockMovementSyncResult,
@@ -13,6 +12,9 @@ import {
     receiveReturns,
     receiveReturnItems,
     receiveCustomers,
+    receiveCategories,
+    receiveSuppliers,
+    receiveExpenseCategories,
     receiveOrders,
     receiveStockMovements,
     receiveUsers,
@@ -29,7 +31,6 @@ import {
 } from './terminal-sync-state.service';
 
 import { recordChangesAsync, type ChangeEntry } from './change-log.service';
-import { LOG_PREFIX } from './constants/sync.constants';
 
 /**
  * Sync Receiver Service
@@ -56,6 +57,9 @@ export class SyncReceiverService {
     static receiveReturnItems = receiveReturnItems;
     static receiveStockMovements = receiveStockMovements;
     static receiveCustomers = receiveCustomers;
+    static receiveCategories = receiveCategories;
+    static receiveSuppliers = receiveSuppliers;
+    static receiveExpenseCategories = receiveExpenseCategories;
     static receiveOrders = receiveOrders;
     static receiveUsers = receiveUsers;
     static receiveExpenses = receiveExpenses;
@@ -151,6 +155,7 @@ export class SyncReceiverService {
             .map(async ([table, tableData, operation]) => {
                 const result = await operation();
                 results[table] = result;
+                // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
                 return { table, tableData: tableData!, result };
             });
 
@@ -169,7 +174,9 @@ export class SyncReceiverService {
 
         // Update TerminalSyncState (server-only, non-blocking)
         if (tenantId && branchId && summary.accepted > 0) {
-            updatePushTimestamp(terminalId, tenantId, branchId, new Date()).catch(() => { });
+            updatePushTimestamp(terminalId, tenantId, branchId, new Date()).catch(() => {
+                // 
+            });
         }
 
         // Record ChangeLog entries for accepted records (async, non-blocking)
@@ -219,7 +226,9 @@ export class SyncReceiverService {
                 updatePullState(
                     terminalId, tenantId, branchId,
                     new Date(), result.lastSequence
-                ).catch(() => { });
+                ).catch(() => {
+                    // 
+                });
             }
 
             return result;
@@ -230,7 +239,9 @@ export class SyncReceiverService {
 
         // Update pull timestamp
         if (result.success) {
-            updatePullState(terminalId, tenantId, branchId, new Date()).catch(() => { });
+            updatePullState(terminalId, tenantId, branchId, new Date()).catch(() => {
+                // 
+            });
         }
 
         return result;

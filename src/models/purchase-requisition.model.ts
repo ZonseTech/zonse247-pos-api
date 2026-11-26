@@ -31,6 +31,7 @@ export interface PurchaseRequisitionItem {
     terminalId?: string | null;
     requestedQuantity: number;
     approvedQuantity?: number | null;
+    orderedQuantity: number;
     notes?: string | null;
     version: number;
     deletedAt?: Date | null;

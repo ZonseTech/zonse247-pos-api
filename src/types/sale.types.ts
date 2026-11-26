@@ -150,6 +150,8 @@ export interface ListSalesOptions {
     limit?: number;
     includeItems?: boolean;
     search?: string;
+    /** Restrict to these sale ids */
+    saleIds?: string[];
 }
 
 /**
@@ -204,6 +206,111 @@ export interface SalesSummary {
     completedCount: number;
     voidedCount: number;
     refundedCount: number;
+}
+
+export interface DayCloseReportOptions {
+    startDate?: Date;
+    endDate?: Date;
+}
+
+/**
+ * Day close report row - one per calendar day
+ */
+export interface DayCloseReportRow {
+    date: string;
+    unitsSold: number;
+    revenue: number;
+    costOfSales: number;
+    grossProfit: number;
+    expenses: number;
+    netProfit: number;
+}
+
+/**
+ * Day close report summary - totals across the requested date range
+ */
+export interface DayCloseReportSummary {
+    revenue: number;
+    costOfSales: number;
+    grossProfit: number;
+    expenses: number;
+    netProfit: number;
+}
+
+/**
+ * One sale made on a given day close date, for the drill-down details view
+ */
+export interface DayCloseReportSaleEntry {
+    id: string;
+    saleNumber: string;
+    saleDate: Date;
+    status: string;
+    itemCount: number;
+    totalAmount: number;
+    discountAmount: number;
+}
+
+/**
+ * One expense recorded on a given day close date, for the drill-down details view
+ */
+export interface DayCloseReportExpenseEntry {
+    id: string;
+    expenseNumber: string;
+    categoryName: string;
+    amount: number;
+    expenseDate: Date;
+    status: string;
+}
+
+/**
+ * Totals for one payment method across all sales on a given day close date,
+ * summed from the actual SalePayment rows entered (a sale can be split
+ * across several methods, so a single sale-level field can't describe it)
+ */
+export interface DayCloseReportPaymentMethodEntry {
+    methodId: string;
+    methodName: string;
+    amount: number;
+}
+
+/**
+ * One item's stock-count breakdown for a given day close date - the same
+ * Opening Balance/Goods Received/Book Balance/Physical Count/Quantity
+ * Sold/Sales Value figures shown on the Day-end Close form while counting,
+ * reconstructed from sale items and stock movement history (none of this
+ * is persisted directly, since posting the sale itself moves the stock)
+ */
+export interface DayCloseReportItemEntry {
+    variantId: string;
+    name: string;
+    code: string;
+    unitPrice: number;
+    openingBalance: number;
+    goodsReceived: number;
+    bookBalance: number;
+    physicalCount: number;
+    quantitySold: number;
+    salesValue: number;
+}
+
+/**
+ * Full day close details for a single date: the day's totals plus the
+ * sales, expenses, item breakdown, and payment method breakdown that made
+ * up those totals
+ */
+export interface DayCloseReportDetails extends DayCloseReportRow {
+    sales: DayCloseReportSaleEntry[];
+    items: DayCloseReportItemEntry[];
+    expenseRecords: DayCloseReportExpenseEntry[];
+    paymentMethods: DayCloseReportPaymentMethodEntry[];
+}
+
+/**
+ * Result of voiding a batch of sales by id
+ */
+export interface BatchVoidResult {
+    voidedCount: number;
+    sales: { id: string; saleNumber: string }[];
 }
 
 export interface PaymentMethodInfo {

@@ -243,4 +243,133 @@ export class SaleController extends BaseController {
             BaseController.sendResponse(res, 400, false, 'Failed to get sales summaries', undefined, error.message);
         }
     }
+
+    /**
+     * Get the day close report (units sold, revenue, cost of sales, gross
+     * profit, expenses, net profit per day)
+     */
+    static async getDayCloseReport(req: Request & AuthRequest, res: Response): Promise<void> {
+        try {
+            const { startDate, endDate } = req.query;
+            const { tenantId, branchId } = SaleController.getAuthValues(req.auth);
+
+            let parsedStartDate: Date | undefined;
+            let parsedEndDate: Date | undefined;
+
+            if (startDate) {
+                parsedStartDate = new Date(startDate.toString() + 'T00:00:00');
+            }
+
+            if (endDate) {
+                parsedEndDate = new Date(endDate.toString() + 'T00:00:00');
+            }
+
+            const result = await SaleService.getDayCloseReport(tenantId, branchId, {
+                startDate: parsedStartDate,
+                endDate: parsedEndDate,
+            });
+
+            BaseController.sendResponse(res, 200, true, 'Day close report retrieved successfully', result);
+        } catch (error: any) {
+            BaseController.sendResponse(res, 400, false, 'Failed to get day close report', undefined, error.message);
+        }
+    }
+
+    /**
+     * Get the day close report totals (Total Revenue, Cost of Sales, Gross
+     * Profit, Net Profit) across the requested date range
+     */
+    static async getDayCloseReportSummary(req: Request & AuthRequest, res: Response): Promise<void> {
+        try {
+            const { startDate, endDate } = req.query;
+            const { tenantId, branchId } = SaleController.getAuthValues(req.auth);
+
+            let parsedStartDate: Date | undefined;
+            let parsedEndDate: Date | undefined;
+
+            if (startDate) {
+                parsedStartDate = new Date(startDate.toString() + 'T00:00:00');
+            }
+
+            if (endDate) {
+                parsedEndDate = new Date(endDate.toString() + 'T00:00:00');
+            }
+
+            const result = await SaleService.getDayCloseReportSummary(tenantId, branchId, {
+                startDate: parsedStartDate,
+                endDate: parsedEndDate,
+            });
+
+            BaseController.sendResponse(res, 200, true, 'Day close report summary retrieved successfully', result);
+        } catch (error: any) {
+            BaseController.sendResponse(res, 400, false, 'Failed to get day close report summary', undefined, error.message);
+        }
+    }
+
+    /**
+     * Get the full day close details for a single date: the day's totals
+     * plus every sale and expense that made up those totals
+     */
+    static async getDayCloseReportDetails(req: Request & AuthRequest, res: Response): Promise<void> {
+        try {
+            const { date } = req.params;
+            const { tenantId, branchId } = SaleController.getAuthValues(req.auth);
+
+            if (!date) {
+                BaseController.sendResponse(res, 400, false, 'date parameter is required');
+                return;
+            }
+
+            const result = await SaleService.getDayCloseReportDetails(tenantId, branchId, date.toString());
+
+            BaseController.sendResponse(res, 200, true, 'Day close report details retrieved successfully', result);
+        } catch (error: any) {
+            BaseController.sendResponse(res, 400, false, 'Failed to get day close report details', undefined, error.message);
+        }
+    }
+
+    /**
+     * Void a batch of sales by id
+     */
+    static async voidSalesByIds(req: Request & AuthRequest, res: Response): Promise<void> {
+        try {
+            const { saleIds, voidReason } = req.body;
+            const { tenantId, branchId } = SaleController.getAuthValues(req.auth);
+
+            if (!Array.isArray(saleIds) || saleIds.length === 0) {
+                BaseController.sendResponse(res, 400, false, 'saleIds must be a non-empty array');
+                return;
+            }
+
+            if (!voidReason || !voidReason.trim()) {
+                BaseController.sendResponse(res, 400, false, 'voidReason is required');
+                return;
+            }
+
+            const result = await SaleService.voidSalesByIds(
+                tenantId,
+                branchId,
+                saleIds,
+                req.auth.userId,
+                voidReason
+            );
+
+            for (const sale of result.sales) {
+                AuditService.logStatusChange(
+                    getAuditContext(req),
+                    'void',
+                    'Sale',
+                    sale.id,
+                    sale.saleNumber,
+                    'COMPLETED',
+                    'VOIDED',
+                    { reason: voidReason }
+                );
+            }
+
+            BaseController.sendResponse(res, 200, true, `Voided ${result.voidedCount} sale(s)`, result);
+        } catch (error: any) {
+            BaseController.sendResponse(res, 400, false, 'Failed to void sales', undefined, error.message);
+        }
+    }
 }

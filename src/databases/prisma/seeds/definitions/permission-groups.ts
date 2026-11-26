@@ -117,7 +117,7 @@ export const ALL_SETTINGS_PERMISSIONS = definePermissionGroup("ALL_SETTINGS_PERM
 ]);
 
 export const ALL_SETTINGS_EXTENDED_PERMISSIONS = definePermissionGroup("ALL_SETTINGS_EXTENDED_PERMISSIONS", [
-    "settings.receipt.manage", "settings.loyalty.manage",
+    "settings.receipt.manage", "settings.loyalty.manage", "settings.navigation.manage",
 ]);
 
 export const ALL_SYSTEM_PERMISSIONS = definePermissionGroup("ALL_SYSTEM_PERMISSIONS", [

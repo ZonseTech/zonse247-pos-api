@@ -98,11 +98,16 @@ export class TerminalService {
             throw new Error('Branch not found');
         }
 
-        const existingTerminals = await TerminalModel.findByBranchId(effectiveBranchId);
-        const terminalNumber = existingTerminals.length + 1;
+        // terminalCode must be unique per tenant (see unique_tenant_terminal_code), so the
+        // sequence number is counted across the whole tenant, not just this branch.
+        const [tenantTerminals, branchTerminals] = await Promise.all([
+            TerminalModel.findByTenantId(effectiveTenantId),
+            TerminalModel.findByBranchId(effectiveBranchId),
+        ]);
+        const terminalNumber = tenantTerminals.length + 1;
         data.terminalCode = `TR${String(terminalNumber).padStart(3, '0')}`;
 
-        if (existingTerminals.length === 0) {
+        if (branchTerminals.length === 0) {
             data.isPrimary = true;
         }
 

@@ -10,7 +10,7 @@ import { DAYS_OF_WEEK, MONTHS_OF_YEAR } from '../constants/report.constants';
 export function buildBaseWhereClause(filters: ReportFilters): any {
     const whereClause: any = { tenantId: filters.tenantId };
     if (filters.branchId) {
-        whereClause.branchId = filters.branchId;
+        whereClause.branchId = Array.isArray(filters.branchId) ? { in: filters.branchId } : filters.branchId;
     }
     return whereClause;
 }
@@ -54,7 +54,7 @@ export function buildSalesWhereClause(filters: ReportFilters, status = 'COMPLETE
 export function buildExpenseWhereClause(filters: ReportFilters): any {
     const where: any = { tenantId: filters.tenantId, status: 'APPROVED', deletedAt: null };
     if (filters.branchId) {
-        where.branchId = filters.branchId;
+        where.branchId = Array.isArray(filters.branchId) ? { in: filters.branchId } : filters.branchId;
     }
 
     if (filters.startDate || filters.endDate) {
@@ -180,9 +180,10 @@ export function buildTimeBasedReport(items: SaleDataItem[]): TotalSalesReport {
     const weeklyData = calculateWeeklyDistribution(items);
     const monthlyData = calculateMonthlyDistribution(items);
 
+    // Keep negative buckets: net profit can be a loss, and dropping those hid them
     return {
-        hourly: { data: hourlyData.filter(item => item.value > 0) },
-        weekly: { data: weeklyData.filter(item => item.value > 0) },
-        monthly: { data: monthlyData.filter(item => item.value > 0) },
+        hourly: { data: hourlyData.filter(item => item.value !== 0) },
+        weekly: { data: weeklyData.filter(item => item.value !== 0) },
+        monthly: { data: monthlyData.filter(item => item.value !== 0) },
     };
 }

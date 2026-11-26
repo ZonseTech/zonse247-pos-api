@@ -44,6 +44,8 @@ export interface RuntimeConfig {
     syncBatchSize: number;
     syncMaxRetries: number;
     syncServerUrl: string;
+    backupStoragePath: string;
+    backupRetentionCount: number;
     appName: string;
     appVersion: string;
 }
@@ -87,6 +89,8 @@ const DEFAULT_CONFIG: RuntimeConfig = {
     syncBatchSize: 100,
     syncMaxRetries: 3,
     syncServerUrl: 'https://api.zonse247.com/v1',
+    backupStoragePath: './storage/backups',
+    backupRetentionCount: 30,
     appName: 'Zonse247 POS',
     appVersion: '1.0.0',
 };
@@ -156,6 +160,10 @@ export function initializeConfig(overrides?: Partial<RuntimeConfig>): RuntimeCon
         syncBatchSize: parseInt(process.env.SYNC_BATCH_SIZE || '') || overrides?.syncBatchSize || DEFAULT_CONFIG.syncBatchSize,
         syncMaxRetries: parseInt(process.env.SYNC_MAX_RETRIES || '') || overrides?.syncMaxRetries || DEFAULT_CONFIG.syncMaxRetries,
         syncServerUrl: process.env.SYNC_SERVER_URL || overrides?.syncServerUrl || DEFAULT_CONFIG.syncServerUrl,
+
+        // Terminal database backups (cloud)
+        backupStoragePath: process.env.BACKUP_STORAGE_PATH || overrides?.backupStoragePath || DEFAULT_CONFIG.backupStoragePath,
+        backupRetentionCount: parseInt(process.env.BACKUP_RETENTION_COUNT || '') || overrides?.backupRetentionCount || DEFAULT_CONFIG.backupRetentionCount,
 
         // App info
         appName: process.env.APP_NAME || overrides?.appName || DEFAULT_CONFIG.appName,

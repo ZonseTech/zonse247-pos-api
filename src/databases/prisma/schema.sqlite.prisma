@@ -49,7 +49,7 @@ model Product {
 
   variants ProductVariant[] // All variants of this product
 
-  @@unique([branchId, name], name: "unique_branch_product_name")
+  // Name is unique per branch among non-deleted products only: see migration 20260926_01 (unique_branch_active_product_name)
   @@index([branchId])
   @@index([tenantId])
   @@index([categoryId])
@@ -1045,6 +1045,7 @@ model Branch {
   mraApprovalDate      DateTime?                @map("mra_approval_date")
   branchSubscriptionId String?                  @unique @map("branch_subscription_id")
   status               BranchStatus?            @default(active) @map("status")
+  branchPreferences    Json?                    @map("branch_preferences")
   createdAt            DateTime?                @default(now()) @map("created_at")
   updatedAt            DateTime?                @default(now()) @map("updated_at")
   version              Int                      @default(1) @map("version")
@@ -1931,7 +1932,7 @@ model Printer {
   isKitchenPrinter  Boolean               @default(false) @map("is_kitchen_printer")
   isReportPrinter   Boolean               @default(false) @map("is_report_printer")
   status            PrinterStatus         @default(OFFLINE) @map("status")
-  configuration     String?               @map("configuration")
+  configuration     Json?                 @map("configuration")
   lastConnected     DateTime?             @map("last_connected")
   lastPrintJob      DateTime?             @map("last_print_job")
   printJobCount     Int                   @default(0) @map("print_job_count")
@@ -1956,6 +1957,8 @@ model Printer {
   @@index([tenantId, branchId, updatedAt])
   @@index([updatedAt])
   @@index([deletedAt])
+  @@index([branchId, isActive, isDefault, createdAt])
+  @@index([tenantId, isActive, isDefault, createdAt])
   @@map("printers")
 }
 
@@ -1996,6 +1999,7 @@ model PrintJob {
   @@index([tenantId, branchId, updatedAt])
   @@index([updatedAt])
   @@index([deletedAt])
+  @@index([branchId, status, priority, createdAt])
   @@map("print_jobs")
 }
 

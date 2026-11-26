@@ -777,6 +777,14 @@ export const APP_PERMISSIONS: PermissionDefinition[] = [
         category: PermissionCategory.SETTINGS,
         scope: PermissionScope.TENANT,
     },
+    {
+        permissionId: "settings.navigation.manage",
+        name: "settings.navigation.manage",
+        displayName: "Manage Navigation Settings",
+        description: "Control which navigation items are visible to everyone at this branch",
+        category: PermissionCategory.SETTINGS,
+        scope: PermissionScope.BRANCH,
+    },
 
     // =====================================================
     // BRANCH MANAGEMENT PERMISSIONS
@@ -918,6 +926,14 @@ export const APP_PERMISSIONS: PermissionDefinition[] = [
         name: "system.admin",
         displayName: "System Administration",
         description: "Full system administration access",
+        category: PermissionCategory.SYSTEM,
+        scope: PermissionScope.GLOBAL,
+    },
+    {
+        permissionId: "tenants.view",
+        name: "tenants.view",
+        displayName: "View Tenants",
+        description: "View the platform-wide list of tenants",
         category: PermissionCategory.SYSTEM,
         scope: PermissionScope.GLOBAL,
     },

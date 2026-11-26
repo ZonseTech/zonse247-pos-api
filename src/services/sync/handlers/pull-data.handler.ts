@@ -40,8 +40,10 @@ export async function getPullData(
             categories,
             inventory,
             paymentMethods,
+            paymentServiceProviders,
             stockMovements,
             customers,
+            suppliers,
             users,
             expenseCategories,
             expenses,
@@ -79,11 +81,17 @@ export async function getPullData(
             fetchIfIncluded(tables, 'paymentMethods', () =>
                 fetchPaymentMethods(whereBase, sinceFilter, limit)
             ),
+            fetchIfIncluded(tables, 'paymentServiceProviders', () =>
+                fetchPaymentServiceProviders(sinceFilter, limit)
+            ),
             fetchIfIncluded(tables, 'stockMovements', () =>
                 fetchStockMovements(whereBase, sinceFilter, terminalId, limit)
             ),
             fetchIfIncluded(tables, 'customers', () =>
                 fetchCustomers(whereBase, sinceFilter, limit)
+            ),
+            fetchIfIncluded(tables, 'suppliers', () =>
+                fetchSuppliers(whereBase, sinceFilter, limit)
             ),
             fetchIfIncluded(tables, 'users', () =>
                 fetchUsers(whereBase, sinceFilter, limit)
@@ -108,8 +116,10 @@ export async function getPullData(
             categories,
             inventory,
             paymentMethods,
+            paymentServiceProviders,
             stockMovements,
             customers,
+            suppliers,
             users,
             expenseCategories,
             expenses,
@@ -127,8 +137,10 @@ export async function getPullData(
             categories: categories.length,
             inventory: inventory.length,
             paymentMethods: paymentMethods.length,
+            paymentServiceProviders: paymentServiceProviders.length,
             stockMovements: stockMovements.length,
             customers: customers.length,
+            suppliers: suppliers.length,
             users: users.length,
             expenseCategories: expenseCategories.length,
             expenses: expenses.length,
@@ -194,11 +206,17 @@ export async function getTableDelta(
         case 'paymentMethods':
             records = await fetchPaymentMethods(whereBase, sinceFilter, fetchLimit);
             break;
+        case 'paymentServiceProviders':
+            records = await fetchPaymentServiceProviders(sinceFilter, fetchLimit);
+            break;
         case 'stockMovements':
             records = await fetchStockMovements(whereBase, sinceFilter, terminalId, fetchLimit);
             break;
         case 'customers':
             records = await fetchCustomers(whereBase, sinceFilter, fetchLimit);
+            break;
+        case 'suppliers':
+            records = await fetchSuppliers(whereBase, sinceFilter, fetchLimit);
             break;
         case 'users':
             records = await fetchUsers(whereBase, sinceFilter, fetchLimit);
@@ -234,8 +252,10 @@ function createEmptyPullResult(): PullDataResult {
             categories: [],
             inventory: [],
             paymentMethods: [],
+            paymentServiceProviders: [],
             stockMovements: [],
             customers: [],
+            suppliers: [],
             users: [],
             expenseCategories: [],
             expenses: [],
@@ -252,8 +272,10 @@ function createEmptyPullResult(): PullDataResult {
             categories: 0,
             inventory: 0,
             paymentMethods: 0,
+            paymentServiceProviders: 0,
             stockMovements: 0,
             customers: 0,
+            suppliers: 0,
             users: 0,
             expenseCategories: 0,
             expenses: 0,
@@ -440,6 +462,14 @@ async function fetchPaymentMethods(
     });
 }
 
+async function fetchPaymentServiceProviders(sinceFilter: SinceFilter, limit: number): Promise<unknown[]> {
+    return prisma.paymentServiceProvider.findMany({
+        where: { ...sinceFilter, isActive: true },
+        orderBy: { updatedAt: 'asc' },
+        take: limit,
+    });
+}
+
 /**
  * Fetch stock movements from OTHER terminals
  * This allows terminals to see movements made by other terminals
@@ -471,6 +501,18 @@ async function fetchCustomers(
     limit: number
 ): Promise<unknown[]> {
     return prisma.customer.findMany({
+        where: { ...whereBase, ...sinceFilter, deletedAt: null },
+        orderBy: { updatedAt: 'asc' },
+        take: limit,
+    });
+}
+
+async function fetchSuppliers(
+    whereBase: WhereBaseFilter,
+    sinceFilter: SinceFilter,
+    limit: number
+): Promise<unknown[]> {
+    return prisma.supplier.findMany({
         where: { ...whereBase, ...sinceFilter, deletedAt: null },
         orderBy: { updatedAt: 'asc' },
         take: limit,
@@ -566,8 +608,10 @@ const TABLE_DELEGATES: Record<string, keyof typeof prisma> = {
     categories: 'category',
     inventory: 'inventory',
     paymentMethods: 'paymentMethod',
+    paymentServiceProviders: 'paymentServiceProvider',
     stockMovements: 'stockMovement',
     customers: 'customer',
+    suppliers: 'supplier',
     users: 'user',
     expenseCategories: 'expenseCategory',
     expenses: 'expense',
@@ -588,6 +632,7 @@ const TABLE_UUID_FIELD: Partial<Record<string, string>> = {
     categories: 'categoryId',
     customers: 'customerId',
     paymentMethods: 'methodId',
+    paymentServiceProviders: 'providerId',
     expenseCategories: 'categoryId',
     tenants: 'tenantId',
     branches: 'branchId',
@@ -601,7 +646,7 @@ const TABLE_UUID_FIELD: Partial<Record<string, string>> = {
  * Tables whose model has no `deletedAt` column — the generic ChangeLog
  * fetch path below must skip that filter for these or Prisma will throw.
  */
-const TABLES_WITHOUT_SOFT_DELETE = new Set(['branchSubscriptions']);
+const TABLES_WITHOUT_SOFT_DELETE = new Set(['branchSubscriptions', 'paymentServiceProviders']);
 
 /**
  * Pull data using the ChangeLog table for efficient delta sync.

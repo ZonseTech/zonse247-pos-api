@@ -37,6 +37,8 @@ export class StockMovementService {
         'OPENING_BALANCE' as StockMovementType,
     ];
 
+    private static readonly CORRECTION_NOTE_PREFIX = 'CORRECTION';
+
     /**
      * Movement types that DECREASE inventory
      */
@@ -615,10 +617,12 @@ export class StockMovementService {
             sourceBranchId: string;
             sourceInventoryId: string;
             destinationBranchId: string;
-            destinationInventoryId: string;
+            /** Optional: resolved (or created) from the source item at the destination branch when omitted. */
+            destinationInventoryId?: string;
             quantity: number;
             unitCost?: number;
-            transferId: string;
+            /** Optional: generated when omitted. */
+            transferId?: string;
             terminalId?: string;
             notes?: string;
             movedBy: string;
@@ -630,17 +634,42 @@ export class StockMovementService {
         sourceNewQuantity: number;
         destinationNewQuantity: number;
     }> {
-        const db = prismaClient || prisma;
+        // Out and in must land together, or stock leaves the source without arriving.
+        if (!prismaClient) return prisma.$transaction((tx: any) => this.recordTransfer(params, tx));
+        const db = prismaClient;
+
+        const sourceInventory = await db.inventory.findUnique({ where: { id: params.sourceInventoryId } });
+        if (!sourceInventory || sourceInventory.tenantId !== params.tenantId || sourceInventory.branchId !== params.sourceBranchId) {
+            throw new Error('Source inventory not found');
+        }
+        if (params.destinationBranchId === params.sourceBranchId) {
+            throw new Error('Cannot transfer stock to the same branch');
+        }
+        const [destinationBranch, sourceBranch] = await Promise.all([
+            db.branch.findFirst({
+                where: { branchId: params.destinationBranchId, tenantId: params.tenantId },
+                select: { branchName: true },
+            }),
+            db.branch.findFirst({
+                where: { branchId: params.sourceBranchId, tenantId: params.tenantId },
+                select: { branchName: true },
+            }),
+        ]);
+        if (!destinationBranch) throw new Error('Destination branch not found');
+
+        // Each side names the other branch (readable in history); a user note is kept after it.
+        const userNote = params.notes?.trim();
+        const withUserNote = (base: string) => (userNote ? `${base}: ${userNote}` : base);
+        const transferOutNote = withUserNote(`Transfer to ${destinationBranch.branchName}`);
+        const transferInNote = withUserNote(`Transfer from ${sourceBranch?.branchName ?? 'another branch'}`);
+
+        const destinationInventoryId = await this.resolveTransferDestination(sourceInventory, params.destinationBranchId, params.destinationInventoryId, db);
+        const transferId = params.transferId || uuidv4();
 
         // Auto-resolve cost from source branch's current average when not provided.
         // Spec: "TRANSFER_OUT at current avg cost; TRANSFER_IN at same cost per unit."
         let resolvedUnitCost = params.unitCost;
         if (resolvedUnitCost === undefined || resolvedUnitCost === null) {
-            const sourceInventory = await db.inventory.findUnique({
-                where: { id: params.sourceInventoryId },
-                select: { averageCost: true },
-            });
-            if (!sourceInventory) throw new Error('Source inventory not found');
             resolvedUnitCost = Number(sourceInventory.averageCost) || 0;
         }
 
@@ -653,8 +682,8 @@ export class StockMovementService {
                 inventoryId: params.sourceInventoryId,
                 quantity: params.quantity,
                 unitCost: resolvedUnitCost,
-                transferId: params.transferId,
-                notes: params.notes || `Transfer to branch ${params.destinationBranchId}`,
+                transferId,
+                notes: transferOutNote,
                 movedBy: params.movedBy,
             },
             db
@@ -665,11 +694,11 @@ export class StockMovementService {
             {
                 tenantId: params.tenantId,
                 branchId: params.destinationBranchId,
-                inventoryId: params.destinationInventoryId,
+                inventoryId: destinationInventoryId,
                 quantity: params.quantity,
                 unitCost: resolvedUnitCost,
-                transferId: params.transferId,
-                notes: params.notes || `Transfer from branch ${params.sourceBranchId}`,
+                transferId,
+                notes: transferInNote,
                 movedBy: params.movedBy,
             },
             db
@@ -681,6 +710,57 @@ export class StockMovementService {
             sourceNewQuantity: outResult.newQuantity,
             destinationNewQuantity: inResult.newQuantity,
         };
+    }
+
+    /**
+     * The destination branch's inventory row for the same item: the given id (validated), else the
+     * existing row for the variant at that branch, else a new empty row carrying the source's cost.
+     */
+    private static async resolveTransferDestination(
+        sourceInventory: { tenantId: string; productId: string; variantId: string | null; averageCost: unknown; costingMethod: unknown },
+        destinationBranchId: string,
+        destinationInventoryId: string | undefined,
+        db: any
+    ): Promise<string> {
+        if (destinationInventoryId) {
+            const destination = await db.inventory.findUnique({ where: { id: destinationInventoryId } });
+            if (
+                !destination ||
+                destination.tenantId !== sourceInventory.tenantId ||
+                destination.branchId !== destinationBranchId ||
+                destination.productId !== sourceInventory.productId ||
+                destination.variantId !== sourceInventory.variantId
+            ) {
+                throw new Error('Destination inventory does not match the source item and branch');
+            }
+            return destination.id;
+        }
+
+        const existing = await db.inventory.findFirst({
+            where: {
+                tenantId: sourceInventory.tenantId,
+                branchId: destinationBranchId,
+                productId: sourceInventory.productId,
+                variantId: sourceInventory.variantId,
+                deletedAt: null,
+            },
+            select: { id: true },
+        });
+        if (existing) return existing.id;
+
+        const created = await db.inventory.create({
+            data: {
+                id: uuidv4(),
+                tenantId: sourceInventory.tenantId,
+                branchId: destinationBranchId,
+                productId: sourceInventory.productId,
+                variantId: sourceInventory.variantId,
+                averageCost: sourceInventory.averageCost,
+                costingMethod: sourceInventory.costingMethod,
+            },
+            select: { id: true },
+        });
+        return created.id;
     }
 
     /**
@@ -1051,84 +1131,65 @@ export class StockMovementService {
         },
         prismaClient?: any
     ): Promise<{ movementId: string; previousQuantity: number; newQuantity: number; correctionType: 'INCREASE' | 'DECREASE' }> {
-        const db = prismaClient || prisma;
-
-        // Get the original movement
-        const originalMovement = await db.stockMovement.findUnique({
-            where: { id: params.originalMovementId },
-        });
-
-        if (!originalMovement) {
-            throw new Error(`Original movement not found: ${params.originalMovementId}`);
-        }
-
-        // Verify tenant/branch match
-        if (originalMovement.tenantId !== params.tenantId || originalMovement.branchId !== params.branchId) {
-            throw new Error('Movement does not belong to this tenant/branch');
-        }
-
-        const wasIncrease = this.isIncreaseType(originalMovement.movementType);
-
-        // To reverse an increase, we need a decrease type movement
-        // To reverse a decrease, we need an increase type movement
-        // Using ADJUSTMENT for both, but with proper logic
-
-        let correctionType: 'INCREASE' | 'DECREASE';
-        let movementType: StockMovementType;
-
-        if (wasIncrease) {
-            // Original increased inventory, we need to decrease it
-            // Use DAMAGE or EXPIRY type which are decrease types, or a manual adjustment approach
-            movementType = 'ADJUSTMENT'; // We'll handle this specially
-            correctionType = 'DECREASE';
-        } else {
-            // Original decreased inventory, we need to increase it
-            movementType = 'ADJUSTMENT';
-            correctionType = 'INCREASE';
-        }
-
-        // For corrections that need to decrease, we'll use a negative adjustment approach
-        // by directly updating the inventory cache after recording the movement
-        const result = await this.recordMovement(
-            {
-                tenantId: params.tenantId,
-                branchId: params.branchId,
-                inventoryId: originalMovement.inventoryId,
-                movementType: movementType,
-                quantity: originalMovement.quantity,
-                referenceType: 'ADJUSTMENT',
-                referenceId: params.originalMovementId,
-                unitCost: originalMovement.unitCost,
-                notes: `CORRECTION (${correctionType}) for movement ${params.originalMovementId}: ${params.reason}`,
-                movedBy: params.correctedBy,
-            },
-            db
-        );
-
-        // If we needed to decrease but ADJUSTMENT increases, we need to apply double the decrease
-        if (wasIncrease) {
-            // The ADJUSTMENT added quantity, but we needed to subtract
-            // So we need to subtract 2x (once to undo the ADJUSTMENT, once for the actual correction)
-            await db.inventory.update({
-                where: { id: originalMovement.inventoryId },
-                data: {
-                    availableQuantity: { decrement: originalMovement.quantity * 2 },
-                    version: { increment: 1 },
-                },
+        const run = async (db: any) => {
+            const originalMovement = await db.stockMovement.findUnique({
+                where: { id: params.originalMovementId },
             });
-        }
 
-        // Get final quantity
-        const finalInventory = await db.inventory.findUnique({
-            where: { id: originalMovement.inventoryId },
-        });
+            if (!originalMovement) {
+                throw new Error(`Original movement not found: ${params.originalMovementId}`);
+            }
 
-        return {
-            movementId: result.movementId,
-            previousQuantity: result.previousQuantity,
-            newQuantity: finalInventory?.availableQuantity ?? result.newQuantity,
-            correctionType,
+            // Verify tenant/branch match
+            if (originalMovement.tenantId !== params.tenantId || originalMovement.branchId !== params.branchId) {
+                throw new Error('Movement does not belong to this tenant/branch');
+            }
+
+            const existingCorrection = await db.stockMovement.findFirst({
+                where: {
+                    referenceId: params.originalMovementId,
+                    notes: { startsWith: this.CORRECTION_NOTE_PREFIX },
+                    deletedAt: null,
+                },
+                select: { id: true },
+            });
+            if (existingCorrection) {
+                throw new Error('This movement has already been corrected');
+            }
+
+            // Reverse the original's effect using an existing movement type in the opposite direction.
+            // DAMAGE is the decrease type used for manual decreases (see recordAdjustment); the
+            // ADJUSTMENT reference type and CORRECTION note distinguish it from real damage.
+            // Using existing types keeps older clients able to sync and recalculate these movements.
+            const wasIncrease = this.isIncreaseType(originalMovement.movementType);
+            const correctionType: 'INCREASE' | 'DECREASE' = wasIncrease ? 'DECREASE' : 'INCREASE';
+            const movementType: StockMovementType = wasIncrease ? 'DAMAGE' : 'ADJUSTMENT';
+
+            const result = await this.recordMovement(
+                {
+                    tenantId: params.tenantId,
+                    branchId: params.branchId,
+                    inventoryId: originalMovement.inventoryId,
+                    movementType,
+                    quantity: originalMovement.quantity,
+                    referenceType: 'ADJUSTMENT',
+                    referenceId: params.originalMovementId,
+                    unitCost: originalMovement.unitCost,
+                    notes: `${this.CORRECTION_NOTE_PREFIX} (${correctionType}) for movement ${params.originalMovementId}: ${params.reason}`,
+                    movedBy: params.correctedBy,
+                },
+                db
+            );
+
+            return {
+                movementId: result.movementId,
+                previousQuantity: result.previousQuantity,
+                newQuantity: result.newQuantity,
+                correctionType,
+            };
         };
+
+        return prismaClient ? run(prismaClient) : prisma.$transaction(run);
     }
 
     /**
@@ -1188,6 +1249,57 @@ export class StockMovementService {
             movements: movements.map((m) => this.mapMovement(m)),
             total,
             totalPages,
+        };
+    }
+
+    static async getStockCountDetail(
+        variantId: string,
+        tenantId: string,
+        branchId: string,
+        tradingDate: string
+    ): Promise<{ bookBalance: number; goodsReceived: number; openingBalance: number }> {
+        const dayStart = new Date(`${tradingDate}T00:00:00.000`);
+        const dayEnd = new Date(`${tradingDate}T23:59:59.999`);
+
+        const inventory = await prisma.inventory.findFirst({
+            where: { tenantId, branchId, variantId },
+            select: { id: true, availableQuantity: true },
+        });
+
+        if (!inventory) {
+            return { bookBalance: 0, goodsReceived: 0, openingBalance: 0 };
+        }
+
+        const [latestMovement, receivedAgg] = await Promise.all([
+            prisma.stockMovement.findFirst({
+                where: {
+                    tenantId,
+                    branchId,
+                    inventoryId: inventory.id,
+                    movementDate: { lte: dayEnd },
+                },
+                orderBy: { movementDate: 'desc' },
+                select: { newQuantity: true },
+            }),
+            prisma.stockMovement.aggregate({
+                where: {
+                    tenantId,
+                    branchId,
+                    inventoryId: inventory.id,
+                    movementType: { in: this.INCREASE_TYPES },
+                    movementDate: { gte: dayStart, lte: dayEnd },
+                },
+                _sum: { quantity: true },
+            }),
+        ]);
+
+        const bookBalance = latestMovement ? latestMovement.newQuantity : inventory.availableQuantity;
+        const goodsReceived = receivedAgg._sum.quantity || 0;
+
+        return {
+            bookBalance,
+            goodsReceived,
+            openingBalance: bookBalance - goodsReceived,
         };
     }
 

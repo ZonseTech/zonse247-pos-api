@@ -41,6 +41,17 @@ router.post('/', permissionMiddleware.requirePermission('branches.create'), asyn
 router.put('/:branchId', permissionMiddleware.requireAnyPermission(['branches.edit', 'branches.edit.own']), asyncHandler(BranchController.update));
 
 /**
+ * @route   PATCH /branches/:branchId/preferences
+ * @desc    Merge branch preference groups (e.g. navigation) into the
+ *          branch's branchPreferences JSON - shared by every terminal/user
+ *          at the branch
+ * @param   branchId - Unique branch identifier
+ * @body    Preference groups to merge, e.g. { navigation: { hiddenNavItemIds } }
+ * @access  Protected — settings.navigation.manage
+ */
+router.patch('/:branchId/preferences', permissionMiddleware.requirePermission('settings.navigation.manage'), asyncHandler(BranchController.updatePreferences));
+
+/**
  * @route   GET /branches/:branchId
  * @desc    Retrieve a single branch by ID
  * @param   branchId - Unique branch identifier

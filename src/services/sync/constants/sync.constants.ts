@@ -16,6 +16,9 @@ export const SYNC_DEFAULTS = {
  */
 export const PUSH_TABLE_CONFIGS: readonly PushTableConfig[] = [
     { name: 'customers', endpoint: '/sync/customers', orderField: 'updatedAt' },
+    { name: 'categories', endpoint: '/sync/categories', orderField: 'updatedAt' },
+    { name: 'suppliers', endpoint: '/sync/suppliers', orderField: 'updatedAt' },
+    { name: 'expenseCategories', endpoint: '/sync/expense-categories', orderField: 'updatedAt' },
     { name: 'sales', endpoint: '/sync/sales', orderField: 'updatedAt' },
     { name: 'saleItems', endpoint: '/sync/sale-items', orderField: 'updatedAt', parentTable: 'sales' },
     { name: 'salePayments', endpoint: '/sync/sale-payments', orderField: 'updatedAt', parentTable: 'sales' },
@@ -43,8 +46,10 @@ export const PULL_TABLE_NAMES: readonly PullTableName[] = [
     'productVariants',
     'inventory',
     'paymentMethods',
+    'paymentServiceProviders',
     'stockMovements',
     'customers',
+    'suppliers',
     'users',
     'expenseCategories',
     'expenses',
@@ -67,8 +72,11 @@ export const BATCH_MULTIPLIERS: Record<PushTableName, number> = {
     returnItems: 5,
     stockMovements: 10,
     customers: 2,
+    categories: 2,
+    suppliers: 2,
     orders: 2,
     users: 1,
+    expenseCategories: 2,
     expenses: 2,
 } as const;
 

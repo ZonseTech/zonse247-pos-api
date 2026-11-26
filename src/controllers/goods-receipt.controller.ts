@@ -152,7 +152,7 @@ export class GoodsReceiptController extends BaseController {
      */
     static async listGoodsReceipts(req: Request & AuthRequest, res: Response): Promise<void> {
         try {
-            const { status, purchaseOrderId, page, limit } = req.query;
+            const { status, purchaseOrderId, search, dateFrom, dateTo, page, limit } = req.query;
 
             const validatedStatus = status && VALID_STATUSES.includes(status as GRNStatus)
                 ? (status as GRNStatus)
@@ -169,6 +169,9 @@ export class GoodsReceiptController extends BaseController {
                 {
                     status: validatedStatus,
                     purchaseOrderId: purchaseOrderId as string,
+                    search: search as string,
+                    dateFrom: dateFrom ? new Date(dateFrom as string) : undefined,
+                    dateTo: dateTo ? new Date(dateTo as string) : undefined,
                     page: page ? parseInt(page as string) : undefined,
                     limit: limit ? parseInt(limit as string) : undefined,
                 }

@@ -30,8 +30,10 @@ export type PullTableName =
     | 'categories'
     | 'inventory'
     | 'paymentMethods'
+    | 'paymentServiceProviders'
     | 'stockMovements'
     | 'customers'
+    | 'suppliers'
     | 'users'
     | 'expenseCategories'
     | 'expenses'
@@ -69,8 +71,11 @@ export type PushTableName =
     | 'returnItems'
     | 'stockMovements'
     | 'customers'
+    | 'categories'
+    | 'suppliers'
     | 'orders'
     | 'users'
+    | 'expenseCategories'
     | 'expenses';
 
 export interface PushTableConfig {

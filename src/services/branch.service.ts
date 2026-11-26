@@ -1,7 +1,7 @@
 import { BranchModel } from "../models/branch.model";
 import { TenantModel } from "../models/tenant.model";
 import { BranchSubscriptionModel } from "../models/branch-subscription.model";
-import { Branch, CreateBranchRequest } from "branch";
+import { Branch, BranchPreferences, CreateBranchRequest } from "branch";
 import { BranchCreateInput } from "../databases/prisma/generated/prisma/models";
 import prisma from '../databases/prisma/client';
 import { PaginationParams, buildPaginationMeta, PaginatedResult } from '../utils/pagination.utils';
@@ -207,6 +207,40 @@ export class BranchService {
 		} catch (error) {
 			throw new Error(`Failed to update branch: ${error instanceof Error ? error.message : 'Unknown error'}`);
 		}
+	}
+
+	/**
+	 * @method  updatePreferences
+	 * @desc    Shallow-merge new branch preference groups (e.g. navigation)
+	 *          into the branch's existing branchPreferences JSON, scoped to
+	 *          the caller's tenant so a branch can't be updated cross-tenant
+	 * @param   branchId - Unique branch identifier
+	 * @param   tenantId - Tenant ID of the authenticated caller
+	 * @param   data - Preference groups to merge in (e.g. { navigation: { hiddenNavItemIds } })
+	 * @returns Promise<Branch> - Updated branch data
+	 * @throws  Error - Branch ID is required
+	 * @throws  Error - Branch not found
+	 */
+	static async updatePreferences(
+		branchId: string,
+		tenantId: string,
+		data: Partial<BranchPreferences>
+	): Promise<Branch> {
+		if (!branchId) {
+			throw new Error('Branch ID is required');
+		}
+
+		const existingBranch = await BranchModel.findById(branchId);
+		if (!existingBranch || existingBranch.tenantId !== tenantId) {
+			throw new Error('Branch not found');
+		}
+
+		const mergedPreferences: BranchPreferences = {
+			...(existingBranch.branchPreferences || {}),
+			...data,
+		};
+
+		return await BranchModel.update(branchId, { branchPreferences: mergedPreferences });
 	}
 
 	/**

@@ -6,7 +6,7 @@ import {
     ReceivePurchaseOrderInput,
     PurchaseOrderWithItems,
 } from '../../models/purchase-order.model';
-import { StockMovementService } from '../inventory/stock-movement.service';
+import { GoodsReceiptService } from './goods-receipt.service';
 import type { PurchaseOrderStatus } from '../../databases/prisma/generated/prisma/enums';
 
 // ─── Shared Includes ───────────────────────────────────────────────
@@ -59,6 +59,8 @@ export class PurchaseOrderService {
                 if (requisition.status !== 'APPROVED' && requisition.status !== 'PARTIALLY_APPROVED') {
                     throw new Error('Only APPROVED or PARTIALLY_APPROVED requisitions can be linked to a PO');
                 }
+
+                await this.assertWithinRequisition(data.requisitionId, data.items, tenantId, tx);
             }
 
             const poNumber = await this.generatePONumber(tenantId, branchId, tx);
@@ -124,15 +126,18 @@ export class PurchaseOrderService {
                 throw new Error('Only APPROVED or PARTIALLY_APPROVED requisitions can generate a PO');
             }
 
-            // Build PO items from approved requisition items
+            const remaining = await this.getRequisitionRemaining(requisitionId, tenantId, tx);
+
+            // Build PO items from what is still outstanding on the approved requisition items
             const poItems = requisition.items
-                .filter((item) => (item.approvedQuantity ?? 0) > 0)
+                .filter((item) => (remaining.get(item.variantId)?.quantity ?? 0) > 0)
                 .map((item) => {
                     const priceEntry = itemPrices.find((p) => p.variantId === item.variantId);
                     if (!priceEntry) {
                         throw new Error(`Unit price required for variant ${item.variantId}`);
                     }
-                    const qty = item.approvedQuantity ?? item.requestedQuantity;
+                    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+                    const qty = remaining.get(item.variantId)!.quantity;
                     return {
                         id: uuidv4(),
                         tenantId,
@@ -145,7 +150,7 @@ export class PurchaseOrderService {
                 });
 
             if (poItems.length === 0) {
-                throw new Error('No approved items found on the requisition');
+                throw new Error('All approved items on this requisition have already been ordered');
             }
 
             const poNumber = await this.generatePONumber(tenantId, branchId, tx);
@@ -174,6 +179,81 @@ export class PurchaseOrderService {
     }
 
     /**
+     * Quantity still orderable per variant on a requisition: approved minus what active
+     * (non-cancelled) POs already order. `excludePurchaseOrderId` leaves out a PO being edited.
+     */
+    private static async getRequisitionRemaining(
+        requisitionId: string,
+        tenantId: string,
+        tx: any,
+        excludePurchaseOrderId?: string
+    ): Promise<Map<string, { name: string; quantity: number }>> {
+        const [requisitionItems, orderedItems] = await Promise.all([
+            tx.purchaseRequisitionItem.findMany({
+                where: { requisitionId, tenantId, deletedAt: null },
+                include: { variant: { select: { variantName: true, product: { select: { name: true } } } } },
+            }),
+            tx.purchaseOrderItem.findMany({
+                where: {
+                    tenantId,
+                    deletedAt: null,
+                    purchaseOrder: {
+                        requisitionId,
+                        deletedAt: null,
+                        status: { not: 'CANCELLED' },
+                        ...(excludePurchaseOrderId && { id: { not: excludePurchaseOrderId } }),
+                    },
+                },
+                select: { variantId: true, orderedQuantity: true },
+            }),
+        ]);
+
+        const ordered = new Map<string, number>();
+        for (const item of orderedItems) {
+            ordered.set(item.variantId, (ordered.get(item.variantId) ?? 0) + item.orderedQuantity);
+        }
+
+        const remaining = new Map<string, { name: string; quantity: number }>();
+        for (const item of requisitionItems) {
+            const approved = item.approvedQuantity ?? 0;
+            if (approved <= 0) continue;
+            remaining.set(item.variantId, {
+                name: item.variant?.product?.name ?? item.variant?.variantName ?? item.variantId,
+                quantity: Math.max(0, approved - (ordered.get(item.variantId) ?? 0)),
+            });
+        }
+        return remaining;
+    }
+
+    /**
+     * A PO linked to a requisition may only order approved lines, up to what is still outstanding.
+     */
+    private static async assertWithinRequisition(
+        requisitionId: string,
+        items: { variantId: string; orderedQuantity: number }[],
+        tenantId: string,
+        tx: any,
+        excludePurchaseOrderId?: string
+    ): Promise<void> {
+        const remaining = await this.getRequisitionRemaining(requisitionId, tenantId, tx, excludePurchaseOrderId);
+
+        const requested = new Map<string, number>();
+        for (const item of items) {
+            requested.set(item.variantId, (requested.get(item.variantId) ?? 0) + item.orderedQuantity);
+        }
+
+        for (const [variantId, quantity] of requested) {
+            const line = remaining.get(variantId);
+            if (!line) {
+                throw new Error('Items not approved on the requisition cannot be added to its purchase order');
+            }
+            if (quantity > line.quantity) {
+                throw new Error(`${line.name}: only ${line.quantity} left to order on the requisition`);
+            }
+        }
+    }
+
+    /**
      * Update a DRAFT purchase order (supplier, dates, notes, items).
      * Replaces all items when items array is provided.
      */
@@ -193,6 +273,10 @@ export class PurchaseOrderService {
             }
             if (existing.status !== 'DRAFT') {
                 throw new Error('Only DRAFT purchase orders can be updated');
+            }
+
+            if (data.items && existing.requisitionId) {
+                await this.assertWithinRequisition(existing.requisitionId, data.items, tenantId, tx, purchaseOrderId);
             }
 
             // Replace items if provided
@@ -283,119 +367,11 @@ export class PurchaseOrderService {
         branchId: string,
         data: ReceivePurchaseOrderInput
     ): Promise<PurchaseOrderWithItems> {
-        return await prisma.$transaction(async (tx) => {
-            const po = await tx.purchaseOrder.findFirst({
-                where: { id: purchaseOrderId, tenantId, branchId, deletedAt: null },
-                include: { items: { where: { deletedAt: null } } },
-            });
+        await GoodsReceiptService.quickReceive(purchaseOrderId, tenantId, branchId, data.receivedBy, data.items);
 
-            if (!po) throw new Error('Purchase order not found');
-            if (po.status === 'DRAFT') throw new Error('Cannot receive a DRAFT purchase order — send it first');
-            if (po.status === 'RECEIVED' || po.isLocked) throw new Error('Purchase order already fully received or locked');
-            if (po.status === 'CANCELLED') throw new Error('Cannot receive a cancelled purchase order');
-
-            for (const receivedItem of data.items) {
-                const poItem = po.items.find((i) => i.variantId === receivedItem.variantId);
-                if (!poItem) {
-                    throw new Error(`Variant ${receivedItem.variantId} not found in purchase order`);
-                }
-
-                await tx.purchaseOrderItem.update({
-                    where: { id: poItem.id },
-                    data: {
-                        receivedQuantity: receivedItem.receivedQuantity,
-                        damagedQuantity: receivedItem.damagedQuantity,
-                    },
-                });
-
-                // Find or create inventory record (creates with 0 quantity - not a direct update)
-                let inventory = await tx.inventory.findFirst({
-                    where: {
-                        tenantId,
-                        branchId,
-                        variantId: receivedItem.variantId,
-                        deletedAt: null,
-                    },
-                });
-
-                if (!inventory) {
-                    // Create inventory shell with 0 quantity
-                    // Stock will be added via StockMovementService
-                    inventory = await tx.inventory.create({
-                        data: {
-                            id: uuidv4(),
-                            tenantId,
-                            branchId,
-                            variantId: receivedItem.variantId,
-                            productId: receivedItem.variantId, // Legacy field - use variantId
-                            availableQuantity: 0,
-                            reservedQuantity: 0,
-                            damagedQuantity: 0,
-                            averageCost: 0,
-                            lastPurchaseCost: 0,
-                        },
-                    });
-                }
-
-                const unitCost = Number(poItem.unitPrice);
-                const receivedQty = receivedItem.receivedQuantity;
-                const damagedQty = receivedItem.damagedQuantity;
-
-                // GOLDEN RULE: Record stock movements - inventory cache is updated atomically
-                if (receivedQty > 0) {
-                    await StockMovementService.recordPurchaseReceipt(
-                        {
-                            tenantId,
-                            branchId,
-                            inventoryId: inventory.id,
-                            quantity: receivedQty,
-                            unitCost,
-                            referenceId: purchaseOrderId,
-                            notes: `Received from PO ${po.poNumber}`,
-                            movedBy: data.receivedBy,
-                        },
-                        tx
-                    );
-                }
-
-                if (damagedQty > 0) {
-                    await StockMovementService.recordDamage(
-                        {
-                            tenantId,
-                            branchId,
-                            inventoryId: inventory.id,
-                            quantity: damagedQty,
-                            unitCost,
-                            referenceId: purchaseOrderId,
-                            notes: `Damaged items from PO ${po.poNumber}`,
-                            movedBy: data.receivedBy,
-                        },
-                        tx
-                    );
-                }
-            }
-
-            const allItemsReceived = data.items.every((item) => {
-                const poItem = po.items.find((i) => i.variantId === item.variantId);
-                return poItem && item.receivedQuantity + item.damagedQuantity === poItem.orderedQuantity;
-            });
-
-            const status: PurchaseOrderStatus = allItemsReceived ? 'RECEIVED' : 'PARTIALLY_RECEIVED';
-
-            const updatedPO = await tx.purchaseOrder.update({
-                where: { id: purchaseOrderId },
-                data: {
-                    status,
-                    receivedAt: new Date(),
-                    receivedBy: data.receivedBy,
-                    isLocked: allItemsReceived,
-                    version: { increment: 1 },
-                },
-                include: PO_INCLUDE,
-            });
-
-            return this.mapPurchaseOrder(updatedPO);
-        });
+        const updated = await this.getPurchaseOrderById(purchaseOrderId, tenantId, branchId);
+        if (!updated) throw new Error('Purchase order not found after receiving');
+        return updated;
     }
 
     /**
@@ -426,6 +402,8 @@ export class PurchaseOrderService {
             status?: PurchaseOrderStatus;
             supplierId?: string;
             requisitionId?: string;
+            dateFrom?: Date;
+            dateTo?: Date;
             page?: number;
             limit?: number;
         }
@@ -434,6 +412,13 @@ export class PurchaseOrderService {
         const limit = Number(options?.limit) || 50;
         const skip = (page - 1) * limit;
 
+        const dateFrom = options?.dateFrom;
+        const dateTo = options?.dateTo;
+        // Treat dateTo as inclusive of the whole day when it carries no time component.
+        const dateToInclusive = dateTo
+            ? new Date(dateTo.getFullYear(), dateTo.getMonth(), dateTo.getDate(), 23, 59, 59, 999)
+            : undefined;
+
         const where: any = {
             tenantId,
             branchId,
@@ -441,6 +426,12 @@ export class PurchaseOrderService {
             ...(options?.status && { status: options.status }),
             ...(options?.supplierId && { supplierId: options.supplierId }),
             ...(options?.requisitionId && { requisitionId: options.requisitionId }),
+            ...((dateFrom || dateToInclusive) && {
+                orderDate: {
+                    ...(dateFrom && { gte: dateFrom }),
+                    ...(dateToInclusive && { lte: dateToInclusive }),
+                },
+            }),
         };
 
         const [orders, total] = await Promise.all([
@@ -544,10 +535,13 @@ export class PurchaseOrderService {
 
         const prefix = `PO-${year}${month}`;
 
+        // poNumber is only unique per tenant (unique_tenant_po_number), not per branch, so the
+        // sequence must be counted across the whole tenant — branch-scoping this lookup causes
+        // every branch to independently generate "PO-YYYYMM-0001" first, colliding with each
+        // other under that tenant-wide constraint.
         const lastPO = await db.purchaseOrder.findFirst({
             where: {
                 tenantId,
-                branchId,
                 poNumber: {
                     startsWith: prefix,
                 },

@@ -57,6 +57,12 @@ export class AuthService {
 
             const completeUser: any = UserModel.getPublicUser(user);
 
+            // getPublicUser only copies raw DB columns (branchId, currentBranchId) — branch-scoped
+            // endpoints key off req.auth.activeBranchId (falling back to branchId), so without this
+            // every fresh login/token-refresh silently resets the active branch back to the user's
+            // home branch, even if they'd switched to and were last working in a different one.
+            completeUser.activeBranchId = user.currentBranchId || user.branchId;
+
             const { permissions } = await this.verifyUserPrivileges(user.roleId);
             completeUser.permissions = permissions || [];
 
@@ -388,6 +394,7 @@ export class AuthService {
             }
 
             const completeUser: any = UserModel.getPublicUser(user);
+            completeUser.activeBranchId = decoded.activeBranchId || user.currentBranchId || user.branchId;
 
             const { permissions } = await this.verifyUserPrivileges(user.roleId);
             completeUser.permissions = permissions || [];
@@ -569,10 +576,17 @@ export class AuthService {
 
         const updatedUser = await UserModel.findById(userId);
         const roleData = await UserService.getRoleWithPermissions(updatedUser!.roleId);
-        const completeUser = UserService.getPublicUser({
+        const completeUser: any = UserService.getPublicUser({
             ...updatedUser!,
             currentBranchId: targetBranchId
         }, roleData || {});
+
+        if (updatedUser!.roleId) {
+            const role = await RoleModel.findById(updatedUser!.roleId);
+            if (role) {
+                completeUser.role = role;
+            }
+        }
 
         const token = this.generateJWTToken({
             ...completeUser,

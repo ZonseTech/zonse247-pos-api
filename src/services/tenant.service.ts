@@ -38,6 +38,14 @@ export class TenantService {
             if (query.status) where.status = query.status;
             if (query.businessType) where.businessType = query.businessType;
             if (query.country) where.country = query.country;
+            if (query.search) {
+                where.OR = [
+                    { businessName: { contains: query.search } },
+                    { ownerName: { contains: query.search } },
+                    { email: { contains: query.search } },
+                    { tenantCode: { contains: query.search } },
+                ];
+            }
 
             const [tenants, total] = await Promise.all([
                 prisma.tenant.findMany({
