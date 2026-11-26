@@ -113,6 +113,7 @@ const report = {
     stockMovements: { restored: 0, skipped: 0, failed: 0, byType: {} as Record<string, number> },
     statusUpdates: [] as { saleId: string; saleNumber: string; from: string; to: string }[],
     renumbered: [] as { saleId: string; from: string; to: string }[],
+    paymentMethodsRemapped: [] as { from: string; to: string | null; name?: string }[],
     failures: [] as { table: string; id: string; ref?: string; error: string }[],
     inventory: [] as { inventoryId: string; before: number; delta: number; after: number }[],
 };
@@ -254,6 +255,54 @@ function sameValue(a: any, b: any, isDate: boolean): boolean {
     return norm(a) === norm(b);
 }
 
+/**
+ * Map a terminal's payment method id to one the server has for the same
+ * tenant: the id itself, else a method with the same name, else one with the
+ * same category (preferring the sale's branch), else null.
+ */
+function paymentMethodResolver(tx: any, sqlite: SqliteDb) {
+    const cache = new Map<string, string | null>();
+    const hasLocalTable =
+        sqlite.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'payment_methods'").all().length > 0;
+
+    return async (methodId: any, tenantId: any, branchId: any): Promise<string | null> => {
+        if (methodId === null || methodId === undefined || methodId === '') return null;
+        const key = `${tenantId}|${branchId}|${methodId}`;
+        if (cache.has(key)) return cache.get(key)!;
+
+        let resolved: string | null = null;
+        let localName: string | undefined;
+        const exact = (await tx.$queryRawUnsafe(
+            'SELECT method_id FROM payment_methods WHERE method_id = ? AND tenant_id = ? LIMIT 1',
+            methodId, tenantId
+        )) as Row[];
+
+        if (exact.length > 0) {
+            resolved = String(methodId);
+        } else {
+            const local = hasLocalTable
+                ? (sqlite.prepare('SELECT * FROM payment_methods WHERE method_id = ? LIMIT 1').all(methodId)[0] as Row | undefined)
+                : undefined;
+            localName = local?.name ?? undefined;
+            if (local) {
+                const match = (await tx.$queryRawUnsafe(
+                    `SELECT method_id FROM payment_methods
+                     WHERE tenant_id = ? AND deleted_at IS NULL
+                       AND (LOWER(name) = LOWER(?) OR (? IS NOT NULL AND category = ?))
+                     ORDER BY (LOWER(name) = LOWER(?)) DESC, (branch_id = ?) DESC, (parent_method_id IS NOT NULL) DESC
+                     LIMIT 1`,
+                    tenantId, local.name ?? '', local.category ?? null, local.category ?? null, local.name ?? '', branchId
+                )) as Row[];
+                if (match.length > 0) resolved = String(match[0].method_id);
+            }
+            report.paymentMethodsRemapped.push({ from: String(methodId), to: resolved, name: localName });
+        }
+
+        cache.set(key, resolved);
+        return resolved;
+    };
+}
+
 // ──────────────────────────────────────────────────────────────────
 // Restore
 // ──────────────────────────────────────────────────────────────────
@@ -300,6 +349,12 @@ async function restore(tx: any, sqlite: SqliteDb) {
 
     // ── Restore sales with their items and payments ───────────
     log.head('Restoring sales…');
+    const resolveMethod = paymentMethodResolver(tx, sqlite);
+    const methodOverride = async (info: TableInfo, row: Row, overrides: Row, tenantId: any, branchId: any) => {
+        if (!info.columns.includes('payment_method_id')) return;
+        const resolved = await resolveMethod(row.payment_method_id, tenantId, branchId);
+        if (resolved !== row.payment_method_id) overrides.payment_method_id = resolved;
+    };
     const restoredOrPresent = new Set(serverSales);
     for (const sale of sales) {
         const saleId = sale.sale_id;
@@ -325,10 +380,15 @@ async function restore(tx: any, sqlite: SqliteDb) {
                     overrides.notes = sale.notes ? `${sale.notes} ${note}` : note;
                     report.renumbered.push({ saleId, from: sale.sale_number, to: overrides.sale_number });
                 }
+                await methodOverride(T.sales, sale, overrides, sale.tenant_id, sale.branch_id);
                 rows.push({ info: T.sales, row: sale, overrides });
             }
             for (const item of items) rows.push({ info: T.items, row: item });
-            for (const payment of payments) rows.push({ info: T.payments, row: payment });
+            for (const payment of payments) {
+                const overrides: Row = {};
+                await methodOverride(T.payments, payment, overrides, sale.tenant_id, sale.branch_id);
+                rows.push({ info: T.payments, row: payment, overrides });
+            }
             await insertAll(tx, rows);
 
             if (saleMissing) report.sales.restored++;
@@ -343,6 +403,9 @@ async function restore(tx: any, sqlite: SqliteDb) {
     }
     log.ok(`Sales restored: ${report.sales.restored}, items: ${report.saleItems.restored}, payments: ${report.salePayments.restored}`);
     if (report.renumbered.length) log.warn(`Renumbered (clash with another terminal): ${report.renumbered.length}`);
+    for (const m of report.paymentMethodsRemapped) {
+        log.warn(`Payment method ${m.from}${m.name ? ` (${m.name})` : ''} not on server → ${m.to ?? 'NULL'}`);
+    }
     if (report.sales.failed) log.err(`Sales not restored: ${report.sales.failed}`);
 
     // ── Status of sales the terminal changed later ────────────
