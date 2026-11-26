@@ -151,7 +151,7 @@ jobs:
 
             healthy() {
               for attempt in $(seq 1 45); do
-                curl -fsS -o /dev/null "http://127.0.0.1:$1/health" && return 0
+                curl -fs -o /dev/null "http://127.0.0.1:$1/health" && return 0
                 sleep 2
               done
               return 1
@@ -183,13 +183,25 @@ jobs:
             PORT="${PORT:-3000}"
 
             echo "🧪 Pre-flight check for $SHORT on port $PREFLIGHT_PORT..."
-            (cd "$RELEASE" && exec env NODE_ENV=production SERVER_PORT=$PREFLIGHT_PORT node dist/main.js) > "$BASE/shared/logs/preflight.log" 2>&1 &
+            PREFLIGHT_LOG="$BASE/shared/logs/preflight.log"
+            (cd "$RELEASE" && echo "node $(node -v) at $(command -v node)" && exec env NODE_ENV=production SERVER_PORT=$PREFLIGHT_PORT node dist/main.js) > "$PREFLIGHT_LOG" 2>&1 < /dev/null &
             PREFLIGHT_PID=$!
             if ! healthy "$PREFLIGHT_PORT"; then
-              kill "$PREFLIGHT_PID" 2>/dev/null || true
-              rm -rf "$RELEASE"
               echo "❌ $SHORT failed pre-flight; production untouched"
-              tail -n 30 "$BASE/shared/logs/preflight.log" || true
+              if kill -0 "$PREFLIGHT_PID" 2>/dev/null; then
+                echo "Pre-flight process is still running but never answered /health"
+                kill "$PREFLIGHT_PID" 2>/dev/null || true
+              else
+                STATUS=0
+                wait "$PREFLIGHT_PID" || STATUS=$?
+                echo "Pre-flight process exited with status $STATUS"
+              fi
+              echo "--- preflight.log ($(wc -c < "$PREFLIGHT_LOG") bytes) ---"
+              tail -n 60 "$PREFLIGHT_LOG" || true
+              echo "--- release contents ---"
+              ls -la "$RELEASE" || true
+              ls "$RELEASE/dist" | head -n 20 || true
+              rm -rf "$RELEASE"
               exit 1
             fi
             kill "$PREFLIGHT_PID" 2>/dev/null || true
