@@ -4,30 +4,57 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
-    inputs:
-      environment:
-        description: "Deployment environment"
-        required: true
-        default: "production"
-        type: choice
-        options:
-          - production
-          - staging
+
+permissions:
+  contents: read
 
 concurrency:
   group: deploy-production
   cancel-in-progress: false
 
 jobs:
+  probe:
+    name: Read server Node version
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      node-major: ${{ steps.version.outputs.major }}
+
+    steps:
+      - name: 🔎 Ask the server
+        id: ssh
+        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1.2.5
+        with:
+          host: ${{ secrets.API_HOST }}
+          username: ${{ secrets.API_USERNAME }}
+          key: ${{ secrets.API_SSH_KEY }}
+          capture_stdout: true
+          script: echo "NODE_MAJOR=$(node -p "process.versions.node.split('.')[0]")"
+
+      - name: 📌 Record version
+        id: version
+        env:
+          STDOUT: ${{ steps.ssh.outputs.stdout }}
+        run: |
+          MAJOR="$(echo "$STDOUT" | grep -oE 'NODE_MAJOR=[0-9]+' | tail -n 1 | cut -d= -f2)"
+          if [ -z "$MAJOR" ]; then
+            echo "❌ Could not read the server's Node version"
+            exit 1
+          fi
+          echo "Server runs Node $MAJOR"
+          echo "major=$MAJOR" >> "$GITHUB_OUTPUT"
+
   build:
     name: Build & Test
+    needs: probe
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     services:
       mysql:
         image: mysql:8.0
         env:
-          MYSQL_ROOT_PASSWORD: Ccera-2017
+          MYSQL_ROOT_PASSWORD: ci-test-password
           MYSQL_DATABASE: pos
         ports:
           - 3306:3306
@@ -38,22 +65,22 @@ jobs:
           --health-retries=5
 
     env:
-      DATABASE_URL: "mysql://root:Ccera-2017@localhost:3306/pos"
+      DATABASE_URL: "mysql://root:ci-test-password@localhost:3306/pos"
 
     steps:
       - name: 📥 Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: 🔧 Setup Node.js
-        uses: actions/setup-node@v4
+      - name: 🔧 Setup Node.js ${{ needs.probe.outputs.node-major }}
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: "20.x"
+          node-version: ${{ needs.probe.outputs.node-major }}
           cache: "npm"
 
       - name: 📦 Install dependencies
         run: npm ci
 
-      - name: 🗃️ Setup MySQL schema & generate client
+      - name: 🗃️ Setup MySQL schema & generate clients
         run: |
           chmod +x ./scripts/db.sh
           ./scripts/db.sh generate mysql
@@ -68,87 +95,144 @@ jobs:
       - name: 🏗️ Build project
         run: npm run build:mysql
 
-      - name: 📤 Upload build artifacts
-        uses: actions/upload-artifact@v4
+      - name: 📦 Install production dependencies only
+        run: npm ci --omit=dev
+
+      - name: 🗜️ Package release
+        run: tar -czf api.tar.gz dist node_modules package.json package-lock.json ecosystem.config.js
+
+      - name: 📤 Upload release
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: build-mysql
-          path: |
-            dist/
-            package.json
-            package-lock.json
-            ecosystem.config.js
-            deploy.sh
-            scripts/
-            src/databases/prisma/schema.mysql.prisma
-            src/databases/prisma/client.mysql.ts
-            src/databases/prisma/migrations-mysql/
-          retention-days: 1
+          name: api-${{ github.sha }}
+          path: api.tar.gz
+          retention-days: 7
 
   deploy:
-    name: Deploy to Ubuntu
+    name: Release to production
     needs: build
     runs-on: ubuntu-latest
-    environment: ${{ github.event.inputs.environment || 'production' }}
+    timeout-minutes: 20
+    environment: production
 
     steps:
-      - name: 📥 Checkout code
-        uses: actions/checkout@v4
+      - name: 📥 Download release
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: api-${{ github.sha }}
 
-      - name: 📤 Deploy to Ubuntu Server
-        uses: appleboy/ssh-action@v1.0.3
+      - name: 📤 Upload release to server
+        uses: appleboy/scp-action@ff85246acaad7bdce478db94a363cd2bf7c90345 # v1.0.0
         with:
           host: ${{ secrets.API_HOST }}
           username: ${{ secrets.API_USERNAME }}
           key: ${{ secrets.API_SSH_KEY }}
+          source: api.tar.gz
+          target: /var/www/api-app/incoming/${{ github.sha }}
+
+      - name: 🚀 Activate release
+        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1.2.5
+        env:
+          SHA: ${{ github.sha }}
+        with:
+          host: ${{ secrets.API_HOST }}
+          username: ${{ secrets.API_USERNAME }}
+          key: ${{ secrets.API_SSH_KEY }}
+          envs: SHA
+          command_timeout: 10m
           script: |
-            set -e
+            set -eu
 
-            APP_DIR="/var/www/api"
+            BASE=/var/www/api-app
+            LEGACY=/var/www/api
+            RELEASE="$BASE/releases/$SHA"
+            PREFLIGHT_PORT=3101
+            SHORT="$(echo "$SHA" | cut -c1-7)"
 
-            echo "🚀 Starting deployment..."
+            healthy() {
+              for attempt in $(seq 1 45); do
+                curl -fsS -o /dev/null "http://127.0.0.1:$1/health" && return 0
+                sleep 2
+              done
+              return 1
+            }
 
-            # Create directory if it doesn't exist
-            mkdir -p $APP_DIR
-            cd $APP_DIR
+            mkdir -p "$RELEASE" "$BASE/shared/logs" "$BASE/shared/storage"
 
-            # Check if it's a git repository
-            if [ ! -d .git ]; then
-              echo "🔄 Initial clone..."
-              git clone https://github.com/ZonseTech/zonse247-pos-api.git /var/www/api-temp
-              mv /var/www/api-temp/* $APP_DIR/
-              mv /var/www/api-temp/.* $APP_DIR/ 2>/dev/null || true
-              rm -rf /var/www/api-temp
-            else
-              echo "🔄 Resetting local changes and pulling..."
-              git reset --hard HEAD
-              git clean -fd
-              git pull origin main --force
+            if [ ! -f "$BASE/shared/.env" ]; then
+              if [ -f "$LEGACY/.env" ]; then
+                cp -p "$LEGACY/.env" "$BASE/shared/.env"
+                echo "📋 Copied .env from $LEGACY"
+              else
+                echo "❌ No .env in $BASE/shared or $LEGACY"
+                exit 1
+              fi
+            fi
+            if [ -d "$LEGACY/storage" ] && [ -z "$(ls -A "$BASE/shared/storage")" ]; then
+              cp -a "$LEGACY/storage/." "$BASE/shared/storage/"
+              echo "📋 Copied storage from $LEGACY"
             fi
 
-            echo "📦 Installing dependencies..."
-            npm ci
+            tar -xzf "$BASE/incoming/$SHA/api.tar.gz" -C "$RELEASE"
+            rm -rf "$BASE/incoming/$SHA"
+            ln -sfn "$BASE/shared/.env" "$RELEASE/.env"
+            ln -sfn "$BASE/shared/storage" "$RELEASE/storage"
+            ln -sfn "$BASE/shared/logs" "$RELEASE/logs"
 
-            echo "🗃️ Setting up MySQL database..."
-            chmod +x ./scripts/db.sh
-            ./scripts/db.sh generate mysql
+            PORT="$(sed -n 's/^SERVER_PORT=["]\{0,1\}\([0-9]*\).*/\1/p' "$BASE/shared/.env" | tail -n 1)"
+            PORT="${PORT:-3000}"
 
-            echo "🔄 Running database migrations..."
-            ./scripts/db.sh deploy mysql
+            echo "🧪 Pre-flight check for $SHORT on port $PREFLIGHT_PORT..."
+            (cd "$RELEASE" && exec env NODE_ENV=production SERVER_PORT=$PREFLIGHT_PORT node dist/main.js) > "$BASE/shared/logs/preflight.log" 2>&1 &
+            PREFLIGHT_PID=$!
+            if ! healthy "$PREFLIGHT_PORT"; then
+              kill "$PREFLIGHT_PID" 2>/dev/null || true
+              rm -rf "$RELEASE"
+              echo "❌ $SHORT failed pre-flight; production untouched"
+              tail -n 30 "$BASE/shared/logs/preflight.log" || true
+              exit 1
+            fi
+            kill "$PREFLIGHT_PID" 2>/dev/null || true
 
-            echo "🏗️ Building application..."
-            npm run build:mysql
+            pm2_cwd() {
+              pm2 jlist 2>/dev/null | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{try{const a=JSON.parse(s.slice(s.indexOf('['))).find(p=>p.name==='api');process.stdout.write(a?a.pm2_env.pm_cwd:'')}catch{}})"
+            }
 
-            echo "🔄 Restarting application with PM2..."
-            if pm2 show api > /dev/null 2>&1; then
-              pm2 reload ecosystem.config.js --env production
-            else
-              pm2 start ecosystem.config.js --env production
+            PREVIOUS=""
+            if [ -L "$BASE/current" ]; then
+              PREVIOUS="$(readlink -f "$BASE/current")"
             fi
 
-            pm2 save
+            switch_to() {
+              ln -sfn "$1" "$BASE/current.next"
+              mv -Tf "$BASE/current.next" "$BASE/current"
+              case "$(pm2_cwd)" in
+                "$BASE"/*)
+                  pm2 startOrReload "$BASE/current/ecosystem.config.js" --env production --update-env
+                  ;;
+                *)
+                  pm2 delete api >/dev/null 2>&1 || true
+                  pm2 start "$BASE/current/ecosystem.config.js" --env production
+                  ;;
+              esac
+            }
 
-            # Reload Nginx
-            sudo nginx -t && sudo systemctl reload nginx
+            switch_to "$RELEASE"
 
-            echo "✅ Deployment completed successfully!"
-            pm2 status
+            if healthy "$PORT"; then
+              pm2 save
+              ls -1dt "$BASE"/releases/* | tail -n +6 | xargs -r rm -rf
+              echo "✅ Released $SHORT on port $PORT"
+              exit 0
+            fi
+
+            echo "❌ $SHORT unhealthy after switch"
+            if [ -n "$PREVIOUS" ] && [ -d "$PREVIOUS" ]; then
+              switch_to "$PREVIOUS"
+              healthy "$PORT" && echo "↩️ Rolled back to $(basename "$PREVIOUS" | cut -c1-7)"
+            elif [ -f "$LEGACY/ecosystem.config.js" ]; then
+              pm2 delete api >/dev/null 2>&1 || true
+              pm2 start "$LEGACY/ecosystem.config.js" --env production
+              healthy "$PORT" && echo "↩️ Rolled back to the $LEGACY checkout"
+            fi
+            exit 1
