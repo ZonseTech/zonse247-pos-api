@@ -125,7 +125,7 @@
     "nodemailer": "^7.0.3",
     "papaparse": "^5.5.3",
     "ping": "^0.4.4",
-    "qs": "^6.15.1",
+    "qs": "^6.17.1",
     "sanitize-filename": "^1.6.3",
     "serialport": "^13.0.0",
     "socket.io": "^4.8.3",
